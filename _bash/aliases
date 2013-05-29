@@ -1,0 +1,74 @@
+# back one directory
+alias cd..="cd .."
+alias ..="cd.."
+
+# back two directories
+alias cd...="cd ../.."
+alias ...="cd..."
+
+# back three directories
+alias cd....="cd ../../.."
+alias ....="cd...."
+
+# back four directories
+alias cd.....="cd ../../../.."
+alias .....="cd....."
+
+# back five directories
+alias cd......="cd ../../../../.."
+alias ......="cd......"
+
+# goto home directory
+alias ~="cd ~"
+
+# goto previous directory
+alias -- -="cd -"
+
+# modified commands
+alias diff='colordiff'              # requires colordiff package
+alias grep='grep --color=auto'
+alias more='less'
+alias df='df -h'
+alias du='du -c -h'
+alias mkdir='mkdir -p -v'
+alias nano='nano -w'
+alias ping='ping -c 5'
+
+# new commands
+alias da='date "+%A, %B %d, %Y [%T]"'
+alias du1='du --max-depth=1'
+alias hist='history | grep $1'      # requires an argument
+alias openports='netstat --all --numeric --programs --inet'
+alias pg='ps -Af | grep $1'         # requires an argument
+alias reload=". ~/.bash_profile"
+
+# privileged access
+if [ $UID -ne 0 ]; then
+    alias sudo='sudo -E' # keep env
+    alias scat='sudo cat'
+    alias svim='sudo vim'
+    alias root='sudo su'
+    alias reboot='sudo reboot'
+    alias update='sudo pacman -Su'
+    alias netcfg='sudo netcfg2'
+fi
+
+# ls
+alias ls='ls -hF --color=auto'
+alias lr='ls -R'                    # recursive ls
+alias ll='ls -l'
+alias lsd='ls -l | grep "^d"'       # list only directories
+alias la='ll -A'
+alias lx='ll -BX'                   # sort by extension
+alias lz='ll -rS'                   # sort by size
+alias lt='ll -rt'                   # sort by date
+alias lm='la | more'
+
+# safety features
+alias cp='cp -i'
+alias mv='mv -i'
+alias rm='rm -I'                    # 'rm -i' prompts for every file
+alias ln='ln -i'
+alias chown='chown --preserve-root'
+alias chmod='chmod --preserve-root'
+alias chgrp='chgrp --preserve-root'

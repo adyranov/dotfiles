@@ -1,0 +1,20 @@
+# If set, a command name that is the name of a directory is executed as if it were the argument to the cd command.  This option is only used by interactive shells
+shopt -s autocd
+
+# If set, minor errors in the spelling of a directory component in a cd command will be corrected.
+shopt -s cdspell
+
+# If  set, bash lists  the  status of any stopped and running jobs before exiting an interactive shell. 
+shopt -s checkjobs
+
+# If set, bash attempts to save all lines of a multiple-line command in the same history entry
+shopt -s cmdhist
+
+# If set, bash attempts spelling correction on directory names during word completion if the directory name initially supplied does not exist.
+shopt -s dirspell
+
+# If set, the pattern ** used in a pathname expansion context will match all files and zero or more directories and subdirectories.
+shopt -s globstar
+
+#  If set, the history list is appended to the file named by the value of the HISTFILE variable when the shell exits, rather than overwriting the file.
+shopt -s histappend
