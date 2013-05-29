@@ -16,4 +16,4 @@ done
 unset file
 
 # Set dircolors
-[[ -f ~/.dircolors ]] && eval `dircolors ~/.dircolors`
+which dircolors &> /dev/null && eval `dircolors -b ~/.dircolors`

@@ -54,7 +54,12 @@ if [ $UID -ne 0 ]; then
 fi
 
 # ls
-alias ls='ls -hF --color=auto'
+
+if ls --color &>/dev/null; then
+    alias ls='ls -hF --color=auto' # GNU ls
+else
+    alias ls='ls -hFG' # BSD ls
+fi
 alias lr='ls -R'                    # recursive ls
 alias ll='ls -l'
 alias lsd='ls -l | grep "^d"'       # list only directories
