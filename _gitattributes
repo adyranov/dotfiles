@@ -1,0 +1,14 @@
+* text=auto
+
+*.java text
+*.xml text
+*.txt text
+*.properties text
+
+*.jar binary
+*.so binary
+*.dll binary
+
+*.doc diff=word
+*.jpg diff=exif
+*_ru.properties diff=ascii2native

@@ -1,0 +1,19 @@
+#
+# ~/.bashrc
+#
+
+# If not running interactively, don't do anything
+[[ $- != *i* ]] && return
+
+[[ -f /etc/bash_completion ]] && . /etc/bash_completion
+
+[[ -f /etc/bashrc ]] && . /etc/bashrc
+
+# Read configuration from files
+for file in ~/.bash/{aliases,completions,exports,functions,options,prompt}; do
+    [ -r "$file" ] && source "$file"
+done
+unset file
+
+# Set dircolors
+[[ -f ~/.dircolors ]] && eval `dircolors ~/.dircolors`

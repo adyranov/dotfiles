@@ -1,0 +1,63 @@
+build_clean_all () {
+        pushd .;
+        currDir=`pwd`
+        for i in `find $currDir -maxdepth 5 -type d \( -name ".git" -o -name ".svn" \)`; do
+		if [ -f $i/../pom.xml ]
+		then
+	                cd $i/../ > /dev/null;
+			pwd;
+                	mvn clean > /dev/null;
+		fi
+                if [ -f $i/../build.gradle ]
+                then
+                    	cd $i/../ > /dev/null;
+                        pwd;
+                        gradle clean > /dev/null;
+                fi
+        done;
+        popd;
+}
+
+mvn_plugin_updates () {
+	mvn versions:display-plugin-updates | grep -- "->" | sort | uniq
+}
+
+mvn_dependency_updates () {
+        mvn versions:display-dependency-updates | grep -- "->" | sort | uniq
+}
+
+vcs_update_all () {
+        pushd .;
+	currDir=`pwd`
+        for i in `find $currDir -maxdepth 5 -type d -name ".git"`; do
+                cd $i/../ > /dev/null;
+		pwd;
+                git pull > /dev/null;
+	done;
+        for i in `find $currDir -maxdepth 5 -type d -name ".svn"`; do
+                cd $i/../ > /dev/null;
+		pwd;
+                svn up > /dev/null;
+        done;
+        popd;
+}
+
+svn_cleanup_all () {
+        for i in `ls`; do
+                cmd=''
+                if [ -d $i/.svn ]
+               	then
+                        cmd='svn cleanup';
+                fi
+
+                if [ ! -z "$cmd" ]
+                then
+                        echo $cmd $i;
+                        pushd .;
+                        cd $i;
+                       	eval $cmd;
+                        popd;
+               	fi
+        done;
+}
+
