@@ -79,3 +79,5 @@ if ls --color &>/dev/null; then # Not BSD
     alias chmod='chmod --preserve-root'
     alias chgrp='chgrp --preserve-root'
 fi
+
+alias rpmbuild-md5='rpmbuild --define "_source_filedigest_algorithm md5" --define "_binary_filedigest_algorithm md5"'
