@@ -35,7 +35,7 @@
 	editor = gedit
 	whitespace = trailing-space,space-before-tab
 [branch]
-	autosetupmerge = true
+	autosetuprebase = always
 [merge]
 	tool = mymeld
         summary = true
