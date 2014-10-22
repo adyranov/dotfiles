@@ -72,7 +72,7 @@ alias lm='la | more'
 # safety features
 alias cp='cp -i'
 alias mv='mv -i'
-alias rm='rm -I'                    # 'rm -i' prompts for every file
+alias rm='rm -i'
 alias ln='ln -i'
 if ls --color &>/dev/null; then # Not BSD
     alias chown='chown --preserve-root'

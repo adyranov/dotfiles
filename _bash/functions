@@ -1,7 +1,7 @@
 build_clean_all () {
         pushd .;
         currDir=`pwd`
-        for i in `find $currDir -maxdepth 5 -type d \( -name ".git" -o -name ".svn" \)`; do
+        for i in `find $currDir -maxdepth 7 -type d \( -name ".git" -o -name ".svn" \)`; do
 		if [ -f $i/../pom.xml ]
 		then
 	                cd $i/../ > /dev/null;
@@ -12,7 +12,7 @@ build_clean_all () {
                 then
                     	cd $i/../ > /dev/null;
                         pwd;
-                        gradle clean > /dev/null;
+                        ./gradlew clean > /dev/null;
                 fi
         done;
         popd;
@@ -29,7 +29,7 @@ mvn_dependency_updates () {
 vcs_update_all () {
         pushd .;
 	currDir=`pwd`
-        for i in `find $currDir -maxdepth 5 -type d -name ".git"`; do
+        for i in `find $currDir -maxdepth 7 -type d -name ".git"`; do
                 cd $i/../ > /dev/null;
 		pwd;
                 git pull > /dev/null;
@@ -38,7 +38,7 @@ vcs_update_all () {
 		    return;
 		fi
 	done;
-        for i in `find $currDir -maxdepth 5 -type d -name ".svn"`; do
+        for i in `find $currDir -maxdepth 7 -type d -name ".svn"`; do
                 cd $i/../ > /dev/null;
 		pwd;
                 svn up > /dev/null;
@@ -50,22 +50,18 @@ vcs_update_all () {
         popd;
 }
 
-svn_cleanup_all () {
-        for i in `ls`; do
-                cmd=''
-                if [ -d $i/.svn ]
-               	then
-                        cmd='svn cleanup';
-                fi
-
-                if [ ! -z "$cmd" ]
-                then
-                        echo $cmd $i;
-                        pushd .;
-                        cd $i;
-                       	eval $cmd;
-                        popd;
-               	fi
+vcs_clean_ignored () {
+        pushd .;
+	currDir=`pwd`
+        for i in `find $currDir -maxdepth 7 -type d -name ".git"`; do
+                cd $i/../ > /dev/null;
+		pwd;
+		git clean -dfx
+	done;
+        for i in `find $currDir -maxdepth 7 -type d -name ".svn"`; do
+                cd $i/../ > /dev/null;
+		pwd;
+		svn status --no-ignore | grep '^I' | sed 's/^I       //' | xargs rm -rf
         done;
+        popd;
 }
-
