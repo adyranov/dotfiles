@@ -27,7 +27,7 @@ do
        restore_file ${target}
     else
         backup_file ${target}
-        ln -sfT ${source} ${target}
+        ln -sfn ${source} ${target}
     fi
 done
 

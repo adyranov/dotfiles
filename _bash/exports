@@ -15,5 +15,8 @@ export HISTCONTROL=ignoredups
 export HISTIGNORE="ls:ls *:cd:cd -:pwd;exit:date:* --help"
 
 # Path
-PATH=~/bin:~/Scripts/misc:~/Scripts/rsync:~/Scripts/tmux:~/Scripts/urxvt:${PATH}
-export PATH
+PATH="${PATH}"
+for i in `find $HOME/scripts/ -type d`; do
+	PATH="$i:$PATH"
+done;
+export PATH="$HOME/bin:$PATH"
