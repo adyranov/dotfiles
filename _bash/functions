@@ -26,7 +26,7 @@ mvn_dependency_updates () {
         mvn versions:display-dependency-updates | grep -- "->" | sort | uniq
 }
 
-vcs_update_all () {
+git_update_all () {
         pushd .;
 	currDir=`pwd`
         for i in `find $currDir -maxdepth 7 -type d -name ".git"`; do
@@ -38,6 +38,12 @@ vcs_update_all () {
 		    return;
 		fi
 	done;
+        popd;
+}
+
+svn_update_all () {
+        pushd .;
+	currDir=`pwd`
         for i in `find $currDir -maxdepth 7 -type d -name ".svn"`; do
                 cd $i/../ > /dev/null;
 		pwd;
@@ -48,6 +54,11 @@ vcs_update_all () {
 		fi
         done;
         popd;
+}
+
+vcs_update_all () {
+	git_update_all
+	svn_update_all
 }
 
 vcs_clean_ignored () {
