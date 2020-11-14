@@ -1,7 +1,0 @@
-*.jar binary
-*.so binary
-*.dll binary
-
-*.doc diff=word
-*.jpg diff=exif
-*_ru.properties diff=ascii2native

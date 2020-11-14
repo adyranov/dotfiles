@@ -1,0 +1,29 @@
+{{- if (eq .chezmoi.os "linux") -}}
+    #!/bin/bash
+
+    set -evo pipefail
+
+    sudo apt update
+    sudo apt install -y \
+    direnv \
+    fd-find \
+    jq \
+    ripgrep \
+    zsh
+
+    usermod -s /bin/zsh {{ .chezmoi.username }}
+
+{{- else if (eq .chezmoi.os "darwin") -}}
+    #!/bin/bash
+
+    set -evo pipefail
+
+    brew install \
+    direnv \
+    exa \
+    fd \
+    git-delta \
+    jq \
+    ripgrep
+
+{{- end -}}

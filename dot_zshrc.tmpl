@@ -1,0 +1,193 @@
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+# =============================================================================
+#                                   Exports
+# =============================================================================
+
+export LANG="en_US.UTF-8"
+export LC_ALL="en_US.UTF-8"
+export TERM="xterm-256color"
+export EDITOR=nano
+
+{{ if (contains "microsoft" .chezmoi.kernel.osrelease) }}
+# WSL-specific code
+export LIBGL_ALWAYS_INDIRECT="1"
+export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
+{{ end }}
+
+export PATH="${PATH}:$HOME/bin:${HOME}/.krew/bin"
+
+export FZF_DEFAULT_OPTS="--preview 'cat {}'"
+export FZF_DEFAULT_COMMAND='ag --nocolor -g ""'
+export FZF_DEFAULT_OPTS='
+--color fg:-1,bg:-1,hl:230,fg+:3,bg+:233,hl+:229
+--color info:150,prompt:110,spinner:150,pointer:167,marker:174
+'
+
+# =============================================================================
+#                                   Options
+# =============================================================================
+
+# Key timeout and character sequences
+KEYTIMEOUT=1
+
+# Skip the not really helping Debian global compinit
+skip_global_compinit=1
+
+# =============================================================================
+#                                   Theme
+# =============================================================================
+
+ZSH_THEME="powerlevel10k/powerlevel10k"
+POWERLEVEL9K_MODE="nerdfont-complete"
+POWERLEVEL9K_INSTANT_PROMPT="quiet"
+POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(dir dir_writable vcs)
+POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status kubecontext time)
+POWERLEVEL9K_PROMPT_ON_NEWLINE=true
+POWERLEVEL9K_KUBECONTEXT_BACKGROUND="blue"
+POWERLEVEL9K_KUBECONTEXT_FOREGROUND="gray"
+POWERLEVEL9K_KUBECONTEXT_SHOW_ON_COMMAND='kubectl|kubens|kubectx|oc|helm'
+POWERLEVEL9K_TIME_FORMAT="%D{%H:%M}"
+
+
+# =============================================================================
+#                                   Zinit
+# =============================================================================
+
+### Added by Zinit's installer
+if [[ ! -f $HOME/.zinit/bin/zinit.zsh ]]; then
+    print -P "%F{33}▒ %F{220}Installing %F{33}DHARMA%F{220} Initiative Plugin Manager (%F{33}zdharma/zinit%F{220})…%f"
+    command mkdir -p "$HOME/.zinit" && command chmod g-rwX "$HOME/.zinit"
+    command git clone --depth 1 https://github.com/zdharma/zinit "$HOME/.zinit/bin" && \
+        print -P "%F{33}▒ %F{34}Installation successful.%f%b" || \
+        print -P "%F{160}▒ The clone has failed.%f%b"
+fi
+
+source "$HOME/.zinit/bin/zinit.zsh"
+autoload -Uz _zinit
+(( ${+_comps} )) && _comps[zinit]=_zinit
+
+# Load a few important annexes, without Turbo
+# (this is currently required for annexes)
+
+zinit light-mode depth=1 for \
+    zinit-zsh/z-a-rust \
+    zinit-zsh/z-a-as-monitor \
+    zinit-zsh/z-a-patch-dl \
+    zinit-zsh/z-a-bin-gem-node
+
+### End of Zinit's installer chunk
+
+
+# zinit essential
+zinit wait lucid light-mode depth=1 for \
+  atinit"zicompinit; zicdreplay" \
+    zdharma/fast-syntax-highlighting \
+  atload"_zsh_autosuggest_start" \
+    zsh-users/zsh-autosuggestions \
+  blockf atpull'zinit creinstall -q .' \
+    zsh-users/zsh-completions \
+  atload"
+     bindkey '^[[A' history-substring-search-up
+     bindkey '^[[B' history-substring-search-down
+  " \
+    zsh-users/zsh-history-substring-search
+
+## Load synchronously
+zinit lucid light-mode depth=1 for \
+    OMZL::completion.zsh \
+    OMZL::directories.zsh \
+    OMZL::git.zsh \
+    OMZL::history.zsh \
+    OMZL::key-bindings.zsh \
+    OMZL::theme-and-appearance.zsh \
+    \
+    romkatv/powerlevel10k \
+    @asdf-vm/asdf \
+    has'npm' \
+        lukechilds/zsh-better-npm-completion \
+    has'helm' \
+        OMZP::helm \
+    has'kubectl' \
+        OMZP::kubectl \
+
+## Load asynchronously
+zinit wait lucid light-mode depth=1 for \
+    svn OMZP::colored-man-pages \
+    OMZP::command-not-found \
+    OMZP::encode64 \
+    svn OMZP::extract \
+    has'fasd' \
+        OMZP::fasd \
+    atload"unalias grv" \
+        OMZP::git \
+    OMZP::sudo \
+    has'terraform' \
+        svn OMZP::terraform \
+    Aloxaf/fzf-tab \
+    MichaelAquilina/zsh-you-should-use \
+    \
+    has'kubectl' \
+    pick='/dev/null' sbin='kubectx' sbin='kubens' \
+    atclone='ln -sf completion/kubectx.zsh _kubectx; ln -sf completion/kubens.zsh _kubens' \
+    atpull='%atclone' \
+        ahmetb/kubectx \
+
+zinit pack"bgn-binary+keys" git for fzf
+zinit pack for ls_colors
+
+# Goodies
+zinit wait lucid from"gh-r" as"null" for \
+  sbin"**/fd"        @sharkdp/fd \
+  sbin"**/bat"       @sharkdp/bat \
+  sbin"**/rg"        BurntSushi/ripgrep \
+  sbin"*/delta"      dandavison/delta \
+  sbin"exa* -> exa"  ogham/exa
+
+# =============================================================================
+#                                   Aliases
+# =============================================================================
+
+alias kctx=kubectx
+alias kns=kubens
+
+# ls => exa
+# exchange ls with exa
+# https://the.exa.website/
+if (( $+commands[exa] )); then
+  alias ls='exa'
+fi
+
+# cat/less/man => bat
+
+# exchange cat/less with bat
+# https://github.com/sharkdp/bat
+if (( $+commands[bat] )); then
+  alias cat='bat -pp'
+  alias less='bat --paging=always'
+
+  # override MANPAGER
+  export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+
+fi
+
+# grep => ripgrep
+
+# exchange grep with ripgrep
+# https://github.com/BurntSushi/ripgrep
+if (( $+commands[rg] )); then
+  alias grep='rg'
+fi
+
+# =============================================================================
+#                                   Completions
+# =============================================================================
+
+[[ ${+commands[vault]} ]] && complete -o nospace -C /usr/bin/vault vault
+[[ ${+commands[oc]} ]] && source <(oc completion zsh)
+[[ -s "/etc/bash_completion.d/azure-cli" ]] && source "/etc/bash_completion.d/azure-cli"
