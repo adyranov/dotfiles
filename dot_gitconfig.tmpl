@@ -1,0 +1,120 @@
+[alias]
+    aa = add -A .
+    br = branch
+    brd = branch -d
+    co = checkout
+    cob = checkout -b
+    com = checkout master
+    ci = commit
+    cim = commit -m
+    cia = commit --amend
+    cp = cherry-pick
+    df = difftool -d
+    lg = log --graph --pretty=format:'%C(bold red)%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold green)<%an>%Creset' --abbrev-commit --date=relative
+    rb = rebase
+    rbi = rebase -i
+    rbc = rebase --continue
+    rbs = rebase --skip
+    rba = rebase --abort
+    rs = reset
+    rsh = reset --hard
+    rss = reset --soft
+    rs1 = reset HEAD~1
+    st = status
+    ss = status -s
+    sh = stash
+    shc = stash clear
+    shl = stash list
+    shp = stash pop
+    unstage = reset HEAD --
+    up = !git pull --rebase --prune --autostash --recurse-submodules
+
+[branch]
+    autosetuprebase = always
+[color]
+    ui = auto
+    diff = auto
+    status = auto
+    branch = auto
+    interactive = auto
+[color "branch"]
+    current = yellow reverse
+    local = yellow
+    remote = green
+[color "diff"]
+    meta = yellow bold
+    frag = magenta bold
+    old = red bold
+    new = green bold
+[color "status"]
+    added = yellow
+    changed = green
+    untracked = cyan
+[core]
+    autocrlf = false
+    safecrlf = warn
+    pager = delta
+    editor = nano
+    whitespace = trailing-space,space-before-tab
+[diff]
+    renamelimit = 0
+    mnemonicprefix = true
+    renames = copies
+[fetch]
+    prune = true
+[help]
+    autocorrect = 1
+[interactive]
+    diffFilter = delta --color-only
+[merge]
+    ff = only
+    renamelimit = 0
+    summary = true
+    stat = true
+    conflictstyle = diff3
+[pack]
+    threads = 0
+[pull]
+    rebase = true
+[push]
+    default = tracking
+    followTags = true
+[rebase]
+    autosquash = true
+[rerere]
+    enabled = true
+    autoupdate = true
+[transfer]
+    fsckobjects = true
+[status]
+    showUntrackedFiles = all
+
+[delta]
+    features = side-by-side line-numbers decorations
+    syntax-theme = Dracula
+    plus-style = syntax "#003800"
+    minus-style = syntax "#3f0001"
+
+[delta "decorations"]
+    commit-decoration-style = bold yellow box ul
+    file-style = bold yellow ul
+    file-decoration-style = none
+    hunk-header-decoration-style = cyan box ul
+
+[delta "line-numbers"]
+    line-numbers-left-style = cyan
+    line-numbers-right-style = cyan
+    line-numbers-minus-style = 124
+    line-numbers-plus-style = 28
+
+[url "ssh://git@github.com"]
+    insteadOf = "git://github.com"
+    insteadOf = "https://github.com"
+
+[url "ssh://git@personal.github.com/{{ .chezmoi.username }}"]
+    insteadOf = "ssh://git@github.com/{{ .chezmoi.username }}"
+    insteadOf = "git://github.com/{{ .chezmoi.username }}"
+    insteadOf = "https://github.com/{{ .chezmoi.username }}"
+
+[include]
+    path = ~/.gitconfig-local
