@@ -1,6 +1,11 @@
+{{- $environment := promptString "Environment: [personal, work]" -}}
+{{- $name := promptString "Your Name" -}}
+{{- $email := promptString "Your Email" -}}
+
 [data]
-    email = "artem.dyranov@gmail.com"
-    name = "Artem Dyranov"
+    email = "{{ $email }}"
+    name = "{{ $name }}"
+    environment = "{{ $environment }}"
 
 [diff]
     format = "git"
