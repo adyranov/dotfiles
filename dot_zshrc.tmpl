@@ -24,11 +24,11 @@ export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.
 
 export PATH="${PATH}:$HOME/bin:${HOME}/.krew/bin"
 
-export FZF_CTRL_T_COMMAND="fd --hidden --follow --no-ignore-vcs --exclude ".git""
+export FZF_CTRL_T_COMMAND="fd --hidden --follow --exclude ".git""
 export FZF_DEFAULT_COMMAND="${FZF_CTRL_T_COMMAND} --type f"
 export FZF_ALT_C_COMMAND="${FZF_CTRL_T_COMMAND} --type d ."
 export FZF_DEFAULT_OPTS="--prompt='» ' --pointer='▶' --marker='✓ ' --reverse --tabstop 2 --multi --color=bg+:-1,marker:010 --bind '?:toggle-preview'"
-export FZF_ALT_C_OPTS="--preview '(exa --tree --group-directories-first {} || tree -C {}) 2> /dev/null'"
+export FZF_ALT_C_OPTS="--preview '(exa --color=always --tree --group-directories-first {} || tree -C {}) 2> /dev/null'"
 
 # =============================================================================
 #                                   Options
@@ -84,21 +84,6 @@ zinit light-mode depth=1 for \
 
 ### End of Zinit's installer chunk
 
-
-# zinit essential
-zinit wait lucid light-mode depth=1 for \
-  atinit"zicompinit; zicdreplay" \
-    zdharma/fast-syntax-highlighting \
-  atload"_zsh_autosuggest_start" \
-    zsh-users/zsh-autosuggestions \
-  blockf atpull'zinit creinstall -q .' \
-    zsh-users/zsh-completions \
-  atload"
-     bindkey '^[[A' history-substring-search-up
-     bindkey '^[[B' history-substring-search-down
-  " \
-    zsh-users/zsh-history-substring-search
-
 ## Load synchronously
 zinit lucid light-mode depth=1 for \
     OMZL::completion.zsh \
@@ -119,15 +104,19 @@ zinit lucid light-mode depth=1 for \
 
 ## Load asynchronously
 zinit wait lucid light-mode depth=1 for \
+    OMZL::clipboard.zsh \
     svn OMZP::colored-man-pages \
     OMZP::command-not-found \
     OMZP::encode64 \
     svn OMZP::extract \
     has'fasd' \
         OMZP::fasd \
+    as'completion' OMZP::fd/_fd \
     atload"unalias grv" \
         OMZP::git \
     OMZP::sudo \
+    OMZP::urltools \
+    OMZP::zsh_reload \
     has'terraform' \
         svn OMZP::terraform \
     Aloxaf/fzf-tab \
@@ -139,6 +128,20 @@ zinit wait lucid light-mode depth=1 for \
     atpull='%atclone' \
         ahmetb/kubectx \
 
+# zinit essential
+zinit wait lucid light-mode depth=1 for \
+    atinit"zicompinit; zicdreplay" \
+        zdharma/fast-syntax-highlighting \
+    atload"_zsh_autosuggest_start" \
+        zsh-users/zsh-autosuggestions \
+    blockf atpull'zinit creinstall -q .' \
+        zsh-users/zsh-completions \
+    atload"
+        bindkey '^[[A' history-substring-search-up
+        bindkey '^[[B' history-substring-search-down
+    " \
+        zsh-users/zsh-history-substring-search
+
 zinit pack"bgn-binary+keys" git for fzf
 zinit pack for ls_colors
 
@@ -147,13 +150,28 @@ zinit from"gh-r" as"program" mv"direnv* -> direnv" \
     pick"direnv" src="zhook.zsh" for \
         direnv/direnv
 
-# Goodies
 zinit wait lucid from"gh-r" as"null" for \
   sbin"**/fd"        @sharkdp/fd \
   sbin"**/bat"       @sharkdp/bat \
   sbin"**/rg"        BurntSushi/ripgrep \
   sbin"*/delta"      dandavison/delta \
   sbin"exa* -> exa"  ogham/exa
+
+# =============================================================================
+#                                   Style
+# =============================================================================
+
+zstyle ':completion:complete:*:options' sort false
+zstyle ":completion:*:git-checkout:*" sort false
+zstyle ':completion:*:descriptions' format '[%d]'
+zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath'
+zstyle ":fzf-tab:complete:(exa|bat|nano|nvim):*" fzf-preview '
+bat --style=numbers --color=always --line-range :250 $realpath 2>/dev/null ||
+exa -1 --color=always --icons --group-directories-first $realpath
+'
+zstyle ':fzf-tab:complete:kill:argument-rest' fzf-preview 'ps --pid=$word -o cmd --no-headers -w -w'
+zstyle ':fzf-tab:complete:kill:argument-rest' fzf-flags '--preview-window=down:3:wrap'
 
 # =============================================================================
 #                                   Aliases

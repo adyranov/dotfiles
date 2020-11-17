@@ -1,30 +1,20 @@
-{{- if (eq .chezmoi.os "linux") -}}
-    #!/bin/bash
+#!/bin/bash
 
-    set -evo pipefail
+set -evo pipefail
 
+{{- if (eq .chezmoi.os "linux") }}
     sudo apt update
     sudo apt install -y \
-    direnv \
-    fd-find \
-    jq \
-    ripgrep \
+    git \
+    subversion \
     zsh
-
-    usermod -s /bin/zsh {{ .chezmoi.username }}
-
-{{- else if (eq .chezmoi.os "darwin") -}}
-    #!/bin/bash
-
-    set -evo pipefail
-
+{{- else if (eq .chezmoi.os "darwin") }}
     brew update
     brew install \
-    direnv \
-    exa \
-    fd \
-    git-delta \
-    jq \
-    ripgrep
+    git \
+    subversion \
+    zsh
+{{- end }}
 
-{{- end -}}
+which zsh
+chsh -s $(which zsh)
