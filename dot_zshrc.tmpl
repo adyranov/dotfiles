@@ -22,12 +22,11 @@ export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.
 
 export PATH="${PATH}:$HOME/bin:${HOME}/.krew/bin"
 
-export FZF_DEFAULT_OPTS="--preview 'cat {}'"
-export FZF_DEFAULT_COMMAND='ag --nocolor -g ""'
-export FZF_DEFAULT_OPTS='
---color fg:-1,bg:-1,hl:230,fg+:3,bg+:233,hl+:229
---color info:150,prompt:110,spinner:150,pointer:167,marker:174
-'
+export FZF_CTRL_T_COMMAND="fd --hidden --follow --no-ignore-vcs --exclude ".git""
+export FZF_DEFAULT_COMMAND="${FZF_CTRL_T_COMMAND} --type f"
+export FZF_ALT_C_COMMAND="${FZF_CTRL_T_COMMAND} --type d ."
+export FZF_DEFAULT_OPTS="--prompt='» ' --pointer='▶' --marker='✓ ' --reverse --tabstop 2 --multi --color=bg+:-1,marker:010 --bind '?:toggle-preview'"
+export FZF_ALT_C_OPTS="--preview '(exa --tree --group-directories-first {} || tree -C {}) 2> /dev/null'"
 
 # =============================================================================
 #                                   Options
@@ -141,6 +140,11 @@ zinit wait lucid light-mode depth=1 for \
 zinit pack"bgn-binary+keys" git for fzf
 zinit pack for ls_colors
 
+zinit from"gh-r" as"program" mv"direnv* -> direnv" \
+    atclone'./direnv hook zsh > zhook.zsh' atpull'%atclone' \
+    pick"direnv" src="zhook.zsh" for \
+        direnv/direnv
+
 # Goodies
 zinit wait lucid from"gh-r" as"null" for \
   sbin"**/fd"        @sharkdp/fd \
@@ -191,3 +195,9 @@ fi
 [[ ${+commands[vault]} ]] && complete -o nospace -C /usr/bin/vault vault
 [[ ${+commands[oc]} ]] && source <(oc completion zsh)
 [[ -s "/etc/bash_completion.d/azure-cli" ]] && source "/etc/bash_completion.d/azure-cli"
+
+# =============================================================================
+#                                   Local
+# =============================================================================
+
+[[ -f ${HOME}/.zshrc.local ]] && source ${HOME}/.zshrc.local
