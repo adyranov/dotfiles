@@ -107,14 +107,14 @@
     line-numbers-minus-style = 124
     line-numbers-plus-style = 28
 
-[url "ssh://git@github.com"]
-    insteadOf = "git://github.com"
-    insteadOf = "https://github.com"
-
 [url "ssh://git@personal.github.com/{{ .chezmoi.username }}"]
     insteadOf = "ssh://git@github.com/{{ .chezmoi.username }}"
     insteadOf = "git://github.com/{{ .chezmoi.username }}"
     insteadOf = "https://github.com/{{ .chezmoi.username }}"
+
+[user]
+    name = {{ .name }}
+    email = {{ .email }}
 
 [include]
     path = ~/.gitconfig.local
