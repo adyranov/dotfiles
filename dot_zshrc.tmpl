@@ -166,7 +166,7 @@ zstyle ":completion:*:git-checkout:*" sort false
 zstyle ':completion:*:descriptions' format '[%d]'
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath'
-zstyle ":fzf-tab:complete:(exa|bat|nano|nvim):*" fzf-preview '
+zstyle ":fzf-tab:complete:(exa|bat|nano|vim|nvim):*" fzf-preview '
 bat --style=numbers --color=always --line-range :250 $realpath 2>/dev/null ||
 exa -1 --color=always --icons --group-directories-first $realpath
 '
@@ -208,6 +208,23 @@ if (( $+commands[rg] )); then
   alias grep='rg'
 fi
 
+# top => htop
+
+# exchange top with htop
+# https://github.com/htop-dev/htop
+if (( $+commands[htop] )); then
+  alias top='htop'
+fi
+
+# vim => neovim
+
+# exchange vim with neovim
+# https://github.com/neovim/neovim
+if (( $+commands[vim] )); then
+  alias top='nvim'
+fi
+
+
 # =============================================================================
 #                                   Completions
 # =============================================================================
@@ -221,3 +238,5 @@ fi
 # =============================================================================
 
 [[ -f ${HOME}/.zshrc.local ]] && source ${HOME}/.zshrc.local
+
+true
