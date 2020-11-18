@@ -169,6 +169,8 @@ zinit wait lucid from"gh-r" as"null" for \
 
 # custom completions
 zinit wait lucid light-mode depth=1 as"null" for \
+    as'completion' mv'chezmoi* -> _chezmoi' \
+        https://github.com/twpayne/chezmoi/blob/master/completions/chezmoi.zsh \
     has'vault' id-as'vault-completion' atinit'complete -o nospace -C vault vault' \
         zdharma/null \
     has'oc' id-as'oc-completion' atinit'source <(oc completion zsh)' \
