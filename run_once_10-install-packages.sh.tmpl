@@ -16,7 +16,7 @@ set -evo pipefail
     tmux \
     wget \
     zsh
-    
+
     chsh -s $(which zsh)
 {{- else if (eq .chezmoi.os "darwin") }}
     brew update

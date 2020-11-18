@@ -37,9 +37,6 @@ export FZF_ALT_C_OPTS="--preview '(exa --color=always --tree --group-directories
 # Key timeout and character sequences
 KEYTIMEOUT=1
 
-# Skip the not really helping Debian global compinit
-skip_global_compinit=1
-
 # =============================================================================
 #                                   Theme
 # =============================================================================
@@ -77,10 +74,11 @@ autoload -Uz _zinit
 # (this is currently required for annexes)
 
 zinit light-mode depth=1 for \
-    zinit-zsh/z-a-rust \
     zinit-zsh/z-a-as-monitor \
+    zinit-zsh/z-a-bin-gem-node \
     zinit-zsh/z-a-patch-dl \
-    zinit-zsh/z-a-bin-gem-node
+    zinit-zsh/z-a-readurl \
+    zinit-zsh/z-a-rust
 
 ### End of Zinit's installer chunk
 
@@ -101,6 +99,21 @@ zinit lucid light-mode depth=1 for \
         OMZP::helm \
     has'kubectl' \
         OMZP::kubectl \
+
+# zinit essential
+zinit wait lucid light-mode depth=1 for \
+    atinit"zicompinit; zicdreplay" \
+        zdharma/fast-syntax-highlighting \
+    atload"_zsh_autosuggest_start" \
+        zsh-users/zsh-autosuggestions \
+    blockf atpull'zinit creinstall -q .' \
+        zsh-users/zsh-completions \
+    atload"
+        bindkey '^[[A' history-substring-search-up
+        bindkey '^[[B' history-substring-search-down
+    " \
+        zsh-users/zsh-history-substring-search
+
 
 ## Load asynchronously
 zinit wait lucid light-mode depth=1 for \
@@ -128,34 +141,36 @@ zinit wait lucid light-mode depth=1 for \
     atpull='%atclone' \
         ahmetb/kubectx \
 
-# zinit essential
-zinit wait lucid light-mode depth=1 for \
-    atinit"zicompinit; zicdreplay" \
-        zdharma/fast-syntax-highlighting \
-    atload"_zsh_autosuggest_start" \
-        zsh-users/zsh-autosuggestions \
-    blockf atpull'zinit creinstall -q .' \
-        zsh-users/zsh-completions \
-    atload"
-        bindkey '^[[A' history-substring-search-up
-        bindkey '^[[B' history-substring-search-down
-    " \
-        zsh-users/zsh-history-substring-search
-
+# fzf
 zinit pack"bgn-binary+keys" git for fzf
+# ls_colors
 zinit pack for ls_colors
 
+# direnv
 zinit from"gh-r" as"program" mv"direnv* -> direnv" \
     atclone'./direnv hook zsh > zhook.zsh' atpull'%atclone' \
     pick"direnv" src="zhook.zsh" for \
         direnv/direnv
 
+# custom apps
 zinit wait lucid from"gh-r" as"null" for \
   sbin"**/fd"        @sharkdp/fd \
   sbin"**/bat"       @sharkdp/bat \
   sbin"**/rg"        BurntSushi/ripgrep \
   sbin"*/delta"      dandavison/delta \
   sbin"exa* -> exa"  ogham/exa
+
+# custom completions
+zinit wait lucid light-mode depth=1 as"null" for \
+    has'vault' id-as'vault-completion' atinit'complete -o nospace -C vault vault' \
+        zdharma/null \
+    has'oc' id-as'oc-completion' atinit'source <(oc completion zsh)' \
+        zdharma/null \
+    has'az' id-as'azure-cli-completion' atinit'
+        [[ -s "/etc/bash_completion.d/azure-cli" ]] && source "/etc/bash_completion.d/azure-cli"
+        [[ -s "/usr/local/etc/bash_completion.d/az" ]] && source "/usr/local/etc/bash_completion.d/az"
+    ' \
+        zdharma/null
 
 # =============================================================================
 #                                   Style
@@ -221,17 +236,8 @@ fi
 # exchange vim with neovim
 # https://github.com/neovim/neovim
 if (( $+commands[vim] )); then
-  alias top='nvim'
+  alias vim='nvim'
 fi
-
-
-# =============================================================================
-#                                   Completions
-# =============================================================================
-
-(( ${+commands[vault]} )) && complete -o nospace -C /usr/bin/vault vault
-(( ${+commands[oc]} )) && source <(oc completion zsh)
-[[ -s "/etc/bash_completion.d/azure-cli" ]] && source "/etc/bash_completion.d/azure-cli"
 
 # =============================================================================
 #                                   Local
