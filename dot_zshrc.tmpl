@@ -152,6 +152,13 @@ zinit from"gh-r" as"program" mv"direnv* -> direnv" \
     pick"direnv" src="zhook.zsh" for \
         direnv/direnv
 
+# cheat.sh and its completions
+zinit wait lucid for \
+    as"null" sbin"*cht.sh -> cht.sh" \
+        https://cht.sh/:cht.sh \
+    as"completion" mv=":zsh -> _cht" \
+        https://cht.sh/:zsh
+
 # custom apps
 zinit wait lucid from"gh-r" as"null" for \
   sbin"**/fd"        @sharkdp/fd \
