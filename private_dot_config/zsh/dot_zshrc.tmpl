@@ -11,7 +11,6 @@ fi
 
 export LANG="en_US.UTF-8"
 export LC_ALL="en_US.UTF-8"
-export TERM="xterm-256color"
 export EDITOR=nano
 
 {{ if eq .chezmoi.os "linux" -}}
@@ -22,11 +21,11 @@ export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.
 {{ end }}
 {{ end -}}
 
-export PATH="${PATH}:$HOME/bin:${HOME}/.krew/bin"
+export PATH="$HOME/.local/bin:$HOME/.krew/bin:${PATH}"
 
-export FZF_CTRL_T_COMMAND="fd --hidden --follow --exclude ".git""
-export FZF_DEFAULT_COMMAND="${FZF_CTRL_T_COMMAND} --type f"
-export FZF_ALT_C_COMMAND="${FZF_CTRL_T_COMMAND} --type d ."
+export FZF_DEFAULT_COMMAND="fd --hidden --follow --no-ignore-vcs --exclude ".git""
+export FZF_CTRL_T_COMMAND="${FZF_DEFAULT_COMMAND}"
+export FZF_ALT_C_COMMAND="${FZF_DEFAULT_COMMAND} --type d ."
 export FZF_DEFAULT_OPTS="--prompt='» ' --pointer='▶' --marker='✓ ' --reverse --tabstop 2 --multi --color=bg+:-1,marker:010 --bind '?:toggle-preview'"
 export FZF_ALT_C_OPTS="--preview '(exa --color=always --tree --group-directories-first {} || tree -C {}) 2> /dev/null'"
 
@@ -133,23 +132,38 @@ zinit wait lucid light-mode depth=1 for \
     has'terraform' \
         svn OMZP::terraform \
     Aloxaf/fzf-tab \
+    wookayin/fzf-fasd \
+    chrissicool/zsh-256color \
     MichaelAquilina/zsh-you-should-use \
+    wfxr/forgit \
     \
     has'kubectl' \
     pick='/dev/null' sbin='kubectx' sbin='kubens' \
     atclone='ln -sf completion/kubectx.zsh _kubectx; ln -sf completion/kubens.zsh _kubens' \
     atpull='%atclone' \
         ahmetb/kubectx \
+    has"kubectl" \
+    from"gh-r" as"program" bpick"krew.tar.gz" \
+    mv"krew-{{ .chezmoi.os }}_amd64 -> krew" pick"krew" \
+    atclone"rm -f krew-* && ./krew install krew && ./krew update" \
+    atpull"%atclone" \
+        kubernetes-sigs/krew
 
 # fzf
 zinit pack"bgn-binary+keys" git for fzf
 # ls_colors
 zinit pack for ls_colors
 
+# fasd
+zinit wait lucid light-mode depth=1 as"program" \
+    atclone'fasd --init auto > fasd.zsh' atpull'%atclone' \
+    pick"fasd" src"fasd.zsh" nocompile'!' for \
+        clvv/fasd
+
 # direnv
-zinit from"gh-r" as"program" mv"direnv* -> direnv" \
+zinit wait lucid light-mode depth=1 from"gh-r" as"program" \
     atclone'./direnv hook zsh > zhook.zsh' atpull'%atclone' \
-    pick"direnv" src="zhook.zsh" for \
+    mv"direnv* -> direnv" pick"direnv" src="zhook.zsh" for \
         direnv/direnv
 
 # cheat.sh and its completions
@@ -198,60 +212,15 @@ zstyle ':fzf-tab:complete:kill:argument-rest' fzf-preview 'ps --pid=$word -o cmd
 zstyle ':fzf-tab:complete:kill:argument-rest' fzf-flags '--preview-window=down:3:wrap'
 
 # =============================================================================
-#                                   Aliases
+#                                   Include
 # =============================================================================
 
-alias kctx=kubectx
-alias kns=kubens
+# Read configuration from files
+for file in $HOME/.config/zsh/*.zsh; do
+    [ -r "$file" ] && source "$file"
+done
+unset file
 
-# ls => exa
-# exchange ls with exa
-# https://the.exa.website/
-if (( $+commands[exa] )); then
-  alias ls='exa'
-fi
-
-# cat/less/man => bat
-
-# exchange cat/less with bat
-# https://github.com/sharkdp/bat
-if (( $+commands[bat] )); then
-  alias cat='bat -pp'
-  alias less='bat --paging=always'
-
-  # override MANPAGER
-  export MANPAGER="sh -c 'col -bx | bat -l man -p'"
-
-fi
-
-# grep => ripgrep
-
-# exchange grep with ripgrep
-# https://github.com/BurntSushi/ripgrep
-if (( $+commands[rg] )); then
-  alias grep='rg'
-fi
-
-# top => htop
-
-# exchange top with htop
-# https://github.com/htop-dev/htop
-if (( $+commands[htop] )); then
-  alias top='htop'
-fi
-
-# vim => neovim
-
-# exchange vim with neovim
-# https://github.com/neovim/neovim
-if (( $+commands[vim] )); then
-  alias vim='nvim'
-fi
-
-# =============================================================================
-#                                   Local
-# =============================================================================
-
-[[ -f ${HOME}/.zshrc.local ]] && source ${HOME}/.zshrc.local
+[[ -f $HOME/.config/zsh/.zshrc.local ]] && source $HOME/.config/zsh/.zshrc.local
 
 true
