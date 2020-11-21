@@ -1,0 +1,10 @@
+# chezmoi --remove --dry-run --verbose apply
+
+.bash_logout
+.bash_profile
+.bashrc
+.zlogin
+.zlogout
+.zprofile
+.zshrc
+.zshrc.zwc
