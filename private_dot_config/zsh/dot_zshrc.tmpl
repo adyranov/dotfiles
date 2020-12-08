@@ -147,8 +147,10 @@ zinit wait lucid light-mode depth=1 for \
     mv"krew-{{ .chezmoi.os }}_amd64 -> krew" pick"krew" \
     atclone"rm -f krew-* && ./krew install krew && ./krew update" \
     atpull"%atclone" \
-        kubernetes-sigs/krew
-
+        kubernetes-sigs/krew \
+    has'kubectl' \
+    from'gh-r' as'program' sbin'**/k9s' \
+        derailed/k9s
 # fzf
 zinit pack"bgn-binary+keys" git for fzf
 # ls_colors
