@@ -3,6 +3,7 @@
 set -evo pipefail
 
 {{- if (eq .chezmoi.os "linux") }}
+{{- if or (eq .chezmoi.osRelease.id "ubuntu") (eq .chezmoi.osRelease.id "debian") }}
     sudo apt update && sudo apt install -y apt-transport-https gnupg2 curl
 
     curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
@@ -28,6 +29,7 @@ set -evo pipefail
     zsh
 
     chsh -s $(which zsh)
+{{- end }}
 {{- else if (eq .chezmoi.os "darwin") }}
     brew update
     brew install \
