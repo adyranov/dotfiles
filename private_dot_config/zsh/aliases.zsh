@@ -2,14 +2,6 @@ alias k=kubectl
 alias kctx=kubectx
 alias kns=kubens
 
-kralpine () {
-  kubectl run -i --rm --tty alpine --image=alpine -- sh
-}
-
-kexec () {
-  kubectl exec -it $1 -- ${2:-bash}
-}
-
 alias tf=terraform
 alias tg=terragrunt
 
@@ -18,7 +10,8 @@ alias tg=terragrunt
 # exchange ls with exa
 # https://the.exa.website/
 if (( $+commands[exa] )); then
-  alias ls='exa'
+  alias ls='exa --group-directories-first --sort=name --classify'
+  alias lt='ls --tree --level=2'
 fi
 
 # cat/less/man => bat
@@ -54,6 +47,6 @@ fi
 
 # exchange vim with neovim
 # https://github.com/neovim/neovim
-if (( $+commands[vim] )); then
+if (( $+commands[nvim] )); then
   alias vim='nvim'
 fi

@@ -12,18 +12,20 @@ export XDG_DOCUMENTS_DIR="$HOME/Documents"
 export XDG_TEMPLATES_DIR="$HOME/Templates"
 export XDG_PUBLICSHARE_DIR="$HOME/Public"
 
+# Language
 export LANG="en_US.UTF-8"
 export LC_ALL="en_US.UTF-8"
 
+# Editor
 if [[ -n $SSH_CONNECTION ]]; then
   export EDITOR='nano'
 else
   export EDITOR='code --wait'
 fi
 
+# WSL
 {{- if eq .chezmoi.os "linux" }}
 {{- if (contains "microsoft" .chezmoi.kernel.osrelease) }}
-# WSL-specific code
 export LIBGL_ALWAYS_INDIRECT="1"
 export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
 code() {
@@ -32,6 +34,7 @@ code() {
 {{- end }}
 {{- end }}
 
+# Homebrew
 {{- if eq .chezmoi.os "darwin" }}
 if [ -x /usr/libexec/path_helper ]; then
     eval $(/usr/libexec/path_helper -s)
@@ -46,6 +49,20 @@ eval $(/usr/local/bin/brew shellenv)
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 {{- end }}
 
+# LS_COLORS
+if [[ "$(command -v vivid)" ]]; then
+  export LS_COLORS="$(vivid generate one-dark)"
+  zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+fi
+
+# FZF
+export FZF_DEFAULT_COMMAND="fd --hidden --follow --no-ignore-vcs --exclude ".git""
+export FZF_CTRL_T_COMMAND="${FZF_DEFAULT_COMMAND}"
+export FZF_ALT_C_COMMAND="${FZF_DEFAULT_COMMAND} --type d ."
+export FZF_DEFAULT_OPTS="--prompt='» ' --pointer='▶' --marker='✓ ' --reverse --tabstop 2 --multi --color=bg+:-1,marker:010 --bind '?:toggle-preview'"
+export FZF_ALT_C_OPTS="--preview '(exa --color=always --tree --group-directories-first {} || tree -C {}) 2> /dev/null'"
+
+# Path
 [ -d $HOME/.local/bin ] && export PATH=$HOME/.local/bin:$PATH
 [ -d $HOME/.cargo/bin ] && export PATH=$HOME/.cargo/bin:$PATH
 [ -d $HOME/.krew/bin ] && export PATH=$HOME/.krew/bin:$PATH
