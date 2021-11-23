@@ -1,0 +1,4 @@
+{{- $gh := lookPath "gh" -}}
+{{- if $gh -}}
+{{- output $gh "completion" "-s" "zsh" -}}
+{{- end -}}

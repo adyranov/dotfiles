@@ -1,0 +1,4 @@
+{{- $chezmoi := lookPath "chezmoi" -}}
+{{- if $chezmoi -}}
+{{- output $chezmoi "completion" "zsh" -}}
+{{- end -}}

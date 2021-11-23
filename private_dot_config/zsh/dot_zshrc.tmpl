@@ -64,6 +64,13 @@ z4h install wookayin/fzf-fasd || return
 # perform network I/O must be done above. Everything else is best done below.
 z4h init || return
 
+# Extend function path
+fpath=(
+    $ZDOTDIR/completions
+    $HOME/.asdf/completions
+    $fpath
+)
+
 # Export environment variables.
 z4h source $ZDOTDIR/exports.zsh
 
@@ -94,7 +101,6 @@ autoload -Uz zmv
 
 # Define functions and completions.
 z4h source $ZDOTDIR/functions.zsh
-z4h source $ZDOTDIR/completions.zsh
 
 # Define named directories: ~w <=> Windows home directory on WSL.
 [[ -z $z4h_win_home ]] || hash -d w=$z4h_win_home
@@ -102,9 +108,19 @@ z4h source $ZDOTDIR/completions.zsh
 # Define aliases.
 z4h source $ZDOTDIR/aliases.zsh
 
+# Configure asdf
+z4h source "$HOME/.asdf/asdf.sh"
+if [ -d "$HOME/.asdf/plugins/direnv" ]; then
+  eval "$(asdf exec direnv hook zsh)"
+  direnv() { asdf exec direnv "$@"; }
+fi
+
 # Set shell options: http://zsh.sourceforge.net/Doc/Release/Options.html.
 setopt glob_dots     # no special treatment for file names with a leading dot
 setopt no_auto_menu  # require an extra TAB press to open the completion menu
+
+# Remove slow command not found handler
+[[ ! -v functions[command_not_found_handler] ]] || unfunction command_not_found_handler
 
 # Load local configuration.
 z4h source $ZDOTDIR/.zshrc.local

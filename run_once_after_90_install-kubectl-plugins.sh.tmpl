@@ -15,7 +15,6 @@ if command -v kubectl-krew >/dev/null; then
         score
         tree
         view-secret
-{{- if (eq .chezmoi.os "darwin") }}
 {{- if (ne .chezmoi.arch "arm64") }}
         deprecations
         modify-secret
@@ -26,8 +25,7 @@ if command -v kubectl-krew >/dev/null; then
         tunnel
         who-can
 {{- end }}
-{{- end }}
     )
-
+    echo "Installing kubectl-krew plugins..."
     kubectl-krew install ${plugins[@]}
 fi
