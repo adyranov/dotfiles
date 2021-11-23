@@ -2,8 +2,11 @@
 
 set -eufo pipefail
 
-# .tool-versions hash: {{ include "dot_tool-versions.tmpl" | sha256sum }}
+# .tool-versions hash: {{ include "dot_tool-versions" | sha256sum }}
 if command -v asdf >/dev/null; then
     echo "Installing asdf plugins..."
+    while read -r plugin _; do
+        asdf plugin-add "$plugin" || true
+    done <"$HOME/.tool-versions"
     asdf install
 fi

@@ -1,0 +1,7 @@
+
+{{- $refreshPeriod := "168h" }}
+
+[_terragrunt]
+    type = "file"
+    url = 'https://raw.githubusercontent.com/thuandt/zsh-terraform/master/_terragrunt'
+    refreshPeriod = "{{ $refreshPeriod }}"

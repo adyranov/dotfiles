@@ -83,6 +83,7 @@ z4h load ohmyzsh/ohmyzsh/plugins/encode64
 z4h load ohmyzsh/ohmyzsh/plugins/extract
 z4h load ohmyzsh/ohmyzsh/plugins/fasd
 z4h load ohmyzsh/ohmyzsh/plugins/sudo
+z4h load ohmyzsh/ohmyzsh/plugins/terraform
 z4h load mollifier/cd-gitroot
 z4h load wfxr/forgit
 z4h load wookayin/fzf-fasd
@@ -102,18 +103,8 @@ autoload -Uz zmv
 # Define functions and completions.
 z4h source $ZDOTDIR/functions.zsh
 
-# Define named directories: ~w <=> Windows home directory on WSL.
-[[ -z $z4h_win_home ]] || hash -d w=$z4h_win_home
-
 # Define aliases.
 z4h source $ZDOTDIR/aliases.zsh
-
-# Configure asdf
-z4h source "$HOME/.asdf/asdf.sh"
-if [ -d "$HOME/.asdf/plugins/direnv" ]; then
-  eval "$(asdf exec direnv hook zsh)"
-  direnv() { asdf exec direnv "$@"; }
-fi
 
 # Set shell options: http://zsh.sourceforge.net/Doc/Release/Options.html.
 setopt glob_dots     # no special treatment for file names with a leading dot

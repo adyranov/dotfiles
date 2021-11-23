@@ -49,6 +49,13 @@ eval $(/usr/local/bin/brew shellenv)
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 {{- end }}
 
+# ASDF
+[ -d $HOME/.asdf ] && . "$HOME/.asdf/asdf.sh"
+if [ -d "$HOME/.asdf/plugins/direnv" ]; then
+  eval "$(asdf exec direnv hook zsh)"
+  direnv() { asdf exec direnv "$@"; }
+fi
+
 # LS_COLORS
 if [[ "$(command -v vivid)" ]]; then
   export LS_COLORS="$(vivid generate one-dark)"
