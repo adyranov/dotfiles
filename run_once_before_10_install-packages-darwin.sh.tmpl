@@ -1,0 +1,119 @@
+{{- if (eq .chezmoi.os "darwin") -}}
+#!/bin/bash
+
+set -eufo pipefail
+
+{{ $taps := list
+    "homebrew/autoupdate"
+    "homebrew/bundle"
+    "homebrew/cask"
+    "homebrew/cask-fonts"
+    "homebrew/cask-versions"
+    "homebrew/command-not-found"
+    "homebrew/core" -}}
+
+{{ $brews := list
+    "azure-cli"
+    "bash"
+    "bat"
+    "bitwarden-cli"
+    "curl"
+    "direnv"
+    "docker"
+    "dockutil"
+    "dpkg"
+    "exa"
+    "fasd"
+    "fd"
+    "ffmpeg"
+    "fzf"
+    "git"
+    "git-delta"
+    "gnupg"
+    "go"
+    "helm"
+    "htop"
+    "httpie"
+    "jq"
+    "k9s"
+    "kubectx"
+    "kubernetes-cli"
+    "mas"
+    "maven"
+    "midnight-commander"
+    "neovim"
+    "node"
+    "nvm"
+    "pre-commit"
+    "ripgrep"
+    "rust"
+    "subversion"
+    "terraform"
+    "terragrunt"
+    "tmux"
+    "vivid"
+    "wget"
+    "yarn"
+    "yq"
+    "zsh" -}}
+
+{{ $casks := list -}}
+
+{{ $masIds := dict -}}
+
+{{ if .personal -}}
+{{ $casks = concat $casks (list
+    "authy"
+    "calibre"
+    "cinebench"
+    "dropbox"
+    "firefox"
+    "font-fira-code"
+    "geekbench"
+    "google-chrome"
+    "google-drive"
+    "gpg-suite"
+    "handbrake"
+    "iterm2"
+    "jetbrains-toolbox"
+    "lens"
+    "macfuse"
+    "microsoft-edge"
+    "private-internet-access"
+    "qbittorrent"
+    "skype"
+    "spotify"
+    "teamviewer"
+    "telegram-desktop"
+    "temurin11"
+    "temurin"
+    "tor-browser"
+    "visual-studio-code"
+    "vlc"
+    "xnviewmp"
+    "yandex-disk"
+    "zoom") -}}
+{{ $masIds = dict
+    "Brother iPrint&Scan" "1193539993"
+    "Disk Speed Test" "425264550"
+    "Grammarly for Safari" "1462114288"
+    "Messenger" "1480068668"
+    "Slack" "803453959"
+    "The Unarchiver" "425424353" -}}
+{{ end -}}
+
+brew bundle --no-lock --file=/dev/stdin <<EOF
+{{ range ($taps | sortAlpha | uniq) -}}
+tap "{{ . }}"
+{{ end -}}
+{{ range ($brews | sortAlpha | uniq) -}}
+brew "{{ . }}"
+{{ end -}}
+{{ range ($casks | sortAlpha | uniq) -}}
+cask "{{ . }}"
+{{ end -}}
+{{ range $key, $value := $masIds -}}
+mas "{{ $key }}", id: {{ $value}}
+{{ end -}}
+EOF
+{{ end -}}

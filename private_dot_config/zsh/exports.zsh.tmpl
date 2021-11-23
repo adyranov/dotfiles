@@ -1,0 +1,51 @@
+# https://wiki.archlinux.org/index.php/XDG_Base_Directory
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_CACHE_HOME="$HOME/.cache"
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state"
+export XDG_MUSIC_DIR="$HOME/Music"
+export XDG_VIDEOS_DIR="$HOME/Videos"
+export XDG_DESKTOP_DIR="$HOME/Desktop"
+export XDG_PICTURES_DIR="$HOME/Pictures"
+export XDG_DOWNLOAD_DIR="$HOME/Downloads"
+export XDG_DOCUMENTS_DIR="$HOME/Documents"
+export XDG_TEMPLATES_DIR="$HOME/Templates"
+export XDG_PUBLICSHARE_DIR="$HOME/Public"
+
+export LANG="en_US.UTF-8"
+export LC_ALL="en_US.UTF-8"
+
+if [[ -n $SSH_CONNECTION ]]; then
+  export EDITOR='nano'
+else
+  export EDITOR='code --wait'
+fi
+
+{{- if eq .chezmoi.os "linux" }}
+{{- if (contains "microsoft" .chezmoi.kernel.osrelease) }}
+# WSL-specific code
+export LIBGL_ALWAYS_INDIRECT="1"
+export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
+code() {
+  /mnt/c/Program\ Files/Microsoft\ VS\ Code/bin/code "$@"
+}
+{{- end }}
+{{- end }}
+
+{{- if eq .chezmoi.os "darwin" }}
+if [ -x /usr/libexec/path_helper ]; then
+    eval $(/usr/libexec/path_helper -s)
+fi
+{{- if eq .chezmoi.arch "arm64" }}
+eval $(/opt/homebrew/bin/brew shellenv)
+{{- else }}
+eval $(/usr/local/bin/brew shellenv)
+{{- end }}
+{{- end }}
+{{ if (eq .chezmoi.os "linux") -}}
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+{{- end }}
+
+[ -d $HOME/.local/bin ] && export PATH=$HOME/.local/bin:$PATH
+[ -d $HOME/.cargo/bin ] && export PATH=$HOME/.cargo/bin:$PATH
+[ -d $HOME/.krew/bin ] && export PATH=$HOME/.krew/bin:$PATH

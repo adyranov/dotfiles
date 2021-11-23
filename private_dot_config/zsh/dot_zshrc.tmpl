@@ -1,228 +1,110 @@
-# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
-# Initialization code that may require console input (password prompts, [y/n]
-# confirmations, etc.) must go above this block; everything else may go below.
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+# Personal Zsh configuration file. It is strongly recommended to keep all
+# shell customization and configuration (including exported environment
+# variables such as PATH) in this file or in files source by it.
+#
+# Documentation: https://github.com/romkatv/zsh4humans/blob/v5/README.md.
+
+# Periodic auto-update on Zsh startup: 'ask' or 'no'.
+# You can manually run `z4h update` to update everything.
+zstyle ':z4h:' auto-update      'no'
+# Ask whether to auto-update this often; has no effect if auto-update is 'no'.
+zstyle ':z4h:' auto-update-days '28'
+
+# Move prompt to the bottom when zsh starts and on Ctrl+L.
+zstyle ':z4h:' prompt-at-bottom 'yes'
+
+# Keyboard type: 'mac' or 'pc'.
+if [ "$(uname 2> /dev/null)" = "Darwin" ]; then
+  zstyle ':z4h:bindkey' keyboard  'mac'
+  zstyle ':z4h:'        iterm2-integration yes
+else
+  zstyle ':z4h:bindkey' keyboard  'pc'
 fi
 
-# =============================================================================
-#                                   Exports
-# =============================================================================
+# Right-arrow key accepts one character ('partial-accept') from
+# command autosuggestions or the whole thing ('accept')?
+zstyle ':z4h:autosuggestions' forward-char 'accept'
 
-export LANG="en_US.UTF-8"
-export LC_ALL="en_US.UTF-8"
-export EDITOR=nano
+# Recursively traverse directories when TAB-completing files.
+zstyle ':z4h:fzf-complete' recurse-dirs 'no'
 
-{{ if eq .chezmoi.os "linux" -}}
-{{ if (contains "microsoft" .chezmoi.kernel.osrelease) }}
-# WSL-specific code
-export LIBGL_ALWAYS_INDIRECT="1"
-export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
-{{ end }}
-{{ end -}}
+# Enable direnv to automatically source .envrc files.
+zstyle ':z4h:direnv'         enable 'yes'
+# Show "loading" and "unloading" notifications from direnv.
+zstyle ':z4h:direnv:success' notify 'yes'
 
-export PATH="$HOME/.local/bin:$HOME/.krew/bin:${PATH}"
+# Enable ('yes') or disable ('no') automatic teleportation of z4h over
+# SSH when connecting to these hosts.
+zstyle ':z4h:ssh:example-hostname1'   enable 'yes'
+zstyle ':z4h:ssh:*.example-hostname2' enable 'no'
+# The default value if none of the overrides above match the hostname.
+zstyle ':z4h:ssh:*'                   enable 'no'
 
-export FZF_DEFAULT_COMMAND="fd --hidden --follow --no-ignore-vcs --exclude ".git""
-export FZF_CTRL_T_COMMAND="${FZF_DEFAULT_COMMAND}"
-export FZF_ALT_C_COMMAND="${FZF_DEFAULT_COMMAND} --type d ."
-export FZF_DEFAULT_OPTS="--prompt='» ' --pointer='▶' --marker='✓ ' --reverse --tabstop 2 --multi --color=bg+:-1,marker:010 --bind '?:toggle-preview'"
-export FZF_ALT_C_OPTS="--preview '(exa --color=always --tree --group-directories-first {} || tree -C {}) 2> /dev/null'"
+# Send these files over to the remote host when connecting over SSH to the
+# enabled hosts.
+zstyle ':z4h:ssh:*' send-extra-files '~/.nanorc' '~/.env.zsh'
 
-# =============================================================================
-#                                   Options
-# =============================================================================
+# Start ssh-agent if it's not running yet.
+zstyle ':z4h:ssh-agent:' start yes
 
-# Key timeout and character sequences
-KEYTIMEOUT=1
-
-# =============================================================================
-#                                   Theme
-# =============================================================================
-
-ZSH_THEME="powerlevel10k/powerlevel10k"
-POWERLEVEL9K_MODE="nerdfont-complete"
-POWERLEVEL9K_INSTANT_PROMPT="quiet"
-POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(dir dir_writable vcs)
-POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status kubecontext time)
-POWERLEVEL9K_PROMPT_ON_NEWLINE=true
-POWERLEVEL9K_KUBECONTEXT_BACKGROUND="blue"
-POWERLEVEL9K_KUBECONTEXT_FOREGROUND="gray"
-POWERLEVEL9K_KUBECONTEXT_SHOW_ON_COMMAND='kubectl|kubens|kubectx|oc|helm'
-POWERLEVEL9K_TIME_FORMAT="%D{%H:%M}"
+# Clone additional Git repositories from GitHub.
+#
+# This doesn't do anything apart from cloning the repository and keeping it
+# up-to-date. Cloned files can be used after `z4h init`. This is just an
+# example. If you don't plan to use Oh My Zsh, delete this line.
+z4h install ohmyzsh/ohmyzsh || return
+z4h install mollifier/cd-gitroot || return
+z4h install wfxr/forgit || return
+z4h install wookayin/fzf-fasd || return
 
 
-# =============================================================================
-#                                   Zinit
-# =============================================================================
+# Install or update core components (fzf, zsh-autosuggestions, etc.) and
+# initialize Zsh. After this point console I/O is unavailable until Zsh
+# is fully initialized. Everything that requires user interaction or can
+# perform network I/O must be done above. Everything else is best done below.
+z4h init || return
 
-### Added by Zinit's installer
-if [[ ! -f $HOME/.zinit/bin/zinit.zsh ]]; then
-    print -P "%F{33}▒ %F{220}Installing %F{33}DHARMA%F{220} Initiative Plugin Manager (%F{33}zdharma/zinit%F{220})…%f"
-    command mkdir -p "$HOME/.zinit" && command chmod g-rwX "$HOME/.zinit"
-    command git clone --depth 1 https://github.com/zdharma/zinit "$HOME/.zinit/bin" && \
-        print -P "%F{33}▒ %F{34}Installation successful.%f%b" || \
-        print -P "%F{160}▒ The clone has failed.%f%b"
-fi
+# Export environment variables.
+z4h source $ZDOTDIR/exports.zsh
 
-source "$HOME/.zinit/bin/zinit.zsh"
-autoload -Uz _zinit
-(( ${+_comps} )) && _comps[zinit]=_zinit
+# Use additional Git repositories pulled in with `z4h install`.
+z4h source ohmyzsh/ohmyzsh/lib/clipboard.zsh
+z4h source ohmyzsh/ohmyzsh/lib/directories.zsh
+z4h source ohmyzsh/ohmyzsh/lib/history.zsh
 
-# Load a few important annexes, without Turbo
-# (this is currently required for annexes)
+z4h load ohmyzsh/ohmyzsh/plugins/encode64
+z4h load ohmyzsh/ohmyzsh/plugins/extract
+z4h load ohmyzsh/ohmyzsh/plugins/fasd
+z4h load ohmyzsh/ohmyzsh/plugins/sudo
+z4h load mollifier/cd-gitroot
+z4h load wfxr/forgit
+z4h load wookayin/fzf-fasd
 
-zinit light-mode depth=1 for \
-    zinit-zsh/z-a-as-monitor \
-    zinit-zsh/z-a-bin-gem-node \
-    zinit-zsh/z-a-patch-dl \
-    zinit-zsh/z-a-readurl \
-    zinit-zsh/z-a-rust
+# Define key bindings.
+z4h bindkey undo Ctrl+/   Shift+Tab # undo the last command line change
+z4h bindkey redo Option+/           # redo the last undone command line change
 
-### End of Zinit's installer chunk
+z4h bindkey z4h-cd-back    Shift+Left   # cd into the previous directory
+z4h bindkey z4h-cd-forward Shift+Right  # cd into the next directory
+z4h bindkey z4h-cd-up      Shift+Up     # cd into the parent directory
+z4h bindkey z4h-cd-down    Shift+Down   # cd into a child directory
 
-## Load synchronously
-zinit lucid light-mode depth=1 for \
-    OMZL::completion.zsh \
-    OMZL::directories.zsh \
-    OMZL::git.zsh \
-    OMZL::history.zsh \
-    OMZL::key-bindings.zsh \
-    OMZL::theme-and-appearance.zsh \
-    \
-    romkatv/powerlevel10k \
-    @asdf-vm/asdf \
-    has'npm' \
-        lukechilds/zsh-better-npm-completion \
-    has'helm' \
-        OMZP::helm \
-    has'kubectl' \
-        OMZP::kubectl \
+# Autoload functions.
+autoload -Uz zmv
 
-# zinit essential
-zinit wait lucid light-mode depth=1 for \
-    atinit"zicompinit; zicdreplay" \
-        zdharma/fast-syntax-highlighting \
-    atload"_zsh_autosuggest_start" \
-        zsh-users/zsh-autosuggestions \
-    blockf atpull'zinit creinstall -q .' \
-        zsh-users/zsh-completions \
-    atload"
-        bindkey '^[[A' history-substring-search-up
-        bindkey '^[[B' history-substring-search-down
-    " \
-        zsh-users/zsh-history-substring-search
+# Define functions and completions.
+z4h source $ZDOTDIR/functions.zsh
+z4h source $ZDOTDIR/completions.zsh
 
+# Define named directories: ~w <=> Windows home directory on WSL.
+[[ -z $z4h_win_home ]] || hash -d w=$z4h_win_home
 
-## Load asynchronously
-zinit wait lucid light-mode depth=1 for \
-    OMZL::clipboard.zsh \
-    svn OMZP::colored-man-pages \
-    OMZP::command-not-found \
-    OMZP::encode64 \
-    svn OMZP::extract \
-    has'fasd' \
-        OMZP::fasd \
-    as'completion' OMZP::fd/_fd \
-    atload"unalias grv" \
-        OMZP::git \
-    OMZP::sudo \
-    OMZP::urltools \
-    OMZP::zsh_reload \
-    has'terraform' \
-        svn OMZP::terraform \
-    Aloxaf/fzf-tab \
-    wookayin/fzf-fasd \
-    chrissicool/zsh-256color \
-    MichaelAquilina/zsh-you-should-use \
-    wfxr/forgit \
-    \
-    has'kubectl' \
-    pick='/dev/null' sbin='kubectx' sbin='kubens' \
-    atclone='ln -sf completion/kubectx.zsh _kubectx; ln -sf completion/kubens.zsh _kubens' \
-    atpull='%atclone' \
-        ahmetb/kubectx \
-    has"kubectl" \
-    from"gh-r" as"program" bpick"krew.tar.gz" \
-    mv"krew-{{ .chezmoi.os }}_amd64 -> krew" pick"krew" \
-    atclone"rm -f krew-* && ./krew install krew && ./krew update" \
-    atpull"%atclone" \
-        kubernetes-sigs/krew \
-    has'kubectl' \
-    from'gh-r' as'program' sbin'**/k9s' \
-        derailed/k9s
-# fzf
-zinit pack"bgn-binary+keys" git for fzf
-# ls_colors
-zinit pack for ls_colors
+# Define aliases.
+z4h source $ZDOTDIR/aliases.zsh
 
-# fasd
-zinit wait lucid light-mode depth=1 as"program" \
-    atclone'fasd --init auto > fasd.zsh' atpull'%atclone' \
-    pick"fasd" src"fasd.zsh" nocompile'!' for \
-        clvv/fasd
+# Set shell options: http://zsh.sourceforge.net/Doc/Release/Options.html.
+setopt glob_dots     # no special treatment for file names with a leading dot
+setopt no_auto_menu  # require an extra TAB press to open the completion menu
 
-# direnv
-zinit wait lucid light-mode depth=1 from"gh-r" as"program" \
-    atclone'./direnv hook zsh > zhook.zsh' atpull'%atclone' \
-    mv"direnv* -> direnv" pick"direnv" src="zhook.zsh" for \
-        direnv/direnv
-
-# cheat.sh and its completions
-zinit wait lucid for \
-    as"null" sbin"*cht.sh -> cht.sh" \
-        https://cht.sh/:cht.sh \
-    as"completion" mv=":zsh -> _cht" \
-        https://cht.sh/:zsh
-
-# custom apps
-zinit wait lucid from"gh-r" as"null" for \
-  sbin"**/fd"        @sharkdp/fd \
-  sbin"**/bat"       @sharkdp/bat \
-  sbin"**/rg"        BurntSushi/ripgrep \
-  sbin"**/delta"     dandavison/delta \
-  sbin"**/exa"       ogham/exa
-
-# custom completions
-zinit wait lucid light-mode depth=1 as"null" for \
-    as'completion' mv'chezmoi* -> _chezmoi' \
-        https://github.com/twpayne/chezmoi/blob/master/completions/chezmoi.zsh \
-    has'vault' id-as'vault-completion' atinit'complete -o nospace -C vault vault' \
-        zdharma/null \
-    has'oc' id-as'oc-completion' atinit'source <(oc completion zsh)' \
-        zdharma/null \
-    has'az' id-as'azure-cli-completion' atinit'
-        [[ -s "/etc/bash_completion.d/azure-cli" ]] && source "/etc/bash_completion.d/azure-cli"
-        [[ -s "/usr/local/etc/bash_completion.d/az" ]] && source "/usr/local/etc/bash_completion.d/az"
-    ' \
-        zdharma/null
-
-# =============================================================================
-#                                   Style
-# =============================================================================
-
-zstyle ':completion:complete:*:options' sort false
-zstyle ":completion:*:git-checkout:*" sort false
-zstyle ':completion:*:descriptions' format '[%d]'
-zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
-zstyle ':fzf-tab:complete:cd:*' fzf-preview 'exa -1 --color=always $realpath'
-zstyle ":fzf-tab:complete:(exa|bat|nano|vim|nvim):*" fzf-preview '
-bat --style=numbers --color=always --line-range :250 $realpath 2>/dev/null ||
-exa -1 --color=always --icons --group-directories-first $realpath
-'
-zstyle ':fzf-tab:complete:kill:argument-rest' fzf-preview 'ps --pid=$word -o cmd --no-headers -w -w'
-zstyle ':fzf-tab:complete:kill:argument-rest' fzf-flags '--preview-window=down:3:wrap'
-
-# =============================================================================
-#                                   Include
-# =============================================================================
-
-# Read configuration from files
-for file in $HOME/.config/zsh/*.zsh; do
-    [ -r "$file" ] && source "$file"
-done
-unset file
-
-[[ -f $HOME/.config/zsh/.zshrc.local ]] && source $HOME/.config/zsh/.zshrc.local
-
-true
+# Load local configuration.
+z4h source $ZDOTDIR/.zshrc.local

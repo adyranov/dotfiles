@@ -3,6 +3,8 @@
 .bash_logout
 .bash_profile
 .bashrc
+.gitconfig
+.gitignore
 .zlogin
 .zlogout
 .zprofile

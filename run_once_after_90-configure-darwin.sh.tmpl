@@ -1,0 +1,15 @@
+{{- if (eq .chezmoi.os "darwin") -}}
+#!/bin/bash
+
+set -eufo pipefail
+
+if ! grep -qc "/usr/local/bin/zsh" /etc/shells; then
+  echo "/usr/local/bin/zsh" | sudo tee -a /etc/shells > /dev/null
+fi
+
+{{ if eq .chezmoi.arch "arm64" -}}
+if [[ ! -e /usr/local/bin/zsh ]]; then
+  sudo ln -sf /opt/homebrew/bin/zsh /usr/local/bin/zsh
+fi
+{{- end -}}
+{{- end -}}

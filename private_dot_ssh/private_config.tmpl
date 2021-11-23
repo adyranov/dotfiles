@@ -1,9 +1,3 @@
-Host personal.github.com
-    User git
-    HostName github.com
-    PreferredAuthentications publickey
-    IdentityFile ~/.ssh/id_ed25519-github-personal
-
 Host *+*
     UserKnownHostsFile /dev/null
     StrictHostKeyChecking=no
@@ -17,6 +11,10 @@ Host *
     ControlMaster auto
     ControlPath /tmp/ssh-%r@%h:%p
     ControlPersist 5
+{{- end }}
+{{- if eq .chezmoi.os "darwin" }}
+    AddKeysToAgent yes
+    UseKeychain yes
 {{- end }}
     ExitOnForwardFailure yes
     ForwardAgent yes
