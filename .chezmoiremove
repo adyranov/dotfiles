@@ -3,6 +3,7 @@
 .bash_logout
 .bash_profile
 .bashrc
+.dircolors
 .gitconfig
 .gitignore
 .zlogin

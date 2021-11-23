@@ -14,12 +14,12 @@ zstyle ':z4h:' auto-update-days '28'
 zstyle ':z4h:' prompt-at-bottom 'yes'
 
 # Keyboard type: 'mac' or 'pc'.
-if [ "$(uname 2> /dev/null)" = "Darwin" ]; then
-  zstyle ':z4h:bindkey' keyboard  'mac'
-  zstyle ':z4h:'        iterm2-integration yes
-else
-  zstyle ':z4h:bindkey' keyboard  'pc'
-fi
+{{- if (eq .chezmoi.os "darwin") }}
+zstyle ':z4h:bindkey' keyboard  'mac'
+zstyle ':z4h:'        iterm2-integration yes
+{{- else }}
+zstyle ':z4h:bindkey' keyboard  'pc'
+{{- end }}
 
 # Right-arrow key accepts one character ('partial-accept') from
 # command autosuggestions or the whole thing ('accept')?
