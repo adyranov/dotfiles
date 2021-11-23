@@ -1,0 +1,9 @@
+#!/bin/bash
+
+set -eufo pipefail
+
+# .tool-versions hash: {{ include "dot_tool-versions.tmpl" | sha256sum }}
+if command -v asdf >/dev/null; then
+    echo "Installing asdf plugins..."
+    asdf install
+fi
