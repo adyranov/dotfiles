@@ -6,23 +6,27 @@ if command -v kubectl-krew >/dev/null; then
     plugins=(
         access-matrix
         ctx
-        deprecations
         get-all
         konfig
-        modify-secret
         neat
         node-shell
         ns
-        popeye
         resource-capacity
         score
+        tree
+        view-secret
+{{- if (eq .chezmoi.os "darwin") }}
+{{- if (ne .chezmoi.arch "arm64") }}
+        deprecations
+        modify-secret
+        popeye
         sniff
         tail
         tap
-        tree
         tunnel
-        view-secret
         who-can
+{{- end }}
+{{- end }}
     )
 
     kubectl-krew install ${plugins[@]}
