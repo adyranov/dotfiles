@@ -1,5 +1,18 @@
+alias k=kubectl
 alias kctx=kubectx
 alias kns=kubens
+
+kralpine () {
+  kubectl run -i --rm --tty alpine --image=alpine -- sh
+}
+
+kexec () {
+  kubectl exec -it $1 -- ${2:-bash}
+}
+
+alias tf=terraform
+alias tg=terragrunt
+
 
 # ls => exa
 # exchange ls with exa

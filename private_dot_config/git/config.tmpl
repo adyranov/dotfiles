@@ -54,7 +54,7 @@
     autocrlf = false
     safecrlf = warn
     pager = delta
-    editor = nano
+    editor = code --wait
     whitespace = trailing-space,space-before-tab
 [diff]
     renamelimit = 0
@@ -72,6 +72,9 @@
     summary = true
     stat = true
     conflictstyle = diff3
+    tool = vscode
+[mergetool "vscode"]
+	cmd = code --wait $MERGED
 [pack]
     threads = 0
 [pull]
@@ -107,14 +110,9 @@
     line-numbers-minus-style = 124
     line-numbers-plus-style = 28
 
-[url "ssh://git@personal.github.com/{{ .chezmoi.username }}"]
-    insteadOf = "ssh://git@github.com/{{ .chezmoi.username }}"
-    insteadOf = "git://github.com/{{ .chezmoi.username }}"
-    insteadOf = "https://github.com/{{ .chezmoi.username }}"
-
 [user]
     name = "{{ .name }}"
     email = "{{ .email }}"
 
 [include]
-    path = ~/.gitconfig.local
+    path = ~/.config/git/local.toml

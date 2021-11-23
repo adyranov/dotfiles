@@ -1,0 +1,28 @@
+
+{{- $refreshPeriod := "168h" }}
+
+{{- if and (not .ephemeral) (not .headless) }}
+{{-   $fontDir := "" }}
+{{-   $powerlevelBase := "https://github.com/romkatv/powerlevel10k-media/raw/master" }}
+{{-   if eq .chezmoi.os "darwin" }}
+{{-     $fontDir = "Library/Fonts" }}
+{{-   else if eq .chezmoi.os "linux" }}
+{{-     $fontDir = ".local/share/fonts" }}
+{{-   end }}
+["{{ $fontDir }}/MesloLGS NF Regular.ttf"]
+    type = "file"
+    url = "{{ $powerlevelBase }}/MesloLGS NF Regular.ttf"
+    refreshPeriod = "{{ $refreshPeriod }}"
+["{{ $fontDir }}/MesloLGS NF Bold.ttf"]
+    type = "file"
+    url = "{{ $powerlevelBase }}/MesloLGS NF Bold.ttf"
+    refreshPeriod = "{{ $refreshPeriod }}"
+["{{ $fontDir }}/MesloLGS NF Italic.ttf"]
+    type = "file"
+    url = "{{ $powerlevelBase }}/MesloLGS NF Italic.ttf"
+    refreshPeriod = "{{ $refreshPeriod }}"
+["{{ $fontDir }}/MesloLGS NF Bold Italic.ttf"]
+    type = "file"
+    url = "{{ $powerlevelBase }}/MesloLGS NF Bold Italic.ttf"
+    refreshPeriod = "{{ $refreshPeriod }}"
+{{- end }}
