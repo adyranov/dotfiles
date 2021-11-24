@@ -2,30 +2,33 @@
 
 set -eufo pipefail
 
-if command -v kubectl-krew >/dev/null; then
-    plugins=(
-        access-matrix
-        ctx
-        get-all
-        konfig
-        neat
-        node-shell
-        ns
-        resource-capacity
-        score
-        tree
-        view-secret
+{{- if lookPath "kubectl-krew" }}
+# kubectl-krew list hash: {{ output "kubectl-krew" "list" | sha256sum }}
+plugins=(
+    access-matrix
+    ctx
+    get-all
+    konfig
+    neat
+    node-shell
+    ns
+    resource-capacity
+    score
+    tree
+    view-secret
 {{- if (ne .chezmoi.arch "arm64") }}
-        deprecations
-        modify-secret
-        popeye
-        sniff
-        tail
-        tap
-        tunnel
-        who-can
+    deprecations
+    modify-secret
+    popeye
+    sniff
+    tail
+    tap
+    tunnel
+    who-can
 {{- end }}
-    )
-    echo "Installing kubectl-krew plugins..."
-    kubectl-krew install ${plugins[@]}
-fi
+)
+
+echo "Installing kubectl-krew plugins..."
+kubectl-krew install ${plugins[@]}
+
+{{- end -}}
