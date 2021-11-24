@@ -10,47 +10,19 @@ packages=(
     bash
     build-essential
     curl
+    docker-ce
     fasd
-    file
+    ffmpeg
     git
     gnupg
-    helm
     htop
     httpie
-    jq
-    kubectl
     neovim
-    procps
     subversion
-    terraform
     tmux
     wget
-    yarnpkg
     zsh
 )
-
-{{ $taps := list
-    "homebrew/autoupdate"
-    "homebrew/bundle"
-    "homebrew/cask-fonts"
-    "homebrew/cask-versions"
-    "homebrew/command-not-found"
-    "homebrew/core" -}}
-
-{{ $brews := list
-    "bat"
-    "bitwarden-cli"
-    "exa"
-    "fd"
-    "fzf"
-    "git-delta"
-    "k9s"
-    "kubectx"
-    "pre-commit"
-    "ripgrep"
-    "terragrunt"
-    "vivid"
-    "yq" -}}
 
 for repository in ${repositories[@]}; do
 	sudo add-apt-repository -y $repository
@@ -59,15 +31,6 @@ done
 sudo apt update
 
 sudo apt install -y ${packages[@]}
-
-brew bundle --no-lock --file=/dev/stdin <<EOF
-{{ range ($taps | sortAlpha | uniq) -}}
-tap "{{ . }}"
-{{ end -}}
-{{ range ($brews | sortAlpha | uniq) -}}
-brew "{{ . }}"
-{{ end -}}
-EOF
 
 {{ end -}}
 {{ end -}}
