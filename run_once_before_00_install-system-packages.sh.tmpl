@@ -1,0 +1,72 @@
+#!/bin/bash
+
+set -eufo pipefail
+
+{{- if (eq .chezmoi.os "darwin") }}
+
+{{- if not (lookPath "brew") }}
+echo "Installing Homebrew..."
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+{{- end -}}
+
+{{- if eq .chezmoi.arch "arm64" }}
+eval $(/opt/homebrew/bin/brew shellenv)
+{{- else }}
+eval $(/usr/local/bin/brew shellenv)
+{{- end }}
+
+{{ $taps := .brew.taps -}}
+
+{{ $brews := list -}}
+{{ range $package := .packages -}}
+{{ $name := $package -}}
+{{ if not (contains "no-brew" $name) -}}
+{{ $name = regexReplaceAll " \\[.*\\]" $name "" -}}
+{{ $brews = append $brews $name  -}}
+{{ end -}}
+{{ end -}}
+
+{{ $casks := list -}}
+{{ $apps := list -}}
+
+{{ if .personal -}}
+{{ $casks = concat $casks .brew.casks -}}
+{{ $apps = concat $apps .brew.apps -}}
+{{ end -}}
+
+brew bundle --no-lock --file=/dev/stdin <<EOF
+{{ range $taps -}}
+tap "{{ . }}"
+{{ end -}}
+{{ range $brews -}}
+brew "{{ . }}"
+{{ end -}}
+{{ range $casks -}}
+cask "{{ . }}"
+{{ end -}}
+{{ range $apps -}}
+mas "{{ .name }}", id: {{ .id }}
+{{ end -}}
+EOF
+
+{{- end -}}
+
+{{ if (eq .chezmoi.os "linux") -}}
+{{ if (eq .chezmoi.osRelease.id "ubuntu") }}
+
+packages=(
+{{ range $package := .packages -}}
+{{ $name := $package -}}
+{{ if not (contains "no-apt" $name) -}}
+{{ $name = regexReplaceAll " \\[.*\\]" $name "" -}}
+{{ $name | indent 4 }}
+{{ end -}}
+{{ end -}}
+)
+
+sudo apt update
+
+sudo apt install -y ${packages[@]}
+
+{{ end -}}
+{{ end -}}

@@ -13,3 +13,15 @@ if [[ ! -e /usr/local/bin/zsh ]]; then
 fi
 {{- end -}}
 {{- end -}}
+
+{{- if (and (eq .chezmoi.os "linux") (not .ephemeral)) -}}
+#!/bin/bash
+
+set -eufo pipefail
+
+LOGINSHELL=$(getent passwd $LOGNAME | cut -d: -f7)
+if [ "$LOGINSHELL" != "/usr/bin/zsh" ]; then
+  chsh -s /usr/bin/zsh
+fi
+
+{{- end -}}
