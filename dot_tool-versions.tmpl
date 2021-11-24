@@ -1,0 +1,14 @@
+{{- $excludeFlag := "no-apt" }}
+{{- if (eq .chezmoi.os "darwin") }}
+{{- $excludeFlag = "no-brew" }}
+{{- end }}
+{{- range $package := .packages }}
+{{- if and (contains "asdf" $package) (contains $excludeFlag $package)  }}
+{{- $nameVer := regexReplaceAll "(\\w+) \\[.*asdf:(.*):(.*)\\]$" $package "${1} ${2} ${3}" }}
+{{- $nameVer = regexSplit " " $nameVer -1 }}
+{{- $packageName := first $nameVer | trim }}
+{{- $asdfName := first (rest $nameVer) | trim | default $packageName}}
+{{- $asdfVersion := last $nameVer | trim }}
+{{- $asdfName }} {{ $asdfVersion }}
+{{ end }}
+{{- end -}}

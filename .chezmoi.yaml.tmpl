@@ -1,0 +1,139 @@
+{{- $headless := false -}}
+{{- $ephemeral := false -}}
+{{- $personal := true -}}
+{{- $name := "Artem Dyranov" -}}
+{{- $email := "artem.dyranov@gmail.com" -}}
+
+{{- if or (env "CODESPACES") (env "REMOTE_CONTAINERS_IPC") (eq .chezmoi.username "root" "vagrant" "vscode") -}}
+{{-   $headless = true -}}
+{{-   $ephemeral = true -}}
+{{- end -}}
+
+{{- if stdinIsATTY -}}
+
+{{- if hasKey . "personal" -}}
+{{-   $personal = .personal -}}
+{{- else -}}
+{{-   $personal = promptBool "Personal Environment" $personal -}}
+{{- end -}}
+
+{{- if hasKey . "name" -}}
+{{-   $name = .name -}}
+{{- else -}}
+{{-   $name = promptString "Your Name" $name -}}
+{{- end -}}
+
+{{- if hasKey . "email" -}}
+{{-   $email = .email -}}
+{{- else -}}
+{{-   $email = promptString "Your Email" $email -}}
+{{- end -}}
+
+{{-   writeToStdout "💡 Tip: you can re-enter your name and email with `chezmoi init --data=false`.\n" -}}
+{{- end -}}
+
+sourceDir: "{{ .chezmoi.sourceDir }}"
+
+diff:
+  pager: "delta"
+
+data:
+    email: "{{ $email }}"
+    name: "{{ $name }}"
+    personal: {{ $personal }}
+    headless: {{ $headless }}
+    ephemeral: {{ $ephemeral }}
+    packages:
+    - "azure-cli"
+    - "bash"
+    - "bat [no-apt asdf::0.18.3]"
+    - "bitwarden-cli [no-apt asdf:bitwarden:v1.19.1]"
+    - "build-essential [no-brew]"
+    - "curl"
+    - "direnv [no-brew no-apt asdf::2.28.0]"
+    - "docker [no-apt]"
+    - "docker-ce [no-brew]"
+    - "dockutil [no-apt]"
+    - "dpkg"
+    - "exa [no-apt asdf::0.10.1]"
+    - "fasd"
+    - "fd [no-apt asdf::8.2.1]"
+    - "ffmpeg"
+    - "git"
+    - "git-delta [no-apt asdf:delta:0.9.2]"
+    - "gnupg"
+    - "helm"
+    - "htop"
+    - "httpie"
+    - "java [no-brew no-apt asdf::temurin-17.0.1+12]"
+    - "jq"
+    - "k9s [no-apt asdf::0.25.6]"
+    - "kubectl [no-apt asdf::1.22.4]"
+    - "kubectx [no-apt asdf::0.9.4]"
+    - "mas [no-apt]"
+    - "maven [no-brew no-apt asdf::3.8.4]"
+    - "mc [no-brew]"
+    - "midnight-commander [no-apt]"
+    - "neovim"
+    - "nodejs [no-brew no-apt asdf::lts]"
+    - "pre-commit [no-apt asdf::2.15.0]"
+    - "ripgrep [no-apt asdf::13.0.0]"
+    - "subversion"
+    - "terraform"
+    - "terragrunt [no-apt asdf::0.35.13]"
+    - "tmux"
+    - "wget"
+    - "yarn [no-apt asdf::1.22.17]"
+    - "yq [no-apt asdf::4.15.1]"
+    - "zsh"
+    brew:
+       taps:
+       - "homebrew/autoupdate"
+       - "homebrew/bundle"
+       - "homebrew/cask"
+       - "homebrew/cask-fonts"
+       - "homebrew/cask-versions"
+       - "homebrew/command-not-found"
+       - "homebrew/core"
+       casks:
+       - "authy"
+       - "calibre"
+       - "cinebench"
+       - "dropbox"
+       - "firefox"
+       - "font-fira-code"
+       - "geekbench"
+       - "google-chrome"
+       - "google-drive"
+       - "gpg-suite"
+       - "handbrake"
+       - "iterm2"
+       - "jetbrains-toolbox"
+       - "lens"
+       - "macfuse"
+       - "microsoft-edge"
+       - "private-internet-access"
+       - "qbittorrent"
+       - "skype"
+       - "spotify"
+       - "teamviewer"
+       - "telegram-desktop"
+       - "tor-browser"
+       - "visual-studio-code"
+       - "vlc"
+       - "xnviewmp"
+       - "yandex-disk"
+       - "zoom"
+       apps:
+       - name: "Brother iPrint&Scan"
+         id: "1193539993"
+       - name: "Disk Speed Test"
+         id: "425264550"
+       - name: "Grammarly for Safari"
+         id: "1462114288"
+       - name: "Messenger"
+         id: "1480068668"
+       - name: "Slack"
+         id: "803453959"
+       - name: "The Unarchiver"
+         id: "425424353"
