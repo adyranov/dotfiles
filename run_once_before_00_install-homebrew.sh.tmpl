@@ -2,14 +2,9 @@
 
 set -eufo pipefail
 
-if [[ $(command -v brew) ]]; then
-	echo "Homebrew already installed"
-	brew -v
-	echo "Run 'brew update' to update Homebrew."
-else
-	echo "Installing Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-fi
+{{- if not (lookPath "brew") }}
+echo "Installing Homebrew..."
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 {{- if (eq .chezmoi.os "darwin") }}
 {{- if eq .chezmoi.arch "arm64" }}
@@ -22,3 +17,5 @@ eval $(/usr/local/bin/brew shellenv)
 {{ if (eq .chezmoi.os "linux") -}}
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 {{- end }}
+
+{{- end -}}
