@@ -13,6 +13,7 @@ ASDF_DIR="${HOME}/.asdf"
 . ${ASDF_DIR}/asdf.sh
 asdf update
 
+set +eufo pipefail
 while read -r plugin _; do
     asdf plugin-add "$plugin" || true
 done <"${HOME}/.tool-versions"
