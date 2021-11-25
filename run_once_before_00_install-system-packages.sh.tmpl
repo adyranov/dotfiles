@@ -54,36 +54,22 @@ EOF
 {{ if (eq .chezmoi.os "linux") -}}
 {{ if (eq .chezmoi.osRelease.id "ubuntu") }}
 
-if [ ! -f /etc/apt/sources.list.d/azure-cli.list ]; then
-    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-    echo "deb [arch=$(dpkg --print-architecture)] https://packages.microsoft.com/repos/azure-cli $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/azure-cli.list
+{{ range .apt.repositories -}}
+if [ ! -f /etc/apt/sources.list.d/{{ .name }}.list ]; then
+    {{ if .key -}}
+    curl -fsSL "{{ .key }}" | sudo apt-key add -
+    {{ end -}}
+    echo "{{ .string }}" | sudo tee /etc/apt/sources.list.d/{{ .name }}.list
 fi
-
-if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-    echo "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
-fi
-
-if [ ! -f /etc/apt/sources.list.d/hashicorp.list ]; then
-    curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-    echo "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-fi
-
-if [ ! -f /etc/apt/sources.list.d/helm-stable-debian.list ]; then
-    curl -fsSL https://baltocdn.com/helm/signing.asc | sudo apt-key add -
-    echo "deb [arch=$(dpkg --print-architecture)] https://baltocdn.com/helm/stable/debian all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-fi
-
-if [ ! -f /etc/apt/sources.list.d/kubernetes.list ]; then
-    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
-    echo "deb [arch=$(dpkg --print-architecture)] https://apt.kubernetes.io kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
-fi
-
+{{ end -}}
 packages=(
 {{ range $package := .packages -}}
+{{ if not (contains "no-apt" $package) -}}
 {{ $name := $package -}}
-{{ if not (contains "no-apt" $name) -}}
 {{ $name = regexReplaceAll " \\[.*\\]" $name "" -}}
+{{ if contains "apt:" $package -}}
+{{ $name = regexReplaceAll ".* \\[.*apt:([\\w_-]+).*\\]" $package "${1}" -}}
+{{ end -}}
 {{ $name | indent 4 }}
 {{ end -}}
 {{ end -}}
