@@ -15,6 +15,10 @@ tar zxvf "${KREW}.tar.gz" &&
 ./"${KREW}" install krew
 )
 
+{{- else }}
+
+# kubectl-krew list hash: {{ output "kubectl-krew" "list" | sha256sum }}
+
 {{- end }}
 
 plugins=(
