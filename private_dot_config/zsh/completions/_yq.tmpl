@@ -1,0 +1,4 @@
+{{- $yq := lookPath "yq" -}}
+{{- if $yq -}}
+{{- output $yq "shell-completion" "zsh" -}}
+{{- end -}}

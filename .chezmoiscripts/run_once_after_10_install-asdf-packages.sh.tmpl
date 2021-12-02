@@ -8,6 +8,10 @@ echo "Installing asdf..."
 ASDF_DIR="${HOME}/.asdf"
 [ ! -d $ASDF_DIR ] && git clone https://github.com/asdf-vm/asdf.git "${ASDF_DIR}"
 
+{{- else }}
+
+# asdf tool versions hash: {{ output "asdf" "current" | sha256sum }}
+
 {{- end }}
 
 . ${ASDF_DIR}/asdf.sh

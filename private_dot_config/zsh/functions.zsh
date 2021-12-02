@@ -84,3 +84,9 @@ kralpine () {
 kexec () {
   kubectl exec -it $1 -- ${2:-bash}
 }
+
+asdf_latest_versions () {
+  asdf update > /dev/null 2>&1
+  asdf plugin update --all > /dev/null 2>&1
+  diff <(cat ~/.tool-versions | awk '{print $1}' | xargs -I {} bash -c 'echo {} $(asdf latest {})') <(cat ~/.tool-versions)
+}
