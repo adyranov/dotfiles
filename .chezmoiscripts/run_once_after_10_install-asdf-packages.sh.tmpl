@@ -10,7 +10,8 @@ ASDF_DIR="${HOME}/.asdf"
 
 {{- else }}
 
-# asdf tool versions hash: {{ output "asdf" "current" | sha256sum }}
+{{ $file := joinPath .chezmoi.homeDir ".tool-versions" -}}
+# asdf tool versions hash: {{ include $file | sha256sum }}
 
 {{- end }}
 
