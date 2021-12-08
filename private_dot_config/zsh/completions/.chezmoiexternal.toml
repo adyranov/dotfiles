@@ -1,6 +1,31 @@
 
 {{- $refreshPeriod := "168h" }}
 
+[_exa]
+    type = "file"
+    url = 'https://raw.githubusercontent.com/ogham/exa/master/completions/zsh/_exa'
+    refreshPeriod = "{{ $refreshPeriod }}"
+
+[_fd]
+    type = "file"
+    url = 'https://raw.githubusercontent.com/sharkdp/fd/master/contrib/completion/_fd'
+    refreshPeriod = "{{ $refreshPeriod }}"
+
+[_kubectx]
+    type = "file"
+    url = 'https://raw.githubusercontent.com/ahmetb/kubectx/master/completion/_kubectx.zsh'
+    refreshPeriod = "{{ $refreshPeriod }}"
+
+[_kubens]
+    type = "file"
+    url = 'https://raw.githubusercontent.com/ahmetb/kubectx/master/completion/_kubens.zsh'
+    refreshPeriod = "{{ $refreshPeriod }}"
+
+[_rg]
+    type = "file"
+    url = 'https://raw.githubusercontent.com/BurntSushi/ripgrep/master/complete/_rg'
+    refreshPeriod = "{{ $refreshPeriod }}"
+
 [_terragrunt]
     type = "file"
     url = 'https://raw.githubusercontent.com/thuandt/zsh-terraform/master/_terragrunt'
