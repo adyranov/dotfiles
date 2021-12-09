@@ -1,0 +1,20 @@
+#!/bin/bash
+
+set -eufo pipefail
+
+{{- if lookPath "helm" }}
+
+# helm plugin list hash: {{ output "helm" "plugin" "list" | sha256sum }}
+
+plugins=(
+    https://github.com/aslafy-z/helm-git
+    https://github.com/databus23/helm-diff
+    https://github.com/jkroepke/helm-secrets
+)
+
+for plugin in "${plugins[@]}"
+do
+    helm plugin install $plugin 2>/dev/null || true
+done
+
+{{- end }}
