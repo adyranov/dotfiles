@@ -1,0 +1,15 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  clone-and-install:
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macOS-11]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - run: ./install.sh
