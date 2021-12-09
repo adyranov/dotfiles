@@ -17,6 +17,18 @@
 {{-   $personal = promptBool "Personal Environment" $personal -}}
 {{- end -}}
 
+{{- if hasKey . "headless" -}}
+{{-   $headless = .headless -}}
+{{- else -}}
+{{-   $headless = promptBool "Headless Environment" $headless -}}
+{{- end -}}
+
+{{- if hasKey . "ephemeral" -}}
+{{-   $ephemeral = .heaephemeraldless -}}
+{{- else -}}
+{{-   $ephemeral = promptBool "Ephemeral Environment" $ephemeral -}}
+{{- end -}}
+
 {{- if hasKey . "name" -}}
 {{-   $name = .name -}}
 {{- else -}}
@@ -30,6 +42,10 @@
 {{- end -}}
 
 {{-   writeToStdout "💡 Tip: you can re-enter your name and email with `chezmoi init --data=false`.\n" -}}
+
+{{- else -}}
+{{-   $headless = true -}}
+{{-   $ephemeral = true -}}
 {{- end -}}
 
 sourceDir: "{{ .chezmoi.sourceDir }}"

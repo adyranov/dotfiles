@@ -31,7 +31,7 @@ eval $(/usr/local/bin/brew shellenv)
 {{ $casks := list -}}
 {{ $apps := list -}}
 
-{{ if .personal -}}
+{{ if not .headless -}}
 {{ $casks = concat $casks .brew.casks -}}
 {{ $apps = concat $apps .brew.apps -}}
 {{ end -}}
