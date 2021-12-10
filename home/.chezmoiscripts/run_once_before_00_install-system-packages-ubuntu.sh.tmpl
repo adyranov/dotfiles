@@ -1,0 +1,37 @@
+#!/bin/bash
+
+set -eufo pipefail
+
+{{ if (eq .chezmoi.os "linux") -}}
+{{ if (eq .chezmoi.osRelease.id "ubuntu") }}
+
+{{ range .apt.repositories -}}
+if [ ! -f /etc/apt/sources.list.d/{{ .name }}.list ]; then
+    {{ if .key -}}
+    curl -fsSL "{{ .key }}" | sudo apt-key add -
+    {{ end -}}
+    echo "{{ .string }}" | sudo tee /etc/apt/sources.list.d/{{ .name }}.list
+fi
+{{ end -}}
+packages=(
+{{ range $package := .packages -}}
+{{ if not (contains "no-apt" $package) -}}
+{{ $name := $package -}}
+{{ $name = regexReplaceAll " \\[.*\\]" $name "" -}}
+{{ if contains "apt:" $package -}}
+{{ $name = regexReplaceAll ".* \\[.*apt:([\\w_-]+).*\\]" $package "${1}" -}}
+{{ end -}}
+{{ $name | indent 4 }}
+{{ end -}}
+{{ end -}}
+)
+
+sudo apt-get update
+
+sudo apt-get install -y ${packages[@]}
+sudo apt-get -qq clean autoclean
+sudo apt-get -qq -y --purge autoremove
+sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+{{ end -}}
+{{ end -}}

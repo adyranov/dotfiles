@@ -12,7 +12,7 @@ ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's
 KREW="krew-${OS}_${ARCH}" &&
 curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
 tar zxvf "${KREW}.tar.gz" &&
-./"${KREW}" install krew
+./"${KREW}" install krew >/dev/null 2>&1
 )
 
 {{- else }}
@@ -46,4 +46,4 @@ plugins=(
 )
 
 echo "Installing kubectl-krew plugins..."
-${HOME}/.krew/bin/kubectl-krew install ${plugins[@]}
+${HOME}/.krew/bin/kubectl-krew install ${plugins[@]} >/dev/null 2>&1
