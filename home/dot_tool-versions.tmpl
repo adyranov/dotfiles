@@ -1,6 +1,11 @@
-{{- $excludeFlag := "no-apt" }}
-{{- if (eq .chezmoi.os "darwin") }}
-{{- $excludeFlag = "no-brew" }}
+{{- $excludeFlag := "no-brew" }}
+{{- if (eq .chezmoi.os "linux") }}
+{{- if (eq .chezmoi.osRelease.id "ubuntu") }}
+{{- $excludeFlag = "no-apt" }}
+{{- end }}
+{{- if (eq .chezmoi.osRelease.id "alpine") }}
+{{- $excludeFlag = "no-apk" }}
+{{- end }}
 {{- end }}
 {{- range $package := .packages }}
 {{- if and (contains "asdf" $package) (contains $excludeFlag $package)  }}
