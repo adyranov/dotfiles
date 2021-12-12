@@ -1,3 +1,27 @@
+#!/usr/bin/env bash
+set -eufo pipefail
+
+ASDF_DIR="${HOME}/.asdf"
+[ ! -d $ASDF_DIR ] && git clone https://github.com/asdf-vm/asdf.git "${ASDF_DIR}"
+
+. ${ASDF_DIR}/asdf.sh
+
+function install_asdf {
+    IFS=', ' read -r -a array <<< $2
+    asdf plugin-add "$1" >/dev/null 2>&1 || true
+    for el in ${array[@]}
+    do
+        asdf install $1 $el
+    done
+    version="$2"
+    if [[ ${2} == "latest" ]]; then
+        v=$(asdf list ${1})
+        version=${v//[[:blank:]]/}
+    fi
+    asdf global ${1} ${version}
+    asdf reshim ${1} ${version}
+}
+
 {{- $excludeFlag := "no-brew" }}
 {{- if (eq .chezmoi.os "linux") }}
 {{- if (eq .chezmoi.osRelease.id "ubuntu") }}
@@ -14,6 +38,6 @@
 {{- $packageName := first $nameVer | trim }}
 {{- $asdfName := first (rest $nameVer) | trim | default $packageName}}
 {{- $asdfVersion := last $nameVer | trim }}
-{{- $asdfName }} {{ $asdfVersion }}
-{{ end }}
-{{- end -}}
+install_asdf "{{ $asdfName }}" "{{ $asdfVersion }}"
+{{- end }}
+{{- end }}

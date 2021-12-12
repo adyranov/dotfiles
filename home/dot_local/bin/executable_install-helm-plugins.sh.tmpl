@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -eufo pipefail
+
+plugins=(
+{{ range $plugin := .helm.plugins }}
+{{- $plugin | indent 4}}
+{{ end -}}
+)
+
+for plugin in "${plugins[@]}"
+do
+    helm plugin install $plugin 2>/dev/null || true
+done

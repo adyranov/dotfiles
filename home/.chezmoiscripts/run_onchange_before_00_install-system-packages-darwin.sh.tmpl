@@ -1,14 +1,12 @@
-#!/bin/bash
-
+{{- if (eq .chezmoi.os "darwin") -}}
+#!/usr/bin/env bash
 set -eufo pipefail
-
-{{- if (eq .chezmoi.os "darwin") }}
 
 xcode-select -p >/dev/null 2>&1 || xcode-select --install
 
 {{- if not (lookPath "brew") }}
 echo "Installing Homebrew..."
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+/bin/sh -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 {{- end -}}
 
 {{- if eq .chezmoi.arch "arm64" }}
@@ -17,6 +15,7 @@ eval $(/opt/homebrew/bin/brew shellenv)
 eval $(/usr/local/bin/brew shellenv)
 {{- end }}
 
+brew bundle --no-lock --file=/dev/stdin <<EOF
 {{ $taps := .brew.taps -}}
 
 {{ $brews := list -}}
@@ -24,6 +23,9 @@ eval $(/usr/local/bin/brew shellenv)
 {{ $name := $package -}}
 {{ if not (contains "no-brew" $name) -}}
 {{ $name = regexReplaceAll " \\[.*\\]" $name "" -}}
+{{ if contains "brew:" $package -}}
+{{ $name = regexReplaceAll ".* \\[.*brew:([\\w@_-]+).*\\]" $package "${1}" -}}
+{{ end -}}
 {{ $brews = append $brews $name  -}}
 {{ end -}}
 {{ end -}}
@@ -36,19 +38,17 @@ eval $(/usr/local/bin/brew shellenv)
 {{ $apps = concat $apps .brew.apps -}}
 {{ end -}}
 
-brew bundle --no-lock --file=/dev/stdin <<EOF
 {{ range $taps -}}
 tap "{{ . }}"
 {{ end -}}
-{{ range $brews -}}
+{{ range $brews | sortAlpha -}}
 brew "{{ . }}"
 {{ end -}}
-{{ range $casks -}}
+{{ range $casks | sortAlpha -}}
 cask "{{ . }}"
 {{ end -}}
 {{ range $apps -}}
 mas "{{ .name }}", id: {{ .id }}
 {{ end -}}
 EOF
-
 {{- end -}}

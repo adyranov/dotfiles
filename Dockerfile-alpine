@@ -1,0 +1,67 @@
+# syntax=docker/dockerfile:1.3
+
+FROM alpine:latest
+
+ARG USER=devcontainer
+ARG UID=54321
+
+ENV HOME=/home/$USER
+
+WORKDIR $HOME
+
+COPY . .local/share/chezmoi
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    apk add --update \
+        bash \
+        ca-certificates \
+        coreutils \
+        curl \
+        git \
+        gnupg \
+        grep \
+        htop \
+        jq \
+        krb5-libs \
+        less \
+        libgcc \
+        libintl \
+        libssl1.1 \
+        libstdc++ \
+        lsof \
+        lttng-ust \
+        man-pages \
+        mandoc \
+        nano \
+        ncdu \
+        ncurses \
+        net-tools \
+        openssh-client \
+        procps \
+        psmisc \
+        rsync \
+        sed \
+        shadow \
+        strace \
+        sudo \
+        tzdata \
+        unzip \
+        userspace-rcu \
+        vim \
+        wget \
+        which \
+        zip \
+        zlib \
+        zsh \
+    && adduser -u $UID -s $(which zsh) -D $USER \
+    && echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER \
+    && chmod 0440 /etc/sudoers.d/$USER \
+    && chown -R $USER:$USER $HOME \
+    && su - $USER -c "GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh" \
+    && rm -rf /var/cache/apk/*
+
+USER $USER
+
+RUN . ~/.zshenv
+
+CMD /bin/zsh

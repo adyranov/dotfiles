@@ -1,23 +1,19 @@
-{{- if (eq .chezmoi.os "darwin") -}}
-#!/bin/bash
-
+#!/usr/bin/env bash
 set -eufo pipefail
 
+{{- if (eq .chezmoi.os "darwin") }}
 if ! grep -qc "/usr/local/bin/zsh" /etc/shells; then
   echo "/usr/local/bin/zsh" | sudo tee -a /etc/shells > /dev/null
 fi
 
-{{ if eq .chezmoi.arch "arm64" -}}
+{{- if eq .chezmoi.arch "arm64" }}
 if [[ ! -e /usr/local/bin/zsh ]]; then
   sudo ln -sf /opt/homebrew/bin/zsh /usr/local/bin/zsh
 fi
 {{- end -}}
 {{- end -}}
 
-{{- if (and (eq .chezmoi.os "linux") (not .ephemeral)) -}}
-#!/bin/bash
-
-set -eufo pipefail
+{{- if (and (eq .chezmoi.os "linux") (not .ephemeral)) }}
 
 LOGINSHELL=$(getent passwd $LOGNAME | cut -d: -f7)
 if [ "$LOGINSHELL" != "/usr/bin/zsh" ]; then

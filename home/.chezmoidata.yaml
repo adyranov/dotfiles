@@ -1,0 +1,151 @@
+packages:
+  - "bash"
+  - "bat [no-apt asdf::latest]"
+  - "buildah [no-brew]"
+  - "colima [no-apt no-apk]"
+  - "curl"
+  - "direnv [no-brew no-apt no-apk asdf::latest]"
+  - "dive [no-apt asdf::latest]"
+  - "docker [apt:docker-ce]"
+  - "dockutil [no-apt no-apk]"
+  - "dpkg"
+  - "exa [no-apt asdf::latest]"
+  - "fasd"
+  - "fd [no-apt asdf::latest]"
+  - "gh [no-apt no-apk asdf:github-cli:latest]"
+  - "git"
+  - "git-delta [no-apt apk:delta asdf:delta:latest]"
+  - "gnupg"
+  - "helm"
+  - "htop"
+  - "httpie"
+  - "java [apt:openjdk-17-jre-headless apk:openjdk17-jre-headless]"
+  - "jq"
+  - "k9s [no-apt asdf::latest]"
+  - "kubectl"
+  - "kubectx [no-apt asdf::latest]"
+  - "mas [no-apt no-apk]"
+  - "maven"
+  - "neovim"
+  - "nodejs [brew:node@16]"
+  - "npm [no-brew no-apt]"
+  - "podman [no-brew]"
+  - "pre-commit [no-apt asdf::latest]"
+  - "ripgrep [no-apt asdf::latest]"
+  - "skopeo"
+  - "sops [no-apt asdf::latest]"
+  - "terraform"
+  - "terragrunt [no-apt no-apk asdf::latest]"
+  - "tflint [no-apt no-apk asdf::latest]"
+  - "tmux"
+  - "wget"
+  - "yarn"
+  - "yq [no-apt asdf::latest]"
+  - "zsh"
+apt:
+  repositories:
+    - name: "azure-cli"
+      key: "https://packages.microsoft.com/keys/microsoft.asc"
+      string: "deb [arch=$(dpkg --print-architecture)] https://packages.microsoft.com/repos/azure-cli $(lsb_release -cs) main"
+    - name: "docker"
+      key: "https://download.docker.com/linux/ubuntu/gpg"
+      string: "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    - name: "git-core-ubuntu-ppa-focal"
+      key: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xe1dd270288b4e6030699e45fa1715d88e1df1f24"
+      string: "deb [arch=$(dpkg --print-architecture)] http://ppa.launchpad.net/git-core/ppa/ubuntu $(lsb_release -cs) main"
+    - name: "hashicorp"
+      key: "https://apt.releases.hashicorp.com/gpg"
+      string: "deb [arch=$(dpkg --print-architecture)] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+    - name: "helm-stable-debian"
+      key: "https://baltocdn.com/helm/signing.asc"
+      string: "deb [arch=$(dpkg --print-architecture)] https://baltocdn.com/helm/stable/debian all main"
+    - name: "kubernetes"
+      key: "https://packages.cloud.google.com/apt/doc/apt-key.gpg"
+      string: "deb [arch=$(dpkg --print-architecture)] https://apt.kubernetes.io kubernetes-xenial main"
+    - name: "kubic-libcontainers-stable"
+      key: "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_$(lsb_release -rs)/Release.key"
+      string: "deb [arch=$(dpkg --print-architecture)] https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_$(lsb_release -rs)/ /"
+    - name: "nodesource"
+      key: "https://deb.nodesource.com/gpgkey/nodesource.gpg.key"
+      string: "deb [arch=$(dpkg --print-architecture)] https://deb.nodesource.com/node_16.x $(lsb_release -cs) main"
+    - name: "yarn"
+      key: "https://dl.yarnpkg.com/debian/pubkey.gpg"
+      string: "deb [arch=$(dpkg --print-architecture)] https://dl.yarnpkg.com/debian/ stable main"
+
+brew:
+  taps:
+    - "homebrew/autoupdate"
+    - "homebrew/bundle"
+    - "homebrew/cask"
+    - "homebrew/cask-fonts"
+    - "homebrew/cask-versions"
+    - "homebrew/command-not-found"
+    - "homebrew/core"
+  casks:
+    - "authy"
+    - "calibre"
+    - "cinebench"
+    - "dropbox"
+    - "firefox"
+    - "font-fira-code"
+    - "geekbench"
+    - "google-chrome"
+    - "google-drive"
+    - "gpg-suite"
+    - "handbrake"
+    - "iterm2"
+    - "jetbrains-toolbox"
+    - "lens"
+    - "macfuse"
+    - "microsoft-edge"
+    - "private-internet-access"
+    - "qbittorrent"
+    - "skype"
+    - "spotify"
+    - "teamviewer"
+    - "telegram-desktop"
+    - "tor-browser"
+    - "visual-studio-code"
+    - "vlc"
+    - "xnviewmp"
+    - "yandex-disk"
+    - "zoom"
+  apps:
+    - name: "Brother iPrint&Scan"
+      id: "1193539993"
+    - name: "Disk Speed Test"
+      id: "425264550"
+    - name: "Grammarly for Safari"
+      id: "1462114288"
+    - name: "Messenger"
+      id: "1480068668"
+    - name: "Slack"
+      id: "803453959"
+    - name: "The Unarchiver"
+      id: "425424353"
+helm:
+  plugins:
+    - https://github.com/aslafy-z/helm-git
+    - https://github.com/databus23/helm-diff
+    - https://github.com/jkroepke/helm-secrets
+krew:
+  plugins:
+    - access-matrix
+    - ctx
+    - deprecations
+    - get-all
+    - konfig
+    - modify-secret
+    - neat
+    - node-shell
+    - ns
+    - popeye
+    - resource-capacity
+    - score
+    - sniff
+    - tail
+    - tap
+    - tree
+    - tunnel
+    - view-secret
+    - who-can
