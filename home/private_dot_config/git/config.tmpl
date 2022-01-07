@@ -64,6 +64,8 @@
     prune = true
 [help]
     autocorrect = 1
+[init]
+    defaultBranch = main
 [interactive]
     diffFilter = delta --color-only
 [merge]
@@ -74,13 +76,13 @@
     conflictstyle = diff3
     tool = vscode
 [mergetool "vscode"]
-	cmd = code --wait $MERGED
+    cmd = code --wait $MERGED
 [pack]
     threads = 0
 [pull]
     rebase = true
 [push]
-    default = tracking
+    default = upstream
     followTags = true
 [rebase]
     autosquash = true

@@ -1,4 +1,0 @@
-{{- $gh := lookPath (joinPath .chezmoi.homeDir ".asdf/shims/gh") | or (lookPath "gh") -}}
-{{- if $gh -}}
-{{- output $gh "completion" "-s" "zsh" -}}
-{{- end -}}
