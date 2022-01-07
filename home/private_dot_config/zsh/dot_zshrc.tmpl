@@ -6,9 +6,9 @@
 
 # Periodic auto-update on Zsh startup: 'ask' or 'no'.
 # You can manually run `z4h update` to update everything.
-zstyle ':z4h:' auto-update      'no'
+zstyle ':z4h:' auto-update      'ask'
 # Ask whether to auto-update this often; has no effect if auto-update is 'no'.
-zstyle ':z4h:' auto-update-days '28'
+zstyle ':z4h:' auto-update-days '7'
 
 # Move prompt to the bottom when zsh starts and on Ctrl+L.
 zstyle ':z4h:' prompt-at-bottom 'yes'
@@ -53,6 +53,8 @@ zstyle ':z4h:ssh-agent:' start yes
 # up-to-date. Cloned files can be used after `z4h init`. This is just an
 # example. If you don't plan to use Oh My Zsh, delete this line.
 z4h install ohmyzsh/ohmyzsh || return
+z4h install hlissner/zsh-autopair || return
+z4h install MichaelAquilina/zsh-you-should-use || return
 z4h install mollifier/cd-gitroot || return
 z4h install wfxr/forgit || return
 z4h install wookayin/fzf-fasd || return
@@ -77,12 +79,16 @@ z4h source $ZDOTDIR/exports.zsh
 # Use additional Git repositories pulled in with `z4h install`.
 z4h source ohmyzsh/ohmyzsh/lib/clipboard.zsh
 z4h source ohmyzsh/ohmyzsh/lib/directories.zsh
+z4h source MichaelAquilina/zsh-you-should-use/you-should-use.plugin.zsh
 
 z4h load ohmyzsh/ohmyzsh/plugins/encode64
 z4h load ohmyzsh/ohmyzsh/plugins/extract
 z4h load ohmyzsh/ohmyzsh/plugins/fasd
+z4h load ohmyzsh/ohmyzsh/plugins/git
+z4h load ohmyzsh/ohmyzsh/plugins/kubectl
 z4h load ohmyzsh/ohmyzsh/plugins/sudo
 z4h load ohmyzsh/ohmyzsh/plugins/terraform
+z4h load hlissner/zsh-autopair
 z4h load mollifier/cd-gitroot
 z4h load wfxr/forgit
 z4h load wookayin/fzf-fasd
@@ -104,6 +110,9 @@ z4h source $ZDOTDIR/functions.zsh
 
 # Define aliases.
 z4h source $ZDOTDIR/aliases.zsh
+
+# Define named directories: ~w <=> Windows home directory on WSL.
+(( $+z4h_win_home )) && hash -d w=$z4h_win_home
 
 # Set shell options: http://zsh.sourceforge.net/Doc/Release/Options.html.
 setopt glob_dots     # no special treatment for file names with a leading dot

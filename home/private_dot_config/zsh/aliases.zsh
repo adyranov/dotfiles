@@ -1,3 +1,5 @@
+alias cdgr=cd-gitroot
+
 alias k=kubectl
 alias kctx=kubectx
 alias kns=kubens
@@ -5,6 +7,7 @@ alias kns=kubens
 alias tf=terraform
 alias tg=terragrunt
 
+alias reload=exec ${SHELL} -l
 
 # ls => exa
 # exchange ls with exa

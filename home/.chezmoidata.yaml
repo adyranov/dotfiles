@@ -131,21 +131,20 @@ helm:
 krew:
   plugins:
     - access-matrix
-    - ctx
     - deprecations
     - get-all
     - konfig
     - modify-secret
     - neat
     - node-shell
-    - ns
     - popeye
     - resource-capacity
     - score
     - sniff
-    - tail
+    - stern
     - tap
     - tree
     - tunnel
+    - view-allocations
     - view-secret
     - who-can

@@ -28,9 +28,6 @@ fi
 {{- if (contains "microsoft" .chezmoi.kernel.osrelease) }}
 export LIBGL_ALWAYS_INDIRECT="1"
 export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
-code() {
-  /mnt/c/Program\ Files/Microsoft\ VS\ Code/bin/code "$@"
-}
 {{- end }}
 {{- end }}
 
