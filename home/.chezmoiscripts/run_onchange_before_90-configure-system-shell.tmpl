@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eufo pipefail
 
-{{- if (eq .chezmoi.os "darwin") }}
+{{- if (and (eq .chezmoi.os "darwin") (not .restricted)) }}
 if ! grep -qc "/usr/local/bin/zsh" /etc/shells; then
   echo "/usr/local/bin/zsh" | sudo tee -a /etc/shells > /dev/null
 fi

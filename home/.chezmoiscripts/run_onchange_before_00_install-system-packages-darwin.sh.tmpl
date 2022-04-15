@@ -4,10 +4,10 @@ set -eufo pipefail
 
 xcode-select -p >/dev/null 2>&1 || xcode-select --install
 
-{{- if not (lookPath "brew") }}
+{{- $brew := lookPath (joinPath .chezmoi.homeDir "homebrew/bin/brew") | or (lookPath "/opt/homebrew/bin/brew") | or (lookPath "/usr/local/bin/brew") -}}
+{{- if not $brew }}
 echo "Installing Homebrew..."
 /bin/sh -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-{{- end -}}
 
 {{- if eq .chezmoi.arch "arm64" }}
 eval $(/opt/homebrew/bin/brew shellenv)
@@ -15,7 +15,11 @@ eval $(/opt/homebrew/bin/brew shellenv)
 eval $(/usr/local/bin/brew shellenv)
 {{- end }}
 
-brew bundle --no-lock --file=/dev/stdin <<EOF
+{{- else }}
+eval $({{$brew}} shellenv)
+{{- end -}}
+
+brew bundle --verbose --no-lock --file=/dev/stdin <<EOF
 {{ $taps := .brew.taps -}}
 
 {{ $brews := list -}}
@@ -33,7 +37,7 @@ brew bundle --no-lock --file=/dev/stdin <<EOF
 {{ $casks := list -}}
 {{ $apps := list -}}
 
-{{ if not .headless -}}
+{{ if and (not .headless) (not .restricted) -}}
 {{ $casks = concat $casks .brew.casks -}}
 {{ $apps = concat $apps .brew.apps -}}
 {{ end -}}

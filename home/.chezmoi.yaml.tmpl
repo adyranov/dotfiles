@@ -1,6 +1,7 @@
 {{- $headless := false -}}
 {{- $ephemeral := false -}}
 {{- $personal := true -}}
+{{- $restricted := false -}}
 {{- $name := "Artem Dyranov" -}}
 {{- $email := "artem.dyranov@gmail.com" -}}
 
@@ -17,6 +18,12 @@
 {{-   $personal = promptBool "Personal Environment" $personal -}}
 {{- end -}}
 
+{{- if hasKey . "restricted" -}}
+{{-   $restricted = .restricted -}}
+{{- else -}}
+{{-   $restricted = promptBool "Restricted Environment (no sudo access)" $personal -}}
+{{- end -}}
+
 {{- if hasKey . "headless" -}}
 {{-   $headless = .headless -}}
 {{- else -}}
@@ -24,7 +31,7 @@
 {{- end -}}
 
 {{- if hasKey . "ephemeral" -}}
-{{-   $ephemeral = .heaephemeraldless -}}
+{{-   $ephemeral = .ephemeral -}}
 {{- else -}}
 {{-   $ephemeral = promptBool "Ephemeral Environment" $ephemeral -}}
 {{- end -}}
@@ -57,5 +64,6 @@ data:
     email: "{{ $email }}"
     name: "{{ $name }}"
     personal: {{ $personal }}
+    restricted: {{ $restricted }}
     headless: {{ $headless }}
     ephemeral: {{ $ephemeral }}
