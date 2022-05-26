@@ -1,2 +1,0 @@
-source "$(asdf direnv hook asdf)"
-use asdf
