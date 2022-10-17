@@ -57,7 +57,6 @@ z4h install hlissner/zsh-autopair || return
 z4h install MichaelAquilina/zsh-you-should-use || return
 z4h install mollifier/cd-gitroot || return
 z4h install wfxr/forgit || return
-z4h install wookayin/fzf-fasd || return
 
 
 # Install or update core components (fzf, zsh-autosuggestions, etc.) and
@@ -86,7 +85,6 @@ mkdir -p "$ZSH_CACHE_DIR/completions"
 
 z4h load ohmyzsh/ohmyzsh/plugins/encode64
 z4h load ohmyzsh/ohmyzsh/plugins/extract
-z4h load ohmyzsh/ohmyzsh/plugins/fasd
 z4h load ohmyzsh/ohmyzsh/plugins/git
 z4h load ohmyzsh/ohmyzsh/plugins/kubectl
 z4h load ohmyzsh/ohmyzsh/plugins/sudo
@@ -94,7 +92,6 @@ z4h load ohmyzsh/ohmyzsh/plugins/terraform
 z4h load hlissner/zsh-autopair
 z4h load mollifier/cd-gitroot
 z4h load wfxr/forgit
-z4h load wookayin/fzf-fasd
 
 # Define key bindings.
 z4h bindkey undo Ctrl+/   Shift+Tab # undo the last command line change
