@@ -10,7 +10,6 @@ packages:
   - "dockutil [no-apt no-apk]"
   - "dpkg"
   - "exa [no-apt asdf::latest]"
-  - "fasd"
   - "fd [no-apt asdf::latest]"
   - "gh [no-apt no-apk asdf:github-cli:latest]"
   - "git"
