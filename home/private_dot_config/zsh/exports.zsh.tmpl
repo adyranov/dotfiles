@@ -23,9 +23,9 @@ else
   export EDITOR='code --wait'
 fi
 
-# WSL
 {{- if eq .chezmoi.os "linux" }}
 {{- if (contains "microsoft" .chezmoi.kernel.osrelease) }}
+# WSL
 export LIBGL_ALWAYS_INDIRECT="1"
 export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
 {{- end }}
@@ -45,8 +45,8 @@ else
 {{- else }}
     eval $(/usr/local/bin/brew shellenv)
 {{- end }}
-{{- end }}
 fi
+{{- end }}
 
 # ASDF
 [ -d $HOME/.asdf ] && . "$HOME/.asdf/asdf.sh"
