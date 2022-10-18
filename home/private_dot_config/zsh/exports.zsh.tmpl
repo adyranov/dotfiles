@@ -61,13 +61,6 @@ LS_COLORS="tw=0:or=0;38;2;0;0;0;48;2;224;108;117:mi=0;38;2;0;0;0;48;2;224;108;11
 export LS_COLORS
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 
-# FZF
-export FZF_DEFAULT_COMMAND="fd --hidden --follow --no-ignore-vcs --exclude ".git""
-export FZF_CTRL_T_COMMAND="${FZF_DEFAULT_COMMAND}"
-export FZF_ALT_C_COMMAND="${FZF_DEFAULT_COMMAND} --type d ."
-export FZF_DEFAULT_OPTS="--prompt='» ' --pointer='▶' --marker='✓ ' --reverse --tabstop 2 --multi --color=bg+:-1,marker:010 --bind '?:toggle-preview'"
-export FZF_ALT_C_OPTS="--preview '(exa --color=always --tree --group-directories-first {} || tree -C {}) 2> /dev/null'"
-
 # Path
 [ -d $HOME/.local/bin ] && export PATH=$HOME/.local/bin:$PATH
 [ -d $HOME/.krew/bin ] && export PATH=$HOME/.krew/bin:$PATH
