@@ -31,22 +31,6 @@ export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.
 {{- end }}
 {{- end }}
 
-{{- if eq .chezmoi.os "darwin" }}
-# Homebrew
-if [ -x /usr/libexec/path_helper ]; then
-    eval $(/usr/libexec/path_helper -s)
-fi
-
-if [ -x $HOME/homebrew/bin/brew ]; then
-    eval $($HOME/homebrew/bin/brew shellenv)
-else
-{{- if eq .chezmoi.arch "arm64" }}
-    eval $(/opt/homebrew/bin/brew shellenv)
-{{- else }}
-    eval $(/usr/local/bin/brew shellenv)
-{{- end }}
-fi
-{{- end }}
 
 # ASDF
 [ -d $HOME/.asdf ] && . "$HOME/.asdf/asdf.sh"

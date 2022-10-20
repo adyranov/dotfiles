@@ -66,6 +66,9 @@ z4h source MichaelAquilina/zsh-you-should-use/you-should-use.plugin.zsh
 # kubectl complections
 mkdir -p "$ZSH_CACHE_DIR/completions"
 
+{{- if eq .chezmoi.os "darwin" }}
+z4h load ohmyzsh/ohmyzsh/plugins/brew
+{{- end }}
 z4h load ohmyzsh/ohmyzsh/plugins/encode64
 z4h load ohmyzsh/ohmyzsh/plugins/extract
 z4h load ohmyzsh/ohmyzsh/plugins/git
