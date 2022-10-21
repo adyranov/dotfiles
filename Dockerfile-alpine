@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM alpine:edge
+FROM alpine:3.16
 
 ARG USER=devcontainer
 ARG UID=54321
