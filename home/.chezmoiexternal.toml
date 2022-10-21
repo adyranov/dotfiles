@@ -1,7 +1,7 @@
 
 {{- $refreshPeriod := "168h" }}
 
-{{- if and (not .ephemeral) (not .headless) }}
+{{- if not .headless }}
 {{-   $fontDir := "" }}
 {{-   $powerlevelBase := "https://github.com/romkatv/powerlevel10k-media/raw/master" }}
 {{-   if eq .chezmoi.os "darwin" }}
