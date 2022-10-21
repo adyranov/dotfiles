@@ -15,7 +15,7 @@ eval $(/usr/local/bin/brew shellenv)
 
 {{- else }}
 eval $({{$brew}} shellenv)
-{{- end -}}
+{{- end }}
 
 brew bundle --verbose --no-lock --file=/dev/stdin <<EOF
 {{ $taps := .brew.taps -}}

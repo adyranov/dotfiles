@@ -59,27 +59,19 @@ RUN apk add --update \
 
 USER $USER
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh --exclude=scripts \
     && doas rm -rf /var/cache/apk/* /tmp/*
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-system-packages \
     && doas rm -rf /var/cache/apk/* /tmp/*
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-asdf-packages \
     && doas rm -rf /var/cache/apk/* /tmp/*
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-helm-plugins \
-    && doas rm -rf /var/cache/apk/* /tmp/*
-
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-krew-plugins \
-    && doas rm -rf /var/cache/apk/* /tmp/*
-
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh \
     && doas rm -rf /var/cache/apk/* /tmp/*
 

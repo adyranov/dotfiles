@@ -14,6 +14,7 @@ alias reload=exec ${SHELL} -l
 # https://the.exa.website/
 if (( $+commands[exa] )); then
   alias ls='exa --group-directories-first --sort=name --classify'
+  alias la='ls -la'
   alias lt='ls --tree --level=2'
 fi
 
