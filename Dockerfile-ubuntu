@@ -64,14 +64,33 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
     && echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER \
     && chmod 0440 /etc/sudoers.d/$USER \
     && chown -R $USER:$USER $HOME \
-    && su - $USER -c "GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh" \
-    && apt-get upgrade --no-install-recommends -y \
-    && apt-get autoremove -y \
-    && apt-get clean -y \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/*
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
 
 USER $USER
 
-RUN . ~/.zshenv
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh --exclude=scripts \
+    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-system-packages \
+    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-asdf-packages \
+    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-helm-plugins \
+    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-krew-plugins \
+    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
+
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh \
+    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
 
 CMD /bin/zsh

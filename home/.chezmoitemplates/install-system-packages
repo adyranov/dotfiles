@@ -1,0 +1,3 @@
+{{ template "install-system-packages-alpine" . }}
+{{ template "install-system-packages-ubuntu" . }}
+{{ template "install-system-packages-darwin" . }}

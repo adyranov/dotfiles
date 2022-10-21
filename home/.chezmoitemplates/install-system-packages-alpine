@@ -1,9 +1,7 @@
 {{- if (eq .chezmoi.os "linux") -}}
 {{- if (eq .chezmoi.osRelease.id "alpine") -}}
-#!/usr/bin/env bash
-set -eufo pipefail
 
-sudo sh -c 'cat << EOT > /etc/apk/repositories
+doas sh -c 'cat << EOT > /etc/apk/repositories
 http://dl-cdn.alpinelinux.org/alpine/edge/main
 http://dl-cdn.alpinelinux.org/alpine/edge/testing
 http://dl-cdn.alpinelinux.org/alpine/edge/community
@@ -22,6 +20,6 @@ packages=(
 {{ end -}}
 )
 
-sudo apk add --update ${packages[@]}
+doas apk add --update ${packages[@]}
 {{- end -}}
 {{- end -}}

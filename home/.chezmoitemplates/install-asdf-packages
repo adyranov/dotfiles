@@ -1,23 +1,17 @@
-#!/usr/bin/env bash
-set -eufo pipefail
-
 ASDF_DIR="${HOME}/.asdf"
 [ ! -d $ASDF_DIR ] && git clone https://github.com/asdf-vm/asdf.git "${ASDF_DIR}"
 
 . ${ASDF_DIR}/asdf.sh
 
 function install_asdf {
-    IFS=', ' read -r -a array <<< $2
-    asdf plugin-add "$1" >/dev/null 2>&1 || true
-    for el in ${array[@]}
-    do
-        asdf install $1 $el
-    done
-    version="$2"
+    IFS=', ' read -r -a array <<< ${2}
+    asdf plugin-add "${1}" 2>/dev/null || true
+    version="${2}"
     if [[ ${2} == "latest" ]]; then
-        v=$(asdf list ${1})
-        version=${v//[[:blank:]]/}
+        version=$(asdf latest ${1})
     fi
+    echo Installing \"${1}\" version \"${version}\"
+    asdf install ${1} ${version}
     asdf global ${1} ${version}
     asdf reshim ${1} ${version}
 }
