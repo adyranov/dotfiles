@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.3
+# syntax=docker/dockerfile:1.4
 
 FROM ubuntu:jammy
 
@@ -11,8 +11,7 @@ WORKDIR $HOME
 
 COPY . .local/share/chezmoi
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
-    set -eux \
+RUN set -eux \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
               apt-transport-https \
