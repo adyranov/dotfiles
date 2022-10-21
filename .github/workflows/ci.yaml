@@ -80,3 +80,18 @@ jobs:
           cache-to: type=gha, scope=${{ github.workflow }}-${{ matrix.os }}, mode=max
           push: ${{ env.PUBLISH_IMAGE == 'true' }}
           tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.7.1
+        with:
+          image-ref: "${{ fromJSON(steps.metadata.outputs.json).tags[0] }}"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+          format: "sarif"
+          output: "trivy-results.sarif"
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: "trivy-results.sarif"
+          category: ${{ matrix.os }}

@@ -4,7 +4,7 @@
 {{ range .apt.repositories -}}
 if [ ! -f /etc/apt/sources.list.d/{{ .name }}.list ]; then
     {{ if .key -}}
-    curl -fsSL "{{ .key }}" | sudo apt-key add -
+    curl -fsSL "{{ .key }}" | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/{{ .name }}.gpg
     {{ end -}}
     echo "{{ .string }}" | sudo tee /etc/apt/sources.list.d/{{ .name }}.list
 fi
