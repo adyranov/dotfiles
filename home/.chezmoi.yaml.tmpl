@@ -7,8 +7,11 @@
 
 {{- if or (env "CODESPACES") (env "REMOTE_CONTAINERS_IPC") (eq .chezmoi.username "root" "vagrant" "vscode" "devcontainer") -}}
 {{-   $headless = true -}}
-{{-   $ephemeral = true -}}
 {{- end -}}
+
+{{- if and (stat "/proc/1/cgroup") (output "cat" "/proc/1/cgroup" | regexMatch "(docker|lxc)") -}}
+{{-   $ephemeral = true -}}
+{{- end }}
 
 {{- if stdinIsATTY -}}
 
@@ -21,19 +24,7 @@
 {{- if hasKey . "restricted" -}}
 {{-   $restricted = .restricted -}}
 {{- else -}}
-{{-   $restricted = promptBool "Restricted Environment (no sudo access)" $personal -}}
-{{- end -}}
-
-{{- if hasKey . "headless" -}}
-{{-   $headless = .headless -}}
-{{- else -}}
-{{-   $headless = promptBool "Headless Environment" $headless -}}
-{{- end -}}
-
-{{- if hasKey . "ephemeral" -}}
-{{-   $ephemeral = .ephemeral -}}
-{{- else -}}
-{{-   $ephemeral = promptBool "Ephemeral Environment" $ephemeral -}}
+{{-   $restricted = promptBool "Restricted Environment (no sudo access)" $restricted -}}
 {{- end -}}
 
 {{- if hasKey . "name" -}}
@@ -52,7 +43,6 @@
 
 {{- else -}}
 {{-   $headless = true -}}
-{{-   $ephemeral = true -}}
 {{- end -}}
 
 sourceDir: "{{ .chezmoi.sourceDir }}"
