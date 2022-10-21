@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-{{ template "install-asdf-packages" . }}
-
+{{- if not .ephemeral }}
 {{ template "install-helm-plugins" . }}
-
 {{ template "install-krew-plugins" . }}
+{{- end }}
