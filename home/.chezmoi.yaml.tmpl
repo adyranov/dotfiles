@@ -5,7 +5,7 @@
 {{- $name := "Artem Dyranov" -}}
 {{- $email := "artem.dyranov@gmail.com" -}}
 
-{{- if or (env "CODESPACES") (env "REMOTE_CONTAINERS_IPC") (eq .chezmoi.username "root" "vagrant" "vscode") -}}
+{{- if or (env "CODESPACES") (env "REMOTE_CONTAINERS_IPC") (eq .chezmoi.username "root" "vagrant" "vscode" "devcontainer") -}}
 {{-   $headless = true -}}
 {{-   $ephemeral = true -}}
 {{- end -}}

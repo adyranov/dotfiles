@@ -11,12 +11,12 @@ WORKDIR $HOME
 
 COPY . .local/share/chezmoi
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
-    apk add --update \
+RUN apk add --update \
         bash \
         ca-certificates \
         coreutils \
         curl \
+        doas \
         git \
         gnupg \
         grep \
@@ -43,7 +43,6 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
         sed \
         shadow \
         strace \
-        sudo \
         tzdata \
         unzip \
         userspace-rcu \
@@ -54,14 +53,34 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
         zlib \
         zsh \
     && adduser -u $UID -s $(which zsh) -D $USER \
-    && echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER \
-    && chmod 0440 /etc/sudoers.d/$USER \
+    && echo "permit nopass $USER as root" > /etc/doas.d/doas.conf \
     && chown -R $USER:$USER $HOME \
-    && su - $USER -c "GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh" \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/cache/apk/* /tmp/*
 
 USER $USER
 
-RUN . ~/.zshenv
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh --exclude=scripts \
+    && doas rm -rf /var/cache/apk/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-system-packages \
+    && doas rm -rf /var/cache/apk/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-asdf-packages \
+    && doas rm -rf /var/cache/apk/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-helm-plugins \
+    && doas rm -rf /var/cache/apk/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-krew-plugins \
+    && doas rm -rf /var/cache/apk/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh \
+    && doas rm -rf /var/cache/apk/* /tmp/*
 
 CMD /bin/zsh

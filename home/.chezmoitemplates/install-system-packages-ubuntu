@@ -1,7 +1,5 @@
 {{- if (eq .chezmoi.os "linux") -}}
 {{- if (eq .chezmoi.osRelease.id "ubuntu") -}}
-#!/bin/bash
-set -eufo pipefail
 
 {{ range .apt.repositories -}}
 if [ ! -f /etc/apt/sources.list.d/{{ .name }}.list ]; then

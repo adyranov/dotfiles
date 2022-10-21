@@ -1,7 +1,4 @@
-#!/usr/bin/env bash
-set -eufo pipefail
-
-if [ ! "$(command -v kubectl-krew)" ]; then
+if [[ ! -e ${HOME}/.krew/bin/kubectl-krew ]]; then
     (
     set -x; cd "$(mktemp -d)" &&
     OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
@@ -9,17 +6,20 @@ if [ ! "$(command -v kubectl-krew)" ]; then
     KREW="krew-${OS}_${ARCH}" &&
     curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
     tar zxvf "${KREW}.tar.gz" &&
-    ./"${KREW}" install krew >/dev/null 2>&1
+    ./"${KREW}" install krew
     )
 fi
 
-plugins=(
+[ -d $HOME/.krew/bin ] && export PATH=$HOME/.krew/bin:$PATH
+
+krew_plugins=(
 {{ range $plugin := .krew.plugins }}
 {{- $plugin | indent 4}}
 {{ end -}}
 )
 
-for plugin in "${plugins[@]}"
+for plugin in "${krew_plugins[@]}"
 do
-    ${HOME}/.krew/bin/kubectl-krew install $plugin >/dev/null 2>&1 || true
+    echo Installing Krew plugin \"$plugin\"
+    ${HOME}/.krew/bin/kubectl-krew install $plugin 2>/dev/null || true
 done

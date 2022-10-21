@@ -1,6 +1,4 @@
 {{- if (eq .chezmoi.os "darwin") -}}
-#!/usr/bin/env bash
-set -eufo pipefail
 
 xcode-select -p >/dev/null 2>&1 || xcode-select --install
 
