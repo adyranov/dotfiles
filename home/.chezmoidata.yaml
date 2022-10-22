@@ -85,8 +85,10 @@ brew:
     - "datreeio/datree"
   casks:
     - "authy"
+    - "brave-browser"
     - "calibre"
     - "cinebench"
+    - "discord"
     - "dropbox"
     - "firefox"
     - "font-fira-code"
@@ -102,6 +104,7 @@ brew:
     - "microsoft-edge"
     - "private-internet-access"
     - "qbittorrent"
+    - "rectangle"
     - "skype"
     - "spotify"
     - "teamviewer"
