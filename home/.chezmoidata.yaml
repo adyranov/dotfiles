@@ -28,10 +28,12 @@ packages:
   - "neovim"
   - "nodejs [brew:node@16]"
   - "npm [no-brew no-apt]"
+  - "popeye [no-apt no-apk asdf::v0.10.1]"
   - "pre-commit [no-apt no-apk asdf::latest]"
   - "ripgrep"
   - "skopeo"
   - "sops [no-apt no-apk asdf::latest]"
+  - "stern [no-apt no-apk asdf::latest]"
   - "terraform [no-apt no-apk asdf::latest]"
   - "terragrunt [no-apt no-apk asdf::latest]"
   - "tflint [no-apt no-apk asdf::latest]"
@@ -42,7 +44,8 @@ packages:
   - "zsh"
 asdf:
   plugins:
-    - "https://github.com/webofmars/asdf-plugin-datree"
+    - name: "datree"
+      url: "https://github.com/webofmars/asdf-plugin-datree"
 apt:
   repositories:
     - name: "azure-cli"
@@ -137,14 +140,10 @@ krew:
     - modify-secret
     - neat
     - node-shell
-    - popeye
     - resource-capacity
     - score
     - sniff
-    - stern
-    - tap
     - tree
     - tunnel
     - view-allocations
-    - view-secret
     - who-can
