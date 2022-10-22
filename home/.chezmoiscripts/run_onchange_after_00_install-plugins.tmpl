@@ -1,6 +1,6 @@
+{{- if not .ephemeral -}}
 #!/usr/bin/env bash
 
-{{- if not .ephemeral }}
 {{ template "install-helm-plugins" . }}
 {{ template "install-krew-plugins" . }}
-{{- end }}
+{{- end -}}

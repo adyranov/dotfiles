@@ -5,13 +5,13 @@
 {{- $name := "Artem Dyranov" -}}
 {{- $email := "artem.dyranov@gmail.com" -}}
 
-{{- if or (env "CODESPACES") (env "REMOTE_CONTAINERS_IPC") (eq .chezmoi.username "root" "vagrant" "vscode" "devcontainer") -}}
+{{/* detect GitHub codespaces, VSCode remote containers, Docker containers, Multipass VMs, and Vagrant boxes */}}
+{{- $ephemeralEnvOrUsername := or (env "CODESPACES") (env "REMOTE_CONTAINERS_IPC") (eq .chezmoi.username "root" "ubuntu" "vagrant" "vscode" "devcontainer") -}}
+{{- $ephemeralCgroup := and (stat "/proc/1/cgroup") (output "cat" "/proc/1/cgroup" | regexMatch "(docker|lxc)") -}}
+{{- if or $ephemeralEnvOrUsername $ephemeralCgroup -}}
 {{-   $headless = true -}}
-{{- end -}}
-
-{{- if and (stat "/proc/1/cgroup") (output "cat" "/proc/1/cgroup" | regexMatch "(docker|lxc)") -}}
 {{-   $ephemeral = true -}}
-{{- end }}
+{{- end -}}
 
 {{- if stdinIsATTY -}}
 

@@ -9,8 +9,6 @@ ENV HOME=/home/$USER
 
 WORKDIR $HOME
 
-COPY . .local/share/chezmoi
-
 RUN set -eux \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -66,6 +64,8 @@ RUN set -eux \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
 
 USER $USER
+
+COPY --chown=$USER:$USER . .local/share/chezmoi
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh --exclude=scripts \
