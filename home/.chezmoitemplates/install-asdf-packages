@@ -16,6 +16,20 @@ function install_asdf {
     asdf reshim ${1} ${version}
 }
 
+asdf_plugins=(
+{{ range $plugin := .asdf.plugins }}
+{{- $plugin | indent 4}}
+{{ end -}}
+)
+
+for plugin in "${asdf_plugins[@]}"
+do
+    echo Installing ASDF plugin \"$plugin\"
+    asdf plugin add $plugin 2>/dev/null|| true
+done
+
+asdf plugin update --all
+
 {{- $excludeFlag := "no-brew" }}
 {{- if (eq .chezmoi.os "linux") }}
 {{- if (eq .chezmoi.osRelease.id "ubuntu") }}

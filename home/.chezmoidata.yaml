@@ -3,6 +3,7 @@ packages:
   - "bat"
   - "colima [no-apt no-apk]"
   - "curl"
+  - "datree [no-apt no-apk asdf::latest]"
   - "direnv [no-brew no-apt no-apk asdf::latest]"
   - "dive [no-apt no-apk asdf::latest]"
   - "docker [apt:docker-ce]"
@@ -39,6 +40,9 @@ packages:
   - "yarn"
   - "yq [no-apt asdf::latest]"
   - "zsh"
+asdf:
+  plugins:
+    - "https://github.com/webofmars/asdf-plugin-datree"
 apt:
   repositories:
     - name: "azure-cli"
@@ -75,6 +79,7 @@ brew:
     - "homebrew/cask-versions"
     - "homebrew/command-not-found"
     - "homebrew/core"
+    - "datreeio/datree"
   casks:
     - "authy"
     - "calibre"
@@ -119,12 +124,13 @@ brew:
       id: "425424353"
 helm:
   plugins:
-    - https://github.com/aslafy-z/helm-git
     - https://github.com/databus23/helm-diff
+    - https://github.com/aslafy-z/helm-git
     - https://github.com/jkroepke/helm-secrets
 krew:
   plugins:
     - access-matrix
+    - datree
     - deprecations
     - get-all
     - konfig
