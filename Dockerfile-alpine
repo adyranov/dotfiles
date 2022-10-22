@@ -9,14 +9,13 @@ ENV HOME=/home/$USER
 
 WORKDIR $HOME
 
-COPY . .local/share/chezmoi
-
 RUN apk add --update \
         bash \
         ca-certificates \
         coreutils \
         curl \
         doas \
+        doas-sudo-shim \
         git \
         gnupg \
         grep \
@@ -58,6 +57,8 @@ RUN apk add --update \
     && rm -rf /var/cache/apk/* /tmp/*
 
 USER $USER
+
+COPY --chown=$USER:$USER . .local/share/chezmoi
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh --exclude=scripts \

@@ -1,5 +1,5 @@
-{{ if .ephemeral -}}
+{{- if .headless -}}
 #!/usr/bin/env bash
 
 Z4H_BOOTSTRAPPING=1 . ~/.zshenv
-{{ end -}}
+{{- end -}}

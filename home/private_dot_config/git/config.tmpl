@@ -116,5 +116,13 @@
     name = "{{ .name }}"
     email = "{{ .email }}"
 
+{{ $gh := lookPath "gh"  -}}
+{{ if $gh -}}
+[credential "https://github.com"]
+	helper = !{{ $gh }} auth git-credential
+[credential "https://gist.github.com"]
+	helper = !{{ $gh }} auth git-credential
+{{- end }}
+
 [include]
     path = ~/.config/git/local.toml
