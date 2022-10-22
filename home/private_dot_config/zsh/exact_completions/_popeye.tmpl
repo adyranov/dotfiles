@@ -1,0 +1,4 @@
+{{- $popeye := lookPath (joinPath .chezmoi.homeDir ".asdf/shims/popeye") | or (lookPath "popeye") -}}
+{{- if $popeye -}}
+{{- output $popeye "completion" "zsh" -}}
+{{- end -}}
