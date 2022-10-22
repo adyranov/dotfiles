@@ -11,38 +11,21 @@
 {{- if or $ephemeralEnvOrUsername $ephemeralCgroup -}}
 {{-   $headless = true -}}
 {{-   $ephemeral = true -}}
+{{-   writeToStdout "Chezmoi is running in a container.\n" -}}
 {{- end -}}
 
 {{- if stdinIsATTY -}}
 
-{{- if hasKey . "personal" -}}
-{{-   $personal = .personal -}}
-{{- else -}}
-{{-   $personal = promptBool "Personal Environment" $personal -}}
-{{- end -}}
+{{- $personal = promptBoolOnce . "personal" "Personal Environment" $personal -}}
+{{- $restricted = promptBoolOnce . "restricted" "Restricted Environment (no sudo access)" $restricted -}}
+{{- $name = promptStringOnce . "name" "Your Name" $name -}}
+{{- $email = promptStringOnce . "email" "Your Email" $email -}}
 
-{{- if hasKey . "restricted" -}}
-{{-   $restricted = .restricted -}}
-{{- else -}}
-{{-   $restricted = promptBool "Restricted Environment (no sudo access)" $restricted -}}
-{{- end -}}
-
-{{- if hasKey . "name" -}}
-{{-   $name = .name -}}
-{{- else -}}
-{{-   $name = promptString "Your Name" $name -}}
-{{- end -}}
-
-{{- if hasKey . "email" -}}
-{{-   $email = .email -}}
-{{- else -}}
-{{-   $email = promptString "Your Email" $email -}}
-{{- end -}}
-
-{{-   writeToStdout "💡 Tip: you can re-enter your name and email with `chezmoi init --data=false`.\n" -}}
+{{- writeToStdout "💡 Tip: you can re-enter your name and email with `chezmoi init --data=false`.\n" -}}
 
 {{- else -}}
 {{-   $headless = true -}}
+{{-   writeToStdout "Chezmoi is running in headless environment.\n" -}}
 {{- end -}}
 
 sourceDir: "{{ .chezmoi.sourceDir }}"
