@@ -1,3 +1,4 @@
+alias sudo='sudo ' # https://wiki.archlinux.org/title/Sudo#Passing_aliases
 alias cdgr=cd-gitroot
 
 alias k=kubectl
@@ -22,7 +23,10 @@ fi
 
 # exchange cat/less with bat
 # https://github.com/sharkdp/bat
-if (( $+commands[bat] )); then
+if (( $+commands[bat] || $+commands[batcat] )); then
+	if (( ! $+commands[bat] )); then
+		alias bat='batcat'
+	fi
   alias cat='bat -pp'
   alias less='bat --paging=always'
 
