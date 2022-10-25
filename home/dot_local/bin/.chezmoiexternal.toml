@@ -1,0 +1,8 @@
+
+{{- $refreshPeriod := "168h" }}
+
+[rustup-init]
+    type = "file"
+    url = 'https://sh.rustup.rs'
+    refreshPeriod = "{{ $refreshPeriod }}"
+    executable = true
