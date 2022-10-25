@@ -10,6 +10,15 @@ alias tg=terragrunt
 
 alias reload=exec ${SHELL} -l
 
+alias u="brew update                  && \
+         brew upgrade                 && \
+         brew upgrade --cask --greedy && \
+         brew cleanup --prune=1       && \
+         rustup self update || true   && \
+         rustup update || true        && \
+         npm update -g || true        && \
+         chezmoi upgrade              && \
+         z4h update"
 # ls => exa
 # exchange ls with exa
 # https://the.exa.website/
