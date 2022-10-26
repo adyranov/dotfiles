@@ -22,22 +22,25 @@ asdf plugin add {{ .name }} {{ .url }} 2>/dev/null || true
 asdf plugin update --all
 {{ end -}}
 
-{{- $excludeFlag := "no-brew" }}
-{{- if (eq .chezmoi.os "linux") }}
-{{- if (eq .chezmoi.osRelease.id "ubuntu") }}
-{{- $excludeFlag = "no-apt" }}
-{{- end }}
-{{- if (eq .chezmoi.osRelease.id "alpine") }}
-{{- $excludeFlag = "no-apk" }}
-{{- end }}
-{{- end }}
 {{- range $package := .packages }}
-{{- if and (contains "asdf" $package) (contains $excludeFlag $package)  }}
-{{- $nameVer := regexReplaceAll "(\\w+) \\[.*asdf:(.*):(.*)\\]$" $package "${1} ${2} ${3}" }}
-{{- $nameVer = regexSplit " " $nameVer -1 }}
-{{- $packageName := first $nameVer | trim }}
-{{- $asdfName := first (rest $nameVer) | trim | default $packageName}}
-{{- $asdfVersion := last $nameVer | trim }}
-install_asdf "{{ $asdfName }}" "{{ $asdfVersion }}"
+{{- $packageName := $package.name }}
+
+{{- $excludeNative := false }}
+{{- if (eq $.chezmoi.os "linux") }}
+{{- if (eq $.chezmoi.osRelease.id "ubuntu") }}
+{{- $excludeNative = get $package "no-apt" | default false}}
+{{- end }}
+{{- if (eq $.chezmoi.osRelease.id "alpine") }}
+{{- $excludeNative = get $package "no-apk" | default false }}
+{{- end }}
+{{- end }}
+{{- if (eq $.chezmoi.os "darwin") }}
+{{- $excludeNative = get $package "no-brew" | default false }}
+{{- end }}
+
+{{- $asdfName := get $package "asdf"}}
+{{- $asdfVersion := get $package "asdfVersion"}}
+{{- if and ($excludeNative) (or $asdfName $asdfVersion) }}
+install_asdf "{{ $asdfName | default $packageName }}" "{{ $asdfVersion | default "latest"}}"
 {{- end }}
 {{- end }}

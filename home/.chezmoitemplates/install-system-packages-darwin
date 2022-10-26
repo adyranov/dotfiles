@@ -18,39 +18,36 @@ eval $({{$brew}} shellenv)
 {{- end }}
 
 brew bundle --verbose --no-lock --file=/dev/stdin <<EOF
-{{ $taps := .brew.taps -}}
+{{- $brews := list }}
+{{- range $package := .packages }}
+{{- $packageName := $package.name }}
+{{- $excludeNative := get $package "no-brew" | default false }}
+{{- if not $excludeNative }}
+{{- $brewName := get $package "brew" | default $packageName }}
+{{- $brews = append $brews $brewName  }}
+{{- end }}
+{{- end }}
 
-{{ $brews := list -}}
-{{ range $package := .packages -}}
-{{ $name := $package -}}
-{{ if not (contains "no-brew" $name) -}}
-{{ $name = regexReplaceAll " \\[.*\\]" $name "" -}}
-{{ if contains "brew:" $package -}}
-{{ $name = regexReplaceAll ".* \\[.*brew:([\\w@_-]+).*\\]" $package "${1}" -}}
-{{ end -}}
-{{ $brews = append $brews $name  -}}
-{{ end -}}
-{{ end -}}
+{{- $casks := list }}
+{{- $apps := list }}
 
-{{ $casks := list -}}
-{{ $apps := list -}}
+{{- if and (not .headless) (not .restricted) }}
+{{- $casks = concat $casks .brew.casks }}
+{{- $apps = concat $apps .brew.apps }}
+{{- end }}
 
-{{ if and (not .headless) (not .restricted) -}}
-{{ $casks = concat $casks .brew.casks -}}
-{{ $apps = concat $apps .brew.apps -}}
-{{ end -}}
-
-{{ range $taps -}}
-tap "{{ . }}"
-{{ end -}}
-{{ range $brews | sortAlpha -}}
+{{- $taps := .brew.taps }}
+{{- range $taps }}
+tap "{{ .name }}"
+{{- end }}
+{{- range $brews | sortAlpha }}
 brew "{{ . }}"
-{{ end -}}
-{{ range $casks | sortAlpha -}}
+{{- end }}
+{{- range $casks | sortAlpha }}
 cask "{{ . }}"
-{{ end -}}
-{{ range $apps -}}
+{{- end }}
+{{- range $apps }}
 mas "{{ .name }}", id: {{ .id }}
-{{ end -}}
+{{- end }}
 EOF
 {{- end -}}

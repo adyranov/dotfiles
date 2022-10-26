@@ -11,16 +11,14 @@ fi
 {{ end -}}
 
 packages=(
-{{ range $package := .packages -}}
-{{ if not (contains "no-apt" $package) -}}
-{{ $name := $package -}}
-{{ $name = regexReplaceAll " \\[.*\\]" $name "" -}}
-{{ if contains "apt:" $package -}}
-{{ $name = regexReplaceAll ".* \\[.*apt:([\\w_-]+).*\\]" $package "${1}" -}}
-{{ end -}}
-{{ $name | indent 4 }}
-{{ end -}}
-{{ end -}}
+{{- range $package := .packages }}
+{{- $packageName := $package.name }}
+{{- $excludeNative := get $package "no-apt" | default false }}
+{{- if not $excludeNative }}
+{{- $aptName := get $package "apt" | default $packageName }}
+{{ $aptName | indent 4 }}
+{{- end }}
+{{- end }}
 )
 
 sudo apt-get update

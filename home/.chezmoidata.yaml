@@ -1,47 +1,47 @@
 packages:
-  - "bash"
-  - "bat"
-  - "colima [no-apt no-apk]"
-  - "curl"
-  - "datree [no-apt no-apk asdf::latest]"
-  - "direnv [no-brew no-apt no-apk asdf::latest]"
-  - "dive [no-apt no-apk asdf::latest]"
-  - "docker [apt:docker-ce]"
-  - "dockutil [no-apt no-apk]"
-  - "dpkg"
-  - "exa"
-  - "fd [apt:fd-find]"
-  - "gh [no-apt apk:github-cli asdf:github-cli:latest]"
-  - "git"
-  - "git-delta [no-apt apk:delta asdf:delta:latest]"
-  - "gnupg"
-  - "helm [no-apk asdf::latest]"
-  - "htop"
-  - "httpie"
-  - "java [no-brew no-apt apk:openjdk17-jdk asdf::temurin-17.0.4+101]"
-  - "jq"
-  - "k9s [no-apt no-apk asdf::latest]"
-  - "kubectl [no-apk asdf::latest]"
-  - "kubectx [no-apt asdf::latest]"
-  - "mas [no-apt no-apk]"
-  - "maven [no-brew no-apt asdf::latest]"
-  - "neovim"
-  - "nodejs [brew:node@16]"
-  - "npm [no-brew no-apt]"
-  - "popeye [no-apt no-apk asdf::v0.10.1]"
-  - "pre-commit [no-apt no-apk asdf::latest]"
-  - "ripgrep"
-  - "skopeo"
-  - "sops [no-apt no-apk asdf::latest]"
-  - "stern [no-apt no-apk asdf::latest]"
-  - "terraform [no-apt no-apk asdf::latest]"
-  - "terragrunt [no-apt no-apk asdf::latest]"
-  - "tflint [no-apt no-apk asdf::latest]"
-  - "tmux"
-  - "wget"
-  - "yarn"
-  - "yq [no-apt asdf::latest]"
-  - "zsh"
+  - name: "bash"
+  - name: "bat"
+  - { name: "colima", no-apt: true, no-apk: true }
+  - name: "curl"
+  - { name: "datree", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - { name: "direnv", no-brew: true, no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - { name: "dive", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - { name: "docker", apt: "docker-ce" }
+  - { name: "dockutil", no-apt: true, no-apk: true }
+  - name: "dpkg"
+  - name: "exa"
+  - { name: "fd", apt: "fd-find" }
+  - { name: "gh", no-apt: true, apk: "github-cli", asdf: "github-cli", asdfVersion: "latest" }
+  - name: "git"
+  - { name: "git-delta", no-apt: true, apk: "delta", asdf: "delta", asdfVersion: "latest" }
+  - name: "gnupg"
+  - { name: "helm", no-apk: true, asdfVersion: "latest" }
+  - name: "htop"
+  - name: "httpie"
+  - { name: "java", no-brew: true, no-apt: true, apk: "openjdk17-jdk", asdfVersion: "temurin-17.0.4+101" }
+  - name: "jq"
+  - { name: "k9s", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - { name: "kubectl", no-apk: true, asdfVersion: "latest" }
+  - { name: "kubectx", no-apt: true, asdfVersion: "latest" }
+  - { name: "mas", no-apt: true, no-apk: true }
+  - { name: "maven", no-brew: true, no-apt: true, asdfVersion: "latest" }
+  - name: "neovim"
+  - { name: "nodejs", brew: "node@16" }
+  - { name: "npm", no-brew: true, no-apt: true }
+  - { name: "popeye", no-apt: true, no-apk: true, asdfVersion: "v0.10.1" }
+  - { name: "pre-commit", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - name: "ripgrep"
+  - name: "skopeo"
+  - { name: "sops", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - { name: "stern", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - { name: "terraform", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - { name: "terragrunt", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - { name: "tflint", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - name: "tmux"
+  - name: "wget"
+  - name: "yarn"
+  - { name: "yq", no-apt: true, asdfVersion: "latest" }
+  - name: "zsh"
 asdf:
   plugins:
     - name: "datree"
@@ -75,46 +75,46 @@ apt:
 
 brew:
   taps:
-    - "homebrew/autoupdate"
-    - "homebrew/bundle"
-    - "homebrew/cask"
-    - "homebrew/cask-fonts"
-    - "homebrew/cask-versions"
-    - "homebrew/command-not-found"
-    - "homebrew/core"
-    - "datreeio/datree"
+    - name: "homebrew/autoupdate"
+    - name: "homebrew/bundle"
+    - name: "homebrew/cask"
+    - name: "homebrew/cask-fonts"
+    - name: "homebrew/cask-versions"
+    - name: "homebrew/command-not-found"
+    - name: "homebrew/core"
+    - name: "datreeio/datree"
   casks:
-    - "authy"
-    - "brave-browser"
-    - "calibre"
-    - "cinebench"
-    - "discord"
-    - "dropbox"
-    - "firefox"
-    - "font-fira-code"
-    - "geekbench"
-    - "google-chrome"
-    - "google-drive"
-    - "gpg-suite"
-    - "handbrake"
-    - "iterm2"
-    - "jetbrains-toolbox"
-    - "lens"
-    - "macfuse"
-    - "microsoft-edge"
-    - "private-internet-access"
-    - "qbittorrent"
-    - "rectangle"
-    - "skype"
-    - "spotify"
-    - "teamviewer"
-    - "telegram-desktop"
-    - "tor-browser"
-    - "visual-studio-code"
-    - "vlc"
-    - "xnviewmp"
-    - "yandex-disk"
-    - "zoom"
+    - name: "authy"
+    - name: "brave-browser"
+    - name: "calibre"
+    - name: "cinebench"
+    - name: "discord"
+    - name: "dropbox"
+    - name: "firefox"
+    - name: "font-fira-code"
+    - name: "geekbench"
+    - name: "google-chrome"
+    - name: "google-drive"
+    - name: "gpg-suite"
+    - name: "handbrake"
+    - name: "iterm2"
+    - name: "jetbrains-toolbox"
+    - name: "lens"
+    - name: "macfuse"
+    - name: "microsoft-edge"
+    - name: "private-internet-access"
+    - name: "qbittorrent"
+    - name: "rectangle"
+    - name: "skype"
+    - name: "spotify"
+    - name: "teamviewer"
+    - name: "telegram-desktop"
+    - name: "tor-browser"
+    - name: "visual-studio-code"
+    - name: "vlc"
+    - name: "xnviewmp"
+    - name: "yandex-disk"
+    - name: "zoom"
   apps:
     - name: "Brother iPrint&Scan"
       id: "1193539993"
@@ -130,23 +130,26 @@ brew:
       id: "425424353"
 helm:
   plugins:
-    - https://github.com/databus23/helm-diff
-    - https://github.com/aslafy-z/helm-git
-    - https://github.com/jkroepke/helm-secrets
+    - name: "helm-diff"
+      url: "https://github.com/databus23/helm-diff"
+    - name: "helm-git"
+      url: "https://github.com/aslafy-z/helm-git"
+    - name: "helm-secrets"
+      url: "https://github.com/jkroepke/helm-secrets"
 krew:
   plugins:
-    - access-matrix
-    - datree
-    - deprecations
-    - get-all
-    - konfig
-    - modify-secret
-    - neat
-    - node-shell
-    - resource-capacity
-    - score
-    - sniff
-    - tree
-    - tunnel
-    - view-allocations
-    - who-can
+    - name: "access-matrix"
+    - name: "datree"
+    - name: "deprecations"
+    - name: "get-all"
+    - name: "konfig"
+    - name: "modify-secret"
+    - name: "neat"
+    - name: "node-shell"
+    - name: "resource-capacity"
+    - name: "score"
+    - name: "sniff"
+    - name: "tree"
+    - name: "tunnel"
+    - name: "view-allocations"
+    - name: "who-can"
