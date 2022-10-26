@@ -1,6 +1,6 @@
 helm_plugins=(
 {{ range $plugin := .helm.plugins }}
-{{- $plugin | indent 4}}
+{{- $plugin.url | indent 4}}
 {{ end -}}
 )
 

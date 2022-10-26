@@ -14,7 +14,7 @@ fi
 
 krew_plugins=(
 {{ range $plugin := .krew.plugins }}
-{{- $plugin | indent 4}}
+{{- $plugin.name | indent 4}}
 {{ end -}}
 )
 

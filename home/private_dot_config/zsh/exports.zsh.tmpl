@@ -32,6 +32,10 @@ export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.
 {{- end }}
 
 
+{{- if (and (eq .chezmoi.os "darwin") (.restricted)) }}
+export HOMEBREW_CASK_OPTS="--appdir=~/Applications"
+{{- end }}
+
 # ASDF
 [ -d $HOME/.asdf ] && . "$HOME/.asdf/asdf.sh"
 if [ -d "$HOME/.asdf/plugins/direnv" ]; then

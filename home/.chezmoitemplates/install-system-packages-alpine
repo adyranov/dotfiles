@@ -7,16 +7,14 @@ http://dl-cdn.alpinelinux.org/alpine/v$(cat /etc/alpine-release | cut -d'.' -f1,
 EOT'
 
 packages=(
-{{ range $package := .packages -}}
-{{ if not (contains "no-apk" $package) -}}
-{{ $name := $package -}}
-{{ $name = regexReplaceAll " \\[.*\\]" $name "" -}}
-{{ if contains "apk:" $package -}}
-{{ $name = regexReplaceAll ".* \\[.*apk:([\\w_-]+).*\\]" $package "${1}" -}}
-{{ end -}}
-{{ $name | indent 4 }}
-{{ end -}}
-{{ end -}}
+{{- range $package := .packages }}
+{{- $packageName := $package.name }}
+{{- $excludeNative := get $package "no-apk" | default false }}
+{{- if not $excludeNative }}
+{{- $apkName := get $package "apk" | default $packageName }}
+{{ $apkName | indent 4 }}
+{{- end }}
+{{- end }}
 )
 
 doas apk add --update ${packages[@]}
