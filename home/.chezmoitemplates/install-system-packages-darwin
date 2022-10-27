@@ -32,7 +32,7 @@ tap "{{ .name }}"
 {{- $brews = append $brews $brewName  }}
 {{- end }}
 {{- end }}
-{{- range $brews | sortAlpha }}
+{{- range $brews }}
 brew "{{ . }}"
 {{- end }}
 
@@ -44,8 +44,8 @@ brew "{{ . }}"
 {{- $apps = concat $apps .brew.apps }}
 {{- end }}
 
-{{- range $casks | sortAlpha }}
-cask "{{ . }}"
+{{- range $casks }}
+cask "{{ .name }}"
 {{- end }}
 {{- range $apps }}
 mas "{{ .name }}", id: {{ .id }}
