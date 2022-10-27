@@ -1,34 +1,3 @@
-[alias]
-    aa = add -A .
-    br = branch
-    brd = branch -d
-    co = checkout
-    cob = checkout -b
-    com = checkout main
-    ci = commit
-    cim = commit -m
-    cia = commit --amend
-    cp = cherry-pick
-    df = difftool -d
-    lg = log --graph --pretty=format:'%C(bold red)%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold green)<%an>%Creset' --abbrev-commit --date=relative
-    rb = rebase
-    rbi = rebase -i
-    rbc = rebase --continue
-    rbs = rebase --skip
-    rba = rebase --abort
-    rs = reset
-    rsh = reset --hard
-    rss = reset --soft
-    rs1 = reset HEAD~1
-    st = status
-    ss = status -s
-    sh = stash
-    shc = stash clear
-    shl = stash list
-    shp = stash pop
-    unstage = reset HEAD --
-    up = !git pull --rebase --prune --autostash --recurse-submodules
-
 [branch]
     autosetuprebase = always
 [color]
@@ -82,6 +51,7 @@
 [pull]
     rebase = true
 [push]
+    autoSetupRemote = true
     default = upstream
     followTags = true
 [rebase]
