@@ -26,7 +26,7 @@ packages:
   - { name: "mas", no-apt: true, no-apk: true }
   - { name: "maven", no-brew: true, no-apt: true, asdfVersion: "latest" }
   - name: "neovim"
-  - { name: "nodejs", brew: "node@16" }
+  - { name: "nodejs", brew: "node@18" }
   - { name: "npm", no-brew: true, no-apt: true }
   - { name: "popeye", no-apt: true, no-apk: true, asdfVersion: "v0.10.1" }
   - { name: "pre-commit", no-apt: true, no-apk: true, asdfVersion: "latest" }
@@ -68,7 +68,7 @@ apt:
       string: "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_$(lsb_release -rs)/ /"
     - name: "nodesource"
       key: "https://deb.nodesource.com/gpgkey/nodesource.gpg.key"
-      string: "deb https://deb.nodesource.com/node_16.x $(lsb_release -cs) main"
+      string: "deb https://deb.nodesource.com/node_18.x $(lsb_release -cs) main"
     - name: "yarn"
       key: "https://dl.yarnpkg.com/debian/pubkey.gpg"
       string: "deb https://dl.yarnpkg.com/debian/ stable main"
