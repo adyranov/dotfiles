@@ -18,6 +18,11 @@ eval $({{$brew}} shellenv)
 {{- end }}
 
 brew bundle --verbose --no-lock --file=/dev/stdin <<EOF
+{{- $taps := .brew.taps }}
+{{- range $taps }}
+tap "{{ .name }}"
+{{- end }}
+
 {{- $brews := list }}
 {{- range $package := .packages }}
 {{- $packageName := $package.name }}
@@ -26,6 +31,9 @@ brew bundle --verbose --no-lock --file=/dev/stdin <<EOF
 {{- $brewName := get $package "brew" | default $packageName }}
 {{- $brews = append $brews $brewName  }}
 {{- end }}
+{{- end }}
+{{- range $brews | sortAlpha }}
+brew "{{ . }}"
 {{- end }}
 
 {{- $casks := list }}
@@ -36,13 +44,6 @@ brew bundle --verbose --no-lock --file=/dev/stdin <<EOF
 {{- $apps = concat $apps .brew.apps }}
 {{- end }}
 
-{{- $taps := .brew.taps }}
-{{- range $taps }}
-tap "{{ .name }}"
-{{- end }}
-{{- range $brews | sortAlpha }}
-brew "{{ . }}"
-{{- end }}
 {{- range $casks | sortAlpha }}
 cask "{{ . }}"
 {{- end }}

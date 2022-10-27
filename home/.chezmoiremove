@@ -6,6 +6,8 @@
 .dircolors
 .gitconfig
 .gitignore
+.tmux.conf
+.wgetrc
 .zlogin
 .zlogout
 .zprofile
