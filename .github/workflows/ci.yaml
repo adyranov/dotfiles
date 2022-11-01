@@ -89,7 +89,7 @@ jobs:
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.7.1
+        uses: aquasecurity/trivy-action@0.8.0
         with:
           image-ref: "${{ fromJSON(steps.metadata.outputs.json).tags[0] }}"
           ignore-unfixed: true
