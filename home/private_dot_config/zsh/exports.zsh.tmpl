@@ -54,5 +54,5 @@ zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 
 # Path
 [ -d $HOME/.local/bin ] && export PATH=$HOME/.local/bin:$PATH
-[ -d $HOME/.krew/bin ] && export PATH=$HOME/.krew/bin:$PATH
+[ -d $HOME/.krew/bin ] && export PATH=$PATH:$HOME/.krew/bin
 [ -d $HOME/.cargo/env ] && . "$HOME/.cargo/env"

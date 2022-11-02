@@ -1,5 +1,4 @@
 alias sudo='sudo ' # https://wiki.archlinux.org/title/Sudo#Passing_aliases
-alias cdgr=cd-gitroot
 
 alias k=kubectl
 alias kctx=kubectx
