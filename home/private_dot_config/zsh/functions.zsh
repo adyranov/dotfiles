@@ -41,38 +41,14 @@ git_update_all () {
   popd;
 }
 
-svn_update_all () {
-  pushd .;
-  currDir=`pwd`
-  for i in `find $currDir -maxdepth 7 -type d -name ".svn"`; do
-    cd $i/../ > /dev/null;
-    pwd;
-    svn up > /dev/null;
-    if [ $? -ne 0 ]; then
-      echo "svn up error";
-      return;
-    fi
-  done;
-  popd;
-}
 
-vcs_update_all () {
-  git_update_all
-  svn_update_all
-}
-
-vcs_clean_ignored () {
+git_clean_ignored () {
   pushd .;
   currDir=`pwd`
   for i in `find $currDir -maxdepth 7 -type d -name ".git"`; do
     cd $i/../ > /dev/null;
     pwd;
     git clean -dfx
-  done;
-  for i in `find $currDir -maxdepth 7 -type d -name ".svn"`; do
-    cd $i/../ > /dev/null;
-    pwd;
-    svn status --no-ignore | grep '^I' | sed 's/^I       //' | xargs rm -rf
   done;
   popd;
 }
