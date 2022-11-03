@@ -90,3 +90,17 @@ asdf_latest_versions () {
   asdf plugin update --all > /dev/null 2>&1
   diff <(cat ~/.tool-versions | awk '{print $1}' | xargs -I {} bash -c 'echo {} $(asdf latest {})') <(cat ~/.tool-versions)
 }
+
+u() {
+  brew update
+  brew upgrade
+  brew upgrade --cask --greedy
+  brew cleanup --prune=1
+  asdf update || true
+  asdf plugin-update --all
+  rustup self update || true
+  rustup update || true
+  npm update -g || true
+  chezmoi upgrade
+  z4h update
+}

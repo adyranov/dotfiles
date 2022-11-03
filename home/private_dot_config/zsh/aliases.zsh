@@ -1,25 +1,6 @@
 alias sudo='sudo ' # https://wiki.archlinux.org/title/Sudo#Passing_aliases
-
-alias k=kubectl
-alias kctx=kubectx
-alias kns=kubens
-
-alias tf=terraform
-alias tg=terragrunt
-
 alias reload=exec ${SHELL} -l
 
-alias u="brew update                      && \
-         brew upgrade                     && \
-         brew upgrade --cask --greedy     && \
-         brew cleanup --prune=1           && \
-         asdf update || true              && \
-         asdf plugin-update --all || true && \
-         rustup self update || true       && \
-         rustup update || true            && \
-         npm update -g || true            && \
-         chezmoi upgrade                  && \
-         z4h update"
 # ls => exa
 # exchange ls with exa
 # https://the.exa.website/
