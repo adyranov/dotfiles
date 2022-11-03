@@ -1,3 +1,5 @@
+--theme="Dracula"
+
 --italic-text=always
 
 # Use C++ syntax for Arduino .ino files
