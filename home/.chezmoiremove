@@ -1,11 +1,14 @@
 # chezmoi --remove --dry-run --verbose apply
 
+Brewfile
 .bash_logout
 .bash_profile
 .bashrc
 .dircolors
 .gitconfig
 .gitignore
+.inputrc
+.subversion
 .tmux.conf
 .wgetrc
 .zlogin
