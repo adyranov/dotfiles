@@ -22,7 +22,7 @@
 [core]
     autocrlf = false
     safecrlf = warn
-    pager = delta
+    pager = delta -w ${FZF_PREVIEW_COLUMNS:-$COLUMNS}
     editor = code --wait
     whitespace = trailing-space,space-before-tab
 [diff]
