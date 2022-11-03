@@ -7,7 +7,6 @@ packages:
   - { name: "direnv", no-brew: true, no-apt: true, no-apk: true, asdfVersion: "latest" }
   - { name: "dive", no-apt: true, no-apk: true, asdfVersion: "latest" }
   - { name: "docker", apt: "docker-ce" }
-  - { name: "dockutil", no-apt: true, no-apk: true }
   - name: "dpkg"
   - name: "exa"
   - { name: "fd", apt: "fd-find" }

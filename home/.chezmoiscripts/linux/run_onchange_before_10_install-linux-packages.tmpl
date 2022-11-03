@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-set -eufo pipefail
 
 {{ template "install-alpine-packages" . }}
 {{ template "install-ubuntu-packages" . }}
-{{ template "install-darwin-packages" . }}
