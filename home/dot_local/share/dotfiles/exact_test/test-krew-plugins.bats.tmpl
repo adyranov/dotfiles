@@ -1,0 +1,16 @@
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+{{ range $plugin := .krew.plugins -}}
+{{- $exclude := or (get $plugin $.chezmoi.os) (get $plugin (list $.chezmoi.os $.chezmoi.arch | join "_")) -}}
+{{- if not $exclude }}
+@test "krew {{ $plugin.name }}" {
+  run kubectl {{ $plugin.name }} {{ get $plugin "test" | default "--help" }}
+  assert_success
+}
+{{ end -}}
+{{ end -}}

@@ -1,0 +1,13 @@
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+{{ range $plugin := .helm.plugins }}
+@test "helm {{ $plugin.name }}" {
+  run helm {{ $plugin.name }} {{ get $plugin "test" | default "version" }}
+  assert_success
+}
+{{ end -}}
