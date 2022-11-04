@@ -82,7 +82,6 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh \
-    && ~/.local/share/chezmoi/test/run_tests.sh \
     && doas rm -rf /var/cache/apk/* /tmp/*
 
 CMD /bin/zsh
