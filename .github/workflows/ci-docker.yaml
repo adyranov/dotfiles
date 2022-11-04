@@ -112,9 +112,9 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
       - name: Run tests amd64
-        run: docker run --platform amd64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/share/chezmoi/test/run_tests.sh
+        run: docker run --platform amd64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
       - name: Run tests arm64
-        run: docker run --platform arm64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/share/chezmoi/test/run_tests.sh
+        run: docker run --platform arm64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
       - name: Docker Metadata
         id: metadata
         uses: docker/metadata-action@v4
