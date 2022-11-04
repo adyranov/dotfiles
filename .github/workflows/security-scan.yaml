@@ -1,0 +1,32 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: "0 1 * * 6"
+  workflow_dispatch:
+
+concurrency:
+  group: security-scan-${{ github.head_ref }}
+  cancel-in-progress: true
+jobs:
+  security-scan:
+    strategy:
+      matrix:
+        os: [alpine, ubuntu]
+      fail-fast: false
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.8.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:latest-${{ matrix.os }}
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+          format: "sarif"
+          output: "trivy-results.sarif"
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: "trivy-results.sarif"
+          category: ${{ matrix.os }}
