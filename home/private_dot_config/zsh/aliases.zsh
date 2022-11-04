@@ -1,13 +1,6 @@
 alias sudo='sudo ' # https://wiki.archlinux.org/title/Sudo#Passing_aliases
 alias reload=exec ${SHELL} -l
 
-# chezmoi
-alias cz="chezmoi"
-alias cza="chezmoi apply"
-alias czd="chezmoi diff"
-alias czs='cd $(chezmoi source-path)'
-alias czu="chezmoi update"
-
 # ls => exa
 # exchange ls with exa
 # https://the.exa.website/

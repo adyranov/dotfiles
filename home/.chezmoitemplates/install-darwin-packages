@@ -32,7 +32,7 @@ tap "{{ .name }}"
 {{- $brews = append $brews $brewName  }}
 {{- end }}
 {{- end }}
-{{- range $brews }}
+{{- range $brews | sortAlpha }}
 brew "{{ . }}"
 {{- end }}
 
