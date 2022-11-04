@@ -23,13 +23,13 @@ repos:
     rev: v0.1.17
     hooks:
       - id: shellcheck
-        exclude: '.*\.tmpl'
+        exclude: '.*\.tmpl|.*\.bats'
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.28.0
     hooks:
       - id: yamllint
   - repo: https://github.com/sirosen/check-jsonschema
-    rev: 0.18.3
+    rev: 0.18.4
     hooks:
       - id: check-github-workflows
   - repo: https://github.com/codespell-project/codespell
@@ -42,3 +42,7 @@ repos:
           - --check-filenames
           - --check-hidden
           - --ignore-words=.codespell-ignore
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets

@@ -4,26 +4,25 @@ packages:
   - { name: "colima", no-apt: true, no-apk: true }
   - name: "curl"
   - { name: "datree", no-apt: true, no-apk: true, asdfVersion: "latest" }
+  - { name: "delta", brew: "git-delta", no-apt: true, asdfVersion: "latest" }
   - { name: "direnv", no-brew: true, no-apt: true, no-apk: true, asdfVersion: "latest" }
   - { name: "dive", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - { name: "docker", apt: "docker-ce" }
-  - name: "dpkg"
+  - { name: "docker", apt: "moby-cli", apk: "docker-cli" }
   - name: "exa"
   - { name: "fd", apt: "fd-find" }
   - { name: "gh", no-apt: true, apk: "github-cli", asdf: "github-cli", asdfVersion: "latest" }
   - name: "git"
-  - { name: "git-delta", no-apt: true, apk: "delta", asdf: "delta", asdfVersion: "latest" }
   - name: "gnupg"
   - { name: "helm", no-apk: true, asdfVersion: "latest" }
   - name: "htop"
   - name: "httpie"
-  - { name: "java", no-brew: true, no-apt: true, apk: "openjdk17-jdk", asdfVersion: "temurin-17.0.4+101" }
+  - { name: "java", no-brew: true, no-apt: true, apk: "openjdk17-jdk", asdfVersion: "latest:temurin-17" }
   - name: "jq"
   - { name: "k9s", no-apt: true, no-apk: true, asdfVersion: "latest" }
   - { name: "kubectl", no-apk: true, asdfVersion: "latest" }
   - { name: "kubectx", no-apt: true, asdfVersion: "latest" }
   - { name: "mas", no-apt: true, no-apk: true }
-  - { name: "maven", no-brew: true, no-apt: true, asdfVersion: "latest" }
+  - { name: "maven", no-brew: true, no-apt: true, asdfVersion: "3.8.6" }
   - name: "neovim"
   - { name: "nodejs", brew: "node@18" }
   - { name: "npm", no-brew: true, no-apt: true }
@@ -47,12 +46,9 @@ asdf:
       url: "https://github.com/webofmars/asdf-plugin-datree"
 apt:
   repositories:
-    - name: "azure-cli"
+    - name: "microsoft"
       key: "https://packages.microsoft.com/keys/microsoft.asc"
-      string: "deb https://packages.microsoft.com/repos/azure-cli $(lsb_release -cs) main"
-    - name: "docker"
-      key: "https://download.docker.com/linux/ubuntu/gpg"
-      string: "deb https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+      string: "deb https://packages.microsoft.com/ubuntu/$(lsb_release -rs)/prod $(lsb_release -cs) main"
     - name: "git-core-ubuntu-ppa"
       key: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xe1dd270288b4e6030699e45fa1715d88e1df1f24"
       string: "deb http://ppa.launchpad.net/git-core/ppa/ubuntu $(lsb_release -cs) main"
@@ -131,8 +127,6 @@ helm:
   plugins:
     - name: "helm-diff"
       url: "https://github.com/databus23/helm-diff"
-    - name: "helm-git"
-      url: "https://github.com/aslafy-z/helm-git"
     - name: "helm-secrets"
       url: "https://github.com/jkroepke/helm-secrets"
 krew:

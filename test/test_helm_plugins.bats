@@ -1,0 +1,17 @@
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "helm diff" {
+  run helm diff version
+  assert_success
+}
+
+@test "helm secrets" {
+  run helm secrets version
+  assert_success
+}
