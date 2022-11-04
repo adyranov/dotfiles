@@ -13,8 +13,11 @@ fi
 [ -d $HOME/.krew/bin ] && export PATH=$HOME/.krew/bin:$PATH
 
 krew_plugins=(
-{{ range $plugin := .krew.plugins }}
-{{- $plugin.name | indent 4}}
+{{ range $plugin := .krew.plugins -}}
+{{- $exclude := or (get $plugin $.chezmoi.os) (get $plugin (list $.chezmoi.os $.chezmoi.arch | join "_")) -}}
+{{- if not $exclude -}}
+{{- $plugin.name | indent 4 }}
+{{ end -}}
 {{ end -}}
 )
 

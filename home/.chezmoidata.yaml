@@ -125,24 +125,24 @@ brew:
       id: "425424353"
 helm:
   plugins:
-    - name: "helm-diff"
+    - name: "diff"
       url: "https://github.com/databus23/helm-diff"
-    - name: "helm-secrets"
+    - name: "secrets"
       url: "https://github.com/jkroepke/helm-secrets"
 krew:
   plugins:
-    - name: "access-matrix"
-    - name: "datree"
-    - name: "deprecations"
-    - name: "get-all"
+    - { name: "access-matrix", linux_arm64: "no" }
+    - { name: "datree", test: "version" }
+    - { name: "deprecations", linux_arm64: "no" }
+    - { name: "get-all", linux_arm64: "no" }
     - name: "konfig"
-    - name: "modify-secret"
+    - { name: "modify-secret", linux_arm64: "no" }
     - name: "neat"
-    - name: "node-shell"
+    - { name: "node-shell", test: "-v" }
     - name: "resource-capacity"
     - name: "score"
-    - name: "sniff"
-    - name: "tree"
+    - { name: "sniff", alpine: "no", linux_arm64: "no" }
+    - { name: "tree", linux_arm64: "no" }
     - name: "tunnel"
-    - name: "view-allocations"
+    - { name: "view-allocations", alpine: "no", linux_arm64: "no" }
     - name: "who-can"
