@@ -25,12 +25,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 env:
-  PUBLISH_IMAGE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event.inputs.publish-image == 'YES' }}
+  PUBLISH_IMAGE: ${{ (github.event_name == 'push' && github.ref_name == 'main') || github.event.inputs.publish-image == 'YES' }}
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.filter.outputs.changes }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3.1.0
@@ -52,13 +52,16 @@ jobs:
             ubuntu:
               - *shared
               - 'containers/ubuntu/Dockerfile'
+      - name: Set Matrix
+        id: set-matrix
+        run: |
+          MATRIX=$(echo '${{ steps.filter.outputs.changes }}' | jq -c 'del(.[] | select(. == "shared"))')
+          echo matrix="$MATRIX" >> $GITHUB_OUTPUT
   docker-build:
     needs: [changes]
     strategy:
       matrix:
         os: ${{ fromJSON(needs.changes.outputs.matrix) }}
-        exclude:
-          - os: shared
       fail-fast: false
     runs-on: ubuntu-22.04
     services:
@@ -95,11 +98,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and export to Docker
+      - name: Build and Export to Local Docker Registry
         uses: docker/build-push-action@v3
         with:
           file: containers/${{ matrix.os }}/Dockerfile
-          target: extended
+          target: extra
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
@@ -109,31 +112,58 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
-      - name: Run tests amd64
+      - name: Run Tests amd64
         run: docker run --platform amd64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
-      - name: Run tests arm64
+      - name: Run Tests arm64
         run: docker run --platform arm64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
-      - name: Docker Metadata
-        id: metadata
+      - name: Generate Extra Image Metadata
+        id: metadata-extra
         uses: docker/metadata-action@v4
+        if: ${{ env.PUBLISH_IMAGE == 'true' }}
         with:
           images: |
             ghcr.io/${{ github.repository }}
             docker.io/${{ github.repository }}
           tags: |
-            type=raw,enable=true,priority=100,value=latest-${{ matrix.os }}
-          flavor: latest=${{ contains(matrix.os, 'alpine') }}
-      - name: Build and push
+            type=raw,enable=true,priority=100,value=${{ matrix.os }}-extra
+      - name: Push Extra Image
         uses: docker/build-push-action@v3
         if: ${{ env.PUBLISH_IMAGE == 'true' }}
         with:
           file: containers/${{ matrix.os }}/Dockerfile
-          target: extended
+          target: extra
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
+          tags: ${{ steps.metadata-extra.outputs.tags }}
+          labels: ${{ steps.metadata-extra.outputs.labels }}
+          secrets: |
+            "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-from: type=local,src=/tmp/.buildx-cache-new
+          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
+      - name: Generate Base Image Metadata
+        id: metadata-base
+        uses: docker/metadata-action@v4
+        if: ${{ env.PUBLISH_IMAGE == 'true' }}
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+            docker.io/${{ github.repository }}
+          tags: |
+            type=raw,enable=true,priority=100,value=${{ matrix.os }}
+          flavor: latest=${{ github.ref_name == 'main' && contains(matrix.os, 'alpine') }}
+      - name: Push Base Image
+        uses: docker/build-push-action@v3
+        if: ${{ env.PUBLISH_IMAGE == 'true' }}
+        with:
+          file: containers/${{ matrix.os }}/Dockerfile
+          target: base
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.metadata-base.outputs.tags }}
+          labels: ${{ steps.metadata-base.outputs.labels }}
           secrets: |
             "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
           builder: ${{ steps.buildx.outputs.name }}

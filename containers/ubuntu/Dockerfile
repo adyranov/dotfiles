@@ -85,12 +85,12 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
 
 CMD /bin/zsh
 
-FROM base as extended
-
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-helm-plugins \
-    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
+FROM base as extra
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-krew-plugins \
+    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-helm-plugins \
     && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
