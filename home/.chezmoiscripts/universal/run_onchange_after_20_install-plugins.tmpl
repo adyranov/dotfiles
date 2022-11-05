@@ -1,6 +1,6 @@
 {{- if ne .host.type "ephemeral" -}}
 #!/usr/bin/env bash
 
-{{ template "universal/install-helm-plugins" . }}
 {{ template "universal/install-krew-plugins" . }}
+{{ template "universal/install-helm-plugins" . }}
 {{- end -}}

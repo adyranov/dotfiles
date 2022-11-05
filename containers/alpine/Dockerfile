@@ -78,12 +78,12 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
 
 CMD /bin/zsh
 
-FROM base as extended
-
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-helm-plugins \
-    && doas rm -rf /var/cache/apk/* /tmp/*
+FROM base as extra
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-krew-plugins \
+    && doas rm -rf /var/cache/apk/* /tmp/*
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-helm-plugins \
     && doas rm -rf /var/cache/apk/* /tmp/*
