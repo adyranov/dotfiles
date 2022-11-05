@@ -14,7 +14,7 @@ fi
 
 krew_plugins=(
 {{ range $plugin := .krew.plugins -}}
-{{- $exclude := or (get $plugin $.chezmoi.os) (get $plugin (list $.chezmoi.os $.chezmoi.arch | join "_")) -}}
+{{- $exclude := or (get $plugin $.host.distro.id) (get $plugin (list $.host.distro.family $.host.arch | join "_")) -}}
 {{- if not $exclude -}}
 {{- $plugin.name | indent 4 }}
 {{ end -}}

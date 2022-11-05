@@ -1,4 +1,4 @@
-{{- $stern := lookPath (joinPath .chezmoi.homeDir ".asdf/shims/stern") | or (lookPath "stern") -}}
+{{- $stern := lookPath (joinPath .host.home ".asdf/shims/stern") | or (lookPath "stern") -}}
 {{- if $stern -}}
 {{- output $stern "--completion" "zsh" -}}
 {{- end -}}

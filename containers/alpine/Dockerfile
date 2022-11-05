@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM alpine:3.16
+FROM alpine:3.16 as base
 
 ARG USER=devcontainer
 ARG UID=54321
@@ -73,15 +73,17 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     && doas rm -rf /var/cache/apk/* /tmp/*
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh \
+    && doas rm -rf /var/cache/apk/* /tmp/*
+
+CMD /bin/zsh
+
+FROM base as extended
+
+RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-helm-plugins \
     && doas rm -rf /var/cache/apk/* /tmp/*
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-krew-plugins \
     && doas rm -rf /var/cache/apk/* /tmp/*
-
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh \
-    && doas rm -rf /var/cache/apk/* /tmp/*
-
-CMD /bin/zsh

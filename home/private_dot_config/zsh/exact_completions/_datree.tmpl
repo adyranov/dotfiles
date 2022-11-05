@@ -1,4 +1,4 @@
-{{- $datree := lookPath (joinPath .chezmoi.homeDir ".asdf/shims/datree") | or (lookPath "datree") -}}
+{{- $datree := lookPath (joinPath .host.home ".asdf/shims/datree") | or (lookPath "datree") -}}
 {{- if $datree -}}
 {{- output $datree "completion" "zsh" -}}
 {{- end -}}

@@ -26,15 +26,13 @@ asdf plugin update --all
 {{- $packageName := $package.name }}
 
 {{- $excludeNative := false }}
-{{- if (eq $.chezmoi.os "linux") }}
-{{- if (eq $.chezmoi.osRelease.id "ubuntu") }}
+{{- if (eq $.host.distro.id "ubuntu") }}
 {{- $excludeNative = get $package "no-apt" | default false}}
 {{- end }}
-{{- if (eq $.chezmoi.osRelease.id "alpine") }}
+{{- if (eq $.host.distro.id "alpine") }}
 {{- $excludeNative = get $package "no-apk" | default false }}
 {{- end }}
-{{- end }}
-{{- if (eq $.chezmoi.os "darwin") }}
+{{- if (eq $.host.distro.family "darwin") }}
 {{- $excludeNative = get $package "no-brew" | default false }}
 {{- end }}
 

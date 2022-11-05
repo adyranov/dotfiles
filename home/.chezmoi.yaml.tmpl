@@ -1,7 +1,7 @@
 {{- $headless := false -}}
 {{- $ephemeral := false -}}
-{{- $personal := true -}}
 {{- $restricted := false -}}
+{{- $work := false -}}
 {{- $name := "Artem Dyranov" -}}
 {{- $email := "artem.dyranov@gmail.com" -}}
 
@@ -14,12 +14,31 @@
 {{-   writeToStdout "Chezmoi is running in a container.\n" -}}
 {{- end -}}
 
+{{- $chassisType := "desktop" }}
+{{- if $ephemeral -}}
+{{-   $chassisType = "ephemeral" }}
+{{- else if eq .chezmoi.os "linux" }}
+{{-   if (.chezmoi.kernel.osrelease | lower | contains "microsoft") -}}
+{{-     $chassisType = "wsl" }}
+{{-   else -}}
+{{-     $chassisType = (output "hostnamectl" "--json=short" | mustFromJson).Chassis }}
+{{-   end -}}
+{{- else if eq .chezmoi.os "darwin" }}
+{{-   if contains "MacBook" (output "sysctl" "-n" "hw.model") }}
+{{-     $chassisType = "laptop" }}
+{{-   else }}
+{{-     $chassisType = "desktop" }}
+{{-   end }}
+{{- else if eq .chezmoi.os "windows" }}
+{{-   $chassisType = (output "powershell.exe" "-noprofile" "-command" "if (Get-WmiObject -Class win32_battery -ComputerName localhost) { echo laptop } else { echo desktop }") }}
+{{- end }}
+
 {{- if stdinIsATTY -}}
 
-{{- $personal = promptBoolOnce . "personal" "Personal Environment" $personal -}}
-{{- $restricted = promptBoolOnce . "restricted" "Restricted Environment (no sudo access)" $restricted -}}
-{{- $name = promptStringOnce . "name" "Your Name" $name -}}
-{{- $email = promptStringOnce . "email" "Your Email" $email -}}
+{{- $work = promptBoolOnce . "host.work" "Work Environment" $work -}}
+{{- $restricted = promptBoolOnce . "host.restricted" "Restricted Environment (no sudo access)" $restricted -}}
+{{- $name = promptStringOnce . "user.name" "Your Name" $name -}}
+{{- $email = promptStringOnce . "user.email" "Your Email" $email -}}
 
 {{- writeToStdout "💡 Tip: you can re-enter your name and email with `chezmoi init --data=false`.\n" -}}
 
@@ -34,9 +53,17 @@ diff:
   pager: "delta"
 
 data:
-    email: "{{ $email }}"
-    name: "{{ $name }}"
-    personal: {{ $personal }}
-    restricted: {{ $restricted }}
-    headless: {{ $headless }}
-    ephemeral: {{ $ephemeral }}
+    host:
+      arch: "{{ .chezmoi.arch }}"
+      distro:
+        family: "{{ .chezmoi.os }}"
+        id: "{{ get .chezmoi.osRelease "id" | default .chezmoi.os }}"
+      home: "{{ .chezmoi.homeDir }}"
+      type: "{{ $chassisType }}"
+      work: {{ $work }}
+      restricted: {{ $restricted }}
+      headless: {{ $headless }}
+    user:
+      email: "{{ $email }}"
+      name: "{{ $name }}"
+      login: "{{ .chezmoi.username }}"

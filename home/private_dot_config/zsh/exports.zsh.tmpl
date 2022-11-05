@@ -26,16 +26,14 @@ else
   export EDITOR='code --wait'
 fi
 
-{{- if eq .chezmoi.os "linux" }}
-{{- if (contains "microsoft" .chezmoi.kernel.osrelease) }}
+{{- if eq .host.type "wsl" }}
 # WSL
 export LIBGL_ALWAYS_INDIRECT="1"
 export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
 {{- end }}
-{{- end }}
 
 
-{{- if (and (eq .chezmoi.os "darwin") (.restricted)) }}
+{{- if (and (eq .host.distro.family "darwin") (.host.restricted)) }}
 export HOMEBREW_CASK_OPTS="--appdir=~/Applications"
 {{- end }}
 

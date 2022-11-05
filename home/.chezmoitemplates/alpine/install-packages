@@ -1,6 +1,3 @@
-{{- if (eq .chezmoi.os "linux") -}}
-{{- if (eq .chezmoi.osRelease.id "alpine") -}}
-
 doas sh -c 'cat << EOT > /etc/apk/repositories
 http://dl-cdn.alpinelinux.org/alpine/v$(cat /etc/alpine-release | cut -d'.' -f1,2)/main
 http://dl-cdn.alpinelinux.org/alpine/v$(cat /etc/alpine-release | cut -d'.' -f1,2)/community
@@ -18,5 +15,3 @@ packages=(
 )
 
 doas apk add --update ${packages[@]}
-{{- end -}}
-{{- end -}}
