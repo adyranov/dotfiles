@@ -1,12 +1,12 @@
 
 {{- $refreshPeriod := "168h" }}
 
-{{- if not .headless }}
+{{- if not .host.headless }}
 {{-   $fontDir := "" }}
 {{-   $powerlevelBase := "https://github.com/romkatv/powerlevel10k-media/raw/master" }}
-{{-   if eq .chezmoi.os "darwin" }}
+{{-   if eq .host.distro.family "darwin" }}
 {{-     $fontDir = "Library/Fonts" }}
-{{-   else if eq .chezmoi.os "linux" }}
+{{-   else if eq .host.distro.family "linux" }}
 {{-     $fontDir = ".local/share/fonts" }}
 {{-   end }}
 ["{{ $fontDir }}/MesloLGS NF Regular.ttf"]

@@ -8,4 +8,4 @@ if [ -d "$HOME/.asdf/plugins/direnv" ]; then
   direnv() { asdf exec direnv "$@"; }
 fi
 
-{{ template "install-helm-plugins" . }}
+{{ template "universal/install-helm-plugins" . }}

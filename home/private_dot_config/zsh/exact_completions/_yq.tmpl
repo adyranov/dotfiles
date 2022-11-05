@@ -1,4 +1,4 @@
-{{- $yq := lookPath (joinPath .chezmoi.homeDir ".asdf/shims/yq") | or (lookPath "yq") -}}
+{{- $yq := lookPath (joinPath .host.home ".asdf/shims/yq") | or (lookPath "yq") -}}
 {{- if $yq -}}
 {{- output $yq "shell-completion" "zsh" -}}
 {{- end -}}

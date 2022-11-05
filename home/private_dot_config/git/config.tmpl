@@ -83,8 +83,8 @@
     line-numbers-plus-style = 28
 
 [user]
-    name = "{{ .name }}"
-    email = "{{ .email }}"
+    name = "{{ .user.name }}"
+    email = "{{ .user.email }}"
 
 {{ $gh := lookPath "gh"  -}}
 {{ if $gh -}}

@@ -1,13 +1,11 @@
-{{- if (eq .chezmoi.os "darwin") -}}
-
 xcode-select -p >/dev/null 2>&1 || xcode-select --install
 
-{{- $brew := lookPath (joinPath .chezmoi.homeDir "homebrew/bin/brew") | or (lookPath "/opt/homebrew/bin/brew") | or (lookPath "/usr/local/bin/brew") -}}
+{{- $brew := lookPath (joinPath .host.home "homebrew/bin/brew") | or (lookPath "/opt/homebrew/bin/brew") | or (lookPath "/usr/local/bin/brew") -}}
 {{- if not $brew }}
 echo "Installing Homebrew..."
 /bin/sh -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-{{- if eq .chezmoi.arch "arm64" }}
+{{- if eq .host.arch "arm64" }}
 eval $(/opt/homebrew/bin/brew shellenv)
 {{- else }}
 eval $(/usr/local/bin/brew shellenv)
@@ -39,7 +37,7 @@ brew "{{ . }}"
 {{- $casks := list }}
 {{- $apps := list }}
 
-{{- if and (not .headless) (not .restricted) }}
+{{- if and (not .host.headless) (not .host.restricted) }}
 {{- $casks = concat $casks .brew.casks }}
 {{- $apps = concat $apps .brew.apps }}
 {{- end }}
@@ -51,4 +49,3 @@ cask "{{ .name }}"
 mas "{{ .name }}", id: {{ .id }}
 {{- end }}
 EOF
-{{- end -}}
