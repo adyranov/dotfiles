@@ -11,11 +11,5 @@ common_setup() {
     [ "$(uname)" == 'Linux' ] && . /etc/os-release && OS_ID=$ID
 
     # shellcheck source=/dev/null
-    . "$HOME/.asdf/asdf.sh"
-    if [ -d "$HOME/.asdf/plugins/direnv" ]; then
-      eval "$(asdf exec direnv hook bash)"
-      direnv() { asdf exec direnv "$@"; }
-    fi
-
-    PATH=$PATH:$HOME/.krew/bin
+    source "$HOME"/.config/exports.sh
 }

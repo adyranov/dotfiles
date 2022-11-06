@@ -2,6 +2,7 @@ packages:
   - name: "bash"
   - name: "bat"
   - { name: "colima", no-apt: true, no-apk: true }
+  - { name: "coreutils", no-apt: true, no-apk: true }
   - name: "curl"
   - { name: "datree", no-apt: true, no-apk: true, asdfVersion: "latest" }
   - { name: "delta", brew: "git-delta", no-apt: true, asdfVersion: "latest" }

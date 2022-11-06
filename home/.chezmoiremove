@@ -1,5 +1,6 @@
 # chezmoi --remove --dry-run --verbose apply
 
+.asdf
 Brewfile
 .bash_logout
 .bash_profile
@@ -8,6 +9,7 @@ Brewfile
 .gitconfig
 .gitignore
 .inputrc
+.krew
 .subversion
 .tmux.conf
 .wgetrc
