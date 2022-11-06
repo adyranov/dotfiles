@@ -20,12 +20,12 @@ zstyle ':z4h:autosuggestions' forward-char 'accept'
 zstyle ':z4h:fzf-complete' recurse-dirs 'no'
 
 # Enable direnv to automatically source .envrc files.
-zstyle ':z4h:direnv'         enable 'yes'
+zstyle ':z4h:direnv'         enable 'no'
 # Show "loading" and "unloading" notifications from direnv.
-zstyle ':z4h:direnv:success' notify 'yes'
+zstyle ':z4h:direnv:success' notify 'no'
 
 # Start ssh-agent if it's not running yet.
-zstyle ':z4h:ssh-agent:' start yes
+zstyle ':z4h:ssh-agent:' start 'yes'
 
 # Customize FZF
 zstyle ':z4h:*' fzf-flags --prompt='» ' --pointer='▶' --marker='✓ ' --color=bg+:-1,marker:010
@@ -45,15 +45,24 @@ z4h install olets/zsh-abbr || return
 # perform network I/O must be done above. Everything else is best done below.
 z4h init || return
 
+# Export environment variables.
+z4h source $HOME/.config/exports.sh
+
+# Load direnv from ASDF
+if [ -d "$ASDF_DATA_DIR/plugins/direnv" ]; then
+  eval "$(asdf exec direnv hook zsh)"
+  direnv() { asdf exec direnv "$@"; }
+fi
+
+# Set colors from LS_COLORS
+zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+
 # Extend function path
 fpath=(
     $ZDOTDIR/completions
-    $HOME/.asdf/completions
+    $ASDF_DATA_DIR/completions
     $fpath
 )
-
-# Export environment variables.
-z4h source $ZDOTDIR/exports.zsh
 
 # Use additional Git repositories pulled in with `z4h install`.
 z4h source ohmyzsh/ohmyzsh/lib/clipboard.zsh

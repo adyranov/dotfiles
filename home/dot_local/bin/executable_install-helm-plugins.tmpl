@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
 set -eufo pipefail
 
-# ASDF for Alpine
-[ -d $HOME/.asdf ] && . "$HOME/.asdf/asdf.sh"
-if [ -d "$HOME/.asdf/plugins/direnv" ]; then
-  eval "$(asdf exec direnv hook bash)"
-  direnv() { asdf exec direnv "$@"; }
-fi
-
 {{ template "universal/install-helm-plugins" . }}

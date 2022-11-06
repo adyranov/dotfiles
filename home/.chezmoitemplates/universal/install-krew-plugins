@@ -1,4 +1,5 @@
-if [[ ! -e ${HOME}/.krew/bin/kubectl-krew ]]; then
+source $HOME/.config/exports.sh
+if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
     (
     set -x; cd "$(mktemp -d)" &&
     OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
@@ -9,8 +10,6 @@ if [[ ! -e ${HOME}/.krew/bin/kubectl-krew ]]; then
     ./"${KREW}" install krew
     )
 fi
-
-[ -d $HOME/.krew/bin ] && export PATH=$HOME/.krew/bin:$PATH
 
 krew_plugins=(
 {{ range $plugin := .krew.plugins -}}
@@ -24,5 +23,5 @@ krew_plugins=(
 for plugin in "${krew_plugins[@]}"
 do
     echo Installing Krew plugin \"$plugin\"
-    ${HOME}/.krew/bin/kubectl-krew install $plugin 2>/dev/null || true
+    $KREW_ROOT/bin/kubectl-krew install $plugin 2>/dev/null || true
 done
