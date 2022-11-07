@@ -1,4 +1,4 @@
-source $HOME/.config/exports.sh
+source $HOME/.config/shell/exports.sh
 if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
     (
     set -x; cd "$(mktemp -d)" &&

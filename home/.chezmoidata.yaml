@@ -1,46 +1,47 @@
-packages:
+essentials:
   - name: "bash"
-  - name: "bat"
-  - { name: "colima", no-apt: true, no-apk: true }
-  - { name: "coreutils", no-apt: true, no-apk: true }
+  - name: "coreutils"
   - name: "curl"
-  - { name: "datree", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - { name: "delta", brew: "git-delta", no-apt: true, asdfVersion: "latest" }
-  - { name: "direnv", no-brew: true, no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - { name: "dive", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - { name: "docker", apt: "moby-cli", apk: "docker-cli" }
-  - name: "exa"
-  - { name: "fd", apt: "fd-find" }
-  - { name: "gh", no-apt: true, apk: "github-cli", asdf: "github-cli", asdfVersion: "latest" }
   - name: "git"
   - name: "gnupg"
-  - { name: "helm", no-apk: true, asdfVersion: "latest" }
-  - name: "htop"
-  - name: "httpie"
-  - { name: "java", no-brew: true, no-apt: true, apk: "openjdk17-jdk", asdfVersion: "latest:temurin-17" }
   - name: "jq"
-  - { name: "k9s", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - { name: "kubectl", no-apk: true, asdfVersion: "latest" }
-  - { name: "kubectx", no-apt: true, asdfVersion: "latest" }
-  - { name: "mas", no-apt: true, no-apk: true }
-  - { name: "maven", no-brew: true, no-apt: true, asdfVersion: "3.8.6" }
-  - name: "neovim"
-  - { name: "nodejs", brew: "node@18" }
-  - { name: "npm", no-brew: true, no-apt: true }
-  - { name: "popeye", no-apt: true, no-apk: true, asdfVersion: "v0.10.1" }
-  - { name: "pre-commit", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - name: "ripgrep"
-  - name: "skopeo"
-  - { name: "sops", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - { name: "stern", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - { name: "terraform", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - { name: "terragrunt", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - { name: "tflint", no-apt: true, no-apk: true, asdfVersion: "latest" }
-  - name: "tmux"
   - name: "wget"
-  - name: "yarn"
-  - { name: "yq", no-apt: true, asdfVersion: "latest" }
   - name: "zsh"
+packages:
+  - name: "bat"
+  - { name: "colima", no-ubuntu: true, no-alpine: true }
+  - { name: "datree", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "delta", darwin: "git-delta", no-ubuntu: true, asdfVersion: "latest" }
+  - { name: "direnv", no-darwin: true, no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "dive", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "docker", ubuntu: "moby-cli", alpine: "docker-cli" }
+  - name: "exa"
+  - { name: "fd", ubuntu: "fd-find" }
+  - { name: "gh", no-ubuntu: true, alpine: "github-cli", asdf: "github-cli", asdfVersion: "latest" }
+  - { name: "helm", no-alpine: true, asdfVersion: "latest" }
+  - name: "htop"
+  - { name: "httpie", test: "http --version" }
+  - { name: "java", no-darwin: true, no-ubuntu: true, alpine: "openjdk17-jdk", asdfVersion: "latest:temurin-17" }
+  - { name: "k9s", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "kubectl", no-alpine: true, asdfVersion: "latest" }
+  - { name: "kubectx", no-ubuntu: true, asdfVersion: "latest" }
+  - { name: "mas", no-ubuntu: true, no-alpine: true, test: "mas" }
+  - { name: "maven", no-darwin: true, no-ubuntu: true, asdfVersion: "3.8.6", test: "mvn --help" }
+  - { name: "neovim", test: "nvim --help" }
+  - { name: "nodejs", darwin: "node@18", test: "node --help" }
+  - { name: "npm", no-darwin: true, no-ubuntu: true, test: "npm -v" }
+  - { name: "popeye", no-ubuntu: true, no-alpine: true, asdfVersion: "v0.10.1" }
+  - { name: "pre-commit", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "ripgrep", test: "rg --help" }
+  - name: "skopeo"
+  - { name: "sops", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "stern", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "terraform", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "terragrunt", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "tflint", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "tmux", test: "tmux -V" }
+  - name: "yarn"
+  - { name: "yq", no-ubuntu: true, asdfVersion: "latest" }
 asdf:
   plugins:
     - name: "datree"
