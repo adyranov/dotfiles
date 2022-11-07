@@ -46,7 +46,7 @@ z4h install olets/zsh-abbr || return
 z4h init || return
 
 # Export environment variables.
-z4h source $HOME/.config/exports.sh
+z4h source $HOME/.config/shell/exports.sh
 
 # Load direnv from ASDF
 if [ -d "$ASDF_DATA_DIR/plugins/direnv" ]; then
@@ -116,10 +116,10 @@ z4h bindkey z4h-cd-down    Shift+Down   # cd into a child directory
 autoload -Uz zmv
 
 # Define functions and completions.
-z4h source $ZDOTDIR/functions.zsh
+z4h source $HOME/.config/shell/functions.sh
 
 # Define aliases.
-z4h source $ZDOTDIR/aliases.zsh
+z4h source $HOME/.config/shell/aliases.sh
 
 # Define named directories: ~w <=> Windows home directory on WSL.
 (( $+z4h_win_home )) && hash -d w=$z4h_win_home

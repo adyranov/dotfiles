@@ -22,11 +22,14 @@ tap "{{ .name }}"
 {{- end }}
 
 {{- $brews := list }}
+{{- range $package := .essentials }}
+{{- $brews = append $brews $package.name }}
+{{- end }}
 {{- range $package := .packages }}
 {{- $packageName := $package.name }}
-{{- $excludeNative := get $package "no-brew" | default false }}
+{{- $excludeNative := get $package (list "no" $.host.distro.id | join "-") | default false}}
 {{- if not $excludeNative }}
-{{- $brewName := get $package "brew" | default $packageName }}
+{{- $brewName := get $package $.host.distro.id | default $packageName }}
 {{- $brews = append $brews $brewName  }}
 {{- end }}
 {{- end }}

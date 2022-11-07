@@ -1,4 +1,4 @@
-source $HOME/.config/exports.sh
+source $HOME/.config/shell/exports.sh
 [ ! -d $ASDF_DIR ] && git clone https://github.com/asdf-vm/asdf.git "${ASDF_DIR}"
 
 . ${ASDF_DIR}/asdf.sh
@@ -25,17 +25,7 @@ asdf plugin update --all
 {{- range $package := .packages }}
 {{- $packageName := $package.name }}
 
-{{- $excludeNative := false }}
-{{- if (eq $.host.distro.id "ubuntu") }}
-{{- $excludeNative = get $package "no-apt" | default false}}
-{{- end }}
-{{- if (eq $.host.distro.id "alpine") }}
-{{- $excludeNative = get $package "no-apk" | default false }}
-{{- end }}
-{{- if (eq $.host.distro.family "darwin") }}
-{{- $excludeNative = get $package "no-brew" | default false }}
-{{- end }}
-
+{{- $excludeNative := get $package (list "no" $.host.distro.id | join "-") | default false}}
 {{- $asdfName := get $package "asdf"}}
 {{- $asdfVersion := get $package "asdfVersion"}}
 {{- if and ($excludeNative) (or $asdfName $asdfVersion) }}

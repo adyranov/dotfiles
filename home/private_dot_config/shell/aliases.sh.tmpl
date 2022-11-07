@@ -1,0 +1,39 @@
+#!/usr/bin/env sh
+alias sudo='sudo ' # https://wiki.archlinux.org/title/Sudo#Passing_aliases
+alias reload="exec ${SHELL} -l"
+
+# ls => exa
+if command -v exa &> /dev/null; then
+  alias ls='exa --group-directories-first --sort=name --classify'
+  alias la='ls -la'
+  alias lt='ls --tree --level=2'
+fi
+
+# cat/less/man => bat
+command -v batcat &>/dev/null && ! command -v bat &>/dev/null && alias bat=batcat
+if command -v bat &>/dev/null; then
+  alias cat='bat -pp'
+  alias less='bat --paging=always'
+
+  # override MANPAGER
+  export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+
+fi
+
+# fdfind => fd
+command -v fdfind &>/dev/null && ! command -v fd &>/dev/null && alias fd=fdfind
+
+# grep => ripgrep
+if command -v rg &> /dev/null; then
+  alias grep='rg'
+fi
+
+# top => htop
+if command -v htop &> /dev/null; then
+  alias top='htop'
+fi
+
+# vim => neovim
+if command -v nvim &> /dev/null; then
+  alias vim='nvim'
+fi

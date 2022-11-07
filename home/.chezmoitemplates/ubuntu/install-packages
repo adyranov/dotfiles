@@ -7,14 +7,22 @@ if [ ! -f /etc/apt/sources.list.d/{{ .name }}.list ]; then
 fi
 {{ end -}}
 
-packages=(
+{{- $packages := list }}
+{{- range $package := .essentials }}
+{{- $packages = append $packages $package.name }}
+{{- end }}
 {{- range $package := .packages }}
 {{- $packageName := $package.name }}
-{{- $excludeNative := get $package "no-apt" | default false }}
+{{- $excludeNative := get $package (list "no" $.host.distro.id | join "-") | default false}}
 {{- if not $excludeNative }}
-{{- $aptName := get $package "apt" | default $packageName }}
-{{ $aptName | indent 4 }}
+{{- $aptName := get $package $.host.distro.id | default $packageName }}
+{{- $packages = append $packages $aptName }}
 {{- end }}
+{{- end }}
+
+packages=(
+{{- range $package := $packages | sortAlpha }}
+{{ $package | indent 4 }}
 {{- end }}
 )
 
