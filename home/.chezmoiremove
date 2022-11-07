@@ -5,11 +5,13 @@ Brewfile
 .bash_logout
 .bash_profile
 .bashrc
+.cargo
 .dircolors
 .gitconfig
 .gitignore
 .inputrc
 .krew
+.rustup
 .subversion
 .tmux.conf
 .wgetrc
