@@ -28,7 +28,7 @@ packages:
   - { name: "mas", no-ubuntu: true, no-alpine: true, test: "mas" }
   - { name: "maven", no-darwin: true, no-ubuntu: true, asdfVersion: "3.8.6", test: "mvn --help" }
   - { name: "neovim", test: "nvim --help" }
-  - { name: "nodejs", darwin: "node@18", test: "node --help" }
+  - { name: "nodejs", no-darwin: true, asdfVersion: "latest:18", test: "node --help" }
   - { name: "npm", no-darwin: true, no-ubuntu: true, test: "npm -v" }
   - { name: "popeye", no-ubuntu: true, no-alpine: true, asdfVersion: "v0.10.1" }
   - { name: "pre-commit", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
