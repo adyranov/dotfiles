@@ -68,19 +68,31 @@ USER $USER
 COPY --chown=$USER:$USER . .local/share/chezmoi
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh --exclude=scripts \
+    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    .local/share/chezmoi/install.sh --exclude=scripts \
     && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-system-packages \
+    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    .local/bin/install-system-packages \
     && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-asdf-packages \
+    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    .local/bin/install-asdf-packages \
     && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/share/chezmoi/install.sh \
+    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    .local/share/chezmoi/install.sh \
     && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
 
 CMD /bin/zsh
@@ -88,9 +100,15 @@ CMD /bin/zsh
 FROM base as extra
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-krew-plugins \
+    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    .local/bin/install-krew-plugins \
     && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) .local/bin/install-helm-plugins \
+    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    .local/bin/install-helm-plugins \
     && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
