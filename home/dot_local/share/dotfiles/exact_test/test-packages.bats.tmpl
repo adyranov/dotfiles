@@ -5,14 +5,4 @@ load 'common-helper'
 setup() {
   common_setup
 }
-{{ range $package := .packages }}
-{{- $excludeNative := get $package (list "no" $.host.distro.id | join "-") | default false}}
-{{- $asdfName := get $package "asdf"}}
-{{- $asdfVersion := get $package "asdfVersion"}}
-{{- if or (not $excludeNative) (or $asdfName $asdfVersion) }}
-@test "{{ $package.name }}" {
-  run {{ get $package "test" | default (list $package.name "--help" | join " ") }}
-  assert_success
-}
-{{ end -}}
-{{ end -}}
+{{- template "universal/packages-to-test" dict "config" . -}}

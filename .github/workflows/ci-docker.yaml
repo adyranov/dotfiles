@@ -142,8 +142,34 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           cache-from: type=local,src=/tmp/.buildx-cache-new
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
-      - name: Generate Base Image Metadata
-        id: metadata-base
+      - name: Generate Slim Image Metadata
+        id: metadata-slim
+        uses: docker/metadata-action@v4
+        if: ${{ env.PUBLISH_IMAGE == 'true' }}
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+            docker.io/${{ github.repository }}
+          tags: |
+            type=raw,enable=true,priority=100,value=${{ matrix.os }}-slim
+      - name: Push Slim Image
+        uses: docker/build-push-action@v3
+        if: ${{ env.PUBLISH_IMAGE == 'true' }}
+        with:
+          file: containers/${{ matrix.os }}/Dockerfile
+          target: slim
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.metadata-slim.outputs.tags }}
+          labels: ${{ steps.metadata-slim.outputs.labels }}
+          secrets: |
+            "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-from: type=local,src=/tmp/.buildx-cache-new
+          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
+      - name: Generate Standard Image Metadata
+        id: metadata-standard
         uses: docker/metadata-action@v4
         if: ${{ env.PUBLISH_IMAGE == 'true' }}
         with:
@@ -153,17 +179,17 @@ jobs:
           tags: |
             type=raw,enable=true,priority=100,value=${{ matrix.os }}
           flavor: latest=${{ github.ref_name == 'main' && contains(matrix.os, 'alpine') }}
-      - name: Push Base Image
+      - name: Push Standard Image
         uses: docker/build-push-action@v3
         if: ${{ env.PUBLISH_IMAGE == 'true' }}
         with:
           file: containers/${{ matrix.os }}/Dockerfile
-          target: base
+          target: standard
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.metadata-base.outputs.tags }}
-          labels: ${{ steps.metadata-base.outputs.labels }}
+          tags: ${{ steps.metadata-standard.outputs.tags }}
+          labels: ${{ steps.metadata-standard.outputs.labels }}
           secrets: |
             "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
           builder: ${{ steps.buildx.outputs.name }}

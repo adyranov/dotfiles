@@ -1,4 +1,14 @@
-{{ range .apt.repositories -}}
+{{ $tools := .apt.repositories -}}
+{{ range $tool := $tools -}}
+{{ $includeToolchain := true -}}
+{{ if hasKey $tool "toolchains" -}}
+  {{ range $toolchain := (splitList "," $tool.toolchains) -}}
+    {{ if not (get $.toolchains ($toolchain | trim)) -}}
+      {{ $includeToolchain = false -}}
+    {{ end -}}
+  {{ end -}}
+{{ end -}}
+{{ if $includeToolchain -}}
 if [ ! -f /etc/apt/sources.list.d/{{ .name }}.list ]; then
     {{ if .key -}}
     curl -fsSL "{{ .key }}" | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/{{ .name }}.gpg
@@ -6,24 +16,10 @@ if [ ! -f /etc/apt/sources.list.d/{{ .name }}.list ]; then
     echo "{{ .string }}" | sudo tee /etc/apt/sources.list.d/{{ .name }}.list
 fi
 {{ end -}}
-
-{{- $packages := list }}
-{{- range $package := .essentials }}
-{{- $packages = append $packages $package.name }}
-{{- end }}
-{{- range $package := .packages }}
-{{- $packageName := $package.name }}
-{{- $excludeNative := get $package (list "no" $.host.distro.id | join "-") | default false}}
-{{- if not $excludeNative }}
-{{- $aptName := get $package $.host.distro.id | default $packageName }}
-{{- $packages = append $packages $aptName }}
-{{- end }}
-{{- end }}
+{{ end -}}
 
 packages=(
-{{- range $package := $packages | sortAlpha }}
-{{ $package | indent 4 }}
-{{- end }}
+{{- template "universal/packages-to-install" dict "config" . "prefix" "    " }}
 )
 
 sudo apt-get update

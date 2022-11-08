@@ -1,4 +1,4 @@
-{{- if ne .host.type "ephemeral" -}}
+{{- if .toolchains.extra -}}
 #!/usr/bin/env bash
 
 {{ template "universal/install-krew-plugins" . }}

@@ -1,6 +1,11 @@
 
 {{- $refreshPeriod := "168h" }}
 
+[_chezmoi]
+    type = "file"
+    url = 'https://raw.githubusercontent.com/twpayne/chezmoi/master/completions/chezmoi.zsh'
+    refreshPeriod = "{{ $refreshPeriod }}"
+
 [_exa]
     type = "file"
     url = 'https://raw.githubusercontent.com/ogham/exa/master/completions/zsh/_exa'
@@ -10,7 +15,7 @@
     type = "file"
     url = 'https://raw.githubusercontent.com/sharkdp/fd/master/contrib/completion/_fd'
     refreshPeriod = "{{ $refreshPeriod }}"
-
+{{- if .toolchains.kubernetes }}
 [_kubectx]
     type = "file"
     url = 'https://raw.githubusercontent.com/ahmetb/kubectx/master/completion/_kubectx.zsh'
@@ -20,13 +25,14 @@
     type = "file"
     url = 'https://raw.githubusercontent.com/ahmetb/kubectx/master/completion/_kubens.zsh'
     refreshPeriod = "{{ $refreshPeriod }}"
-
+{{- end }}
 [_rg]
     type = "file"
     url = 'https://raw.githubusercontent.com/BurntSushi/ripgrep/master/complete/_rg'
     refreshPeriod = "{{ $refreshPeriod }}"
-
+{{- if .toolchains.iac }}
 [_terragrunt]
     type = "file"
     url = 'https://raw.githubusercontent.com/thuandt/zsh-terraform/master/_terragrunt'
     refreshPeriod = "{{ $refreshPeriod }}"
+{{- end }}

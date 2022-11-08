@@ -1,3 +1,4 @@
+{{- if .toolchains.extra -}}
 #!./test/bats/bin/bats
 
 load 'common-helper'
@@ -11,3 +12,4 @@ setup() {
   assert_success
 }
 {{ end -}}
+{{- end -}}

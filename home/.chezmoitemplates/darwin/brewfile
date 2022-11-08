@@ -1,0 +1,32 @@
+
+{{- $taps := .brew.taps }}
+{{- range $tap := $taps }}
+{{- $includeToolchain := true }}
+{{- if hasKey $tap "toolchains" }}
+  {{- range $toolchain := (splitList "," $tap.toolchains) }}
+    {{- if not (get $.toolchains ($toolchain | trim)) }}
+      {{- $includeToolchain = false }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- if $includeToolchain }}
+tap "{{ .name }}"
+{{- end }}
+{{- end }}
+
+{{- template "universal/packages-to-install" dict "config" . "prefix" "brew \"" "suffix" "\"" }}
+
+{{- $casks := list }}
+{{- $apps := list }}
+
+{{- if and (not .host.headless) (not .host.restricted) }}
+{{- $casks = concat $casks .brew.casks }}
+{{- $apps = concat $apps .brew.apps }}
+{{- end }}
+
+{{- range $casks }}
+cask "{{ .name }}"
+{{- end }}
+{{- range $apps }}
+mas "{{ .name }}", id: {{ .id }}
+{{- end -}}

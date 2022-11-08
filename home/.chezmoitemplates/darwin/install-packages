@@ -16,39 +16,5 @@ eval $({{$brew}} shellenv)
 {{- end }}
 
 brew bundle --verbose --no-lock --file=/dev/stdin <<EOF
-{{- $taps := .brew.taps }}
-{{- range $taps }}
-tap "{{ .name }}"
-{{- end }}
-
-{{- $brews := list }}
-{{- range $package := .essentials }}
-{{- $brews = append $brews $package.name }}
-{{- end }}
-{{- range $package := .packages }}
-{{- $packageName := $package.name }}
-{{- $excludeNative := get $package (list "no" $.host.distro.id | join "-") | default false}}
-{{- if not $excludeNative }}
-{{- $brewName := get $package $.host.distro.id | default $packageName }}
-{{- $brews = append $brews $brewName  }}
-{{- end }}
-{{- end }}
-{{- range $brews | sortAlpha }}
-brew "{{ . }}"
-{{- end }}
-
-{{- $casks := list }}
-{{- $apps := list }}
-
-{{- if and (not .host.headless) (not .host.restricted) }}
-{{- $casks = concat $casks .brew.casks }}
-{{- $apps = concat $apps .brew.apps }}
-{{- end }}
-
-{{- range $casks }}
-cask "{{ .name }}"
-{{- end }}
-{{- range $apps }}
-mas "{{ .name }}", id: {{ .id }}
-{{- end }}
+{{- template "darwin/brewfile" . }}
 EOF
