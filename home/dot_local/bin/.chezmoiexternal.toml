@@ -1,8 +1,10 @@
 
 {{- $refreshPeriod := "168h" }}
 
+{{- if .toolchains.rust -}}
 [rustup-init]
     type = "file"
     url = 'https://sh.rustup.rs'
     refreshPeriod = "{{ $refreshPeriod }}"
     executable = true
+{{- end -}}

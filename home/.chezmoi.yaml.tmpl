@@ -2,7 +2,7 @@
 {{- $email := "artem.dyranov@gmail.com" -}}
 {{- $restricted := false -}}
 {{- $work := false -}}
-{{- $toolchains := list "docker" "iac" "java" "kubernetes" "node" "extra" }}
+{{- $toolchains := list "docker" "iac" "java" "kubernetes" "node" "rust" "extra" }}
 
 {{- $data := . }}
 {{- $_ := set $data "host" (default (dict) (get $data "host")) -}}
