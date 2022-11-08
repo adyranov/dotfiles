@@ -18,6 +18,7 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -51,6 +52,7 @@ jobs:
         os: ${{ fromJSON(needs.changes.outputs.matrix) }}
       fail-fast: false
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v3.1.0

@@ -29,6 +29,7 @@ env:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -64,6 +65,7 @@ jobs:
         os: ${{ fromJSON(needs.changes.outputs.matrix) }}
       fail-fast: false
     runs-on: ubuntu-22.04
+    timeout-minutes: 60
     services:
       registry:
         image: registry:2
