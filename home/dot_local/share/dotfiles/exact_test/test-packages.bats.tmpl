@@ -5,4 +5,4 @@ load 'common-helper'
 setup() {
   common_setup
 }
-{{- template "universal/packages-to-test" dict "config" . -}}
+{{- includeTemplate "universal/packages-to-test" (dict "config" .) -}}

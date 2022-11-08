@@ -1,42 +1,63 @@
-tap "homebrew/autoupdate"
-tap "homebrew/bundle"
-tap "homebrew/cask"
-tap "homebrew/cask-fonts"
-tap "homebrew/cask-versions"
-tap "homebrew/command-not-found"
-tap "homebrew/core"
-{{- if .toolchains.extra }}
-tap "datreeio/datree"
-{{- end }}
-{{- template "universal/packages-to-install" dict "config" . "prefix" "brew \"" "suffix" "\"" }}
-{{- if not .host.work }}
-cask "authy"
-cask "brave-browser"
-cask "calibre"
-cask "dropbox"
-cask "font-fira-code"
-cask "google-drive"
-cask "handbrake"
-cask "iterm2"
-cask "jetbrains-toolbox"
-cask "lens"
-cask "macfuse"
-cask "private-internet-access"
-cask "rectangle"
-cask "skype"
-cask "spotify"
-cask "teamviewer"
-cask "telegram-desktop"
-cask "visual-studio-code"
-cask "vlc"
-cask "xnviewmp"
-cask "yandex-disk"
-cask "zoom"
-{{- if not .host.headless }}
+{{ $taps := list
+"homebrew/autoupdate"
+"homebrew/bundle"
+"homebrew/cask"
+"homebrew/cask-fonts"
+"homebrew/cask-versions"
+"homebrew/command-not-found"
+"homebrew/core"
+-}}
+
+{{ if .toolchains.extra -}}
+{{ $taps = concat $taps (list "datreeio/datree") -}}
+{{ end -}}
+
+{{ $casks := list
+"brave-browser"
+"font-fira-code"
+"rectangle"
+"vlc"
+"xnviewmp"
+      -}}
+
+
+{{ if .toolchains.kubernetes -}}
+{{ $casks = concat $casks (list "lens") -}}
+{{ end -}}
+
+{{ if not .host.work -}}
+{{ $casks = concat $casks (list
+"authy"
+"calibre"
+"dropbox"
+"google-drive"
+"handbrake"
+"iterm2"
+"jetbrains-toolbox"
+"macfuse"
+"private-internet-access"
+"skype"
+"spotify"
+"teamviewer"
+"telegram-desktop"
+"visual-studio-code"
+"yandex-disk"
+"zoom"
+) -}}
+{{ end -}}
+
+{{ range ($taps | sortAlpha | uniq) -}}
+tap "{{ . }}"
+{{ end -}}
+{{- includeTemplate "universal/packages-to-install" (dict "config" . "prefix" "brew \"" "suffix" "\"") }}
+
+{{ range ($casks | sortAlpha | uniq) -}}
+cask "{{ . }}"
+{{ end -}}
+{{ if and (not .host.headless) (not .host.work) -}}
 mas "Brother iPrint&Scan", id: 1193539993
 mas "Disk Speed Test", id: 425264550
 mas "Messenger", id: 1480068668
 mas "Slack", id: 803453959
 mas "The Unarchiver", id: 425424353
-{{- end }}
-{{- end }}
+{{ end -}}
