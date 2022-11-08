@@ -3,23 +3,8 @@ http://dl-cdn.alpinelinux.org/alpine/v$(cat /etc/alpine-release | cut -d'.' -f1,
 http://dl-cdn.alpinelinux.org/alpine/v$(cat /etc/alpine-release | cut -d'.' -f1,2)/community
 EOT'
 
-{{- $packages := list }}
-{{- range $package := .essentials }}
-{{- $packages = append $packages $package.name }}
-{{- end }}
-{{- range $package := .packages }}
-{{- $packageName := $package.name }}
-{{- $excludeNative := get $package (list "no" $.host.distro.id | join "-") | default false}}
-{{- if not $excludeNative }}
-{{- $apkName := get $package $.host.distro.id | default $packageName }}
-{{- $packages = append $packages $apkName }}
-{{- end }}
-{{- end }}
-
 packages=(
-{{- range $package := $packages | sortAlpha }}
-{{ $package | indent 4 }}
-{{- end }}
+{{- template "universal/packages-to-install" dict "config" . "prefix" "    " }}
 )
 
 doas apk add --update ${packages[@]}

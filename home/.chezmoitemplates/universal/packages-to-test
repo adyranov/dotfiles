@@ -1,0 +1,25 @@
+{{- $config := .config }}
+{{- $packages := list }}
+{{- range $package := $config.packages }}
+  {{- $packageName := $package.name }}
+  {{- $packageName := get $package $config.host.distro.id | default $packageName }}
+  {{- $includeToolchain := true }}
+  {{- if hasKey $package "toolchains" }}
+    {{- range $toolchain := (splitList "," $package.toolchains) }}
+      {{- if not (get $config.toolchains ($toolchain | trim)) }}
+        {{- $includeToolchain = false }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if $includeToolchain }}
+    {{- $excludeNative := get $package (list "no" $config.host.distro.id | join "-") | default false }}
+    {{- $asdfName := get $package "asdf" }}
+    {{- $asdfVersion := get $package "asdfVersion" }}
+{{- if or (not $excludeNative) (or $asdfName $asdfVersion) }}
+@test "{{ $package.name }}" {
+  run {{ get $package "test" | default (list $package.name "--help" | join " ") }}
+  assert_success
+}
+{{ end -}}
+{{- end -}}
+{{- end -}}

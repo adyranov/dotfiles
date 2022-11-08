@@ -1,0 +1,49 @@
+{{- $asdf := get . "asdf" }}
+{{- $config := .config }}
+{{- $prefix := get . "prefix" }}
+{{- $suffix := get . "suffix" }}
+
+{{- if $asdf }}
+function install_asdf {
+    IFS=', ' read -r -a array <<< ${2}
+    asdf plugin-add "${1}" 2>/dev/null || true
+    version="${2}"
+    if [[ ${2} == "latest" ]]; then
+        version=$(asdf latest ${1})
+    fi
+    echo Installing \"${1}\" version \"${version}\"
+    asdf install ${1} ${version}
+    asdf global ${1} ${version}
+    asdf reshim ${1} ${version}
+}
+{{- end }}
+
+{{- $packages := list }}
+{{- range $package := $config.packages }}
+  {{- $packageName := $package.name }}
+  {{- $packageName := get $package $config.host.distro.id | default $packageName }}
+  {{- $includeToolchain := true }}
+  {{- if hasKey $package "toolchains" }}
+    {{- range $toolchain := (splitList "," $package.toolchains) }}
+      {{- if not (get $config.toolchains ($toolchain | trim)) }}
+        {{- $includeToolchain = false }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if $includeToolchain }}
+    {{- $excludeNative := get $package (list "no" $config.host.distro.id | join "-") | default false }}
+    {{- if $asdf }}
+      {{- $asdfName := get $package "asdf" }}
+      {{- $asdfVersion := get $package "asdfVersion" }}
+      {{- if and ($excludeNative) (or $asdfName $asdfVersion) }}
+        {{- $str := (list "install_asdf \"" ($asdfName | default $packageName) "\" \"" ($asdfVersion | default "latest") "\"" | join "") }}
+        {{- $packages = append $packages $str}}
+      {{- end }}
+    {{- else if not $excludeNative }}
+      {{- $packages = append $packages $packageName  }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- range $package := $packages | sortAlpha }}
+{{ $prefix }}{{ $package }}{{ $suffix }}
+{{- end -}}

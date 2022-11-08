@@ -1,4 +1,0 @@
-{{- $chezmoi := lookPath (joinPath .host.home ".local/bin/chezmoi") | or (lookPath "chezmoi")  -}}
-{{- if $chezmoi -}}
-{{- output $chezmoi "completion" "zsh" -}}
-{{- end -}}

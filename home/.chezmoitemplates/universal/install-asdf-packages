@@ -3,32 +3,21 @@ source $HOME/.config/shell/exports.sh
 
 . ${ASDF_DIR}/asdf.sh
 
-function install_asdf {
-    IFS=', ' read -r -a array <<< ${2}
-    asdf plugin-add "${1}" 2>/dev/null || true
-    version="${2}"
-    if [[ ${2} == "latest" ]]; then
-        version=$(asdf latest ${1})
-    fi
-    echo Installing \"${1}\" version \"${version}\"
-    asdf install ${1} ${version}
-    asdf global ${1} ${version}
-    asdf reshim ${1} ${version}
-}
-
-{{ range .asdf.plugins -}}
+{{ $tools := .asdf.plugins -}}
+{{ range $tool := $tools -}}
+{{ $includeToolchain := true -}}
+{{ if hasKey $tool "toolchains" -}}
+  {{ range $toolchain := (splitList "," $tool.toolchains) -}}
+    {{ if not (get $.toolchains ($toolchain | trim)) -}}
+      {{ $includeToolchain = false -}}
+    {{ end -}}
+  {{ end -}}
+{{ end -}}
+{{ if $includeToolchain -}}
 echo Installing ASDF custom plugin \"{{ .name -}}\"
 asdf plugin add {{ .name }} {{ .url }} 2>/dev/null || true
 asdf plugin update --all
 {{ end -}}
+{{ end -}}
 
-{{- range $package := .packages }}
-{{- $packageName := $package.name }}
-
-{{- $excludeNative := get $package (list "no" $.host.distro.id | join "-") | default false}}
-{{- $asdfName := get $package "asdf"}}
-{{- $asdfVersion := get $package "asdfVersion"}}
-{{- if and ($excludeNative) (or $asdfName $asdfVersion) }}
-install_asdf "{{ $asdfName | default $packageName }}" "{{ $asdfVersion | default "latest"}}"
-{{- end }}
-{{- end }}
+{{- template "universal/packages-to-install" dict "asdf" "true" "packages" .packages "config" .  }}

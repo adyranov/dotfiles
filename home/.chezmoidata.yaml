@@ -1,74 +1,80 @@
-essentials:
-  - name: "bash"
-  - name: "coreutils"
-  - name: "curl"
-  - name: "git"
-  - name: "gnupg"
-  - name: "jq"
-  - name: "wget"
-  - name: "zsh"
 packages:
-  - name: "bat"
-  - { name: "colima", no-ubuntu: true, no-alpine: true }
-  - { name: "datree", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "bat" }
+  - { name: "bash" }
+  - { name: "coreutils", test: "realpath --help" }
+  - { name: "curl" }
+  - { name: "colima", no-ubuntu: true, no-alpine: true, toolchains: "docker, kubernetes" }
+  - { name: "datree", no-ubuntu: true, no-alpine: true, asdfVersion: "latest", toolchains: "extra" }
   - { name: "delta", darwin: "git-delta", no-ubuntu: true, asdfVersion: "latest" }
   - { name: "direnv", no-darwin: true, no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
-  - { name: "dive", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
-  - { name: "docker", ubuntu: "moby-cli", alpine: "docker-cli" }
-  - name: "exa"
+  - { name: "dive", no-ubuntu: true, no-alpine: true, asdfVersion: "latest", toolchains: "docker, kubernetes" }
+  - { name: "docker", ubuntu: "moby-cli", alpine: "docker-cli", toolchains: "docker" }
+  - { name: "exa" }
   - { name: "fd", ubuntu: "fd-find" }
   - { name: "gh", no-ubuntu: true, alpine: "github-cli", asdf: "github-cli", asdfVersion: "latest" }
-  - { name: "helm", no-alpine: true, asdfVersion: "latest" }
-  - name: "htop"
+  - { name: "git" }
+  - { name: "gnupg", test: "gpg --help" }
+  - { name: "helm", no-alpine: true, asdfVersion: "latest", toolchains: "kubernetes" }
+  - { name: "htop" }
   - { name: "httpie", test: "http --version" }
-  - { name: "java", no-darwin: true, no-ubuntu: true, alpine: "openjdk17-jdk", asdfVersion: "latest:temurin-17" }
-  - { name: "k9s", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
-  - { name: "kubectl", no-alpine: true, asdfVersion: "latest" }
-  - { name: "kubectx", no-ubuntu: true, asdfVersion: "latest" }
+  - { name: "java", no-darwin: true, no-ubuntu: true, alpine: "openjdk17-jdk", asdfVersion: "latest:temurin-17", toolchains: "java" }
+  - { name: "jq" }
+  - { name: "k9s", no-ubuntu: true, no-alpine: true, asdfVersion: "latest", toolchains: "kubernetes" }
+  - { name: "kubectl", no-alpine: true, asdfVersion: "latest", toolchains: "kubernetes" }
+  - { name: "kubectx", no-ubuntu: true, asdfVersion: "latest", toolchains: "kubernetes" }
   - { name: "mas", no-ubuntu: true, no-alpine: true, test: "mas" }
-  - { name: "maven", no-darwin: true, no-ubuntu: true, asdfVersion: "3.8.6", test: "mvn --help" }
+  - { name: "maven", no-darwin: true, no-ubuntu: true, asdfVersion: "3.8.6", test: "mvn --help", toolchains: "java" }
   - { name: "neovim", test: "nvim --help" }
-  - { name: "nodejs", no-darwin: true, asdfVersion: "latest:18", test: "node --help" }
-  - { name: "npm", no-darwin: true, no-ubuntu: true, test: "npm -v" }
-  - { name: "popeye", no-ubuntu: true, no-alpine: true, asdfVersion: "v0.10.1" }
+  - { name: "nodejs", no-darwin: true, asdfVersion: "latest:18", test: "node --help", toolchains: "node" }
+  - { name: "npm", no-darwin: true, no-ubuntu: true, test: "npm -v", toolchains: "node" }
+  - { name: "popeye", no-ubuntu: true, no-alpine: true, asdfVersion: "v0.10.1", toolchains: "extra" }
   - { name: "pre-commit", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
   - { name: "ripgrep", test: "rg --help" }
-  - name: "skopeo"
-  - { name: "sops", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
-  - { name: "stern", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
-  - { name: "terraform", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
-  - { name: "terragrunt", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
-  - { name: "tflint", no-ubuntu: true, no-alpine: true, asdfVersion: "latest" }
+  - { name: "skopeo", toolchains: "docker, kubernetes" }
+  - { name: "sops", no-ubuntu: true, no-alpine: true, asdfVersion: "latest", toolchains: "iac" }
+  - { name: "stern", no-ubuntu: true, no-alpine: true, asdfVersion: "latest", toolchains: "extra" }
+  - { name: "terraform", no-ubuntu: true, no-alpine: true, asdfVersion: "latest", toolchains: "iac" }
+  - { name: "terragrunt", no-ubuntu: true, no-alpine: true, asdfVersion: "latest", toolchains: "iac" }
+  - { name: "tflint", no-ubuntu: true, no-alpine: true, asdfVersion: "latest", toolchains: "iac" }
   - { name: "tmux", test: "tmux -V" }
-  - name: "yarn"
-  - { name: "yq", no-ubuntu: true, asdfVersion: "latest" }
+  - { name: "yarn", toolchains: "node" }
+  - { name: "yq", no-ubuntu: true, asdfVersion: "latest", toolchains: "kubernetes" }
+  - { name: "wget" }
+  - { name: "zsh" }
 asdf:
   plugins:
     - name: "datree"
       url: "https://github.com/webofmars/asdf-plugin-datree"
+      toolchains: "extra"
 apt:
   repositories:
     - name: "microsoft"
       key: "https://packages.microsoft.com/keys/microsoft.asc"
       string: "deb https://packages.microsoft.com/ubuntu/$(lsb_release -rs)/prod $(lsb_release -cs) main"
+      toolchains: "docker, kubernetes"
     - name: "git-core-ubuntu-ppa"
       key: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xe1dd270288b4e6030699e45fa1715d88e1df1f24"
       string: "deb http://ppa.launchpad.net/git-core/ppa/ubuntu $(lsb_release -cs) main"
     - name: "helm-stable-debian"
       key: "https://baltocdn.com/helm/signing.asc"
       string: "deb https://baltocdn.com/helm/stable/debian all main"
+      toolchains: "kubernetes"
     - name: "kubernetes"
       key: "https://packages.cloud.google.com/apt/doc/apt-key.gpg"
       string: "deb https://apt.kubernetes.io kubernetes-xenial main"
+      toolchains: "kubernetes"
     - name: "kubic-libcontainers-stable"
       key: "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_$(lsb_release -rs)/Release.key"
       string: "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_$(lsb_release -rs)/ /"
+      toolchains: "docker, kubernetes"
     - name: "nodesource"
       key: "https://deb.nodesource.com/gpgkey/nodesource.gpg.key"
       string: "deb https://deb.nodesource.com/node_18.x $(lsb_release -cs) main"
+      toolchains: "node"
     - name: "yarn"
       key: "https://dl.yarnpkg.com/debian/pubkey.gpg"
       string: "deb https://dl.yarnpkg.com/debian/ stable main"
+      toolchains: "node"
 
 brew:
   taps:
@@ -80,6 +86,7 @@ brew:
     - name: "homebrew/command-not-found"
     - name: "homebrew/core"
     - name: "datreeio/datree"
+      toolchains: "extra"
   casks:
     - name: "authy"
     - name: "brave-browser"

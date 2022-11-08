@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-set -eufo pipefail
-{{ if (eq .host.distro.id "alpine") -}}
-{{ template "alpine/install-packages" . -}}
-{{ else if (eq .host.distro.id "ubuntu") -}}
-{{ template "ubuntu/install-packages" . -}}
-{{ else if (eq .host.distro.id "darwin") -}}
-{{ template "darwin/install-packages" . -}}
-{{ end -}}
