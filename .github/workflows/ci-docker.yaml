@@ -42,16 +42,22 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           filters: |
             shared: &shared
-              - 'home/**'
-              - 'test/**'
-              - '.chezmoi*'
+              - 'home/.chezmoi*'
+              - 'home/.chezmoiscripts/universal/**'
+              - 'home/.chezmoitemplates/universal/**'
+              - 'home/dot_*/**'
+              - 'home/private_dot_*/**'
               - 'install.sh'
               - '.github/workflows/ci-docker.yaml'
             alpine:
               - *shared
+              - 'home/.chezmoiscripts/alpine/*'
+              - 'home/.chezmoitemplates/alpine/*'
               - 'containers/alpine/Dockerfile'
             ubuntu:
               - *shared
+              - 'home/.chezmoiscripts/ubuntu/*'
+              - 'home/.chezmoitemplates/ubuntu/*'
               - 'containers/ubuntu/Dockerfile'
       - name: Set Matrix
         id: set-matrix
