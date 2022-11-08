@@ -41,7 +41,7 @@ app_apt_repo "yarn" \
 {{- end }}
 
 packages=(
-{{- template "universal/packages-to-install" dict "config" . "prefix" "    " }}
+{{- includeTemplate "universal/packages-to-install" (dict "config" . "prefix" "    ") }}
 )
 
 sudo apt-get update

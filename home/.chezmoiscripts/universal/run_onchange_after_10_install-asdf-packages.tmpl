@@ -7,4 +7,4 @@ source $HOME/.config/shell/exports.sh
 asdf plugin add datree https://github.com/webofmars/asdf-plugin-datree 2>/dev/null || true
 {{ end -}}
 
-{{ template "universal/packages-to-install" dict "asdf" "true" "packages" .packages "config" .  }}
+{{ includeTemplate "universal/packages-to-install" (dict "asdf" "true" "packages" .packages "config" .)  }}

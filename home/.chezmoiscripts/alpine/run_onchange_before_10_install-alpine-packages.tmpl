@@ -6,7 +6,7 @@ http://dl-cdn.alpinelinux.org/alpine/v$(cat /etc/alpine-release | cut -d'.' -f1,
 EOT'
 
 packages=(
-{{- template "universal/packages-to-install" dict "config" . "prefix" "    " }}
+{{- includeTemplate "universal/packages-to-install" (dict "config" . "prefix" "    ") }}
 )
 
 doas apk add --update ${packages[@]}
