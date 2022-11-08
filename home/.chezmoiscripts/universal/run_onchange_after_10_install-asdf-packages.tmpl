@@ -1,3 +1,10 @@
 #!/usr/bin/env bash
 
-{{ template "universal/install-asdf-packages" . }}
+source $HOME/.config/shell/exports.sh
+[ ! -d $ASDF_DIR ] && git clone https://github.com/asdf-vm/asdf.git "${ASDF_DIR}"
+. ${ASDF_DIR}/asdf.sh
+{{ if .toolchains.extra }}
+asdf plugin add datree https://github.com/webofmars/asdf-plugin-datree 2>/dev/null || true
+{{ end -}}
+
+{{ template "universal/packages-to-install" dict "asdf" "true" "packages" .packages "config" .  }}
