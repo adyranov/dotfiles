@@ -31,15 +31,21 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           filters: |
             shared: &shared
-              - 'home/**'
-              - 'test/**'
-              - '.chezmoi*'
+              - 'home/.chezmoi*'
+              - 'home/.chezmoiscripts/universal/**'
+              - 'home/.chezmoitemplates/universal/**'
+              - 'home/dot_*/**'
+              - 'home/private_dot_*/**'
               - 'install.sh'
               - .github/workflows/ci-host.yaml
             ubuntu-22.04:
               - *shared
+              - 'home/.chezmoiscripts/ubuntu/*'
+              - 'home/.chezmoitemplates/ubuntu/*'
             macos-12:
               - *shared
+              - 'home/.chezmoiscripts/darwin/*'
+              - 'home/.chezmoitemplates/darwin/*'
       - name: Set Matrix
         id: set-matrix
         run: |
