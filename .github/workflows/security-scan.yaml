@@ -15,6 +15,7 @@ jobs:
         os: [alpine, ubuntu]
       fail-fast: false
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     steps:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.8.0

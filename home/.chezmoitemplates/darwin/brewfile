@@ -9,6 +9,7 @@ tap "homebrew/core"
 tap "datreeio/datree"
 {{- end }}
 {{- template "universal/packages-to-install" dict "config" . "prefix" "brew \"" "suffix" "\"" }}
+{{- if not .host.work }}
 cask "authy"
 cask "brave-browser"
 cask "calibre"
@@ -31,8 +32,11 @@ cask "vlc"
 cask "xnviewmp"
 cask "yandex-disk"
 cask "zoom"
+{{- if not .host.headless }}
 mas "Brother iPrint&Scan", id: 1193539993
 mas "Disk Speed Test", id: 425264550
 mas "Messenger", id: 1480068668
 mas "Slack", id: 803453959
 mas "The Unarchiver", id: 425424353
+{{- end }}
+{{- end }}
