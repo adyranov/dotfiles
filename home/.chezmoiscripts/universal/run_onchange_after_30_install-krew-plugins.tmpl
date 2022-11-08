@@ -1,3 +1,6 @@
+{{- if .toolchains.extra -}}
+#!/usr/bin/env bash
+
 source $HOME/.config/shell/exports.sh
 if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
     (
@@ -25,3 +28,4 @@ do
     echo Installing Krew plugin \"$plugin\"
     $KREW_ROOT/bin/kubectl-krew install $plugin 2>/dev/null || true
 done
+{{- end -}}

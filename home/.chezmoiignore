@@ -3,6 +3,3 @@ install.sh
 .chezmoiscripts/*/**
 !.chezmoiscripts/{{ .host.distro.id }}/**
 !.chezmoiscripts/universal/**
-.chezmoitemplates/*/**
-!.chezmoitemplates/{{ .host.distro.id }}/**
-!.chezmoitemplates/universal/**

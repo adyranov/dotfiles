@@ -1,6 +1,0 @@
-{{- if .toolchains.extra -}}
-#!/usr/bin/env bash
-
-{{ template "universal/install-krew-plugins" . }}
-{{ template "universal/install-helm-plugins" . }}
-{{- end -}}

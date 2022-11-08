@@ -1,31 +1,38 @@
-{{- $taps := .brew.taps }}
-{{- range $tap := $taps }}
-{{- $includeToolchain := true }}
-{{- if hasKey $tap "toolchains" }}
-  {{- range $toolchain := (splitList "," $tap.toolchains) }}
-    {{- if not (get $.toolchains ($toolchain | trim)) }}
-      {{- $includeToolchain = false }}
-    {{- end }}
-  {{- end }}
+tap "homebrew/autoupdate"
+tap "homebrew/bundle"
+tap "homebrew/cask"
+tap "homebrew/cask-fonts"
+tap "homebrew/cask-versions"
+tap "homebrew/command-not-found"
+tap "homebrew/core"
+{{- if .toolchains.extra }}
+tap "datreeio/datree"
 {{- end }}
-{{- if $includeToolchain }}
-tap "{{ .name }}"
-{{- end }}
-{{- end }}
-
 {{- template "universal/packages-to-install" dict "config" . "prefix" "brew \"" "suffix" "\"" }}
-
-{{- $casks := list }}
-{{- $apps := list }}
-
-{{- if and (not .host.headless) (not .host.restricted) }}
-{{- $casks = concat $casks .brew.casks }}
-{{- $apps = concat $apps .brew.apps }}
-{{- end }}
-
-{{- range $casks }}
-cask "{{ .name }}"
-{{- end }}
-{{- range $apps }}
-mas "{{ .name }}", id: {{ .id }}
-{{- end -}}
+cask "authy"
+cask "brave-browser"
+cask "calibre"
+cask "dropbox"
+cask "font-fira-code"
+cask "google-drive"
+cask "handbrake"
+cask "iterm2"
+cask "jetbrains-toolbox"
+cask "lens"
+cask "macfuse"
+cask "private-internet-access"
+cask "rectangle"
+cask "skype"
+cask "spotify"
+cask "teamviewer"
+cask "telegram-desktop"
+cask "visual-studio-code"
+cask "vlc"
+cask "xnviewmp"
+cask "yandex-disk"
+cask "zoom"
+mas "Brother iPrint&Scan", id: 1193539993
+mas "Disk Speed Test", id: 425264550
+mas "Messenger", id: 1480068668
+mas "Slack", id: 803453959
+mas "The Unarchiver", id: 425424353
