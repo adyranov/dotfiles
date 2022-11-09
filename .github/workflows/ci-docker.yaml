@@ -55,11 +55,11 @@ jobs:
               - 'home/.chezmoiscripts/alpine/*'
               - 'home/.chezmoitemplates/alpine/*'
               - 'containers/alpine/Dockerfile'
-            manjaro:
+            archlinux:
               - *shared
-              - 'home/.chezmoiscripts/manjaro/*'
-              - 'home/.chezmoitemplates/manjaro/*'
-              - 'containers/manjaro/Dockerfile'
+              - 'home/.chezmoiscripts/archlinux/*'
+              - 'home/.chezmoitemplates/archlinux/*'
+              - 'containers/archlinux/Dockerfile'
             ubuntu:
               - *shared
               - 'home/.chezmoiscripts/ubuntu/*'

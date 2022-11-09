@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM manjarolinux/base
+FROM menci/archlinuxarm
 
 ARG USER=devcontainer
 ARG UID=54321
@@ -9,7 +9,7 @@ ENV HOME=/home/$USER
 
 WORKDIR $HOME
 
-RUN pacman -S --noconfirm --needed git tar yay unzip wget which zsh  \
+RUN pacman -Sy --noconfirm --needed git tar sudo unzip wget which zsh  \
     && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
     && locale-gen \
     && groupadd --gid $UID $USER \
