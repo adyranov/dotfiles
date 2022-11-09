@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM ubuntu:jammy as slim
+FROM ubuntu:jammy
 
 ARG USER=devcontainer
 ARG UID=54321
@@ -76,21 +76,3 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
 
 CMD /bin/zsh
-
-FROM slim as standard
-
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
-    WITHOUT_EXTRA=true \
-    .local/share/chezmoi/install.sh --data=false \
-    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*
-
-FROM standard as extra
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
-    .local/share/chezmoi/install.sh --data=false \
-    && sudo rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /tmp/*

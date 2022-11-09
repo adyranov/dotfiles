@@ -25,6 +25,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 env:
+  PLATFORMS: linux/arm64,linux/amd64
   PUBLISH_IMAGE: ${{ (github.event_name == 'push' && github.ref_name == 'main') || github.event.inputs.publish-image == 'YES' }}
 jobs:
   changes:
@@ -54,6 +55,11 @@ jobs:
               - 'home/.chezmoiscripts/alpine/*'
               - 'home/.chezmoitemplates/alpine/*'
               - 'containers/alpine/Dockerfile'
+            manjaro:
+              - *shared
+              - 'home/.chezmoiscripts/manjaro/*'
+              - 'home/.chezmoitemplates/manjaro/*'
+              - 'containers/manjaro/Dockerfile'
             ubuntu:
               - *shared
               - 'home/.chezmoiscripts/ubuntu/*'
@@ -62,13 +68,12 @@ jobs:
       - name: Set Matrix
         id: set-matrix
         run: |
-          MATRIX=$(echo '${{ steps.filter.outputs.changes }}' | jq -c 'del(.[] | select(. == "shared"))')
+          MATRIX=$(echo '${{ steps.filter.outputs.changes }}' | jq -c 'del(.[] | select(. == "shared")) | {os: select(length > 0) }')
           echo matrix="$MATRIX" >> $GITHUB_OUTPUT
   docker-build:
     needs: [changes]
     strategy:
-      matrix:
-        os: ${{ fromJSON(needs.changes.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
       fail-fast: false
     runs-on: ubuntu-22.04
     timeout-minutes: 60
@@ -110,10 +115,9 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           file: containers/${{ matrix.os }}/Dockerfile
-          target: extra
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.PLATFORMS }}
           tags: localhost:5000/${{ matrix.os }}:latest
           secrets: |
             "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
@@ -121,65 +125,12 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
       - name: Run Tests amd64
-        run: docker run --platform amd64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
+        run: docker run --rm --platform amd64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
       - name: Run Tests arm64
-        run: docker run --platform arm64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
-      - name: Generate Extra Image Metadata
-        id: metadata-extra
+        run: docker run --rm --platform arm64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
+      - name: Generate Image Metadata
+        id: metadata
         uses: docker/metadata-action@v4
-        if: ${{ env.PUBLISH_IMAGE == 'true' }}
-        with:
-          images: |
-            ghcr.io/${{ github.repository }}
-            docker.io/${{ github.repository }}
-          tags: |
-            type=raw,enable=true,priority=100,value=${{ matrix.os }}-extra
-      - name: Push Extra Image
-        uses: docker/build-push-action@v3
-        if: ${{ env.PUBLISH_IMAGE == 'true' }}
-        with:
-          file: containers/${{ matrix.os }}/Dockerfile
-          target: extra
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.metadata-extra.outputs.tags }}
-          labels: ${{ steps.metadata-extra.outputs.labels }}
-          secrets: |
-            "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
-          builder: ${{ steps.buildx.outputs.name }}
-          cache-from: type=local,src=/tmp/.buildx-cache-new
-          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
-      - name: Generate Slim Image Metadata
-        id: metadata-slim
-        uses: docker/metadata-action@v4
-        if: ${{ env.PUBLISH_IMAGE == 'true' }}
-        with:
-          images: |
-            ghcr.io/${{ github.repository }}
-            docker.io/${{ github.repository }}
-          tags: |
-            type=raw,enable=true,priority=100,value=${{ matrix.os }}-slim
-      - name: Push Slim Image
-        uses: docker/build-push-action@v3
-        if: ${{ env.PUBLISH_IMAGE == 'true' }}
-        with:
-          file: containers/${{ matrix.os }}/Dockerfile
-          target: slim
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.metadata-slim.outputs.tags }}
-          labels: ${{ steps.metadata-slim.outputs.labels }}
-          secrets: |
-            "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
-          builder: ${{ steps.buildx.outputs.name }}
-          cache-from: type=local,src=/tmp/.buildx-cache-new
-          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
-      - name: Generate Standard Image Metadata
-        id: metadata-standard
-        uses: docker/metadata-action@v4
-        if: ${{ env.PUBLISH_IMAGE == 'true' }}
         with:
           images: |
             ghcr.io/${{ github.repository }}
@@ -187,21 +138,19 @@ jobs:
           tags: |
             type=raw,enable=true,priority=100,value=${{ matrix.os }}
           flavor: latest=${{ github.ref_name == 'main' && contains(matrix.os, 'alpine') }}
-      - name: Push Standard Image
+      - name: Push Image
         uses: docker/build-push-action@v3
-        if: ${{ env.PUBLISH_IMAGE == 'true' }}
         with:
           file: containers/${{ matrix.os }}/Dockerfile
-          target: standard
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.metadata-standard.outputs.tags }}
-          labels: ${{ steps.metadata-standard.outputs.labels }}
+          platforms: ${{ env.PLATFORMS }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
           secrets: |
             "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
           builder: ${{ steps.buildx.outputs.name }}
-          cache-from: type=local,src=/tmp/.buildx-cache-new
+          cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
       - name: Move Docker Cache
         run: |
