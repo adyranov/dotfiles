@@ -1,5 +1,9 @@
 README.md
 install.sh
+.key.txt.age
 .chezmoiscripts/*/**
 !.chezmoiscripts/{{ .host.distro.id }}/**
 !.chezmoiscripts/universal/**
+{{ if .host.headless }}
+**/*.age
+{{ end }}

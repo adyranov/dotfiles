@@ -1,4 +1,5 @@
 packages:
+  - { name: "age" }
   - { name: "bat" }
   - { name: "bash" }
   - { name: "coreutils", test: "realpath --help" }

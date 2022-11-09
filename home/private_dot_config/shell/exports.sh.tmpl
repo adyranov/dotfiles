@@ -4,6 +4,15 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_CACHE_HOME="$HOME/.cache"
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_STATE_HOME="$HOME/.local/state"
+export XDG_RUNTIME_DIR=
+{{- if eq .host.distro.family "darwin" -}}
+  "$TMPDIR"
+{{- else if not .host.headless -}}
+  "/run/user/$(id -u)"
+{{- else -}}
+  "/tmp"
+{{- end }}
+{{- if not .host.headless }}
 export XDG_MUSIC_DIR="$HOME/Music"
 export XDG_VIDEOS_DIR="$HOME/Videos"
 export XDG_DESKTOP_DIR="$HOME/Desktop"
@@ -12,6 +21,7 @@ export XDG_DOWNLOAD_DIR="$HOME/Downloads"
 export XDG_DOCUMENTS_DIR="$HOME/Documents"
 export XDG_TEMPLATES_DIR="$HOME/Templates"
 export XDG_PUBLICSHARE_DIR="$HOME/Public"
+{{- end }}
 
 # Language
 export LANG="en_US.UTF-8"
@@ -23,18 +33,25 @@ export LC_ALL="en_US.UTF-8"
 export ASDF_DIR="$XDG_DATA_HOME/asdf"
 export ASDF_DATA_DIR="$ASDF_DIR"
 export ASDF_CONFIG_FILE="$XDG_CONFIG_HOME/asdf/asdfrc"
-export ASDF_NPM_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/npm/default-npm-packages"
 [ -f "$ASDF_DIR/asdf.sh" ] && source "$ASDF_DIR/asdf.sh"
 # cargo
 export CARGO_HOME="$XDG_DATA_HOME/cargo"
 # go
 export GOPATH="$XDG_DATA_HOME/go"
+# gradle
+export GRADLE_USER_HOME="$XDG_DATA_HOME/gradle"
 # homebrew
 export HOMEBREW_BUNDLE_FILE="$XDG_CONFIG_HOME/brew/Brewfile"
 # httpie
 export HTTPIE_CONFIG_DIR="$XDG_CONFIG_HOME/httpie"
 # krew
 export KREW_ROOT="$XDG_DATA_HOME/krew"
+# maven
+export MAVEN_CONFIG="$XDG_CONFIG_HOME/maven/settings.xml"
+alias mvn="mvn -s $MAVEN_CONFIG"
+# npm
+export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
+export ASDF_NPM_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/npm/default-npm-packages"
 # rustup
 export RUSTUP_HOME="$XDG_DATA_HOME/rustup"
 # wget
