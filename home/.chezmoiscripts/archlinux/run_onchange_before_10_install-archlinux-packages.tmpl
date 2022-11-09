@@ -4,4 +4,4 @@ packages=(
 {{- includeTemplate "universal/packages-to-install" (dict "config" . "prefix" "    ") }}
 )
 
-sudo yay -S --noconfirm --needed  ${packages[@]}
+sudo packan -Sy --noconfirm --needed  ${packages[@]}
