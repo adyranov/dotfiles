@@ -49,13 +49,12 @@ jobs:
       - name: Set Matrix
         id: set-matrix
         run: |
-          MATRIX=$(echo '${{ steps.filter.outputs.changes }}' | jq -c 'del(.[] | select(. == "shared"))')
+          MATRIX=$(echo '${{ steps.filter.outputs.changes }}' | jq -c 'del(.[] | select(. == "shared")) | {os: select(length > 0) }')
           echo matrix="$MATRIX" >> $GITHUB_OUTPUT
   host-build:
     needs: [changes]
     strategy:
-      matrix:
-        os: ${{ fromJSON(needs.changes.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
       fail-fast: false
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60

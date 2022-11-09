@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM alpine:3.16 as slim
+FROM alpine:3.16
 
 ARG USER=devcontainer
 ARG UID=54321
@@ -68,22 +68,3 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     .local/share/chezmoi/install.sh --data=false \
     && doas rm -rf /var/cache/apk/* /tmp/*
 CMD /bin/zsh
-
-FROM slim as standard
-
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
-    WITHOUT_EXTRA=true \
-    .local/share/chezmoi/install.sh --data=false \
-    && doas rm -rf /var/cache/apk/* /tmp/*
-
-FROM standard as extra
-
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
-    GITHUB_ACCESS_TOKEN=$(cat /run/secrets/github_token) \
-    GITHUB_API_TOKEN=$(cat /run/secrets/github_token) \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
-    .local/share/chezmoi/install.sh --data=false \
-    && doas rm -rf /var/cache/apk/* /tmp/*
