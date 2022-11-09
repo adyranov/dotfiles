@@ -1,0 +1,33 @@
+apply plugin: EnterpriseRepositoryPlugin
+
+class EnterpriseRepositoryPlugin implements Plugin<Gradle> {
+
+    void apply(Gradle gradle) {
+        // ONLY USE ENTERPRISE REPO FOR DEPENDENCIES
+                // Requires mavenMirrorUrl, nexusUsername and nexusPassword properties defined in gradle.properties
+        gradle.allprojects { project ->
+                        final Closure RepoHandler = {
+                // Remove all repositories not pointing to the enterprise repository url
+                all { ArtifactRepository repo ->
+                                        boolean mavenRepo = repo instanceof MavenArtifactRepository
+                                        String repoName = mavenRepo ? repo.url : repo.name
+                    if (!mavenRepo || !mavenMirrorUrl.equals(repo.url.toString())) {
+                        project.logger.lifecycle "Repository ${repoName} removed. Replaced with $mavenMirrorUrl"
+                        remove repo
+                    }
+                }
+                // add the enterprise repository
+                maven {
+                    name "STANDARD_ENTERPRISE_REPO"
+                    url mavenMirrorUrl
+                                        credentials {
+                                                username = nexusUsername
+                                                password = nexusPassword
+                                        }
+                }
+                        }
+            project.repositories RepoHandler
+                        project.buildscript.repositories RepoHandler
+        }
+    }
+}

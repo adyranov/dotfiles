@@ -1,6 +1,4 @@
 *
-!test
-test/bats*
 !home
 !.chezmoi*
 !install.sh

@@ -9,8 +9,12 @@ Brewfile
 .dircolors
 .gitconfig
 .gitignore
+.gradle
 .inputrc
 .krew
+.m2
+.npm
+.npmrc
 .rustup
 .subversion
 .tmux.conf
