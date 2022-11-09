@@ -57,7 +57,7 @@ RUN set -eux \
     && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
     && locale-gen \
     && groupadd --gid $UID $USER \
-    && useradd -s $(which zsh) --uid $UID --gid $USER -m $USER \
+    && useradd -s $(command -v zsh) --uid $UID --gid $USER -m $USER \
     && echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER \
     && chmod 0440 /etc/sudoers.d/$USER \
     && chown -R $USER:$USER $HOME \

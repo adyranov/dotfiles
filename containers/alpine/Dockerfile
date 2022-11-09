@@ -51,7 +51,7 @@ RUN apk add --update \
         zip \
         zlib \
         zsh \
-    && adduser -u $UID -s $(which zsh) -D $USER \
+    && adduser -u $UID -s $(command -v zsh) -D $USER \
     && echo "permit nopass $USER as root" > /etc/doas.d/doas.conf \
     && chown -R $USER:$USER $HOME \
     && rm -rf /var/cache/apk/* /tmp/*

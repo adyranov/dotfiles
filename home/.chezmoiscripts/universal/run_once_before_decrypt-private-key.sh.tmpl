@@ -4,7 +4,9 @@
 if command -v age >/dev/null 2>&1; then
     if [ ! -f "{{ .chezmoi.homeDir }}/.config/age/key.txt" ]; then
         mkdir -p "{{ .chezmoi.homeDir }}/.config/age"
-        age --decrypt --output "{{ .chezmoi.homeDir }}/.config/age/key.txt" "{{ .chezmoi.sourceDir }}/.key.txt.age"
+        age --decrypt \
+        --output "{{ .chezmoi.homeDir }}/.config/age/key.txt" \
+        "{{ .chezmoi.sourceDir }}/.keys/{{ .host.work | ternary "work-key" "personal-key" }}.txt.age"
         chmod 600 "{{ .chezmoi.homeDir }}/.config/age/key.txt"
     fi
 fi
