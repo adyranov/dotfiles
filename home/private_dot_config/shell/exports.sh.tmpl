@@ -29,6 +29,9 @@ export LC_ALL="en_US.UTF-8"
 
 # Change default folders
 
+# aqua
+export AQUA_ROOT_DIR=$XDG_DATA_HOME/aqua
+export AQUA_GLOBAL_CONFIG=$XDG_CONFIG_HOME/aqua/aqua.yaml
 # asdf
 export ASDF_DIR="$XDG_DATA_HOME/asdf"
 export ASDF_DATA_DIR="$ASDF_DIR"
@@ -52,6 +55,8 @@ alias mvn="mvn -s $MAVEN_CONFIG"
 # npm
 export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
 export ASDF_NPM_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/npm/default-npm-packages"
+# python
+export ASDF_PYTHON_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/pip/default-python-packages"
 # rustup
 export RUSTUP_HOME="$XDG_DATA_HOME/rustup"
 # wget
@@ -87,6 +92,7 @@ case ":$PATH:" in
         ;;
 esac
 add_to_path $HOME/.local/bin
+add_to_path $AQUA_ROOT_DIR/bin
 add_to_path $CARGO_HOME/bin
 add_to_path $KREW_ROOT/bin
 

@@ -6,13 +6,79 @@ load 'common-helper'
 setup() {
   common_setup
 }
-{{ range $plugin := .krew.plugins -}}
-{{- $exclude := or (get $plugin $.host.distro.id) (get $plugin (list $.host.distro.family $.host.arch | join "_")) -}}
-{{- if not $exclude }}
-@test "krew {{ $plugin.name }}" {
-  run kubectl {{ $plugin.name }} {{ get $plugin "test" | default "--help" }}
+
+@test "krew access-matrix" {
+  run kubectl access-matrix --help
   assert_success
 }
-{{ end -}}
-{{ end -}}
+
+@test "krew datree" {
+  run kubectl datree version
+  assert_success
+}
+
+@test "krew deprecations" {
+  run kubectl deprecations --help
+  assert_success
+}
+
+@test "krew get-all" {
+  run kubectl get-all --help
+  assert_success
+}
+
+@test "krew konfig" {
+  run kubectl konfig --help
+  assert_success
+}
+
+@test "krew modify-secret" {
+  run kubectl modify-secret --help
+  assert_success
+}
+
+@test "krew neat" {
+  run kubectl neat --help
+  assert_success
+}
+
+@test "krew node-shell" {
+  run kubectl node-shell -v
+  assert_success
+}
+
+@test "krew resource-capacity" {
+  run kubectl resource-capacity --help
+  assert_success
+}
+
+@test "krew score" {
+  run kubectl score --help
+  assert_success
+}
+
+@test "krew sniff" {
+  run kubectl sniff --help
+  assert_success
+}
+
+@test "krew tree" {
+  run kubectl tree --help
+  assert_success
+}
+
+@test "krew tunnel" {
+  run kubectl tunnel --help
+  assert_success
+}
+
+@test "krew view-allocations" {
+  run kubectl view-allocations --help
+  assert_success
+}
+
+@test "krew who-can" {
+  run kubectl who-can --help
+  assert_success
+}
 {{- end -}}

@@ -15,12 +15,21 @@ if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
 fi
 
 krew_plugins=(
-{{ range $plugin := .krew.plugins -}}
-{{- $exclude := or (get $plugin $.host.distro.id) (get $plugin (list $.host.distro.family $.host.arch | join "_")) -}}
-{{- if not $exclude -}}
-{{- $plugin.name | indent 4 }}
-{{ end -}}
-{{ end -}}
+  access-matrix
+  datree
+  deprecations
+  get-all
+  konfig
+  modify-secret
+  neat
+  node-shell
+  resource-capacity
+  score
+  sniff
+  tree
+  tunnel
+  view-allocations
+  who-can
 )
 
 for plugin in "${krew_plugins[@]}"

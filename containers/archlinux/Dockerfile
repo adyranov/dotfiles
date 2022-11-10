@@ -9,7 +9,15 @@ ENV HOME=/home/$USER
 
 WORKDIR $HOME
 
-RUN pacman -Sy --noconfirm --needed git tar sudo unzip wget which zsh  \
+RUN pacman -Sy --noconfirm --needed \
+    base-devel \
+    git \
+    tar \
+    sudo \
+    unzip \
+    wget \
+    which \
+    zsh  \
     && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
     && locale-gen \
     && groupadd --gid $UID $USER \

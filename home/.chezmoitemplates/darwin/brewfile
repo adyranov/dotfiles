@@ -1,4 +1,4 @@
-{{ $taps := list
+{{- $taps := list
 "homebrew/autoupdate"
 "homebrew/bundle"
 "homebrew/cask"
@@ -8,11 +8,19 @@
 "homebrew/core"
 -}}
 
-{{ if .toolchains.extra -}}
-{{ $taps = concat $taps (list "datreeio/datree") -}}
-{{ end -}}
 
-{{ $casks := list
+{{- $brews := splitList " " (includeTemplate "universal/essential-packages" .) }}
+{{- $brews = concat $brews (list "mas") -}}
+{{- $pyenvDependencies := list "openssl" "readline" "sqlite3" "xz" "zlib" "tcl-tk" -}}
+{{- if .toolchains.python }}
+{{- $brews = concat $brews $pyenvDependencies -}}
+{{- end }}
+
+{{- if .toolchains.docker -}}
+{{- $brews = concat $brews (list "colima") -}}
+{{- end -}}
+
+{{- $casks := list
 "brave-browser"
 "font-fira-code"
 "rectangle"
@@ -20,13 +28,12 @@
 "xnviewmp"
       -}}
 
+{{- if .toolchains.kubernetes -}}
+{{- $casks = concat $casks (list "lens") -}}
+{{- end -}}
 
-{{ if .toolchains.kubernetes -}}
-{{ $casks = concat $casks (list "lens") -}}
-{{ end -}}
-
-{{ if not .host.work -}}
-{{ $casks = concat $casks (list
+{{- if not .host.work -}}
+{{- $casks = concat $casks (list
 "authy"
 "calibre"
 "dropbox"
@@ -44,21 +51,23 @@
 "yandex-disk"
 "zoom"
 ) -}}
-{{ end -}}
+{{- end -}}
 
-{{ range ($taps | sortAlpha | uniq) -}}
+{{- range ($taps | sortAlpha | uniq) }}
 tap "{{ . }}"
-{{ end -}}
-{{- includeTemplate "universal/packages-to-install" (dict "config" . "prefix" "brew \"" "suffix" "\"") }}
-{{ if not .host.headless -}}
-{{ range ($casks | sortAlpha | uniq) -}}
+{{- end }}
+{{ range ($brews | sortAlpha | uniq) }}
+brew "{{ . }}"
+{{- end }}
+{{- if not .host.headless -}}
+{{- range ($casks | sortAlpha | uniq) }}
 cask "{{ . }}"
-{{ end -}}
-{{- if not .host.work }}
+{{- end }}
+{{ if not .host.work }}
 mas "Brother iPrint&Scan", id: 1193539993
 mas "Disk Speed Test", id: 425264550
 mas "Messenger", id: 1480068668
 mas "Slack", id: 803453959
 mas "The Unarchiver", id: 425424353
-{{ end -}}
-{{ end -}}
+{{- end -}}
+{{- end -}}

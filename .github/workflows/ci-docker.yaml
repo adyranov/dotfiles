@@ -41,6 +41,7 @@ jobs:
         id: filter
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ github.event.pull_request.base.ref || github.base_ref || github.ref }}
           filters: |
             shared: &shared
               - 'home/.chezmoi*'
@@ -50,16 +51,6 @@ jobs:
               - 'home/private_dot_*/**'
               - 'install.sh'
               - '.github/workflows/ci-docker.yaml'
-            alpine:
-              - *shared
-              - 'home/.chezmoiscripts/alpine/*'
-              - 'home/.chezmoitemplates/alpine/*'
-              - 'containers/alpine/Dockerfile'
-            archlinux:
-              - *shared
-              - 'home/.chezmoiscripts/archlinux/*'
-              - 'home/.chezmoitemplates/archlinux/*'
-              - 'containers/archlinux/Dockerfile'
             ubuntu:
               - *shared
               - 'home/.chezmoiscripts/ubuntu/*'
@@ -72,6 +63,7 @@ jobs:
           echo matrix="$MATRIX" >> $GITHUB_OUTPUT
   docker-build:
     needs: [changes]
+    if: needs.changes.outputs.matrix != '[]'
     strategy:
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
       fail-fast: false
@@ -91,8 +83,9 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@v2
         with:
-          install: true
           driver-opts: network=host
+          install: true
+          platforms: ${{ env.PLATFORMS }}
       - name: Cache Docker Layers
         uses: actions/cache@v3
         with:
@@ -137,7 +130,7 @@ jobs:
             docker.io/${{ github.repository }}
           tags: |
             type=raw,enable=true,priority=100,value=${{ matrix.os }}
-          flavor: latest=${{ github.ref_name == 'main' && contains(matrix.os, 'alpine') }}
+          flavor: latest=${{ github.ref_name == 'main' && contains(matrix.os, 'ubuntu') }}
       - name: Push Image
         uses: docker/build-push-action@v3
         with:
