@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM ubuntu:jammy
+FROM buildpack-deps:jammy-curl
 
 ARG USER=devcontainer
 ARG UID=54321
@@ -8,17 +8,17 @@ ARG UID=54321
 ENV HOME=/home/$USER
 
 WORKDIR $HOME
-
+# https://github.com/microsoft/vscode-dev-containers/blob/main/containers/ubuntu/.devcontainer/library-scripts/common-debian.sh#L77
 RUN set -eux \
     && apt-get update \
-    && apt-get install -y --no-install-recommends \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
               apt-transport-https \
               bash \
               ca-certificates \
               curl \
               dialog \
               dirmngr \
-              gnupg \
+              gnupg2 \
               htop \
               init-system-helpers \
               iproute2 \
@@ -29,7 +29,7 @@ RUN set -eux \
               libgssapi-krb5-2 \
               libicu[0-9][0-9] \
               libkrb5-3 \
-              liblttng-ust1 \
+              liblttng-ust[0-9] \
               libstdc++6 \
               locales \
               lsb-release \
@@ -39,7 +39,6 @@ RUN set -eux \
               manpages-dev \
               nano \
               ncdu \
-              netbase \
               net-tools \
               openssh-client \
               procps \
@@ -47,7 +46,6 @@ RUN set -eux \
               rsync \
               strace \
               sudo \
-              tzdata \
               unzip \
               vim-tiny \
               wget \

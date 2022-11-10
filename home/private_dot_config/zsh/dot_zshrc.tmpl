@@ -48,12 +48,6 @@ z4h init || return
 # Export environment variables.
 z4h source $HOME/.config/shell/exports.sh
 
-# Load direnv from ASDF
-if [ -d "$ASDF_DATA_DIR/plugins/direnv" ]; then
-  eval "$(asdf exec direnv hook zsh)"
-  direnv() { asdf exec direnv "$@"; }
-fi
-
 # Set colors from LS_COLORS
 zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 
@@ -147,6 +141,14 @@ setopt HIST_VERIFY               # Don't execute immediately upon history expans
 
 # Remove slow command not found handler
 [[ ! -v functions[command_not_found_handler] ]] || unfunction command_not_found_handler
+
+# Load direnv
+if command -v direnv >/dev/null 2>&1; then
+  eval "$(direnv hook zsh)"
+fi
+
+# Load aqua completions
+if command -v aqua &> /dev/null; then source <(aqua completion zsh); fi
 
 # Load local configuration.
 z4h source $ZDOTDIR/.zshrc.local

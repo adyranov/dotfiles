@@ -1,0 +1,5 @@
+{{- if or .toolchains.docker -}}
+packages:
+  - name: docker/cli@v20.10.21
+  - name: wagoodman/dive@v0.10.0
+{{- end -}}

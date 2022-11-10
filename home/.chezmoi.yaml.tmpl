@@ -2,7 +2,7 @@
 {{- $email := "artem.dyranov@gmail.com" -}}
 {{- $restricted := false -}}
 {{- $work := false -}}
-{{- $toolchains := list "docker" "iac" "java" "kubernetes" "node" "rust" "extra" }}
+{{- $toolchains := list "docker" "iac" "java" "kubernetes" "node" "python" "rust" "extra" }}
 
 {{- $data := . }}
 {{- $_ := set $data "host" (default (dict) (get $data "host")) -}}
@@ -62,6 +62,10 @@
 
 {{- range $toolchain := $toolchains }}
     {{- $enabled := promptBoolOnce $data.toolchains $toolchain (list "Enable" $toolchain "toolchain" | join " ") (get $toolchainsEnabled $toolchain) -}}
+    {{- if and (eq $toolchain "kubernetes") $enabled (not $toolchainsEnabled.docker)  -}}
+    {{- $_ := set $toolchainsEnabled "docker" $enabled }}
+    {{-   writeToStdout "Enabled Docker toolchain to support Kubernetes.\n" -}}
+    {{- end -}}
     {{- $_ := set $toolchainsEnabled $toolchain $enabled }}
 {{- end }}
 
