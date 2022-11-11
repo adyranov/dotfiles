@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 {{- $packages := splitList " " (includeTemplate "universal/essential-packages" .) -}}
+{{- $packages :=  concat (without $packages "fd") (list "fd-find") -}}
+{{- $packages :=  without $packages "git-delta" -}}
 {{- $pyenvDependencies := list
 "make"
 "build-essential"
