@@ -9,7 +9,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 23 * * 5"
+    - cron: "0 23 * * 6"
   workflow_dispatch:
     inputs:
       publish-image:
@@ -51,6 +51,11 @@ jobs:
               - 'home/private_dot_*/**'
               - 'install.sh'
               - '.github/workflows/ci-docker.yaml'
+            archlinux:
+              - *shared
+              - 'home/.chezmoiscripts/archlinux/*'
+              - 'home/.chezmoitemplates/archlinux/*'
+              - 'containers/archlinux/**/*'
             ubuntu:
               - *shared
               - 'home/.chezmoiscripts/ubuntu/*'
@@ -63,7 +68,7 @@ jobs:
           echo matrix="$MATRIX" >> $GITHUB_OUTPUT
   docker-build:
     needs: [changes]
-    if: needs.changes.outputs.matrix != '[]'
+    if: ${{ needs.changes.outputs.matrix != '' && needs.changes.outputs.matrix != '[]' }}
     strategy:
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
       fail-fast: false
@@ -129,14 +134,15 @@ jobs:
             ghcr.io/${{ github.repository }}
             docker.io/${{ github.repository }}
           tags: |
-            type=raw,enable=true,priority=100,value=${{ matrix.os }}
+            type=schedule,prefix=${{ matrix.os }}-,pattern={{date 'YYYYMMDD'}}
+            type=raw,value=${{ matrix.os }},enable={{is_default_branch}}
           flavor: latest=${{ github.ref_name == 'main' && contains(matrix.os, 'ubuntu') }}
       - name: Push Image
         uses: docker/build-push-action@v3
         with:
           file: containers/${{ matrix.os }}/Dockerfile
           context: .
-          push: true
+          push: ${{ env.PUBLISH_IMAGE }}
           platforms: ${{ env.PLATFORMS }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}

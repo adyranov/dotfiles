@@ -12,4 +12,4 @@
 {{- $packages = concat $packages $pyenvDependencies -}}
 {{- end }}
 
-sudo packan -Sy --noconfirm --needed {{ $packages | sortAlpha | uniq | join " " -}}
+sudo pacman -Sy --noconfirm --needed {{ $packages | sortAlpha | uniq | join " " -}}
