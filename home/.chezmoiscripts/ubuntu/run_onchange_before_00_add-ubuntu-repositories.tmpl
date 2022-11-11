@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+function app_apt_repo {
+  if [ ! -f /etc/apt/sources.list.d/$1.list ]; then
+      curl -fsSL "$2" | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/$1.gpg
+      echo "$3" | sudo tee /etc/apt/sources.list.d/$1.list
+  fi
+}
+
+app_apt_repo "git-core-ubuntu-ppa" \
+"https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xe1dd270288b4e6030699e45fa1715d88e1df1f24" \
+"deb http://ppa.launchpad.net/git-core/ppa/ubuntu $(lsb_release -cs) main"
+
+app_apt_repo "github-cli" \
+"https://cli.github.com/packages/githubcli-archive-keyring.gpg" \
+"deb https://cli.github.com/packages stable main"

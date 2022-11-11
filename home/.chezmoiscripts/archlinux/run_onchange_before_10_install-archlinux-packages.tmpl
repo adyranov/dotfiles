@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 {{- $packages := splitList " " (includeTemplate "universal/essential-packages" .) }}
+{{- $packages :=  concat (without $packages "gh") (list "github-cli") -}}
 {{- $pyenvDependencies := list
 "base-devel"
 "openssl"
