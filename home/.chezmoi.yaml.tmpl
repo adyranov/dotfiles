@@ -21,6 +21,11 @@
 {{-   writeToStdout "Chezmoi is running in a container.\n" -}}
 {{- end -}}
 
+{{- $distro := dict "family" .chezmoi.os "id" (get .chezmoi.osRelease "id" | default .chezmoi.os) -}}
+{{- if or (eq $distro.id "arch") (eq $distro.id "archarm") -}}
+{{- $_ := set $distro "id" "archlinux" -}}
+{{- end -}}
+
 {{- $chassisType := "desktop" }}
 {{- if $ephemeral -}}
 {{-   $chassisType = "ephemeral" }}
@@ -91,11 +96,12 @@ data:
     host:
       arch: "{{ .chezmoi.arch }}"
       distro:
-        family: "{{ .chezmoi.os }}"
-        id: "{{ get .chezmoi.osRelease "id" | default .chezmoi.os }}"
+        family: "{{ $distro.family }}"
+        id: "{{ $distro.id }}"
       home: "{{ .chezmoi.homeDir }}"
       type: "{{ $chassisType }}"
       work: {{ $work }}
+      interactive: {{ stdinIsATTY }}
       restricted: {{ $restricted }}
       headless: {{ $headless }}
     toolchains:

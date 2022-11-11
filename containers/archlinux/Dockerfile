@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1.4
-
-FROM menci/archlinuxarm
+FROM adyranov/archlinux-docker:base
 
 ARG USER=devcontainer
 ARG UID=54321
@@ -10,7 +9,6 @@ ENV HOME=/home/$USER
 WORKDIR $HOME
 
 RUN pacman -Sy --noconfirm --needed \
-    base-devel \
     git \
     tar \
     sudo \
@@ -18,8 +16,6 @@ RUN pacman -Sy --noconfirm --needed \
     wget \
     which \
     zsh  \
-    && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
-    && locale-gen \
     && groupadd --gid $UID $USER \
     && useradd -s $(command -v zsh) -u $UID --gid $USER -m $USER \
     && echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER \
@@ -39,4 +35,5 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID \
     WITHOUT_TOOLCHAINS=true \
     .local/share/chezmoi/install.sh --data=false \
     && sudo rm -rf /var/cache/pacman/pkg/* /var/log/* /tmp/*
+
 CMD /bin/zsh

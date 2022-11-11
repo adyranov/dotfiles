@@ -54,7 +54,7 @@ jobs:
           echo matrix="$MATRIX" >> $GITHUB_OUTPUT
   host-build:
     needs: [changes]
-    if: needs.changes.outputs.matrix != '[]'
+    if: ${{ needs.changes.outputs.matrix != '' && needs.changes.outputs.matrix != '[]' }}
     strategy:
       matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
       fail-fast: false
