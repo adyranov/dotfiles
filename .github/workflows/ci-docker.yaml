@@ -13,20 +13,17 @@ on:
   workflow_dispatch:
     inputs:
       publish-image:
-        type: choice
         description: Publish a docker image
         required: true
-        options:
-          - YES
-          - NO
-        default: YES
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 env:
   PLATFORMS: linux/arm64,linux/amd64
-  PUBLISH_IMAGE: ${{ (github.event_name == 'push' && github.ref_name == 'main') || github.event.inputs.publish-image == 'YES' }}
+  PUBLISH_IMAGE: ${{ (github.event_name == 'push' && github.ref_name == 'main') || github.event.inputs.publish-image == 'true' }}
 jobs:
   changes:
     runs-on: ubuntu-latest
