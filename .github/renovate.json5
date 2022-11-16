@@ -6,4 +6,39 @@
     "github>aquaproj/aqua-renovate-config:file#1.2.6(home/private_dot_config/aqua/aqua\\.yaml\\.tmpl)",
     "github>aquaproj/aqua-renovate-config:file#1.2.6(home/private_dot_config/aqua/toolchains/.*\\.yaml\\.tmpl)",
   ],
+  dependencyDashboard: true,
+  regexManagers: [
+    {
+      fileMatch: ["\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$"],
+      matchStrings: ["# renovate: depName=(?<depName>.*) datasource=(?<datasource>.*)\\n\\s*current_\\w+_version=(?<currentValue>.+)\\b"],
+    },
+  ],
+  packageRules: [
+    {
+      matchUpdateTypes: ["major"],
+      semanticCommitType: "feat!",
+    },
+    {
+      matchUpdateTypes: ["minor"],
+      semanticCommitType: "feat",
+    },
+    {
+      matchUpdateTypes: ["patch"],
+      semanticCommitType: "fix",
+    },
+    {
+      matchManagers: ["github-actions"],
+      automerge: true,
+      automergeType: "branch",
+      requiredStatusChecks: null,
+      matchUpdateTypes: ["minor", "patch"],
+    },
+    {
+      matchPackageNames: ["aquaproj/aqua-registry", "aquaproj/aqua"],
+      automerge: true,
+      automergeType: "branch",
+      requiredStatusChecks: null,
+      matchUpdateTypes: ["minor", "patch"],
+    },
+  ],
 }
