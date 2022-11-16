@@ -21,7 +21,10 @@
 -}}
 
 {{- if .toolchains.cloud -}}
-{{- $brews = concat $brews (list "azure-cli" "Azure/kubelogin/kubelogin" "awscli") -}}
+{{- $brews = concat $brews (list "azure-cli" "Azure/kubelogin/kubelogin") -}}
+{{- if not .host.headless -}}
+{{- $brews = concat $brews (list "awscli") -}}
+{{- end -}}
 {{- $casks = concat $casks (list "google-cloud-sdk") -}}
 {{- end -}}
 
