@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-FROM adyranov/archlinux:base
+FROM adyranov/archlinux
 
 ARG USER=devcontainer
 ARG UID=54321
