@@ -10,7 +10,7 @@
 
 
 {{- $brews := splitList " " (includeTemplate "universal/essential-packages" .) }}
-{{- $brews = concat $brews (list "mas") -}}
+{{- $brews :=  concat (without $brews "encfs" "gocryptfs") (list "mas") -}}
 
 {{- $casks := list
 "brave-browser"
@@ -50,7 +50,6 @@
 "handbrake"
 "iterm2"
 "jetbrains-toolbox"
-"macfuse"
 "private-internet-access"
 "skype"
 "spotify"
@@ -64,6 +63,13 @@
 
 {{- range ($taps | sortAlpha | uniq) }}
 tap "{{ . }}"
+{{- end }}
+{{- if not .host.restricted }}
+tap "gromgit/fuse"
+
+cask "macfuse"
+brew "encfs-mac"
+brew "gocryptfs-mac"
 {{- end }}
 {{ range ($brews | sortAlpha | uniq) }}
 brew "{{ . }}"

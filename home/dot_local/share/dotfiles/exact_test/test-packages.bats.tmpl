@@ -105,7 +105,17 @@ setup() {
   run zsh --help
   assert_success
 }
+{{ if not .host.restricted }}
+@test "encfs" {
+  run encfs --version
+  assert_success
+}
 
+@test "gocryptfs" {
+  run gocryptfs --help
+  assert_success
+}
+{{ end }}
 {{ if eq .host.distro.family "darwin" }}
 @test "colima" {
   run colima --help
