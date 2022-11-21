@@ -2,11 +2,15 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: [
     "config:base",
+    ":automergeDigest",
+    ":automergeMinor",
+    "helpers:pinGitHubActionDigests",
     "github>aquaproj/aqua-renovate-config:installer-script#1.2.6(home/.chezmoiscripts/universal/.*aqua-packages\\.sh\\.tmpl)",
     "github>aquaproj/aqua-renovate-config:file#1.2.6(home/private_dot_config/aqua/aqua\\.yaml\\.tmpl)",
     "github>aquaproj/aqua-renovate-config:file#1.2.6(home/private_dot_config/aqua/toolchains/.*\\.yaml\\.tmpl)",
   ],
-  dependencyDashboard: true,
+  labels: ["dependencies"],
+  stabilityDays: 3,
   regexManagers: [
     {
       fileMatch: ["\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$"],
@@ -15,30 +19,31 @@
   ],
   packageRules: [
     {
-      matchUpdateTypes: ["major"],
-      semanticCommitType: "feat!",
+      matchUpdateTypes: ["patch"],
+      semanticCommitType: "fix",
+      automergeType: "branch",
+      ignoreTests: true,
+      automerge: true,
     },
     {
       matchUpdateTypes: ["minor"],
       semanticCommitType: "feat",
     },
     {
-      matchUpdateTypes: ["patch"],
-      semanticCommitType: "fix",
+      matchUpdateTypes: ["major"],
+      semanticCommitType: "feat!",
     },
     {
       matchManagers: ["github-actions"],
       automerge: true,
       automergeType: "branch",
-      requiredStatusChecks: null,
-      matchUpdateTypes: ["minor", "patch"],
+      ignoreTests: true,
     },
     {
       matchPackageNames: ["aquaproj/aqua-registry", "aquaproj/aqua"],
       automerge: true,
       automergeType: "branch",
-      requiredStatusChecks: null,
-      matchUpdateTypes: ["minor", "patch"],
+      ignoreTests: true,
     },
   ],
 }
