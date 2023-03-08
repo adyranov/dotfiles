@@ -36,7 +36,6 @@ export AQUA_GLOBAL_CONFIG=$XDG_CONFIG_HOME/aqua/aqua.yaml
 export ASDF_DIR="$XDG_DATA_HOME/asdf"
 export ASDF_DATA_DIR="$ASDF_DIR"
 export ASDF_CONFIG_FILE="$XDG_CONFIG_HOME/asdf/asdfrc"
-[ -f "$ASDF_DIR/asdf.sh" ] && source "$ASDF_DIR/asdf.sh"
 # cargo
 export CARGO_HOME="$XDG_DATA_HOME/cargo"
 # go
@@ -91,9 +90,11 @@ case ":$PATH:" in
         export PATH="$1:$PATH"
         ;;
 esac
-add_to_path $HOME/.local/bin
-add_to_path $AQUA_ROOT_DIR/bin
-add_to_path $CARGO_HOME/bin
 add_to_path $KREW_ROOT/bin
+add_to_path $CARGO_HOME/bin
+add_to_path $AQUA_ROOT_DIR/bin
+add_to_path $HOME/.local/bin
+
+[ -f "$ASDF_DIR/asdf.sh" ] && source "$ASDF_DIR/asdf.sh"
 
 unset -f add_to_path
