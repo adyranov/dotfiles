@@ -170,6 +170,12 @@ setup() {
 }
 
 {{ end }}
+{{ if .toolchains.golang }}
+@test "golang" {
+  run go version
+  assert_success
+}
+{{ end }}
 {{ if .toolchains.java }}
 @test "java" {
   run java --help

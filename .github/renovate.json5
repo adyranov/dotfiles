@@ -11,6 +11,9 @@
   ],
   labels: ["dependencies"],
   stabilityDays: 3,
+  asdf: {
+    fileMatch: ["(^|/)\\.tool-versions$", "(^|/)dot_tool-versions.tmpl$"],
+  },
   regexManagers: [
     {
       fileMatch: ["\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$"],
