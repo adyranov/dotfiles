@@ -15,17 +15,11 @@
     "github>aquaproj/aqua-renovate-config:file#1.5.2(home/private_dot_config/aqua/toolchains/.*\\.yaml\\.tmpl)",
   ],
   labels: ["dependencies"],
-  stabilityDays: 7,
+  stabilityDays: 3,
   dependencyDashboardAutoclose: true,
   asdf: {
     fileMatch: ["(^|/)\\.tool-versions$", "(^|/)dot_tool-versions.tmpl$"],
   },
-  regexManagers: [
-    {
-      fileMatch: ["\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$"],
-      matchStrings: ["# renovate: depName=(?<depName>.*) datasource=(?<datasource>.*)\\n\\s*current_\\w+_version=(?<currentValue>.+)\\b"],
-    },
-  ],
   packageRules: [
     {
       description: "Require dashboard approval for major updates",
