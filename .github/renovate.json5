@@ -31,5 +31,12 @@
       matchPackageNames: ["aquaproj/aqua-registry", "aquaproj/aqua"],
       extends: ["schedule:weekly"],
     },
+    {
+      description: "Auto merge GitHub Actions",
+      matchManagers: ["github-actions"],
+      automerge: true,
+      automergeType: "branch",
+      ignoreTests: true,
+    },
   ],
 }
