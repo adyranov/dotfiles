@@ -22,6 +22,7 @@
 
 {{- if .toolchains.cloud -}}
 {{- $brews = concat $brews (list "azure-cli" "Azure/kubelogin/kubelogin") -}}
+{{- $taps = concat $taps (list "azure/kubelogin") -}}
 {{- if not .host.headless -}}
 {{- $brews = concat $brews (list "awscli") -}}
 {{- end -}}
