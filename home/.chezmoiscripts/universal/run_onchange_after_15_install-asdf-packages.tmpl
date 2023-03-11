@@ -26,3 +26,9 @@ asdf plugin-add nodejs
 asdf plugin-add python
 {{- end }}
 asdf install || true
+{{- if or .toolchains.node }}
+corepack enable npm yarn pnpm
+corepack prepare npm@latest --activate
+corepack prepare pnpm@latest --activate
+corepack prepare yarn@stable --activate
+{{- end }}
