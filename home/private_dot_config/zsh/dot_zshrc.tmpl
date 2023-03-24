@@ -7,10 +7,13 @@ zstyle ':z4h:' prompt-at-bottom 'yes'
 # Keyboard type: 'mac' or 'pc'.
 {{- if (eq .host.distro.family "darwin") }}
 zstyle ':z4h:bindkey' keyboard  'mac'
-zstyle ':z4h:'        iterm2-integration yes
+zstyle ':z4h:' iterm2-integration yes
 {{- else }}
 zstyle ':z4h:bindkey' keyboard  'pc'
 {{- end }}
+
+zstyle ':z4h:' term-shell-integration yes
+zstyle ':z4h:' propagate-cwd          yes
 
 # Right-arrow key accepts one character ('partial-accept') from
 # command autosuggestions or the whole thing ('accept')?
@@ -98,13 +101,10 @@ z4h load wfxr/forgit
 z4h load olets/zsh-abbr
 
 # Define key bindings.
-z4h bindkey undo Ctrl+/   Shift+Tab # undo the last command line change
-z4h bindkey redo Option+/           # redo the last undone command line change
-
-z4h bindkey z4h-cd-back    Shift+Left   # cd into the previous directory
-z4h bindkey z4h-cd-forward Shift+Right  # cd into the next directory
-z4h bindkey z4h-cd-up      Shift+Up     # cd into the parent directory
-z4h bindkey z4h-cd-down    Shift+Down   # cd into a child directory
+z4h bindkey z4h-cd-back            Shift+Left   # cd into the previous directory
+z4h bindkey z4h-cd-forward         Shift+Right  # cd into the next directory
+z4h bindkey z4h-cd-up              Shift+Up     # cd into the parent directory
+z4h bindkey z4h-fzf-dir-history    Shift+Down   # cd into a child directory
 
 # Autoload functions.
 autoload -Uz zmv

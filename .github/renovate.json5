@@ -32,11 +32,13 @@
       extends: ["schedule:weekly"],
     },
     {
-      description: "Auto merge GitHub Actions",
+      description: "Auto merge GitHub Actions weekly",
       matchManagers: ["github-actions"],
       automerge: true,
       automergeType: "branch",
       ignoreTests: true,
+      extends: ["schedule:weekly"],
+      groupName: "github-actions",
     },
   ],
 }
