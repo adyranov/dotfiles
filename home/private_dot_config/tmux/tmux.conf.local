@@ -169,9 +169,9 @@ tmux_conf_theme_terminal_title="#h ❐ #S ● #I #W"
 tmux_conf_theme_window_status_fg="$tmux_conf_theme_colour_3"
 tmux_conf_theme_window_status_bg="$tmux_conf_theme_colour_1"
 tmux_conf_theme_window_status_attr="none"
-tmux_conf_theme_window_status_format="#I #W"
+#tmux_conf_theme_window_status_format="#I #W"
 #tmux_conf_theme_window_status_format="#{circled_window_index} #W"
-#tmux_conf_theme_window_status_format="#I #W#{?window_bell_flag,🔔,}#{?window_zoomed_flag,🔍,}"
+tmux_conf_theme_window_status_format="#I #W#{?window_bell_flag,🔔,}#{?window_zoomed_flag,🔍,}"
 
 # window current status style
 #   - built-in variables are:
@@ -186,9 +186,9 @@ tmux_conf_theme_window_status_format="#I #W"
 tmux_conf_theme_window_status_current_fg="$tmux_conf_theme_colour_1"
 tmux_conf_theme_window_status_current_bg="$tmux_conf_theme_colour_4"
 tmux_conf_theme_window_status_current_attr="bold"
-tmux_conf_theme_window_status_current_format="#I #W"
+#tmux_conf_theme_window_status_current_format="#I #W"
 #tmux_conf_theme_window_status_current_format="#{circled_window_index} #W"
-#tmux_conf_theme_window_status_current_format="#I #W#{?window_zoomed_flag,🔍,}"
+tmux_conf_theme_window_status_current_format="#I #W#{?window_zoomed_flag,🔍,}"
 
 # window activity status style
 tmux_conf_theme_window_status_activity_fg="default"
@@ -206,14 +206,14 @@ tmux_conf_theme_window_status_last_bg="$tmux_conf_theme_colour_2"
 tmux_conf_theme_window_status_last_attr="none"
 
 # status left/right sections separators
-tmux_conf_theme_left_separator_main=""
-tmux_conf_theme_left_separator_sub="|"
-tmux_conf_theme_right_separator_main=""
-tmux_conf_theme_right_separator_sub="|"
-#tmux_conf_theme_left_separator_main='\uE0B0'  # /!\ you don't need to install Powerline
-#tmux_conf_theme_left_separator_sub='\uE0B1'   #   you only need fonts patched with
-#tmux_conf_theme_right_separator_main='\uE0B2' #   Powerline symbols or the standalone
-#tmux_conf_theme_right_separator_sub='\uE0B3'  #   PowerlineSymbols.otf font, see README.md
+#tmux_conf_theme_left_separator_main=""
+#tmux_conf_theme_left_separator_sub="|"
+#tmux_conf_theme_right_separator_main=""
+#tmux_conf_theme_right_separator_sub="|"
+tmux_conf_theme_left_separator_main='\uE0B0'  # /!\ you don't need to install Powerline
+tmux_conf_theme_left_separator_sub='\uE0B1'   #   you only need fonts patched with
+tmux_conf_theme_right_separator_main='\uE0B2' #   Powerline symbols or the standalone
+tmux_conf_theme_right_separator_sub='\uE0B3'  #   PowerlineSymbols.otf font, see README.md
 
 # status left/right content:
 #   - separate main sections with "|"
@@ -318,10 +318,10 @@ tmux_conf_battery_vbar_palette="gradient"
 #tmux_conf_battery_vbar_palette="#d70000,#ff5f00,#5fff00"  # red, orange, green
 
 # symbols used to indicate whether battery is charging or discharging
-tmux_conf_battery_status_charging="↑"       # U+2191
-tmux_conf_battery_status_discharging="↓"    # U+2193
-#tmux_conf_battery_status_charging="🔌"     # U+1F50C
-#tmux_conf_battery_status_discharging="🔋"  # U+1F50B
+#tmux_conf_battery_status_charging="↑"       # U+2191
+#tmux_conf_battery_status_discharging="↓"    # U+2193
+tmux_conf_battery_status_charging="🔌"     # U+1F50C
+tmux_conf_battery_status_discharging="🔋"  # U+1F50B
 
 # clock style (when you hit <prefix> + t)
 # you may want to use %I:%M %p in place of %R in tmux_conf_theme_status_right
@@ -337,17 +337,17 @@ tmux_conf_theme_clock_style="24"
 #   - disabled
 # on macOS, this requires installing reattach-to-user-namespace, see README.md
 # on Linux, this requires xsel, xclip or wl-copy
-tmux_conf_copy_to_os_clipboard=false
+tmux_conf_copy_to_os_clipboard=true
 
 
 # -- user customizations -------------------------------------------------------
 # this is the place to override or undo settings
 
 # increase history size
-#set -g history-limit 10000
+set -g history-limit 10000
 
 # start with mouse mode enabled
-#set -g mouse on
+set -g mouse on
 
 # force Vi mode
 #   really you should export VISUAL or EDITOR environment variable, see manual
@@ -355,11 +355,11 @@ tmux_conf_copy_to_os_clipboard=false
 #set -g mode-keys vi
 
 # replace C-b by C-a instead of using both prefixes
-# set -gu prefix2
-# unbind C-a
-# unbind C-b
-# set -g prefix C-a
-# bind C-a send-prefix
+set -gu prefix2
+unbind C-a
+unbind C-b
+set -g prefix C-a
+bind C-a send-prefix
 
 # if you don't want Oh my tmux! to alter a binding, use #!important
 # bind c new-window -c '#{pane_current_path}' #!important
@@ -367,6 +367,28 @@ tmux_conf_copy_to_os_clipboard=false
 # move status line to top
 #set -g status-position top
 
+bind -n M-Left select-pane -L     # Alt + Left  = select left panel
+bind -n M-Right select-pane -R    # Alt + Right = select right panel
+bind -n M-Up select-pane -U       # Alt + Up    = select top panel
+bind -n M-Down select-pane -D     # Alt + Down  = select bottom panel
+
+bind -n M-x kill-session          # Alt + x = close tmux
+bind -n M-ч kill-session          # Alt + x = close tmux, cyrillic
+
+bind -n M-t new-window            # Alt + t = new window
+bind -n M-е new-window            # Alt + t = new window, cyrillic
+bind -n M-n new-window            # Alt + n = new window
+bind -n M-т new-window            # Alt + n = new window, cyrillic
+
+bind -n M-1 select-window -t 1    # Alt + 1 = go to window 1
+bind -n M-2 select-window -t 2    # Alt + 2 = go to window 2
+bind -n M-3 select-window -t 3    # Alt + 3 = go to window 3
+bind -n M-4 select-window -t 4    # Alt + 4 = go to window 4
+bind -n M-5 select-window -t 5    # Alt + 5 = go to window 5
+bind -n M-6 select-window -t 6    # Alt + 6 = go to window 6
+bind -n M-7 select-window -t 7    # Alt + 7 = go to window 7
+bind -n M-8 select-window -t 8    # Alt + 8 = go to window 8
+bind -n M-9 select-window -t 9    # Alt + 9 = go to window 9
 
 # -- tpm -----------------------------------------------------------------------
 

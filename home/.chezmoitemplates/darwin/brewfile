@@ -10,7 +10,7 @@
 
 
 {{- $brews := splitList " " (includeTemplate "universal/essential-packages" .) }}
-{{- $brews :=  concat (without $brews "encfs" "gocryptfs") (list "mas") -}}
+{{- $brews :=  concat (without $brews "encfs" "gocryptfs") (list "mas" "reattach-to-user-namespace") -}}
 
 {{- $casks := list
 "brave-browser"
