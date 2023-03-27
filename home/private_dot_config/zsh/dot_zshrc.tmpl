@@ -12,6 +12,7 @@ zstyle ':z4h:' iterm2-integration yes
 zstyle ':z4h:bindkey' keyboard  'pc'
 {{- end }}
 
+zstyle ':z4h:' start-tmux no
 zstyle ':z4h:' term-shell-integration yes
 zstyle ':z4h:' propagate-cwd          yes
 
@@ -146,9 +147,6 @@ setopt HIST_VERIFY               # Don't execute immediately upon history expans
 if command -v direnv >/dev/null 2>&1; then
   eval "$(direnv hook zsh)"
 fi
-
-# Load aqua completions
-if command -v aqua &> /dev/null; then source <(aqua completion zsh); fi
 
 # Load local configuration.
 z4h source $ZDOTDIR/.zshrc.local
