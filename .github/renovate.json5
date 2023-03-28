@@ -10,6 +10,7 @@
     ":semanticCommitScope(deps)",
     "helpers:pinGitHubActionDigests",
     "group:allNonMajor",
+    "github>aquaproj/aqua-renovate-config#1.5.2",
     "github>aquaproj/aqua-renovate-config:installer-script#1.5.2(home/.chezmoiscripts/universal/.*aqua-packages\\.sh\\.tmpl)",
     "github>aquaproj/aqua-renovate-config:file#1.5.2(home/private_dot_config/aqua/aqua\\.yaml\\.tmpl)",
     "github>aquaproj/aqua-renovate-config:file#1.5.2(home/private_dot_config/aqua/toolchains/.*\\.yaml\\.tmpl)",
@@ -20,6 +21,12 @@
   asdf: {
     fileMatch: ["(^|/)\\.tool-versions$", "(^|/)dot_tool-versions.tmpl$"],
   },
+  regexManagers: [
+    {
+      fileMatch: ["\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$"],
+      matchStrings: ["# renovate: depName=(?<depName>.*) datasource=(?<datasource>.*)\\n\\s*current_\\w+_version=(?<currentValue>.+)\\b"],
+    },
+  ],
   packageRules: [
     {
       description: "Require dashboard approval for major updates",
