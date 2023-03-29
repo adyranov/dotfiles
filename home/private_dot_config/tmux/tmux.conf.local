@@ -390,6 +390,9 @@ bind -n M-7 select-window -t 7    # Alt + 7 = go to window 7
 bind -n M-8 select-window -t 8    # Alt + 8 = go to window 8
 bind -n M-9 select-window -t 9    # Alt + 9 = go to window 9
 
+bind a set-window-option synchronize-panes
+bind m set-window-option main-pane-height 60\; select-layout main-horizontal
+
 # -- tpm -----------------------------------------------------------------------
 
 # while I don't use tpm myself, many people requested official support so here
