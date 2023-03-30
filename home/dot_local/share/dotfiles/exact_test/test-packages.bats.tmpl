@@ -164,6 +164,11 @@ setup() {
   assert_success
 }
 
+@test "kustomize" {
+  run kustomize --help
+  assert_success
+}
+
 @test "yq" {
   run yq --help
   assert_success
@@ -201,6 +206,12 @@ setup() {
 {{ if .toolchains.python }}
 @test "pre-commit" {
   run pre-commit --help
+  assert_success
+}
+{{ end }}
+{{ if .toolchains.rust }}
+@test "rustc" {
+  run rustc --help
   assert_success
 }
 {{ end }}

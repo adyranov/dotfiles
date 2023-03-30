@@ -68,13 +68,14 @@ asdf_latest_versions () {
 }
 
 u() {
+{{- if eq .host.distro.family "darwin" }}
   brew update
   brew upgrade
   brew upgrade --cask --greedy
   brew cleanup --prune=1
+{{- end }}
   asdf update || true
   asdf plugin-update --all
-  rustup self update || true
   rustup update || true
   npm update -g || true
   chezmoi upgrade
