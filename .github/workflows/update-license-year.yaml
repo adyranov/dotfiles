@@ -11,6 +11,6 @@ jobs:
       - uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3
         with:
           fetch-depth: 0
-      - uses: FantasticFiasco/action-update-license-year@26ffac173f956c25f7467aa8e6f750eed24a1b7a # v2
+      - uses: FantasticFiasco/action-update-license-year@00b7495233bb4a9229204b2bd3e2a6df7551e155 # v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
