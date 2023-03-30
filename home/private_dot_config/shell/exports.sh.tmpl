@@ -49,14 +49,14 @@ export HTTPIE_CONFIG_DIR="$XDG_CONFIG_HOME/httpie"
 # krew
 export KREW_ROOT="$XDG_DATA_HOME/krew"
 # maven
-export MAVEN_CONFIG="$XDG_CONFIG_HOME/maven/settings.xml"
+export MAVEN_USER_HOME="$XDG_DATA_HOME/maven" # For maven-wrapper
+export MAVEN_CONFIG="-gs $XDG_CONFIG_HOME/maven/settings.xml" # For maven-wrapper
+export MAVEN_ARGS="$MAVEN_CONFIG" # For Maven >= 3.9.0
 # npm
 export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
 export ASDF_NPM_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/npm/default-npm-packages"
 # python
 export ASDF_PYTHON_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/pip/default-python-packages"
-# rustup
-export RUSTUP_HOME="$XDG_DATA_HOME/rustup"
 # wget
 export WGETRC="$XDG_CONFIG_HOME/wget/wgetrc"
 
@@ -89,6 +89,11 @@ case ":$PATH:" in
         export PATH="$1:$PATH"
         ;;
 esac
+{{- if eq .host.distro.family "darwin" }}
+if [ -n "${HOMEBREW_PREFIX-}" ] ; then
+  add_to_path $HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin
+fi
+{{- end }}
 add_to_path $KREW_ROOT/bin
 add_to_path $CARGO_HOME/bin
 add_to_path $AQUA_ROOT_DIR/bin
@@ -96,4 +101,12 @@ add_to_path $HOME/.local/bin
 
 [ -f "$ASDF_DIR/asdf.sh" ] && source "$ASDF_DIR/asdf.sh"
 
+
 unset -f add_to_path
+
+{{ if .toolchains.java -}}
+# JAVA_HOME from ASDF
+if [ -n "${ZSH_VERSION-}" ] && [ -f "$ASDF_DIR/plugins/java/set-java-home.zsh" ] ; then
+  source $ASDF_DIR/plugins/java/set-java-home.zsh
+fi
+{{- end -}}

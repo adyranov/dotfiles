@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 alias sudo='sudo ' # https://wiki.archlinux.org/title/Sudo#Passing_aliases
 alias reload="exec ${SHELL} -l"
-alias kubectl='kubecolor'
+command -v kubecolor &>/dev/null && alias kubectl='kubecolor'
 
 # ls => exa
 if command -v exa &> /dev/null; then
@@ -38,9 +38,6 @@ fi
 if command -v nvim &> /dev/null; then
   alias vim='nvim'
 fi
-
-# maven
-alias mvn="mvn -s $MAVEN_CONFIG"
 
 # npm packages
 alias ncu="npx -p npm-check-updates@latest ncu"

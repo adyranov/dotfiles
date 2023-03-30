@@ -25,6 +25,9 @@ asdf plugin-add nodejs
 {{- if or .toolchains.python }}
 asdf plugin-add python
 {{- end }}
+{{- if .toolchains.rust }}
+asdf plugin-add rust
+{{- end }}
 asdf install || true
 {{- if or .toolchains.node }}
 corepack enable npm yarn pnpm
