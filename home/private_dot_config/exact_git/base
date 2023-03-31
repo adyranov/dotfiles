@@ -1,0 +1,36 @@
+[branch]
+    autosetuprebase = always
+[diff]
+    colorMoved = default
+    renamelimit = 0
+    mnemonicprefix = true
+    renames = copies
+[fetch]
+    prune = true
+[help]
+    autocorrect = 1
+[init]
+    defaultBranch = main
+[merge]
+    ff = only
+    renamelimit = 0
+    summary = true
+    stat = true
+    conflictstyle = diff3
+[pack]
+    threads = 0
+[pull]
+    rebase = true
+[push]
+    autoSetupRemote = true
+    default = upstream
+    followTags = true
+[rebase]
+    autosquash = true
+[rerere]
+    enabled = true
+    autoupdate = true
+[transfer]
+    fsckobjects = true
+[status]
+    showUntrackedFiles = all

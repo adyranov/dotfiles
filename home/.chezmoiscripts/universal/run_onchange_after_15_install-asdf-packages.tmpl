@@ -7,7 +7,6 @@ source $HOME/.config/shell/exports.sh
 [ ! -d $ASDF_DIR ] && git clone https://github.com/asdf-vm/asdf.git "${ASDF_DIR}"
 . ${ASDF_DIR}/asdf.sh
 
-asdf plugin-add direnv
 {{- if .toolchains.golang }}
 asdf plugin-add golang
 {{- end -}}
@@ -29,7 +28,8 @@ asdf plugin-add python
 asdf plugin-add rust
 {{- end }}
 asdf install || true
-{{- if or .toolchains.node }}
+
+{{ if or .toolchains.node -}}
 corepack enable npm yarn pnpm
 corepack prepare npm@latest --activate
 corepack prepare pnpm@latest --activate
