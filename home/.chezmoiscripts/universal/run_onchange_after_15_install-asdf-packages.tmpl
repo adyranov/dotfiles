@@ -7,6 +7,7 @@ source $HOME/.config/shell/exports.sh
 [ ! -d $ASDF_DIR ] && git clone https://github.com/asdf-vm/asdf.git "${ASDF_DIR}"
 . ${ASDF_DIR}/asdf.sh
 
+asdf plugin-add direnv
 {{- if .toolchains.golang }}
 asdf plugin-add golang
 {{- end -}}
@@ -23,9 +24,6 @@ asdf plugin-add nodejs
 {{- end }}
 {{- if or .toolchains.python }}
 asdf plugin-add python
-{{- end }}
-{{- if .toolchains.rust }}
-asdf plugin-add rust
 {{- end }}
 asdf install || true
 
