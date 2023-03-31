@@ -1,0 +1,7 @@
+[include]
+    path = ~/.config/git/base
+    path = ~/.config/git/color
+    path = ~/.config/git/diff
+    path = ~/.config/git/merge
+    path = ~/.config/git/user
+    path = ~/.config/git/local
