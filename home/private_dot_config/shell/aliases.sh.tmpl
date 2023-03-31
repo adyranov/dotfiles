@@ -41,3 +41,9 @@ fi
 
 # npm packages
 alias ncu="npx -p npm-check-updates@latest ncu"
+
+# k8s
+if command -v colima &> /dev/null; then
+  alias k8s-start="colima start k8s --kubernetes --runtime containerd --cpu 4 --memory 8 --disk 40"
+  alias k8s-stop="colima stop k8s"
+fi
