@@ -164,6 +164,11 @@ setup() {
   assert_success
 }
 
+@test "kubesess" {
+  run kubesess --help
+  assert_success
+}
+
 @test "kustomize" {
   run kustomize --help
   assert_success

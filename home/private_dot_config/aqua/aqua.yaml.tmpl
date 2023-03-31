@@ -6,7 +6,11 @@
 #   enabled: true
 #   require_checksum: true
 registries:
-  - type: standard
+  - name: standard
+    type: standard
     ref: v3.145.0 # renovate: depName=aquaproj/aqua-registry
+  - name: local
+    type: local
+    path: registry.yaml
 packages:
 - import: toolchains/*.yaml
