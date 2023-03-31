@@ -1,0 +1,8 @@
+
+{{- $refreshPeriod := "168h" }}
+
+["tmux.conf"]
+  type = "file"
+  url = "https://github.com/gpakosz/.tmux/raw/master/.tmux.conf"
+  refreshPeriod = "{{ $refreshPeriod }}"
+  exact = true

@@ -76,6 +76,7 @@ u() {
 {{- end }}
   asdf update || true
   asdf plugin-update --all
+  rustup self update || true
   rustup update || true
   npm update -g || true
   chezmoi upgrade
