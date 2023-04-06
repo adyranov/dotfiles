@@ -24,7 +24,7 @@ Host *
     ServerAliveInterval 600
 {{- if ne .host.distro.family "windows" }}
     ControlMaster auto
-    ControlPath ~/.ssh/controlmasters/ssh-%r@%h:%p
+    ControlPath ~/.ssh/%r@%h:%p
     ControlPersist 5
 {{- end }}
 {{- if eq .host.distro.family "darwin" }}
