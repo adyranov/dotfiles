@@ -1,1 +1,5 @@
-next update {{ output "date" "--date=next monday" }}
+{{- if eq .host.distro.family "darwin" -}}
+next update {{ output "/bin/date" "-v+1w" "-v-mon" "-v0H" "-v0M" "-v0S" -}}
+{{- else -}}
+next update {{ output "date" "--date=next monday" -}}
+{{- end }}
