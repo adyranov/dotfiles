@@ -1,13 +1,20 @@
 {{- if not .host.headless -}}
 #!/usr/bin/env bash
 
+{{- $encryptedKey := joinPath .chezmoi.sourceDir ".keys/key.txt.age" }}
+{{- $decryptedKey := joinPath .chezmoi.homeDir ".config/age/key.txt" }}
+
+{{- if stat $decryptedKey }}
+# key hash: {{ include $decryptedKey | sha256sum }}
+{{- end }}
+
 if command -v age >/dev/null 2>&1; then
-    if [ ! -f "{{ .chezmoi.homeDir }}/.config/age/key.txt" ]; then
+    if [ ! -f "{{ $decryptedKey }}" ]; then
         mkdir -p "{{ .chezmoi.homeDir }}/.config/age"
         age --decrypt \
-        --output "{{ .chezmoi.homeDir }}/.config/age/key.txt" \
-        "{{ .chezmoi.sourceDir }}/.keys/{{ .host.work | ternary "work-key" "personal-key" }}.txt.age"
-        chmod 600 "{{ .chezmoi.homeDir }}/.config/age/key.txt"
+        --output "{{ $decryptedKey }}" \
+        "{{ $encryptedKey }}"
+        chmod 600 "{{ $decryptedKey }}"
     fi
 fi
 {{- end -}}
