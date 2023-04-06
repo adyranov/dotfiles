@@ -104,6 +104,9 @@ data:
       interactive: {{ stdinIsATTY }}
       restricted: {{ $restricted }}
       headless: {{ $headless }}
+    personal:
+      bitwarden:
+        enabled: {{ and (not $headless) (not $work) }}
     toolchains:
     {{- range $toolchain, $enabled := $toolchainsEnabled }}
       {{ $toolchain}}: {{ $enabled }}

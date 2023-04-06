@@ -1,3 +1,10 @@
+{{- if .host.work -}}
+Include config.d/work.conf
+{{- else -}}
+Include config.d/personal.conf
+{{- end }}
+Host github.com
+    User git
 Host *+*
     UserKnownHostsFile /dev/null
     StrictHostKeyChecking=no
@@ -11,12 +18,13 @@ Host *
     Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
 
     User {{ .user.login }}
+    IdentityFile ~/.ssh/keys.d/id_ed25519
     Compression yes
     GSSAPIAuthentication no
     ServerAliveInterval 600
 {{- if ne .host.distro.family "windows" }}
     ControlMaster auto
-    ControlPath /tmp/ssh-%r@%h:%p
+    ControlPath ~/.ssh/controlmasters/ssh-%r@%h:%p
     ControlPersist 5
 {{- end }}
 {{- if eq .host.distro.family "darwin" }}
