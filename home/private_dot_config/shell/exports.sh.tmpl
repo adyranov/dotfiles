@@ -29,16 +29,24 @@ export LC_ALL="en_US.UTF-8"
 
 # Change default folders
 
+# android
+export ANDROID_HOME="$XDG_DATA_HOME/android"
 # aqua
-export AQUA_ROOT_DIR=$XDG_DATA_HOME/aqua
-export AQUA_GLOBAL_CONFIG=$XDG_CONFIG_HOME/aqua/aqua.yaml
-export AQUA_POLICY_CONFIG=$XDG_CONFIG_HOME/aqua/aqua-policy.yaml
+export AQUA_ROOT_DIR="$XDG_DATA_HOME/aqua"
+export AQUA_GLOBAL_CONFIG="$XDG_CONFIG_HOME/aqua/aqua.yaml"
+export AQUA_POLICY_CONFIG="$XDG_CONFIG_HOME/aqua/aqua-policy.yaml"
 # asdf
 export ASDF_DIR="$XDG_DATA_HOME/asdf"
 export ASDF_DATA_DIR="$ASDF_DIR"
 export ASDF_CONFIG_FILE="$XDG_CONFIG_HOME/asdf/asdfrc"
+# azure
+export AZURE_CONFIG_DIR="$XDG_DATA_HOME/azure"
 # cargo
 export CARGO_HOME="$XDG_DATA_HOME/cargo"
+# docker
+export DOCKER_CONFIG="$XDG_CONFIG_HOME/docker"
+# gnupg
+export GNUPGHOME="$XDG_DATA_HOME/gnupg"
 # go
 export GOPATH="$XDG_DATA_HOME/go"
 # gradle
@@ -49,29 +57,38 @@ export HOMEBREW_BUNDLE_FILE="$XDG_CONFIG_HOME/brew/Brewfile"
 export HTTPIE_CONFIG_DIR="$XDG_CONFIG_HOME/httpie"
 # krew
 export KREW_ROOT="$XDG_DATA_HOME/krew"
+# less
+export LESSKEY="$XDG_CONFIG_HOME/less/lesskey"
+export LESSHISTFILE="$XDG_CACHE_HOME/less/history"
 # maven
 export MAVEN_USER_HOME="$XDG_DATA_HOME/maven" # For maven-wrapper
 export MAVEN_CONFIG="-gs $XDG_CONFIG_HOME/maven/settings.xml" # For maven-wrapper
 export MAVEN_ARGS="$MAVEN_CONFIG" # For Maven >= 3.9.0
-# npm
+# minikube
+export MINIKUBE_HOME="$XDG_DATA_HOME/minikube"
+# node
 export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
 export ASDF_NPM_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/npm/default-npm-packages"
+export NODE_REPL_HISTORY="$XDG_CACHE_HOME/node_repl_history"
 # python
 export ASDF_PYTHON_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/pip/default-python-packages"
 # rustup
 export RUSTUP_HOME="$XDG_DATA_HOME/rustup"
+# terminfo
+export TERMINFO="$XDG_DATA_HOME/terminfo"
+export TERMINFO_DIRS="${XDG_DATA_HOME}/terminfo:/usr/share/terminfo"
 # wget
 export WGETRC="$XDG_CONFIG_HOME/wget/wgetrc"
 
 # Editor
 {{- if not .host.headless }}
-export EDITOR='code --wait'
+export EDITOR="code --wait"
 {{- end -}}
 
 {{- if eq .host.type "wsl" }}
 # WSL
 export LIBGL_ALWAYS_INDIRECT="1"
-export BROWSER='/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe'
+export BROWSER="/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe"
 {{- end }}
 
 {{- if (and (eq .host.distro.family "darwin") (.host.restricted)) }}

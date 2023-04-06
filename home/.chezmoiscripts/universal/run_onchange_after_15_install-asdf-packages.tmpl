@@ -3,6 +3,7 @@
 source $HOME/.config/shell/exports.sh
 
 # dot_tool-versions.tmpl hash: {{ include "dot_tool-versions.tmpl" | sha256sum }}
+# {{ includeTemplate "universal/next-update" . }}
 
 [ ! -d $ASDF_DIR ] && git clone https://github.com/asdf-vm/asdf.git "${ASDF_DIR}"
 . ${ASDF_DIR}/asdf.sh
@@ -25,11 +26,6 @@ asdf plugin-add nodejs
 {{- if or .toolchains.python }}
 asdf plugin-add python
 {{- end }}
+asdf update
+asdf plugin-update --all
 asdf install || true
-
-{{ if or .toolchains.node -}}
-corepack enable npm yarn pnpm
-corepack prepare npm@latest --activate
-corepack prepare pnpm@latest --activate
-corepack prepare yarn@stable --activate
-{{- end }}

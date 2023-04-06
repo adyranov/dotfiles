@@ -13,4 +13,5 @@
 {{- $packages = concat $packages $pyenvDependencies -}}
 {{- end }}
 
+# {{ includeTemplate "universal/next-update" . }}
 sudo pacman -Sy --noconfirm --needed {{ $packages | sortAlpha | uniq | join " " -}}

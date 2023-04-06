@@ -2,6 +2,9 @@
 #!/usr/bin/env bash
 
 source $HOME/.config/shell/exports.sh
+
+# {{ includeTemplate "universal/next-update" . }}
+
 if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
     (
     set -x; cd "$(mktemp -d)" &&

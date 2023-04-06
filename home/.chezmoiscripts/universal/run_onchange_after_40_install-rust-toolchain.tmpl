@@ -2,5 +2,11 @@
 #!/usr/bin/env bash
 
 source $HOME/.config/shell/exports.sh
-rustup-init -y --no-modify-path
+
+# {{ includeTemplate "universal/next-update" . }}
+
+RUSTUP_INIT_SKIP_PATH_CHECK=yes rustup-init -y --no-modify-path
+rustup self update || true
+rustup update || true
+
 {{- end -}}

@@ -1,0 +1,13 @@
+{{ if or .toolchains.node -}}
+#!/usr/bin/env bash
+
+source $HOME/.config/shell/exports.sh
+
+# {{ includeTemplate "universal/next-update" . }}
+
+corepack enable npm yarn pnpm
+corepack prepare npm@latest --activate
+corepack prepare pnpm@latest --activate
+corepack prepare yarn@stable --activate
+
+{{- end }}

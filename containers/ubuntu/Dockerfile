@@ -19,7 +19,6 @@ RUN set -eux \
               dialog \
               dirmngr \
               gnupg2 \
-              htop \
               init-system-helpers \
               iproute2 \
               jq \
