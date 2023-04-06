@@ -66,11 +66,6 @@ setup() {
   assert_success
 }
 
-@test "htop" {
-  run htop --help
-  assert_success
-}
-
 @test "httpie" {
   run http --version
   assert_success

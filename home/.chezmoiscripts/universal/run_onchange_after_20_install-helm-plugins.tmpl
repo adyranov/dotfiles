@@ -2,6 +2,9 @@
 #!/usr/bin/env bash
 
 source $HOME/.config/shell/exports.sh
+
+# {{ includeTemplate "universal/next-update" . }}
+
 helm_plugins=(
   https://github.com/databus23/helm-diff
   https://github.com/jkroepke/helm-secrets

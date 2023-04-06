@@ -1,0 +1,1 @@
+next update {{ output "date" "--date=next monday" }}

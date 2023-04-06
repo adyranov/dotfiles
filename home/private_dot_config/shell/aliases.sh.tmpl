@@ -29,11 +29,6 @@ if command -v rg &> /dev/null; then
   alias grep='rg'
 fi
 
-# top => htop
-if command -v htop &> /dev/null; then
-  alias top='htop'
-fi
-
 # vim => neovim
 if command -v nvim &> /dev/null; then
   alias vim='nvim'
@@ -47,3 +42,6 @@ if command -v colima &> /dev/null; then
   alias k8s-start="colima start k8s --kubernetes --runtime containerd --cpu 4 --memory 8 --disk 40"
   alias k8s-stop="colima stop k8s"
 fi
+
+# wget
+alias wget="wget --hsts-file=\"$XDG_CACHE_HOME/wget-hsts\""
