@@ -1,10 +1,13 @@
-{{- $name := "Artem Dyranov" -}}
-{{- $email := "artem.dyranov@gmail.com" -}}
+{{- $username := "adyranov" -}}
+{{- $name := "" -}}
+{{- $email := "" -}}
 {{- $restricted := false -}}
 {{- $work := false -}}
+{{- $secrets := false -}}
 {{- $toolchains := list "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" }}
 
 {{- $data := . }}
+{{- $_ := set $data "git" (default (dict) (get $data "git")) -}}
 {{- $_ := set $data "host" (default (dict) (get $data "host")) -}}
 {{- $_ := set $data "user" (default (dict) (get $data "user")) -}}
 {{- $_ := set $data "toolchains" (default (dict) (get $data "toolchains")) -}}
@@ -62,8 +65,14 @@
 
 {{- $work = promptBoolOnce $data.host "work" "Work Environment" $work -}}
 {{- $restricted = promptBoolOnce $data.host "restricted" "Restricted Environment (no sudo access)" $restricted -}}
-{{- $name = promptStringOnce $data.user "name" "Your Name" $name -}}
-{{- $email = promptStringOnce $data.user "email" "Your Email" $email -}}
+{{- $username = promptStringOnce $data.git "username" "Your Git Username" $username -}}
+{{- if eq $username "adyranov" -}}
+  {{- $name = "Artem Dyranov" -}}
+  {{- $email = "artem.dyranov@gmail.com" -}}
+  {{- $secrets = true -}}
+{{- end -}}
+{{- $name = promptStringOnce $data.git "name" "Your Git Name" $name -}}
+{{- $email = promptStringOnce $data.git "email" "Your Git Email" $email -}}
 
 {{- range $toolchain := $toolchains }}
     {{- $enabled := promptBoolOnce $data.toolchains $toolchain (list "Enable" $toolchain "toolchain" | join " ") (get $toolchainsEnabled $toolchain) -}}
@@ -83,7 +92,8 @@
 
 sourceDir: "{{ .chezmoi.sourceDir }}"
 
-{{ if not $headless -}}
+{{ if $secrets -}}
+encryption: age
 age:
   identity: "{{ $.chezmoi.homeDir }}/.config/age/key.txt"
   recipient: "age16kxd4ljclq9ksnxvl2ee7a5xnj744kwyv04p04ka0n3rzxdpl5nsq52svl" # pragma: allowlist secret
@@ -95,6 +105,10 @@ diff:
 status:
   exclude: ["always"]
 data:
+    git:
+      email: "{{ $email }}"
+      name: "{{ $name }}"
+      username: {{ $username }}
     host:
       arch: "{{ .chezmoi.arch }}"
       distro:
@@ -102,18 +116,15 @@ data:
         id: "{{ $distro.id }}"
       home: "{{ .chezmoi.homeDir }}"
       type: "{{ $chassisType }}"
+      personal: {{ not $work }}
       work: {{ $work }}
       interactive: {{ stdinIsATTY }}
       restricted: {{ $restricted }}
       headless: {{ $headless }}
-    personal:
-      bitwarden:
-        enabled: {{ and (not $headless) (not $work) }}
+      secrets: {{ $secrets }}
     toolchains:
     {{- range $toolchain, $enabled := $toolchainsEnabled }}
       {{ $toolchain}}: {{ $enabled }}
     {{- end }}
     user:
-      email: "{{ $email }}"
-      name: "{{ $name }}"
       login: "{{ .chezmoi.username }}"
