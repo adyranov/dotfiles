@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -eufo pipefail
+
+source $HOME/.config/shell/exports.sh
+
+# {{ includeTemplate "universal/next-update" . }}
+
+{{- $compDir:= joinPath .host.home ".config/zsh/completions" -}}
+
+if [ "$(command -v bw)" ]; then
+  bw completion --shell zsh > "{{ $compDir }}/_bw"
+fi
+
+if [ "$(command -v datree)" ]; then
+  datree completion zsh > "{{ $compDir }}/_datree"
+fi
+
+if [ "$(command -v kubectl)" ]; then
+  kubectl completion zsh | sed 's/kubectl/kubecolor/g' > "{{ $compDir }}/_kubecolor"
+fi
+
+if [ "$(command -v popeye)" ]; then
+  popeye completion zsh > "{{ $compDir }}/_popeye"
+fi
+
+if [ "$(command -v stern)" ]; then
+  stern --completion zsh > "{{ $compDir }}/_stern"
+fi
+
+if [ "$(command -v yq)" ]; then
+  yq shell-completion zsh > "{{ $compDir }}/_yq"
+fi
