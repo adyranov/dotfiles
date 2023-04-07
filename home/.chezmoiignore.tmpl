@@ -4,11 +4,9 @@ install.sh
 .chezmoiscripts/*/**
 !.chezmoiscripts/{{ .host.distro.id }}/**
 !.chezmoiscripts/universal/**
-{{- if not .host.secrets }}
+{{- if not .secrets.age }}
 **/*.age
-.ssh/keys.d
-{{- else }}
-{{- if not .host.personal }}
-.ssh/keys.d
 {{- end }}
+{{- if not .secrets.bitwarden }}
+.ssh/keys.d
 {{- end }}

@@ -1,18 +1,5 @@
-{{- if .host.secrets -}}
+{{- if .secrets.age -}}
 #!/usr/bin/env bash
-
-{{- if .host.personal }}
-if [ ! "$(command -v bw)" ]; then
-  echo "Bitwarden CLI command was not found"
-  exit 1
-elif ! bw --nointeraction --quiet login --check; then
-  echo "Please login to Bitwarden and set the BW_SESSION environment variable"
-  exit 1
-elif ! bw --nointeraction --quiet unlock --check; then
-  echo "Please unlock Bitwarden and set the BW_SESSION environment variable"
-  exit 1
-fi
-{{- end }}
 
 if [ ! "$(command -v age)" ]; then
   echo "age command was not found"

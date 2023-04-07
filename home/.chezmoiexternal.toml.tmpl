@@ -3,26 +3,19 @@
 
 {{- if not .host.headless }}
 {{-   $fontDir := "" }}
-{{-   $powerlevelBase := "https://github.com/romkatv/powerlevel10k-media/raw/master" }}
 {{-   if eq .host.distro.family "darwin" }}
 {{-     $fontDir = "Library/Fonts" }}
 {{-   else if eq .host.distro.family "linux" }}
 {{-     $fontDir = ".local/share/fonts" }}
 {{-   end }}
-["{{ $fontDir }}/MesloLGS NF Regular.ttf"]
+{{-   range (list
+        "MesloLGS NF Regular.ttf"
+        "MesloLGS NF Bold.ttf"
+        "MesloLGS NF Italic.ttf"
+        "MesloLGS NF Bold Italic.ttf") }}
+["{{ $fontDir }}/{{ . }}"]
     type = "file"
-    url = "{{ $powerlevelBase }}/MesloLGS NF Regular.ttf"
+    url = "https://github.com/romkatv/powerlevel10k-media/raw/master/{{ . }}"
     refreshPeriod = "{{ $refreshPeriod }}"
-["{{ $fontDir }}/MesloLGS NF Bold.ttf"]
-    type = "file"
-    url = "{{ $powerlevelBase }}/MesloLGS NF Bold.ttf"
-    refreshPeriod = "{{ $refreshPeriod }}"
-["{{ $fontDir }}/MesloLGS NF Italic.ttf"]
-    type = "file"
-    url = "{{ $powerlevelBase }}/MesloLGS NF Italic.ttf"
-    refreshPeriod = "{{ $refreshPeriod }}"
-["{{ $fontDir }}/MesloLGS NF Bold Italic.ttf"]
-    type = "file"
-    url = "{{ $powerlevelBase }}/MesloLGS NF Bold Italic.ttf"
-    refreshPeriod = "{{ $refreshPeriod }}"
+{{-   end }}
 {{- end }}

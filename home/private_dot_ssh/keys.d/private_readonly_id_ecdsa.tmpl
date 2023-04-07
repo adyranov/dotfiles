@@ -1,1 +1,1 @@
-{{- (bitwarden "item" "id_ecdsa.key").notes -}}
+{{- joinPath .cache.secrets.dir "id_ecdsa.key" | include -}}

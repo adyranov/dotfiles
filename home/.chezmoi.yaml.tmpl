@@ -3,7 +3,7 @@
 {{- $email := "" -}}
 {{- $restricted := false -}}
 {{- $work := false -}}
-{{- $secrets := false -}}
+{{- $secrets := dict "age" false "bitwarden" false -}}
 {{- $toolchains := list "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" }}
 
 {{- $data := . }}
@@ -69,7 +69,8 @@
 {{- if eq $username "adyranov" -}}
   {{- $name = "Artem Dyranov" -}}
   {{- $email = "artem.dyranov@gmail.com" -}}
-  {{- $secrets = true -}}
+  {{- $_ := set $secrets "age" true -}}
+  {{- $_ := set $secrets "bitwarden" (eq $work false) -}}
 {{- end -}}
 {{- $name = promptStringOnce $data.git "name" "Your Git Name" $name -}}
 {{- $email = promptStringOnce $data.git "email" "Your Git Email" $email -}}
@@ -90,9 +91,7 @@
 {{-   writeToStdout "Chezmoi is running in headless environment.\n" -}}
 {{- end -}}
 
-sourceDir: "{{ .chezmoi.sourceDir }}"
-
-{{ if $secrets -}}
+{{ if $secrets.age -}}
 encryption: age
 age:
   identity: "{{ $.chezmoi.homeDir }}/.config/age/key.txt"
@@ -105,6 +104,9 @@ diff:
 status:
   exclude: ["always"]
 data:
+    cache:
+      secrets:
+        dir: "{{ joinPath .chezmoi.cacheDir "user" .chezmoi.username "secrets" }}"
     git:
       email: "{{ $email }}"
       name: "{{ $name }}"
@@ -116,12 +118,13 @@ data:
         id: "{{ $distro.id }}"
       home: "{{ .chezmoi.homeDir }}"
       type: "{{ $chassisType }}"
-      personal: {{ not $work }}
       work: {{ $work }}
       interactive: {{ stdinIsATTY }}
       restricted: {{ $restricted }}
       headless: {{ $headless }}
-      secrets: {{ $secrets }}
+    secrets:
+      age: {{ $secrets.age }}
+      bitwarden: {{ $secrets.bitwarden }}
     toolchains:
     {{- range $toolchain, $enabled := $toolchainsEnabled }}
       {{ $toolchain}}: {{ $enabled }}
