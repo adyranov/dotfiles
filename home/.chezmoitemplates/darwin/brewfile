@@ -47,7 +47,7 @@
 {{- $brews = concat $brews $pyenvDependencies -}}
 {{- end }}
 
-{{- if .host.personal -}}
+{{- if not .host.work -}}
 {{- $casks = concat $casks (list
 "authy"
 "calibre"
@@ -84,7 +84,7 @@ brew "{{ . }}"
 {{- range ($casks | sortAlpha | uniq) }}
 cask "{{ . }}"
 {{- end }}
-{{ if .host.personal }}
+{{ if not .host.work }}
 mas "Brother iPrint&Scan", id: 1193539993
 mas "Disk Speed Test", id: 425264550
 mas "Messenger", id: 1480068668
