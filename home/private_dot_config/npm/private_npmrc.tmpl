@@ -1,5 +1,5 @@
 {{- if .host.work -}}
-{{- joinPath .chezmoi.sourceDir "private_dot_config" "npm" "encrypted_work.npmrc.age" | include | decrypt -}}
+{{- joinPath .host.source "private_dot_config" "npm" "encrypted_work.npmrc.age" | include | decrypt -}}
 {{- end -}}
 fund=false
 audit=false

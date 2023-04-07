@@ -1,5 +1,7 @@
-{{- if .secrets.bitwarden -}}
 #!/usr/bin/env bash
+set -eufo pipefail
+
+# {{ includeTemplate "universal/next-update" . }}
 
 if [ ! "$(command -v bw)" ]; then
   echo "Bitwarden CLI command was not found"
@@ -12,7 +14,7 @@ elif ! bw --nointeraction --quiet unlock --check; then
   exit 1
 fi
 
-rm -rf "{{ .cache.secrets.dir }}"
+rm -f "{{ .cache.secrets.dir }}/*"
 mkdir -p "{{ .cache.secrets.dir }}"
 
 secrets=(
@@ -26,9 +28,6 @@ secrets=(
 
 for secret in "${secrets[@]}"
 do
-    echo Caching Bitwarden secret  \"$secret\"
     bw get notes $secret > "{{ .cache.secrets.dir }}/$secret"
     chmod 600 "{{ .cache.secrets.dir }}/$secret"
 done
-# {{ includeTemplate "universal/next-update" . }}
-{{- end -}}

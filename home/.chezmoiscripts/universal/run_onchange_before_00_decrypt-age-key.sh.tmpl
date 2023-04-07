@@ -6,12 +6,12 @@ if [ ! "$(command -v age)" ]; then
   exit 1
 fi
 
-{{- $encryptedKey := joinPath .chezmoi.sourceDir ".keys/key.txt.age" }}
-{{- $decryptedKey := joinPath .chezmoi.homeDir ".config/age/key.txt" }}
+{{- $encryptedKey := joinPath .host.source ".keys/key.txt.age" }}
+{{- $decryptedKey := joinPath .host.home ".config/age/key.txt" }}
 
 if [ ! -f "{{ $decryptedKey }}" ]; then
     echo "Decrypting {{ $encryptedKey }}"
-    mkdir -p "{{ .chezmoi.homeDir }}/.config/age"
+    mkdir -p "{{ .host.home }}/.config/age"
     age --decrypt --output "{{ $decryptedKey }}" "{{ $encryptedKey }}"
     chmod 600 "{{ $decryptedKey }}"
 fi

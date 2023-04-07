@@ -15,6 +15,12 @@
     type = "file"
     url = 'https://raw.githubusercontent.com/sharkdp/fd/master/contrib/completion/_fd'
     refreshPeriod = "{{ $refreshPeriod }}"
+{{- if .toolchains.docker }}
+[_docker]
+    type = "file"
+    url = 'https://raw.githubusercontent.com/docker/cli/master/contrib/completion/zsh/_docker'
+    refreshPeriod = "{{ $refreshPeriod }}"
+{{- end }}
 {{- if .toolchains.kubernetes }}
 [_kubectx]
     type = "file"
