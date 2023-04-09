@@ -1,0 +1,127 @@
+##################################################################
+## Key creation and signatures
+##################################################################
+
+## Don't disclose the version
+no-emit-version
+
+## Don't add additional comments (may leak language, etc)
+no-comments
+
+## include an unambiguous indicator of which key made a signature:
+## (see http://thread.gmane.org/gmane.mail.notmuch.general/3721/focus=7234)
+sig-notation issuer-fpr@notations.openpgp.fifthhorseman.net=%g
+
+## Default algorithms for key generation
+default-new-key-algo "ed25519/cert,sign+cv25519/encr"
+
+##################################################################
+## Keyserver
+##################################################################
+
+## Keyserver URL
+keyserver hkps://keyserver.ubuntu.com:443
+#keyserver hkps://keys.openpgp.org
+#keyserver hkps://pgp.mit.edu
+
+## When creating a key, individuals may designate a specific keyserver to use to pull their keys from.
+## The above option will disregard this designation and use the pool, which is useful because (1) it
+## prevents someone from designating an insecure method for pulling their key and (2) if the server
+## designated uses hkps, the refresh will fail because the ca-cert will not match, so the keys will
+## never be refreshed.
+keyserver-options include-subkeys,include-revoked,no-honor-keyserver-url
+
+## Automatic retrieving of keys from a keyserver
+## when verifying signatures made by keys that are not on the local keyring
+auto-key-retrieve
+
+## GnuPG can automatically locate and retrieve keys as needed using this option.
+## This option takes any number of the mechanisms listed below, in the order they are to be tried.
+auto-key-locate wkd,dane,local
+
+##################################################################
+## Crypto
+##################################################################
+
+## list of personal digest preferences. When multiple digests are supported by
+## all recipients, choose the strongest one
+personal-cipher-preferences AES256 AES192 AES
+
+## Our preferences if SHA512 is not possible
+personal-digest-preferences SHA512 SHA384 SHA256
+
+# Use ZLIB, BZIP2, ZIP, or no compression
+personal-compress-preferences ZLIB BZIP2 ZIP Uncompressed
+
+## List our Crypto preferences
+default-preference-list SHA512 SHA384 SHA256 AES256 AES192 AES CAST5 ZLIB BZIP2 ZIP Uncompressed
+
+## Use SHA512 as digest
+cert-digest-algo SHA512
+
+## SHA512 as digest for symmetric ops
+s2k-digest-algo SHA512
+
+## AES256 as cipher for symmetric ops
+s2k-cipher-algo AES256
+
+## Selects how passphrases for symmetric encryption are mangled.
+s2k-mode 3
+
+## Specify how many times the passphrases mangling for symmetric encryption is repeated.
+s2k-count 65011712
+
+{{ if .gpg.key -}}
+## Use name as the default key to sign with.
+default-key {{ .gpg.key }}
+{{- end }}
+
+## Use the default key as default recipient if option --recipient is not used and don't ask if this is a valid one.
+default-recipient-self
+
+##################################################################
+## Display options
+##################################################################
+
+## Suppress the initial copyright message
+no-greeting
+
+## Create ASCII armored output
+armor
+
+## We want to force UTF-8 everywhere
+display-charset utf-8
+
+## when outputting certificates, view user IDs distinctly from keys:
+fixed-list-mode
+
+## when listing certificates, also list fingerprint.
+with-fingerprint
+
+## long keyids are more collision-resistant than short keyids (it's trivial to make a key with any desired short keyid)
+keyid-format 0xlong
+
+## You should always know at a glance which User IDs gpg thinks are legitimately bound to the keys in your keyring:
+verify-options show-uid-validity
+list-options show-uid-validity
+
+
+##################################################################
+## Other options
+##################################################################
+
+## When verifying a signature made from a subkey, ensure that the cross
+## certification "back signature" on the subkey is present and valid
+require-cross-certification
+
+## Don't include keyids that may disclose the sender or any other non-obvious keyids
+## This may slow down decryption, as all private keys must be tried.
+# throw-keyids
+
+## Disable the passphrase cache used for symmetrical en- and decryption.
+no-symkey-cache
+
+## This experimental trust model combines TOFU with the Web of Trust.
+## This is done by computing the trust level for each model and then taking the maximum trust level
+## where the trust levels are ordered as follows: unknown < undefined < marginal < fully < ultimate < expired < never.
+trust-model tofu+pgp

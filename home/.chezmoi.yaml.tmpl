@@ -1,6 +1,7 @@
 {{- $username := "adyranov" -}}
 {{- $name := "" -}}
 {{- $email := "" -}}
+{{- $gpgKey := "" -}}
 {{- $restricted := false -}}
 {{- $work := false -}}
 {{- $secrets := dict "age" false "bitwarden" false -}}
@@ -8,6 +9,7 @@
 
 {{- $data := . }}
 {{- $_ := set $data "git" (default (dict) (get $data "git")) -}}
+{{- $_ := set $data "gpg" (default (dict) (get $data "gpg")) -}}
 {{- $_ := set $data "host" (default (dict) (get $data "host")) -}}
 {{- $_ := set $data "user" (default (dict) (get $data "user")) -}}
 {{- $_ := set $data "toolchains" (default (dict) (get $data "toolchains")) -}}
@@ -70,10 +72,15 @@
   {{- $name = "Artem Dyranov" -}}
   {{- $email = "artem.dyranov@gmail.com" -}}
   {{- $_ := set $secrets "age" true -}}
-  {{- $_ := set $secrets "bitwarden" (eq $work false) -}}
+  {{- if eq $work false -}}
+    {{- $gpgKey = "A101AC042E17BFD6F6FBF0F76A7B44753B913FDC" -}} # pragma: allowlist secret
+    {{- $_ := set $secrets "bitwarden" true -}}
+  {{- end -}}
 {{- end -}}
 {{- $name = promptStringOnce $data.git "name" "Your Git Name" $name -}}
 {{- $email = promptStringOnce $data.git "email" "Your Git Email" $email -}}
+
+{{- $gpgKey = promptStringOnce $data.gpg "key" "Your GPG Key" $gpgKey -}}
 
 {{- range $toolchain := $toolchains }}
     {{- $enabled := promptBoolOnce $data.toolchains $toolchain (list "Enable" $toolchain "toolchain" | join " ") (get $toolchainsEnabled $toolchain) -}}
@@ -111,6 +118,8 @@ data:
       email: "{{ $email }}"
       name: "{{ $name }}"
       username: {{ $username }}
+    gpg:
+      key: "{{ $gpgKey }}"
     host:
       arch: "{{ .chezmoi.arch }}"
       distro:

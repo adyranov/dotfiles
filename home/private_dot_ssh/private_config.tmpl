@@ -18,7 +18,6 @@ Host *
     Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
 
     User {{ .user.login }}
-    IdentityFile ~/.ssh/keys.d/id_ed25519
     Compression yes
     GSSAPIAuthentication no
     ServerAliveInterval 600
@@ -28,9 +27,8 @@ Host *
     ControlPersist 5
 {{- end }}
 {{- if eq .host.distro.family "darwin" }}
-    AddKeysToAgent yes
     UseKeychain yes
 {{- end }}
     ExitOnForwardFailure yes
-    ForwardAgent yes
+    ForwardAgent no
     ForwardX11 no
