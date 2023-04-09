@@ -12,9 +12,10 @@
 {{- $brews := splitList " " (includeTemplate "universal/essential-packages" .) }}
 {{- $brews := without $brews "encfs" "gocryptfs" -}}
 {{- $brews := concat $brews (list
+"kubesess"
 "mas"
-"reattach-to-user-namespace"
-"kubesess")
+"pinentry-mac"
+"reattach-to-user-namespace")
 -}}
 
 {{- $casks := list

@@ -121,6 +121,11 @@ setup() {
   run mas
   assert_success
 }
+
+@test "pinentry-mac" {
+  run pinentry-mac --version
+  assert_success
+}
 {{ end }}
 {{ if .toolchains.docker }}
 @test "docker" {
