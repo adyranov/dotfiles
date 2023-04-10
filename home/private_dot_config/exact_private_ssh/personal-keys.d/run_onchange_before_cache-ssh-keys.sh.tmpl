@@ -18,10 +18,6 @@ rm -f "{{ .cache.secrets.dir }}/*"
 mkdir -p "{{ .cache.secrets.dir }}"
 
 secrets=(
-  id_ecdsa.pub
-  id_ed25519.pub
-  id_rsa.pub
-  id_ecdsa.key
   id_ed25519.key
   id_rsa.key
 )
