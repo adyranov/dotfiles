@@ -11,7 +11,6 @@
 {{- $_ := set $data "git" (default (dict) (get $data "git")) -}}
 {{- $_ := set $data "gpg" (default (dict) (get $data "gpg")) -}}
 {{- $_ := set $data "host" (default (dict) (get $data "host")) -}}
-{{- $_ := set $data "user" (default (dict) (get $data "user")) -}}
 {{- $_ := set $data "toolchains" (default (dict) (get $data "toolchains")) -}}
 
 
@@ -139,5 +138,3 @@ data:
     {{- range $toolchain, $enabled := $toolchainsEnabled }}
       {{ $toolchain}}: {{ $enabled }}
     {{- end }}
-    user:
-      login: "{{ .chezmoi.username }}"
