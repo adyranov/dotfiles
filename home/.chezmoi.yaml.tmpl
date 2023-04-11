@@ -1,9 +1,9 @@
 {{- $username := "adyranov" -}}
 {{- $name := "" -}}
 {{- $email := "" -}}
-{{- $gpgKey := "" -}}
 {{- $restricted := false -}}
 {{- $work := false -}}
+{{- $gpg := dict "sign" "" "encrypt" "" -}}
 {{- $secrets := dict "age" false "bitwarden" false -}}
 {{- $toolchains := list "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" }}
 
@@ -72,14 +72,13 @@
   {{- $email = "artem.dyranov@gmail.com" -}}
   {{- $_ := set $secrets "age" true -}}
   {{- if eq $work false -}}
-    {{- $gpgKey = "A101AC042E17BFD6F6FBF0F76A7B44753B913FDC" -}} # pragma: allowlist secret
+    {{- $_ := set $gpg "sign" "0xAE12214C66692D96" -}}  # pragma: allowlist secret
+    {{- $_ := set $gpg "encrypt" "0xE770F55D35040481" -}}  # pragma: allowlist secret
     {{- $_ := set $secrets "bitwarden" true -}}
   {{- end -}}
 {{- end -}}
 {{- $name = promptStringOnce $data.git "name" "Your Git Name" $name -}}
 {{- $email = promptStringOnce $data.git "email" "Your Git Email" $email -}}
-
-{{- $gpgKey = promptStringOnce $data.gpg "key" "Your GPG Key" $gpgKey -}}
 
 {{- range $toolchain := $toolchains }}
     {{- $enabled := promptBoolOnce $data.toolchains $toolchain (list "Enable" $toolchain "toolchain" | join " ") (get $toolchainsEnabled $toolchain) -}}
@@ -118,7 +117,8 @@ data:
       name: "{{ $name }}"
       username: {{ $username }}
     gpg:
-      key: "{{ $gpgKey }}"
+      sign: "{{ $gpg.sign }}"
+      encrypt: "{{ $gpg.encrypt }}"
     host:
       arch: "{{ .chezmoi.arch }}"
       distro:
