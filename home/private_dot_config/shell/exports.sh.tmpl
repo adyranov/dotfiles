@@ -138,8 +138,3 @@ if [ -n "${ZSH_VERSION-}" ] && [ -f "$ASDF_DIR/plugins/java/set-java-home.zsh" ]
   source $ASDF_DIR/plugins/java/set-java-home.zsh
 fi
 {{- end }}
-
-# GPG Agent
-export GPG_TTY="$(tty)"
-export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
-gpgconf --launch gpg-agent
