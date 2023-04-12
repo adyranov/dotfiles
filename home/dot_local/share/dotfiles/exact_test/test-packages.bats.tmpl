@@ -11,18 +11,33 @@ setup() {
   assert_success
 }
 
-@test "bat" {
-  run bat --help
-  assert_success
-}
-
 @test "bash" {
   run bash --help
   assert_success
 }
 
+@test "bat" {
+  run bat --help
+  assert_success
+}
+
+@test "btop" {
+  run btop --help
+  assert_success
+}
+
+@test "cht.sh" {
+  run cht.sh --help
+  assert_success
+}
+
 @test "coreutils" {
   run realpath --help
+  assert_success
+}
+
+@test "croc" {
+  run croc --help
   assert_success
 }
 
@@ -38,6 +53,16 @@ setup() {
 
 @test "direnv" {
   run direnv --help
+  assert_success
+}
+
+@test "dust" {
+  run dust --help
+  assert_success
+}
+
+@test "duf" {
+  run duf --help
   assert_success
 }
 
@@ -71,8 +96,18 @@ setup() {
   assert_success
 }
 
+@test "hyperfine" {
+  run hyperfine --help
+  assert_success
+}
+
 @test "jq" {
   run jq --help
+  assert_success
+}
+
+@test "qrencode" {
+  run qrencode --help
   assert_success
 }
 
@@ -81,8 +116,23 @@ setup() {
   assert_success
 }
 
+@test "procs" {
+  run procs --help
+  assert_success
+}
+
 @test "ripgrep" {
   run rg --help
+  assert_success
+}
+
+@test "sd" {
+  run sd --help
+  assert_success
+}
+
+@test "tokei" {
+  run tokei --help
   assert_success
 }
 
@@ -93,6 +143,11 @@ setup() {
 
 @test "wget" {
   run wget --help
+  assert_success
+}
+
+@test "zbarimg" {
+  run zbarimg --help
   assert_success
 }
 

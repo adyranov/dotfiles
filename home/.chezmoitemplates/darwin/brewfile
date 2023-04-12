@@ -7,16 +7,12 @@
 "homebrew/command-not-found"
 "homebrew/core"
 -}}
+{{- if .toolchains.cloud -}}
+  {{- $taps = concat $taps (list "azure/kubelogin") -}}
+{{- end -}}
 
 
-{{- $brews := splitList " " (includeTemplate "universal/essential-packages" .) }}
-{{- $brews := without $brews "encfs" "gocryptfs" -}}
-{{- $brews := concat $brews (list
-"kubesess"
-"mas"
-"pinentry-mac"
-"reattach-to-user-namespace")
--}}
+{{- $brews := splitList " " (includeTemplate "darwin/packages" .) }}
 
 {{- $casks := list
 "brave-browser"
@@ -27,26 +23,8 @@
 -}}
 
 {{- if .toolchains.cloud -}}
-{{- $brews = concat $brews (list "azure-cli" "Azure/kubelogin/kubelogin") -}}
-{{- $taps = concat $taps (list "azure/kubelogin") -}}
-{{- if not .host.headless -}}
-{{- $brews = concat $brews (list "awscli") -}}
+  {{- $casks = concat $casks (list "google-cloud-sdk") -}}
 {{- end -}}
-{{- $casks = concat $casks (list "google-cloud-sdk") -}}
-{{- end -}}
-
-{{- if .toolchains.docker -}}
-{{- $brews = concat $brews (list "colima") -}}
-{{- end -}}
-
-{{- if .toolchains.kubernetes -}}
-{{- $casks = concat $casks (list "lens") -}}
-{{- end -}}
-
-{{- if .toolchains.python }}
-{{- $pyenvDependencies := list "openssl" "readline" "sqlite3" "xz" "zlib" "tcl-tk" -}}
-{{- $brews = concat $brews $pyenvDependencies -}}
-{{- end }}
 
 {{- if not .host.work -}}
 {{- $casks = concat $casks (list

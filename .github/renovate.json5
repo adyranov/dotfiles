@@ -37,6 +37,7 @@
       description: "Update Aqua weekly",
       matchPackageNames: ["aquaproj/aqua-registry", "aquaproj/aqua"],
       extends: ["schedule:weekly"],
+      groupName: "aqua",
     },
     {
       description: "Auto merge GitHub Actions weekly",

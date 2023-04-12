@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
 
-{{- $packages := splitList " " (includeTemplate "universal/essential-packages" .) }}
-{{- $packages :=  concat (without $packages "gh") (list "github-cli") -}}
-{{- $pyenvDependencies := list
-"base-devel"
-"openssl"
-"zlib"
-"xz"
-"tk"
-}}
-{{- if .toolchains.python }}
-{{- $packages = concat $packages $pyenvDependencies -}}
-{{- end }}
+{{- $packages := splitList " " (includeTemplate "archlinux/packages" .) }}
 
 # {{ includeTemplate "universal/next-update" . }}
 sudo pacman -Sy --noconfirm --needed {{ $packages | sortAlpha | uniq | join " " -}}

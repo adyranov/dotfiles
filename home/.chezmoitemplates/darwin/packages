@@ -1,0 +1,23 @@
+{{- $packages := splitList " " (includeTemplate "universal/common-packages" .) }}
+{{- $packages = without $packages "encfs" "gocryptfs" -}}
+{{- $packages = concat $packages (list
+"kubesess"
+"mas"
+"pinentry-mac"
+"reattach-to-user-namespace"
+)
+-}}
+{{- if .toolchains.cloud -}}
+    {{- $packages = concat $packages (list "azure-cli" "Azure/kubelogin/kubelogin") -}}
+    {{- if not .host.headless -}}
+        {{- $packages = concat $packages (list "awscli") -}}
+    {{- end -}}
+{{- end -}}
+{{- if .toolchains.docker -}}
+    {{- $packages = concat $packages (list "colima") -}}
+{{- end -}}
+{{- if .toolchains.python }}
+    {{- $pyenvDependencies := list "openssl" "readline" "sqlite3" "xz" "zlib" "tcl-tk" -}}
+    {{- $packages = concat $packages $pyenvDependencies -}}
+{{- end }}
+{{- $packages | sortAlpha | join " " -}}
