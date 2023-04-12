@@ -11,6 +11,10 @@ if [ "$(command -v bw)" ]; then
   bw completion --shell zsh > "{{ $compDir }}/_bw"
 fi
 
+if [ "$(command -v cht.sh)" ]; then
+ cht.sh :zsh > "{{ $compDir }}/_cht"
+fi
+
 if [ "$(command -v datree)" ]; then
   datree completion zsh > "{{ $compDir }}/_datree"
 fi
