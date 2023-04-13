@@ -63,6 +63,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+      - name: Cache Homebrew
+        uses: actions/cache@v3
+        if: ${{ matrix.os =='macos-12' }}
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+          key: brew-cache-${{ runner.os }}-${{ hashFiles('home/**') }}
+          restore-keys: brew-cache-
+      - name: Cache Apt
+        uses: actions/cache@v3
+        if: ${{ matrix.os =='ubuntu-22.04' }}
+        with:
+          path: /var/cache/apt/archives/*.deb
+          key: apt-cache-${{ runner.os }}-${{ hashFiles('home/**') }}
+          restore-keys: apt-cache-
       - name: Run install
         env:
           GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
