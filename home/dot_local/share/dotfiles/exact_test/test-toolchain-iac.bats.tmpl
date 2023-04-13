@@ -1,0 +1,35 @@
+{{- if .toolchains.iac }}
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "shellcheck" {
+  run shellcheck --help
+  assert_success
+}
+
+@test "sops" {
+  run sops --help
+  assert_success
+}
+
+@test "terraform" {
+  run terraform --help
+  assert_success
+}
+
+@test "terragrunt" {
+  run terragrunt --help
+  assert_success
+}
+
+@test "tflint" {
+  run tflint --help
+  assert_success
+}
+
+{{- end -}}

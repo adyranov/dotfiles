@@ -1,0 +1,19 @@
+{{- if .toolchains.java }}
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "java" {
+  run java --help
+  assert_success
+}
+
+@test "maven" {
+  run mvn --help
+  assert_success
+}
+{{- end -}}

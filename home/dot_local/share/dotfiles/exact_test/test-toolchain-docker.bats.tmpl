@@ -1,0 +1,19 @@
+{{- if .toolchains.docker }}
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "docker" {
+  run docker --help
+  assert_success
+}
+
+@test "dive" {
+  run dive --help
+  assert_success
+}
+{{- end -}}

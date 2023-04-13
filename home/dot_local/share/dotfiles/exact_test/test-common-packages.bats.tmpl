@@ -56,11 +56,6 @@ setup() {
   assert_success
 }
 
-@test "dust" {
-  run dust --help
-  assert_success
-}
-
 @test "duf" {
   run duf --help
   assert_success
@@ -116,18 +111,8 @@ setup() {
   assert_success
 }
 
-@test "procs" {
-  run procs --help
-  assert_success
-}
-
 @test "ripgrep" {
   run rg --help
-  assert_success
-}
-
-@test "sd" {
-  run sd --help
   assert_success
 }
 
@@ -166,7 +151,7 @@ setup() {
   assert_success
 }
 {{ end }}
-{{ if eq .host.distro.family "darwin" }}
+{{ if eq .host.distro.family "darwin" -}}
 @test "colima" {
   run colima --help
   assert_success
@@ -182,139 +167,19 @@ setup() {
   assert_success
 }
 {{ end }}
-{{ if .toolchains.docker }}
-@test "docker" {
-  run docker --help
+{{ if not (and (eq .host.distro.id "ubuntu") (eq .host.arch "arm64")) -}}
+@test "dust" {
+  run dust --help
   assert_success
 }
 
-@test "dive" {
-  run dive --help
-  assert_success
-}
-{{ end }}
-{{ if .toolchains.kubernetes }}
-@test "helm" {
-  run helm --help
+@test "procs" {
+  run procs --help
   assert_success
 }
 
-@test "k9s" {
-  run k9s --help
-  assert_success
-}
-
-@test "kubectl" {
-  run kubectl --help
-  assert_success
-}
-
-@test "kubectx" {
-  run kubectx --help
-  assert_success
-}
-
-@test "kubens" {
-  run kubens --help
-  assert_success
-}
-
-@test "kubesess" {
-  run kubesess --help
-  assert_success
-}
-
-@test "kustomize" {
-  run kustomize --help
-  assert_success
-}
-
-@test "yq" {
-  run yq --help
-  assert_success
-}
-
-{{ end }}
-{{ if .toolchains.golang }}
-@test "golang" {
-  run go version
-  assert_success
-}
-{{ end }}
-{{ if .toolchains.java }}
-@test "java" {
-  run java --help
-  assert_success
-}
-
-@test "maven" {
-  run mvn --help
-  assert_success
-}
-{{ end }}
-{{ if .toolchains.node }}
-@test "nodejs" {
-  run node --help
-  assert_success
-}
-
-@test "yarn" {
-  run yarn --help
-  assert_success
-}
-{{ end }}
-{{ if .toolchains.python }}
-@test "pre-commit" {
-  run pre-commit --help
-  assert_success
-}
-{{ end }}
-{{ if .toolchains.rust }}
-@test "rustc" {
-  run rustc --help
-  assert_success
-}
-{{ end }}
-{{ if .toolchains.iac }}
-@test "shellcheck" {
-  run shellcheck --help
-  assert_success
-}
-
-@test "sops" {
-  run sops --help
-  assert_success
-}
-
-@test "terraform" {
-  run terraform --help
-  assert_success
-}
-
-@test "terragrunt" {
-  run terragrunt --help
-  assert_success
-}
-
-@test "tflint" {
-  run tflint --help
-  assert_success
-}
-
-{{ end }}
-{{ if .toolchains.extra }}
-@test "datree" {
-  run datree --help
-  assert_success
-}
-
-@test "popeye" {
-  run popeye --help
-  assert_success
-}
-
-@test "stern" {
-  run stern --help
+@test "sd" {
+  run sd --help
   assert_success
 }
 {{ end }}
