@@ -1,0 +1,24 @@
+{{- if .toolchains.extra }}
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "datree" {
+  run datree --help
+  assert_success
+}
+
+@test "popeye" {
+  run popeye --help
+  assert_success
+}
+
+@test "stern" {
+  run stern --help
+  assert_success
+}
+{{- end -}}

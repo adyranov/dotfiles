@@ -1,0 +1,49 @@
+{{- if .toolchains.kubernetes }}
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "helm" {
+  run helm --help
+  assert_success
+}
+
+@test "k9s" {
+  run k9s --help
+  assert_success
+}
+
+@test "kubectl" {
+  run kubectl --help
+  assert_success
+}
+
+@test "kubectx" {
+  run kubectx --help
+  assert_success
+}
+
+@test "kubens" {
+  run kubens --help
+  assert_success
+}
+
+@test "kubesess" {
+  run kubesess --help
+  assert_success
+}
+
+@test "kustomize" {
+  run kustomize --help
+  assert_success
+}
+
+@test "yq" {
+  run yq --help
+  assert_success
+}
+{{- end -}}

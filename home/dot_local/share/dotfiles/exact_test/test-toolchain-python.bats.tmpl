@@ -1,0 +1,14 @@
+{{- if .toolchains.python }}
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "pre-commit" {
+  run pre-commit --help
+  assert_success
+}
+{{- end -}}

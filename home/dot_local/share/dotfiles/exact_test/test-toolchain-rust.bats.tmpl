@@ -1,0 +1,14 @@
+{{- if .toolchains.rust }}
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "rustc" {
+  run rustc --help
+  assert_success
+}
+{{- end -}}

@@ -1,0 +1,19 @@
+{{- if .toolchains.node }}
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "nodejs" {
+  run node --help
+  assert_success
+}
+
+@test "yarn" {
+  run yarn --help
+  assert_success
+}
+{{- end -}}

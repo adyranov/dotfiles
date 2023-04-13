@@ -1,0 +1,14 @@
+{{- if .toolchains.golang }}
+#!./test/bats/bin/bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+@test "golang" {
+  run go version
+  assert_success
+}
+{{- end -}}
