@@ -41,6 +41,7 @@ zstyle ':z4h:*' fzf-flags --prompt='» ' --pointer='▶' --marker='✓ ' --color
 # up-to-date. Cloned files can be used after `z4h init`. This is just an
 # example. If you don't plan to use Oh My Zsh, delete this line.
 z4h install ohmyzsh/ohmyzsh || return
+z4h install mroth/evalcache || return
 z4h install wfxr/forgit || return
 z4h install olets/zsh-abbr || return
 
@@ -80,6 +81,8 @@ z4h load ohmyzsh/ohmyzsh/plugins/gpg-agent
 z4h load ohmyzsh/ohmyzsh/plugins/kubectl
 z4h load ohmyzsh/ohmyzsh/plugins/sudo
 z4h load ohmyzsh/ohmyzsh/plugins/terraform
+
+z4h load mroth/evalcache
 
 # Customize forgit aliases to avoid conflicts with oh-my-zsh Git aliases
 forgit_log=fglo
@@ -147,7 +150,12 @@ setopt HIST_VERIFY               # Don't execute immediately upon history expans
 
 # Load direnv
 if command -v direnv >/dev/null 2>&1; then
-  eval "$(direnv hook zsh)"
+  _evalcache direnv hook zsh
+fi
+
+# Load broot
+if command -v broot >/dev/null 2>&1; then
+  _evalcache broot --print-shell-function zsh
 fi
 
 # Load local configuration.

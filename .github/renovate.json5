@@ -48,5 +48,14 @@
       extends: ["schedule:weekly"],
       groupName: "github-actions",
     },
+    {
+      description: "Auto merge pre-commit hooks weekly",
+      matchManagers: ["pre-commit"],
+      automerge: true,
+      automergeType: "branch",
+      ignoreTests: true,
+      extends: ["schedule:weekly"],
+      groupName: "pre-commit",
+    },
   ],
 }

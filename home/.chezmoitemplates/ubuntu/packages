@@ -2,6 +2,9 @@
 {{- $packages =  concat (without $packages "fd") (list "fd-find") -}}
 {{- $packages =  concat (without $packages "zbar") (list "zbar-tools") -}}
 {{- $packages =  without $packages "croc" "dust" "git-delta" "hyperfine" "procs" "sd" "tokei" -}}
+{{- if eq .host.arch "arm64" -}}
+{{- $packages =  without $packages "broot" "gping" "rclone" -}}
+{{- end -}}
 
 {{- $pyenvDependencies := list
 "make"

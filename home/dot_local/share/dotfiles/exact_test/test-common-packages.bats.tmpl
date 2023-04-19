@@ -168,13 +168,28 @@ setup() {
 }
 {{ end }}
 {{ if not (and (eq .host.distro.id "ubuntu") (eq .host.arch "arm64")) -}}
+@test "broot" {
+  run broot --help
+  assert_success
+}
+
 @test "dust" {
   run dust --help
   assert_success
 }
 
+@test "gping" {
+  run gping --help
+  assert_success
+}
+
 @test "procs" {
   run procs --help
+  assert_success
+}
+
+@test "rclone" {
+  run rclone --help
   assert_success
 }
 
