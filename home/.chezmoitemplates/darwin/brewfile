@@ -1,4 +1,8 @@
-{{- $taps := list
+{{- $taps := list -}}
+{{- $brews := list -}}
+{{- $casks := list -}}
+
+{{- $taps = list
 "homebrew/autoupdate"
 "homebrew/bundle"
 "homebrew/cask"
@@ -12,11 +16,12 @@
 {{- end -}}
 
 
-{{- $brews := splitList " " (includeTemplate "darwin/packages" .) }}
+{{- $brews = splitList " " (includeTemplate "darwin/packages" .) }}
 
-{{- $casks := list
+{{- $casks = list
 "brave-browser"
 "font-fira-code"
+"meld"
 "rectangle"
 "vlc"
 "xnviewmp"
@@ -30,20 +35,28 @@
 {{- $casks = concat $casks (list
 "authy"
 "calibre"
+"cryptomator"
+"displaycal"
 "dropbox"
 "google-drive"
 "handbrake"
 "iterm2"
 "jetbrains-toolbox"
 "private-internet-access"
+"signal"
 "skype"
 "spotify"
 "teamviewer"
 "telegram-desktop"
+"veracrypt"
 "visual-studio-code"
 "yandex-disk"
 "zoom"
 ) -}}
+{{- if eq .host.type "desktop" -}}
+  {{- $casks = concat $casks (list "stats") -}}
+{{- end -}}
+
 {{- end -}}
 
 {{- range ($taps | sortAlpha | uniq) }}
@@ -64,10 +77,16 @@ brew "{{ . }}"
 cask "{{ . }}"
 {{- end }}
 {{ if not .host.work }}
+mas "Bitwarden", id: 1352778147
 mas "Brother iPrint&Scan", id: 1193539993
 mas "Disk Speed Test", id: 425264550
+mas "Keynote", id: 409183694
 mas "Messenger", id: 1480068668
+mas "Microsoft Remote Desktop", id: 1295203466
+mas "Numbers", id: 409201541
+mas "Pages", id: 409201541
 mas "Slack", id: 803453959
 mas "The Unarchiver", id: 425424353
+mas "WireGuard", id: 1451685025
 {{- end -}}
 {{- end -}}
