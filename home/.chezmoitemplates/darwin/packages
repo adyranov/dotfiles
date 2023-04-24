@@ -1,5 +1,5 @@
 {{- $packages := splitList " " (includeTemplate "universal/common-packages" .) }}
-{{- $packages = without $packages "encfs" "gocryptfs" -}}
+{{- $packages = without $packages "gocryptfs" -}}
 {{- $packages = concat $packages (list
 "kubesess"
 "mas"
