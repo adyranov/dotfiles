@@ -35,7 +35,6 @@
 {{- $casks = concat $casks (list
 "authy"
 "calibre"
-"cryptomator"
 "displaycal"
 "dropbox"
 "google-drive"
@@ -66,7 +65,6 @@ tap "{{ . }}"
 tap "gromgit/fuse"
 
 cask "macfuse"
-brew "encfs-mac"
 brew "gocryptfs-mac"
 {{- end }}
 {{ range ($brews | sortAlpha | uniq) }}

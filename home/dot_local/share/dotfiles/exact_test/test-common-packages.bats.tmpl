@@ -141,11 +141,6 @@ setup() {
   assert_success
 }
 {{ if not .host.restricted }}
-@test "encfs" {
-  run encfs --version
-  assert_success
-}
-
 @test "gocryptfs" {
   run gocryptfs --help
   assert_success
