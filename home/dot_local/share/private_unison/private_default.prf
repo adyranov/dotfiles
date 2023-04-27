@@ -1,0 +1,35 @@
+#Setting the preference addprefsto filename makes Unison add new preferences to the file named filename instead
+addprefsto = default
+
+#When this is set to true, Unison will request an extra confirmation if it appears that the entire replica has been deleted, before propagating the change
+confirmbigdel = true
+
+#When this flag is set to true, the owner attributes of the files are synchronized
+owner = true
+
+#When this flag is set to true, the group attributes of the files are synchronized
+group = false
+
+#When this flag is set to true, file modification times (but not directory modtimes) are propagated
+times = true
+
+#If you want to synchronize all bits, you can set the value of this preference to −1.
+perms = -1
+
+#Enable compression on remove shell
+sshargs = -C
+
+#When this flag is set, the user interface will list changed files by size (smallest first) rather than by name
+sortbysize = true
+
+#When this flag is set, the user interface will list newly created files before all others
+sortnewfirst = true
+
+#Unison will log all changes to the filesystems on a file.
+log = true
+
+ignore = Name Thumbs.db
+ignore = Name .DS_Store
+ignore = Name .Trashes
+ignore = Name .sync.ffs_db
+ignore = Name .fseventsd

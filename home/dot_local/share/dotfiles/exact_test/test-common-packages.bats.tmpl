@@ -126,6 +126,11 @@ setup() {
   assert_success
 }
 
+@test "unison" {
+  run unison -version
+  assert_success
+}
+
 @test "wget" {
   run wget --help
   assert_success
