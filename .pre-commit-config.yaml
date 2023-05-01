@@ -17,7 +17,7 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.0.0-alpha.6
+    rev: v3.0.0-alpha.9-for-vscode
     hooks:
       - id: prettier
   - repo: https://github.com/gruntwork-io/pre-commit
@@ -26,7 +26,7 @@ repos:
       - id: shellcheck
         exclude: '.*\.tmpl|.*\.bats'
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.30.0
+    rev: v1.31.0
     hooks:
       - id: yamllint
   - repo: https://github.com/sirosen/check-jsonschema
@@ -48,6 +48,6 @@ repos:
     hooks:
       - id: detect-secrets
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 35.55.1
+    rev: 35.63.1
     hooks:
       - id: renovate-config-validator
