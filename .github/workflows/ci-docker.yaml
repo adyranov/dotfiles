@@ -32,7 +32,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
       - name: Paths Filter
         uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
         id: filter
@@ -78,12 +78,12 @@ jobs:
           - 5000:5000
     steps:
       - name: Checkout
-        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3.5.2
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
       - name: Set up QEMU
         uses: docker/setup-qemu-action@2b82ce82d56a2a04d2637cd93a637ae1b359c0a7 # v2
       - name: Setup Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@6a58db7e0d21ca03e6c44877909e80e45217eed2 # v2
+        uses: docker/setup-buildx-action@ecf95283f03858871ff00b787d79c419715afc34 # v2
         with:
           driver-opts: network=host
           install: true
@@ -107,7 +107,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and Export to Local Docker Registry
-        uses: docker/build-push-action@44ea916f6c540f9302d50c2b1e5a8dc071f15cdf # v4
+        uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4
         with:
           file: containers/${{ matrix.os }}/Dockerfile
           context: .
@@ -125,7 +125,7 @@ jobs:
         run: docker run --rm --platform arm64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
       - name: Generate Image Metadata
         id: metadata
-        uses: docker/metadata-action@2c0bd771b40637d97bf205cbccdd294a32112176 # v4
+        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175 # v4
         with:
           images: |
             ghcr.io/${{ github.repository }}
@@ -135,7 +135,7 @@ jobs:
             type=raw,value=${{ matrix.os }},enable={{is_default_branch}}
           flavor: latest=${{ github.ref_name == 'main' && contains(matrix.os, 'ubuntu') }}
       - name: Push Image
-        uses: docker/build-push-action@44ea916f6c540f9302d50c2b1e5a8dc071f15cdf # v4
+        uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4
         with:
           file: containers/${{ matrix.os }}/Dockerfile
           context: .
