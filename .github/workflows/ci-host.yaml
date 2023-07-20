@@ -35,7 +35,9 @@ jobs:
               - 'home/.chezmoi*'
               - 'home/.chezmoiscripts/universal/**'
               - 'home/.chezmoitemplates/universal/**'
+              - 'home/dot_*'
               - 'home/dot_*/**'
+              - 'home/private_dot_*'
               - 'home/private_dot_*/**'
               - 'install.sh'
               - .github/workflows/ci-host.yaml
