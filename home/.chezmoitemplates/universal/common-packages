@@ -17,7 +17,6 @@
   "git-delta"
   "gnupg"
   "gocryptfs"
-  "gping"
   "httpie"
   "hyperfine"
   "jq"
