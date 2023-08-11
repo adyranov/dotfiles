@@ -1,16 +1,16 @@
 {{- if .toolchains.golang -}}
-golang 1.20.6
+golang 1.20.7
 {{- end -}}
 {{- if .toolchains.iac }}
 terraform 1.5.4
-terragrunt 0.48.5
+terragrunt 0.48.6
 {{- end -}}
 {{- if .toolchains.java }}
 java adoptopenjdk-17.0.8+7
 maven 3.9.3
 {{- end -}}
 {{- if .toolchains.node }}
-nodejs 18.17.0
+nodejs 18.17.1
 {{- end -}}
 {{- if .toolchains.python }}
 python 3.11.4
