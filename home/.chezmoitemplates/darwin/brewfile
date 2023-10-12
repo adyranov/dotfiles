@@ -5,11 +5,9 @@
 {{- $taps = list
 "homebrew/autoupdate"
 "homebrew/bundle"
-"homebrew/cask"
 "homebrew/cask-fonts"
 "homebrew/cask-versions"
 "homebrew/command-not-found"
-"homebrew/core"
 -}}
 {{- if .toolchains.cloud -}}
   {{- $taps = concat $taps (list "azure/kubelogin") -}}

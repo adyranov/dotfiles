@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM buildpack-deps:kinetic-curl
+FROM buildpack-deps:jammy-curl
 
 ARG USER=devcontainer
 ARG UID=54321
