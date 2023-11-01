@@ -6,11 +6,12 @@ terraform 1.6.2
 terragrunt 0.53.0
 {{- end -}}
 {{- if .toolchains.java }}
+ant 1.10.14
 java adoptopenjdk-21.0.0+35.0.LTS
 maven 3.9.5
 {{- end -}}
 {{- if .toolchains.node }}
-nodejs 18.18.2
+nodejs 20.9.0
 {{- end -}}
 {{- if .toolchains.python }}
 python 3.12.0
