@@ -10,11 +10,7 @@ packages:
       - name: kubesess
         src: target/{{.Arch}}-{{.OS}}/release/kubesess
     replacements:
-      linux: unknown-linux-gnu
+      darwin: apple-darwin
+      linux: unknown-linux-musl
       amd64: x86_64
-      arm64: armv7
-    overrides:
-      - goos: linux
-        goarch: arm64
-        replacements:
-          linux: unknown-linux-musleabi
+      arm64: aarch64
