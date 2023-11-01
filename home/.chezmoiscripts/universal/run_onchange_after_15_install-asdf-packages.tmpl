@@ -17,6 +17,7 @@ asdf plugin-add terraform
 asdf plugin-add terragrunt
 {{- end -}}
 {{- if or .toolchains.java }}
+asdf plugin-add ant
 asdf plugin-add java
 asdf plugin-add maven
 {{- end }}
