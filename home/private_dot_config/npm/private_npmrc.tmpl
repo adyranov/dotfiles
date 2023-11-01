@@ -1,6 +1,3 @@
-{{- if .host.work -}}
-{{- joinPath .host.source "private_dot_config" "npm" "encrypted_work.npmrc.age" | include | decrypt -}}
-{{- end -}}
 fund=false
 audit=false
 cache=${XDG_CACHE_HOME}/npm
