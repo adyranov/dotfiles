@@ -8,9 +8,8 @@
 )
 -}}
 {{- if .toolchains.cloud -}}
-    {{- $packages = concat $packages (list "azure-cli" "Azure/kubelogin/kubelogin") -}}
     {{- if not .host.headless -}}
-        {{- $packages = concat $packages (list "awscli") -}}
+        {{- $packages = concat $packages (list "awscli" "azure-cli" "Azure/kubelogin/kubelogin") -}}
     {{- end -}}
 {{- end -}}
 {{- if .toolchains.docker -}}
