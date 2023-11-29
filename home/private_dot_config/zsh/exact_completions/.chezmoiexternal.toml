@@ -33,7 +33,7 @@
 {{- end }}
 [_rg]
     type = "file"
-    url = 'https://raw.githubusercontent.com/BurntSushi/ripgrep/master/complete/_rg'
+    url = 'https://raw.githubusercontent.com/BurntSushi/ripgrep/master/crates/core/flags/complete/rg.zsh'
     refreshPeriod = "{{ $refreshPeriod }}"
 {{- if .toolchains.iac }}
 [_terragrunt]
