@@ -1,8 +1,8 @@
 {{- if or .toolchains.kubernetes }}
 packages:
-  - name: helm/helm@v3.13.3
-  - name: derailed/k9s@v0.31.5
-  - name: kubernetes/kubectl@v1.29.0
+  - name: helm/helm@v3.14.0
+  - name: derailed/k9s@v0.31.7
+  - name: kubernetes/kubectl@v1.29.1
   - name: ahmetb/kubectx@v0.9.5
   - name: ahmetb/kubectx/kubens@v0.9.5
 {{- if eq .host.distro.family "linux" }}
