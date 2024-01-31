@@ -3,9 +3,9 @@ alias sudo='sudo ' # https://wiki.archlinux.org/title/Sudo#Passing_aliases
 alias reload="exec ${SHELL} -l"
 command -v kubecolor &>/dev/null && alias kubectl='kubecolor'
 
-# ls => exa
-if command -v exa &> /dev/null; then
-  alias ls='exa --group-directories-first --sort=name --classify'
+# ls => eza
+if command -v eza &> /dev/null; then
+  alias ls='eza --group-directories-first --sort=name --classify'
   alias la='ls -la'
   alias lt='ls --tree --level=2'
 fi
