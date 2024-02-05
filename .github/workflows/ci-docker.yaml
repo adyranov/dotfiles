@@ -125,7 +125,7 @@ jobs:
         run: docker run --rm --platform arm64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
       - name: Generate Image Metadata
         id: metadata
-        uses: docker/metadata-action@dbef88086f6cef02e264edb7dbf63250c17cef6c # v5
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5
         with:
           images: |
             ghcr.io/${{ github.repository }}
