@@ -97,7 +97,7 @@ export EDITOR="code --wait"
 {{- if eq .host.type "wsl" }}
 # WSL
 export LIBGL_ALWAYS_INDIRECT="1"
-export BROWSER="/mnt/c/Program\ Files\ \(x86\)/Google/Chrome/Application/chrome.exe"
+export BROWSER="/mnt/c/Program\ Files\ \(x86\)/Microsoft/Edge/Application/msedge.exe"
 {{- end }}
 
 {{- if (and (eq .host.distro.family "darwin") (.host.restricted)) }}

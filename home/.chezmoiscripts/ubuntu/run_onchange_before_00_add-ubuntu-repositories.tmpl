@@ -19,6 +19,10 @@ app_apt_repo "azlux" \
 "https://azlux.fr/repo.gpg" \
 "deb https://packages.azlux.fr/debian/ stable main"
 
+app_apt_repo "docker" \
+"https://download.docker.com/linux/ubuntu/gpg" \
+"deb https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+
 app_apt_repo "eza-community" \
 "https://raw.githubusercontent.com/eza-community/eza/main/deb.asc" \
 "deb http://deb.gierens.de stable main"

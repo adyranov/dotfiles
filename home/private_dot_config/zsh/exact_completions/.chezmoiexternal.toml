@@ -5,7 +5,7 @@
     type = "file"
     url = 'https://raw.githubusercontent.com/twpayne/chezmoi/master/completions/chezmoi.zsh'
     refreshPeriod = "{{ $refreshPeriod }}"
-[_exa]
+[_eza]
     type = "file"
     url = 'https://raw.githubusercontent.com/eza-community/eza/main/completions/zsh/_eza'
     refreshPeriod = "{{ $refreshPeriod }}"
