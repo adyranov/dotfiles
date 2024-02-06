@@ -19,6 +19,10 @@ if [ "$(command -v datree)" ]; then
   datree completion zsh > "{{ $compDir }}/_datree"
 fi
 
+if [ "$(command -v k3d)" ]; then
+  k3d completion zsh > "{{ $compDir }}/_k3d"
+fi
+
 if [ "$(command -v kubectl)" ]; then
   kubectl completion zsh | sed 's/kubectl/kubecolor/g' > "{{ $compDir }}/_kubecolor"
 fi
