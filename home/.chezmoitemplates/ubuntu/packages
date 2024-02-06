@@ -25,6 +25,9 @@
 "libffi-dev"
 "liblzma-dev"
 -}}
+{{- if and (.toolchains.docker) (not .host.headless) }}
+{{- $packages = concat $packages (list "docker-ce" "docker-ce-cli" "containerd.io" "docker-compose-plugin") -}}
+{{- end }}
 {{- if .toolchains.python }}
 {{- $packages = concat $packages $pyenvDependencies -}}
 {{- end }}
