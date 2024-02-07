@@ -11,9 +11,6 @@
     {{- if .toolchains.docker -}}
         {{- $packages = concat $packages (list "colima") -}}
     {{- end -}}
-    {{- if .toolchains.cloud -}}
-        {{- $packages = concat $packages (list "awscli" "azure-cli" "Azure/kubelogin/kubelogin") -}}
-    {{- end -}}
 {{- end -}}
 {{- if .toolchains.python }}
     {{- $pyenvDependencies := list "openssl" "readline" "sqlite3" "xz" "zlib" "tcl-tk" -}}
