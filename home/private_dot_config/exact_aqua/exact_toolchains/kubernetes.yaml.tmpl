@@ -1,4 +1,4 @@
-{{- if or .toolchains.kubernetes }}
+{{- if .toolchains.kubernetes }}
 packages:
   - name: helm/helm@v3.14.0
   - name: derailed/k9s@v0.31.7

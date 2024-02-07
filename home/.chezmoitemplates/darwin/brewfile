@@ -9,9 +9,6 @@
 "homebrew/cask-versions"
 "homebrew/command-not-found"
 -}}
-{{- if .toolchains.cloud -}}
-  {{- $taps = concat $taps (list "azure/kubelogin") -}}
-{{- end -}}
 
 
 {{- $brews = splitList " " (includeTemplate "darwin/packages" .) }}
@@ -25,9 +22,6 @@
 "xnviewmp"
 -}}
 
-{{- if .toolchains.cloud -}}
-  {{- $casks = concat $casks (list "google-cloud-sdk") -}}
-{{- end -}}
 
 {{- if not .host.work -}}
 {{- $casks = concat $casks (list
