@@ -26,7 +26,7 @@ repos:
       - id: shellcheck
         exclude: '.*\.tmpl|.*\.bats'
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.35.0
+    rev: v1.35.1
     hooks:
       - id: yamllint
   - repo: https://github.com/sirosen/check-jsonschema
@@ -48,6 +48,6 @@ repos:
     hooks:
       - id: detect-secrets
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 37.192.2
+    rev: 37.210.0
     hooks:
       - id: renovate-config-validator
