@@ -12,6 +12,11 @@ setup() {
   assert_success
 }
 
+@test "k3d" {
+  run k3d --help
+  assert_success
+}
+
 @test "k9s" {
   run k9s --help
   assert_success

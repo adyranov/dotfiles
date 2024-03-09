@@ -27,6 +27,9 @@ asdf plugin-add nodejs
 {{- if or .toolchains.python }}
 asdf plugin-add python
 {{- end }}
+{{- if .toolchains.kubernetes }}
+asdf plugin-add k3d
+{{- end -}}
 asdf update
 asdf plugin-update --all
 asdf install || true

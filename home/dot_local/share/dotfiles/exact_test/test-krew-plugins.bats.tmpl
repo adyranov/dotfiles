@@ -12,6 +12,16 @@ setup() {
   assert_success
 }
 
+@test "krew blame" {
+  run kubectl blame --help
+  assert_success
+}
+
+@test "krew cost" {
+  run kubectl cost --help
+  assert_success
+}
+
 @test "krew datree" {
   run kubectl datree version
   assert_success
@@ -27,8 +37,23 @@ setup() {
   assert_success
 }
 
+@test "krew images" {
+  run kubectl images --help
+  assert_success
+}
+
 @test "krew konfig" {
   run kubectl konfig --help
+  assert_success
+}
+
+@test "krew kubescape" {
+  run kubectl kubescape --help
+  assert_success
+}
+
+@test "krew kyverno" {
+  run kubectl kyverno --help
   assert_success
 }
 
@@ -44,6 +69,11 @@ setup() {
 
 @test "krew node-shell" {
   run kubectl node-shell -v
+  assert_success
+}
+
+@test "krew outdated" {
+  run kubectl outdated --help
   assert_success
 }
 
