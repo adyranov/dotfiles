@@ -8,15 +8,19 @@
 "homebrew/cask-fonts"
 "homebrew/cask-versions"
 "homebrew/command-not-found"
+"robusta-dev/homebrew-krr"
 -}}
 
 
 {{- $brews = splitList " " (includeTemplate "darwin/packages" .) }}
 
 {{- $casks = list
+"aws-vpn-client"
 "brave-browser"
 "font-fira-code"
 "meld"
+"microsoft-auto-update"
+"microsoft-teams"
 "rectangle"
 "vlc"
 "xnviewmp"
@@ -25,7 +29,7 @@
 
 {{- if not .host.work -}}
 {{- $casks = concat $casks (list
-"authy"
+"anydesk"
 "calibre"
 "displaycal"
 "dropbox"
@@ -39,9 +43,7 @@
 "skype"
 "spotify"
 "syncthing"
-"teamviewer"
 "telegram-desktop"
-"transmission-remote-gui"
 "veracrypt"
 "visual-studio-code"
 "yandex-disk"
