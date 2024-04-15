@@ -1,9 +1,9 @@
 {{- if .toolchains.golang -}}
-golang 1.22.1
+golang 1.22.2
 {{- end -}}
 {{- if .toolchains.iac }}
-terraform 1.7.5
-terragrunt 0.55.20
+terraform 1.8.0
+terragrunt 0.57.0
 {{- end -}}
 {{- if .toolchains.java }}
 ant 1.10.14
@@ -11,10 +11,10 @@ java adoptopenjdk-21.0.2+13.0.LTS
 maven 3.9.5
 {{- end -}}
 {{- if .toolchains.node }}
-nodejs 20.12.0
+nodejs 20.12.2
 {{- end -}}
 {{- if .toolchains.python }}
-python 3.12.2
+python 3.12.3
 {{- end -}}
 {{- if .toolchains.kubernetes }}
 k3d 5.6.0
