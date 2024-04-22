@@ -2,12 +2,12 @@
 golang 1.22.2
 {{- end -}}
 {{- if .toolchains.iac }}
-terraform 1.8.0
-terragrunt 0.57.0
+terraform 1.8.1
+terragrunt 0.57.5
 {{- end -}}
 {{- if .toolchains.java }}
 ant 1.10.14
-java adoptopenjdk-21.0.2+13.0.LTS
+java adoptopenjdk-21.0.3+9.0.LTS
 maven 3.9.5
 {{- end -}}
 {{- if .toolchains.node }}
