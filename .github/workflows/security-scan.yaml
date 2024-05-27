@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 5
     steps:
     - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@b2933f565dbc598b29947660e66259e3c7bc8561 # 0.20.0
+      uses: aquasecurity/trivy-action@fd25fed6972e341ff0007ddb61f77e88103953c2 # 0.21.0
       env:
         TRIVY_USERNAME: ${{ github.repository_owner }}
         TRIVY_PASSWORD: ${{ github.token }}
@@ -26,6 +26,6 @@ jobs:
         format: sarif
         output: trivy-results.sarif
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@b7cec7526559c32f1616476ff32d17ba4c59b2d6 # v3
+      uses: github/codeql-action/upload-sarif@9fdb3e49720b44c48891d036bb502feb25684276 # v3
       with:
         sarif_file: trivy-results.sarif
