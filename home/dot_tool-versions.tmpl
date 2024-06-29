@@ -2,8 +2,8 @@
 golang 1.22.4
 {{- end -}}
 {{- if .toolchains.iac }}
-terraform 1.8.5
-terragrunt 0.59.4
+terraform 1.9.0
+terragrunt 0.59.5
 {{- end -}}
 {{- if .toolchains.java }}
 ant 1.10.14
@@ -11,7 +11,7 @@ java adoptopenjdk-21.0.3+9.0.LTS
 maven 3.9.5
 {{- end -}}
 {{- if .toolchains.node }}
-nodejs 20.14.0
+nodejs 20.15.0
 {{- end -}}
 {{- if .toolchains.python }}
 python 3.12.4
