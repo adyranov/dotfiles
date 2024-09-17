@@ -5,8 +5,6 @@
 {{- $taps = list
 "homebrew/autoupdate"
 "homebrew/bundle"
-"homebrew/cask-fonts"
-"homebrew/cask-versions"
 "homebrew/command-not-found"
 "robusta-dev/homebrew-krr"
 -}}
