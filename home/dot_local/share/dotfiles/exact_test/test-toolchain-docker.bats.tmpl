@@ -16,4 +16,15 @@ setup() {
   run dive --help
   assert_success
 }
-{{- end -}}
+{{- if eq .host.distro.family "darwin" -}}
+{{- if not .host.headless }}
+{{- if .toolchains.docker }}
+
+@test "colima" {
+  run colima --help
+  assert_success
+}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

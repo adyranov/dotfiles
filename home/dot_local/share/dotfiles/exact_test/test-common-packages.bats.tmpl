@@ -152,10 +152,6 @@ setup() {
 }
 {{ end }}
 {{ if eq .host.distro.family "darwin" -}}
-@test "colima" {
-  run colima --help
-  assert_success
-}
 
 @test "mas" {
   run mas
