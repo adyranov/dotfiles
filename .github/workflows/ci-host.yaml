@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -41,11 +41,11 @@ jobs:
             - 'home/private_dot_*/**'
             - 'install.sh'
             - .github/workflows/ci-host.yaml
-          ubuntu-22.04:
+          ubuntu-24.04:
             - *shared
             - 'home/.chezmoiscripts/ubuntu/*'
             - 'home/.chezmoitemplates/ubuntu/*'
-          macos-12:
+          macos-14:
             - *shared
             - 'home/.chezmoiscripts/darwin/*'
             - 'home/.chezmoitemplates/darwin/*'
@@ -67,7 +67,7 @@ jobs:
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
     - name: Cache Homebrew
       uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
-      if: ${{ matrix.os =='macos-12' }}
+      if: ${{ matrix.os =='macos-14' }}
       with:
         path: |
           ~/Library/Caches/Homebrew
@@ -75,7 +75,7 @@ jobs:
         restore-keys: brew-cache-
     - name: Cache Apt
       uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
-      if: ${{ matrix.os =='ubuntu-22.04' }}
+      if: ${{ matrix.os =='ubuntu-24.04' }}
       with:
         path: /var/cache/apt/archives/*.deb
         key: apt-cache-${{ runner.os }}-${{ hashFiles('home/**') }}

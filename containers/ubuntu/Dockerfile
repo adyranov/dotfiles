@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.10
 
-FROM buildpack-deps:jammy-curl
+FROM buildpack-deps:noble-curl
 
 ARG USER=devcontainer
 ARG UID=54321
