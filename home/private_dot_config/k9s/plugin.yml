@@ -113,29 +113,6 @@ plugin:
     args:
     - -c
     - kubectl get namespace $NAME -o json | jq '.spec.finalizers=[]' | kubectl replace --raw /api/v1/namespaces/$NAME/finalize -f - > /dev/null
-# Get recommendations for CPU/Memory requests and limits using Robusta KRR
-  krr:
-    shortCut: Shift-K
-    description: Get krr
-    scopes:
-    - deployments
-    - daemonsets
-    - statefulsets
-    command: bash
-    background: false
-    confirm: false
-    args:
-    - -c
-    - |
-      LABELS=$(kubectl get $RESOURCE_NAME $NAME -n $NAMESPACE  --context $CONTEXT  --show-labels | awk '{print $NF}' | awk '{if(NR>1)print}')
-      krr simple --cluster $CONTEXT --selector $LABELS
-      echo "Press 'q' to exit"
-      while : ; do
-      read -n 1 k <&1
-      if [[ $k = q ]] ; then
-      break
-      fi
-      done
   # watch events on selected resources
   # requires linux "watch" command
   # change '-n' to adjust refresh time in seconds

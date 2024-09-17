@@ -6,7 +6,6 @@
 "homebrew/autoupdate"
 "homebrew/bundle"
 "homebrew/command-not-found"
-"robusta-dev/homebrew-krr"
 -}}
 
 
