@@ -11,11 +11,11 @@ source $HOME/.config/shell/exports.sh
 asdf plugin-add direnv
 {{- if .toolchains.golang }}
 asdf plugin-add golang
-{{- end -}}
+{{- end }}
 {{- if .toolchains.iac }}
 asdf plugin-add terraform
 asdf plugin-add terragrunt
-{{- end -}}
+{{- end }}
 {{- if or .toolchains.java }}
 asdf plugin-add ant
 asdf plugin-add java
@@ -29,7 +29,7 @@ asdf plugin-add python
 {{- end }}
 {{- if .toolchains.kubernetes }}
 asdf plugin-add k3d
-{{- end -}}
+{{- end }}
 asdf update
 asdf plugin-update --all
 asdf install || true
