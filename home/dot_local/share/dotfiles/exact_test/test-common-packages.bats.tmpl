@@ -111,6 +111,11 @@ setup() {
   assert_success
 }
 
+@test "rclone" {
+  run rclone --help
+  assert_success
+}
+
 @test "ripgrep" {
   run rg --help
   assert_success
@@ -176,11 +181,6 @@ setup() {
 
 @test "procs" {
   run procs --help
-  assert_success
-}
-
-@test "rclone" {
-  run rclone --help
   assert_success
 }
 

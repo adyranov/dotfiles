@@ -3,7 +3,7 @@
 {{- $packages =  concat (without $packages "zbar") (list "zbar-tools") -}}
 {{- $packages =  without $packages "croc" "dust" "git-delta" "hyperfine" "procs" "sd" "tokei" -}}
 {{- if eq .host.arch "arm64" -}}
-{{- $packages =  without $packages "broot" "rclone" -}}
+{{- $packages =  without $packages "broot" -}}
 {{- end -}}
 
 {{- $pyenvDependencies := list
