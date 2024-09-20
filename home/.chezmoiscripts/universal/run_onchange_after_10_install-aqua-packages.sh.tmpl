@@ -12,7 +12,7 @@ if [ ! $(command -v aqua) ] || [ $(aqua -v | head -n1 | cut -d" " -f3 | sed "s/^
 fi
 
 {{- $files := list -}}
-{{- range $path := glob (list .host.source "private_dot_config/aqua/**/*.yaml.tmpl" | join "/") }}
+{{- range $path := glob (list .host.source "private_dot_config/exact_aqua/**/*.yaml.tmpl" | join "/") }}
 {{- $files = concat $files (list (include $path)) -}}
 {{- end }}
 

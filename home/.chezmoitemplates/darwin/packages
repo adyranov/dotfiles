@@ -9,7 +9,7 @@
 -}}
 {{- if not .host.headless -}}
     {{- if .toolchains.docker -}}
-        {{- $packages = concat $packages (list "colima") -}}
+        {{- $packages = concat $packages (list "colima" "docker-buildx") -}}
     {{- end -}}
 {{- end -}}
 {{- if .toolchains.python }}

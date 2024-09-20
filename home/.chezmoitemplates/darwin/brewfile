@@ -12,12 +12,9 @@
 {{- $brews = splitList " " (includeTemplate "darwin/packages" .) }}
 
 {{- $casks = list
-"aws-vpn-client"
 "brave-browser"
 "font-fira-code"
 "meld"
-"microsoft-auto-update"
-"microsoft-teams"
 "rectangle"
 "vlc"
 "xnviewmp"
@@ -60,6 +57,7 @@ tap "gromgit/fuse"
 
 cask "macfuse"
 brew "gocryptfs-mac"
+brew "openssl@1.1"
 {{- end }}
 {{ range ($brews | sortAlpha | uniq) }}
 brew "{{ . }}"
