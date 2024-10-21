@@ -1,9 +1,9 @@
 {{- if .toolchains.kubernetes }}
 packages:
-  - name: helm/helm@v3.16.1
+  - name: helm/helm@v3.16.2
   - name: derailed/k9s@v0.32.5
   - name: kubernetes/kubectl@v1.31.1
-  - name: kubernetes-sigs/kustomize@kustomize/v5.4.3
+  - name: kubernetes-sigs/kustomize@kustomize/v5.5.0
   - name: ahmetb/kubectx@v0.9.5
   - name: ahmetb/kubectx/kubens@v0.9.5
 {{- if eq .host.distro.family "linux" }}
