@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.10
+# syntax=docker/dockerfile:1.11
 FROM adyranov/archlinux
 
 ARG USER=devcontainer
