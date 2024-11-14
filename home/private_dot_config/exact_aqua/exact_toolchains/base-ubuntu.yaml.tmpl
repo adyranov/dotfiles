@@ -1,12 +1,12 @@
 {{- if (eq .host.distro.id "ubuntu") -}}
 packages:
-  - name: schollz/croc@v10.0.13
+  - name: schollz/croc@v10.1.0
   - name: dandavison/delta@0.18.2
-  - name: sharkdp/hyperfine@v1.18.0
+  - name: sharkdp/hyperfine@v1.19.0
   - name: XAMPPRocky/tokei@v13.0.0-alpha.0
 {{- if not (and (eq .host.distro.id "ubuntu") (eq .host.arch "arm64")) }}
   - name: bootandy/dust@v1.1.1
-  - name: dalance/procs@v0.14.6
+  - name: dalance/procs@v0.14.8
   - name: chmln/sd@v1.0.0
 {{- end -}}
 {{- end -}}
