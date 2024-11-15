@@ -1,61 +1,86 @@
 {
-  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
-    "config:base",
-    ":automergeDigest",
-    ":automergeMinor",
-    ":enablePreCommit",
-    ":rebaseStalePrs",
-    ":semanticCommits",
-    ":semanticCommitScope(deps)",
-    "helpers:pinGitHubActionDigests",
-    "group:allNonMajor",
-    "github>aquaproj/aqua-renovate-config#2.3.1",
-    "github>aquaproj/aqua-renovate-config:installer-script#2.3.1(home/.chezmoiscripts/universal/.*aqua-packages\\.sh\\.tmpl)",
-    "github>aquaproj/aqua-renovate-config:file#2.3.1(home/private_dot_config/exact_aqua/aqua\\.yaml\\.tmpl)",
-    "github>aquaproj/aqua-renovate-config:file#2.3.1(home/private_dot_config/exact_aqua/exact_toolchains/.*\\.yaml\\.tmpl)",
+    'config:recommended',
+    ':automergeDigest',
+    ':automergeMinor',
+    ':enablePreCommit',
+    ':rebaseStalePrs',
+    ':semanticCommits',
+    ':semanticCommitScope(deps)',
+    'helpers:pinGitHubActionDigests',
+    'group:allNonMajor',
+    'github>aquaproj/aqua-renovate-config#2.3.1',
+    'github>aquaproj/aqua-renovate-config:installer-script#2.3.1(home/.chezmoiscripts/universal/.*aqua-packages\\.sh\\.tmpl)',
+    'github>aquaproj/aqua-renovate-config:file#2.3.1(home/private_dot_config/exact_aqua/aqua\\.yaml\\.tmpl)',
+    'github>aquaproj/aqua-renovate-config:file#2.3.1(home/private_dot_config/exact_aqua/exact_toolchains/.*\\.yaml\\.tmpl)',
   ],
-  labels: ["dependencies"],
-  stabilityDays: 3,
+  labels: [
+    'dependencies',
+  ],
+  minimumReleaseAge: '3 days',
   dependencyDashboardAutoclose: true,
   asdf: {
-    fileMatch: ["(^|/)\\.tool-versions$", "(^|/)dot_tool-versions.tmpl$"],
+    fileMatch: [
+      '(^|/)\\.tool-versions$',
+      '(^|/)dot_tool-versions.tmpl$',
+    ],
   },
-  regexManagers: [
+  customManagers: [
     {
-      fileMatch: ["\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$"],
-      matchStrings: ["# renovate: depName=(?<depName>.*) datasource=(?<datasource>.*)\\n\\s*current_\\w+_version=(?<currentValue>.+)\\b"],
+      customType: 'regex',
+      fileMatch: [
+        '\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$',
+      ],
+      matchStrings: [
+        '# renovate: depName=(?<depName>.*) datasource=(?<datasource>.*)\\n\\s*current_\\w+_version=(?<currentValue>.+)\\b',
+      ],
     },
   ],
   packageRules: [
     {
-      description: "Require dashboard approval for major updates",
-      matchUpdateTypes: ["major"],
+      description: 'Require dashboard approval for major updates',
+      matchUpdateTypes: [
+        'major',
+      ],
       dependencyDashboardApproval: true,
     },
     {
-      description: "Update Aqua weekly",
-      matchPackageNames: ["aquaproj/aqua-registry", "aquaproj/aqua"],
-      extends: ["schedule:weekly"],
-      groupName: "aqua",
+      description: 'Update Aqua weekly',
+      matchPackageNames: [
+        'aquaproj/aqua-registry',
+        'aquaproj/aqua',
+      ],
+      extends: [
+        'schedule:weekly',
+      ],
+      groupName: 'aqua',
     },
     {
-      description: "Auto merge GitHub Actions weekly",
-      matchManagers: ["github-actions"],
+      description: 'Auto merge GitHub Actions weekly',
+      matchManagers: [
+        'github-actions',
+      ],
       automerge: true,
-      automergeType: "branch",
+      automergeType: 'branch',
       ignoreTests: true,
-      extends: ["schedule:weekly"],
-      groupName: "github-actions",
+      extends: [
+        'schedule:weekly',
+      ],
+      groupName: 'github-actions',
     },
     {
-      description: "Auto merge pre-commit hooks weekly",
-      matchManagers: ["pre-commit"],
+      description: 'Auto merge pre-commit hooks weekly',
+      matchManagers: [
+        'pre-commit',
+      ],
       automerge: true,
-      automergeType: "branch",
+      automergeType: 'branch',
       ignoreTests: true,
-      extends: ["schedule:weekly"],
-      groupName: "pre-commit",
+      extends: [
+        'schedule:weekly',
+      ],
+      groupName: 'pre-commit',
     },
   ],
 }
