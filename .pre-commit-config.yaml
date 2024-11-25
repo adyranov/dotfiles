@@ -59,6 +59,6 @@ repos:
   - id: editorconfig-checker
     exclude: plist|tmpl|pub
 - repo: https://github.com/renovatebot/pre-commit-hooks
-  rev: 39.15.3
+  rev: 39.25.4
   hooks:
   - id: renovate-config-validator
