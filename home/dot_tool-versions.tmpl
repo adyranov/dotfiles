@@ -1,17 +1,17 @@
 {{- if .toolchains.golang -}}
-golang 1.23.4
+golang 1.23.5
 {{- end -}}
 {{- if .toolchains.iac }}
-terraform 1.10.3
-terragrunt 0.71.1
+terraform 1.10.5
+terragrunt 0.72.6
 {{- end -}}
 {{- if .toolchains.java }}
 ant 1.10.15
-java adoptopenjdk-21.0.5+11.0.LTS
+java adoptopenjdk-21.0.6+7.0.LTS
 maven 3.9.9
 {{- end -}}
 {{- if .toolchains.node }}
-nodejs 22.12.0
+nodejs 22.13.1
 {{- end -}}
 {{- if .toolchains.python }}
 python 3.13.1
