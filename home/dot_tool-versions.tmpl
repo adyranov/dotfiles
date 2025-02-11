@@ -1,9 +1,9 @@
 {{- if .toolchains.golang -}}
-golang 1.23.5
+golang 1.23.6
 {{- end -}}
 {{- if .toolchains.iac }}
 terraform 1.10.5
-terragrunt 0.72.6
+terragrunt 0.72.9
 {{- end -}}
 {{- if .toolchains.java }}
 ant 1.10.15
@@ -14,7 +14,7 @@ maven 3.9.9
 nodejs 22.13.1
 {{- end -}}
 {{- if .toolchains.python }}
-python 3.13.1
+python 3.13.2
 {{- end -}}
 {{- if .toolchains.kubernetes }}
 k3d 5.7.4
