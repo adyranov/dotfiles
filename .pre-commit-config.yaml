@@ -54,11 +54,11 @@ repos:
   - id: forbid-crlf
   - id: forbid-tabs
 - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-  rev: 3.2.0
+  rev: 3.2.1
   hooks:
   - id: editorconfig-checker
     exclude: plist|tmpl|pub
 - repo: https://github.com/renovatebot/pre-commit-hooks
-  rev: 39.213.4
+  rev: 39.227.2
   hooks:
   - id: renovate-config-validator

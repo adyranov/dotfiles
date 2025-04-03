@@ -4,7 +4,6 @@
 
 {{- $taps = list
 "homebrew/autoupdate"
-"homebrew/bundle"
 "homebrew/command-not-found"
 -}}
 
@@ -52,12 +51,9 @@
 {{- range ($taps | sortAlpha | uniq) }}
 tap "{{ . }}"
 {{- end }}
-{{- if not .host.restricted }}
-tap "gromgit/fuse"
-
+{{- if and (not .host.headless) (not .host.restricted) }}
 cask "macfuse"
-brew "gocryptfs-mac"
-brew "openssl@1.1"
+brew "gromgit/fuse/gocryptfs-mac"
 {{- end }}
 {{ range ($brews | sortAlpha | uniq) }}
 brew "{{ . }}"
