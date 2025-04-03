@@ -150,7 +150,7 @@ setup() {
   run zsh --help
   assert_success
 }
-{{ if not .host.restricted }}
+{{ if and (not .host.headless) (not .host.restricted) }}
 @test "gocryptfs" {
   run gocryptfs --help
   assert_success

@@ -72,8 +72,8 @@
   {{- $email = "artem.dyranov@gmail.com" -}}
   {{- $_ := set $secrets "age" true -}}
   {{- if eq $work false -}}
-    {{- $_ := set $gpg "sign" "0xAE12214C66692D96" -}}  # pragma: allowlist secret
-    {{- $_ := set $gpg "encrypt" "0xE770F55D35040481" -}}  # pragma: allowlist secret
+    {{- $_ := set $gpg "sign" "0xAE12214C66692D96" -}}
+    {{- $_ := set $gpg "encrypt" "0xE770F55D35040481" -}}
     {{- $_ := set $secrets "bitwarden" true -}}
   {{- end -}}
 {{- end -}}
@@ -96,7 +96,7 @@
 {{-   writeToStdout "Chezmoi is running in headless environment.\n" -}}
 {{- end -}}
 
-{{ if $secrets.age -}}
+{{ if $secrets.age }}
 encryption: age
 age:
   identity: "{{ $.chezmoi.homeDir }}/.config/age/key.txt"

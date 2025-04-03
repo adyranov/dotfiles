@@ -16,15 +16,15 @@ asdf plugin-add golang
 asdf plugin-add terraform
 asdf plugin-add terragrunt
 {{- end }}
-{{- if or .toolchains.java }}
+{{- if .toolchains.java }}
 asdf plugin-add ant
 asdf plugin-add java
 asdf plugin-add maven
 {{- end }}
-{{- if or .toolchains.node }}
+{{- if .toolchains.node }}
 asdf plugin-add nodejs
 {{- end }}
-{{- if or .toolchains.python }}
+{{- if .toolchains.python }}
 asdf plugin-add python
 {{- end }}
 {{- if .toolchains.kubernetes }}

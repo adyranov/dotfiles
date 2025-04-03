@@ -15,7 +15,7 @@ eval $(/usr/local/bin/brew shellenv)
 
 # {{ includeTemplate "universal/next-update" . }}
 brew update
-brew bundle --verbose --no-lock --file=/dev/stdin <<EOF
+brew bundle --verbose --file=/dev/stdin <<EOF
 {{ includeTemplate "darwin/brewfile" . }}
 EOF
 {{- if .host.interactive }}
