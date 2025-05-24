@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.14
+# syntax=docker/dockerfile:1.16
 
 FROM buildpack-deps:noble-curl
 
