@@ -21,7 +21,7 @@ repos:
   - id: pretty-format-yaml
     args: [--autofix, --indent, '2']
 - repo: https://github.com/gruntwork-io/pre-commit
-  rev: v0.1.29
+  rev: v0.1.30
   hooks:
   - id: shellcheck
     exclude: .*\.tmpl|.*\.bats
