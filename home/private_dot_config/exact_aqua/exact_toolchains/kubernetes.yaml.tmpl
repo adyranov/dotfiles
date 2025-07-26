@@ -1,9 +1,9 @@
 {{- if .toolchains.kubernetes }}
 packages:
-  - name: helm/helm@v3.17.2
-  - name: derailed/k9s@v0.40.10
-  - name: kubernetes/kubectl@v1.32.3
-  - name: kubernetes-sigs/kustomize@kustomize/v5.6.0
+  - name: helm/helm@v3.18.4
+  - name: derailed/k9s@v0.50.9
+  - name: kubernetes/kubectl@v1.33.3
+  - name: kubernetes-sigs/kustomize@kustomize/v5.7.1
   - name: ahmetb/kubectx@v0.9.5
   - name: ahmetb/kubectx/kubens@v0.9.5
 {{- if eq .host.distro.family "linux" }}
@@ -11,5 +11,5 @@ packages:
     registry: local
 {{- end }}
   - name: hidetatz/kubecolor@v0.0.25
-  - name: mikefarah/yq@v4.45.1
+  - name: mikefarah/yq@v4.47.1
 {{- end -}}
