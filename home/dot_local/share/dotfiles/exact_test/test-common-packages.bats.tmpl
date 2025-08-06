@@ -20,11 +20,12 @@ setup() {
   run bat --help
   assert_success
 }
-
+{{ if not (eq .host.type "ephemeral") }}
 @test "btop" {
   run btop --help
   assert_success
 }
+{{- end }}
 
 @test "coreutils" {
   run realpath --help
