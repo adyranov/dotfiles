@@ -142,3 +142,8 @@ if [ -n "${ZSH_VERSION-}" ] && [ -f "$ASDF_DIR/plugins/java/set-java-home.zsh" ]
   source $ASDF_DIR/plugins/java/set-java-home.zsh
 fi
 {{- end }}
+
+{{ if .toolchains.node -}}
+export NODE_OPTIONS=--use-system-ca
+{{- end }}
+
