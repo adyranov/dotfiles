@@ -21,16 +21,16 @@
   minimumReleaseAge: '3 days',
   dependencyDashboardAutoclose: true,
   asdf: {
-    fileMatch: [
-      '(^|/)\\.tool-versions$',
-      '(^|/)dot_tool-versions.tmpl$',
+    managerFilePatterns: [
+      '/(^|/)\\.tool-versions$/',
+      '/(^|/)dot_tool-versions.tmpl$/',
     ],
   },
   customManagers: [
     {
       customType: 'regex',
-      fileMatch: [
-        '\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$',
+      managerFilePatterns: [
+        '/\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$/',
       ],
       matchStrings: [
         '# renovate: depName=(?<depName>.*) datasource=(?<datasource>.*)\\n\\s*current_\\w+_version=(?<currentValue>.+)\\b',
