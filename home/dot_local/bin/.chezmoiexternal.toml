@@ -7,12 +7,6 @@
   refreshPeriod = "{{ $refreshPeriod }}"
   executable = true
 
-["cht.sh"]
-  type = "file"
-  url = "https://cht.sh/:cht.sh"
-  refreshPeriod = "{{ $refreshPeriod }}"
-  executable = true
-
 {{ if .toolchains.rust -}}
 [rustup-init]
     type = "file"

@@ -43,7 +43,16 @@ zstyle ':z4h:*' fzf-flags --prompt='» ' --pointer='▶' --marker='✓ ' --color
 z4h install ohmyzsh/ohmyzsh || return
 z4h install mroth/evalcache || return
 z4h install wfxr/forgit || return
+
+function z4h-postinstall:replace-with-github-clone() {
+  [[ -n $Z4H_PACKAGE_DIR && -n $Z4H_PACKAGE_NAME ]] && 'command' -v git 1>/dev/null || return 1
+
+  'command' 'rm' -rf $Z4H_PACKAGE_DIR
+
+  'command' 'git' clone --recurse-submodules --single-branch --depth 1 https://github.com/$Z4H_PACKAGE_NAME $Z4H_PACKAGE_DIR
+}
 z4h install olets/zsh-abbr || return
+zstyle :z4h:olets/zsh-abbr postinstall z4h-postinstall:replace-with-github-clone || return
 
 # Install or update core components (fzf, zsh-autosuggestions, etc.) and
 # initialize Zsh. After this point console I/O is unavailable until Zsh

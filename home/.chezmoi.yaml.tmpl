@@ -4,7 +4,7 @@
 {{- $restricted := false -}}
 {{- $work := false -}}
 {{- $gpg := dict "sign" "" "encrypt" "" -}}
-{{- $secrets := dict "age" false "bitwarden" false -}}
+{{- $secrets := dict "age" stdinIsATTY "bitwarden" false -}}
 {{- $toolchains := list "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" }}
 
 {{- $data := . }}
@@ -70,7 +70,6 @@
 {{- if eq $username "adyranov" -}}
   {{- $name = "Artem Dyranov" -}}
   {{- $email = "artem.dyranov@gmail.com" -}}
-  {{- $_ := set $secrets "age" true -}}
   {{- if eq $work false -}}
     {{- $_ := set $gpg "sign" "0xAE12214C66692D96" -}}
     {{- $_ := set $gpg "encrypt" "0xE770F55D35040481" -}}
