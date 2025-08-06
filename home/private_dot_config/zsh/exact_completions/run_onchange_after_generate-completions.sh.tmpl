@@ -7,6 +7,9 @@ source $HOME/.config/shell/exports.sh
 
 {{- $compDir:= joinPath .host.home ".config/zsh/completions" -}}
 
+if [ "$(command -v asdf)" ]; then
+  asdf completion zsh > "{{ $compDir }}/_asdf"
+fi
 if [ "$(command -v bw)" ]; then
   bw completion --shell zsh > "{{ $compDir }}/_bw"
 fi

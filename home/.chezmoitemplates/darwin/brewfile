@@ -10,35 +10,32 @@
 
 {{- $brews = splitList " " (includeTemplate "darwin/packages" .) }}
 
-{{- $casks = list
-"brave-browser"
-"font-fira-code"
-"meld"
-"rectangle"
-"vlc"
-"xnviewmp"
--}}
-
-
 {{- if not .host.work -}}
 {{- $casks = concat $casks (list
 "anydesk"
+"brave-browser"
 "calibre"
 "displaycal"
 "dropbox"
+"font-fira-code"
 "google-drive"
 "handbrake"
+"iina"
 "iterm2"
 "jetbrains-toolbox"
 "keepassxc"
+"meld"
 "private-internet-access"
+"rectangle"
+"rustdesk"
 "signal"
-"skype"
 "spotify"
 "syncthing"
 "telegram-desktop"
 "veracrypt"
 "visual-studio-code"
+"vlc"
+"xnviewmp"
 "yandex-disk"
 "zoom"
 ) -}}

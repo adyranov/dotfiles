@@ -43,6 +43,8 @@ export ASDF_CONFIG_FILE="$XDG_CONFIG_HOME/asdf/asdfrc"
 export AZURE_CONFIG_DIR="$XDG_DATA_HOME/azure"
 # cargo
 export CARGO_HOME="$XDG_DATA_HOME/cargo"
+# colima
+export COLIMA_HOME="$XDG_CONFIG_HOME/colima"
 # docker
 export DOCKER_CONFIG="$XDG_CONFIG_HOME/docker"
 # gnupg
@@ -129,10 +131,8 @@ fi
 add_to_path $KREW_ROOT/bin
 add_to_path $CARGO_HOME/bin
 add_to_path $AQUA_ROOT_DIR/bin
+add_to_path $ASDF_DATA_DIR/shims
 add_to_path $HOME/.local/bin
-
-[ -f "$ASDF_DIR/asdf.sh" ] && source "$ASDF_DIR/asdf.sh"
-
 
 unset -f add_to_path
 
