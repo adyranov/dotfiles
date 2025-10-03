@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -eufo pipefail
+
+source $HOME/.config/shell/exports.sh
+
+{{- $files := list -}}
+{{- range $path := glob (list .host.source "private_dot_config/exact_mise/**/*.toml.tmpl" | join "/") }}
+{{- $files = concat $files (list (include $path)) -}}
+{{- end }}
+
+# hash: {{ $files | join "" | sha256sum }}
+mise install

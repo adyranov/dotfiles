@@ -17,7 +17,7 @@ if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
     )
 fi
 
-krew_plugins=(
+KREW_PLUGINS=(
   access-matrix
   blame
   cost
@@ -43,9 +43,15 @@ krew_plugins=(
   who-can
 )
 
-for plugin in "${krew_plugins[@]}"
-do
-    echo Installing Krew plugin \"$plugin\"
-    $KREW_ROOT/bin/kubectl-krew install $plugin 2>/dev/null || true
+$KREW_ROOT/bin/kubectl-krew update 2>/dev/null
+$KREW_ROOT/bin/kubectl-krew upgrade 2>/dev/null
+
+for plugin in "${KREW_PLUGINS[@]}"; do
+    if ! $KREW_ROOT/bin/kubectl-krew list | grep -q "^$plugin$"; then
+        echo Installing Krew plugin "$plugin"
+        $KREW_ROOT/bin/kubectl-krew install "$plugin"
+    else
+        echo Krew plugin "$plugin" already installed
+    fi
 done
 {{- end -}}

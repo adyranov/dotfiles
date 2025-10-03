@@ -1,5 +1,5 @@
 {{- if .toolchains.node }}
-#!./test/bats/bin/bats
+#!/usr/bin/env bats
 
 load 'common-helper'
 
@@ -9,6 +9,16 @@ setup() {
 
 @test "nodejs" {
   run node --help
+  assert_success
+}
+
+@test "npm" {
+  run npm -v
+  assert_success
+}
+
+@test "pnpm" {
+  run pnpm --help
   assert_success
 }
 

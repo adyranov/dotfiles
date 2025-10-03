@@ -1,19 +1,14 @@
 {{- if .toolchains.extra -}}
-#!./test/bats/bin/bats
+#!/usr/bin/env bats
 
 load 'common-helper'
 
 setup() {
   common_setup
 }
-
+{{ if not (and (eq .host.distro.family "linux") (eq .host.arch "arm64")) -}}
 @test "krew access-matrix" {
   run kubectl access-matrix --help
-  assert_success
-}
-
-@test "krew blame" {
-  run kubectl blame --help
   assert_success
 }
 
@@ -22,13 +17,38 @@ setup() {
   assert_success
 }
 
-@test "krew datree" {
-  run kubectl datree version
+@test "krew deprecations" {
+  run kubectl deprecations --help
   assert_success
 }
 
-@test "krew deprecations" {
-  run kubectl deprecations --help
+@test "krew kyverno" {
+  run kubectl kyverno --help
+  assert_success
+}
+
+@test "krew score" {
+  run kubectl score --help
+  assert_success
+}
+
+@test "krew sniff" {
+  run kubectl sniff --help
+  assert_success
+}
+
+@test "krew tree" {
+  run kubectl tree --help
+  assert_success
+}
+{{ end }}
+@test "krew blame" {
+  run kubectl blame --help
+  assert_success
+}
+
+@test "krew datree" {
+  run kubectl datree version
   assert_success
 }
 
@@ -49,11 +69,6 @@ setup() {
 
 @test "krew kubescape" {
   run kubectl kubescape --help
-  assert_success
-}
-
-@test "krew kyverno" {
-  run kubectl kyverno --help
   assert_success
 }
 
@@ -79,21 +94,6 @@ setup() {
 
 @test "krew resource-capacity" {
   run kubectl resource-capacity --help
-  assert_success
-}
-
-@test "krew score" {
-  run kubectl score --help
-  assert_success
-}
-
-@test "krew sniff" {
-  run kubectl sniff --help
-  assert_success
-}
-
-@test "krew tree" {
-  run kubectl tree --help
   assert_success
 }
 

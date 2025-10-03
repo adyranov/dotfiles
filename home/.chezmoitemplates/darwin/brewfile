@@ -4,7 +4,6 @@
 
 {{- $taps = list
 "homebrew/autoupdate"
-"homebrew/command-not-found"
 -}}
 
 
@@ -13,28 +12,30 @@
 {{- if not .host.work -}}
 {{- $casks = concat $casks (list
 "anydesk"
+"appcleaner"
 "brave-browser"
 "calibre"
 "displaycal"
 "dropbox"
 "font-fira-code"
+"ghostty"
 "google-drive"
-"handbrake"
+"handbrake-app"
 "iina"
 "iterm2"
 "jetbrains-toolbox"
 "keepassxc"
-"meld"
-"private-internet-access"
+"localsend"
 "rectangle"
 "rustdesk"
 "signal"
 "spotify"
-"syncthing"
+"syncthing-app"
 "telegram-desktop"
 "veracrypt"
 "visual-studio-code"
 "vlc"
+"warp"
 "xnviewmp"
 "yandex-disk"
 "zoom"

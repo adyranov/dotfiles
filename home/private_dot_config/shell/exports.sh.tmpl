@@ -31,14 +31,6 @@ export LC_ALL="en_US.UTF-8"
 
 # android
 export ANDROID_HOME="$XDG_DATA_HOME/android"
-# aqua
-export AQUA_ROOT_DIR="$XDG_DATA_HOME/aqua"
-export AQUA_GLOBAL_CONFIG="$XDG_CONFIG_HOME/aqua/aqua.yaml"
-export AQUA_POLICY_CONFIG="$XDG_CONFIG_HOME/aqua/aqua-policy.yaml"
-# asdf
-export ASDF_DIR="$XDG_DATA_HOME/asdf"
-export ASDF_DATA_DIR="$ASDF_DIR"
-export ASDF_CONFIG_FILE="$XDG_CONFIG_HOME/asdf/asdfrc"
 # azure
 export AZURE_CONFIG_DIR="$XDG_DATA_HOME/azure"
 # cargo
@@ -50,7 +42,7 @@ export DOCKER_CONFIG="$XDG_CONFIG_HOME/docker"
 # gnupg
 export GNUPGHOME="$XDG_DATA_HOME/gnupg"
 # go
-export GOPATH="$XDG_DATA_HOME/go"
+export GOPROXY="https://proxy.golang.org,direct"
 # gradle
 export GRADLE_USER_HOME="$XDG_DATA_HOME/gradle"
 # homebrew
@@ -68,14 +60,14 @@ export MAVEN_CONFIG="-gs $XDG_CONFIG_HOME/maven/settings.xml" # For maven-wrappe
 export MAVEN_ARGS="$MAVEN_CONFIG" # For Maven >= 3.9.0
 # minikube
 export MINIKUBE_HOME="$XDG_DATA_HOME/minikube"
+# mise
+export MISE_NODE_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/npm/default-npm-packages"
+export MISE_PYTHON_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/pip/default-python-packages"
 # node
 export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
-export ASDF_NPM_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/npm/default-npm-packages"
 export NODE_REPL_HISTORY="$XDG_CACHE_HOME/node_repl_history"
 # pass
 export PASSWORD_STORE_DIR="$XDG_DATA_HOME/pass"
-# python
-export ASDF_PYTHON_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/pip/default-python-packages"
 # rustup
 export RUSTUP_HOME="$XDG_DATA_HOME/rustup"
 # terminfo
@@ -123,27 +115,25 @@ case ":$PATH:" in
         export PATH="$1:$PATH"
         ;;
 esac
+
 {{- if eq .host.distro.family "darwin" }}
-if [ -n "${HOMEBREW_PREFIX-}" ] ; then
-  add_to_path $HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin
-fi
+{{- if eq .host.arch "arm64" }}
+eval $(/opt/homebrew/bin/brew shellenv)
+{{- else }}
+eval $(/usr/local/bin/brew shellenv)
+{{- end }}
+add_to_path $HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin
 {{- end }}
 add_to_path $KREW_ROOT/bin
 add_to_path $CARGO_HOME/bin
-add_to_path $AQUA_ROOT_DIR/bin
-add_to_path $ASDF_DATA_DIR/shims
 add_to_path $HOME/.local/bin
 
 unset -f add_to_path
 
-{{ if .toolchains.java -}}
-# JAVA_HOME from ASDF
-if [ -n "${ZSH_VERSION-}" ] && [ -f "$ASDF_DIR/plugins/java/set-java-home.zsh" ] ; then
-  source $ASDF_DIR/plugins/java/set-java-home.zsh
+CURRENT_SHELL=$(ps -p $$ -o comm= | awk -F/ '{print $NF}' | sed 's/^-//')
+
+if [ -n "$CURRENT_SHELL" ]; then
+    eval "$("$HOME/.local/bin/mise" activate "$CURRENT_SHELL")"
+else
+    echo "Warning: Could not detect current shell, skipping mise activation"
 fi
-{{- end }}
-
-{{ if .toolchains.node -}}
-export NODE_OPTIONS=--use-system-ca
-{{- end }}
-

@@ -10,33 +10,18 @@
     ':semanticCommitScope(deps)',
     'helpers:pinGitHubActionDigests',
     'group:allNonMajor',
-    'github>aquaproj/aqua-renovate-config#2.9.0',
-    'github>aquaproj/aqua-renovate-config:installer-script#2.9.0(home/.chezmoiscripts/universal/.*aqua-packages\\.sh\\.tmpl)',
-    'github>aquaproj/aqua-renovate-config:file#2.9.0(home/private_dot_config/exact_aqua/aqua\\.yaml\\.tmpl)',
-    'github>aquaproj/aqua-renovate-config:file#2.9.0(home/private_dot_config/exact_aqua/exact_toolchains/.*\\.yaml\\.tmpl)',
   ],
   labels: [
     'dependencies',
   ],
   minimumReleaseAge: '3 days',
   dependencyDashboardAutoclose: true,
-  asdf: {
+  mise: {
     managerFilePatterns: [
-      '/(^|/)\\.tool-versions$/',
-      '/(^|/)dot_tool-versions.tmpl$/',
+      "home/private_dot_config/exact_mise/mise\.toml\\.tmpl",
+      "home/private_dot_config/exact_mise/exact_conf.d/.*\\.toml\\.tmpl"
     ],
   },
-  customManagers: [
-    {
-      customType: 'regex',
-      managerFilePatterns: [
-        '/\\.chezmoiscripts\\/universal\\/.*aqua-packages\\.sh\\.tmpl$/',
-      ],
-      matchStrings: [
-        '# renovate: depName=(?<depName>.*) datasource=(?<datasource>.*)\\n\\s*current_\\w+_version=(?<currentValue>.+)\\b',
-      ],
-    },
-  ],
   packageRules: [
     {
       description: 'Require dashboard approval for major updates',
@@ -44,17 +29,6 @@
         'major',
       ],
       dependencyDashboardApproval: true,
-    },
-    {
-      description: 'Update Aqua weekly',
-      matchPackageNames: [
-        'aquaproj/aqua-registry',
-        'aquaproj/aqua',
-      ],
-      extends: [
-        'schedule:weekly',
-      ],
-      groupName: 'aqua',
     },
     {
       description: 'Auto merge GitHub Actions weekly',

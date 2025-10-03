@@ -41,51 +41,75 @@ jobs:
             - 'home/private_dot_*/**'
             - 'install.sh'
             - .github/workflows/ci-host.yaml
-          ubuntu-24.04:
+          ubuntu:
             - *shared
             - 'home/.chezmoiscripts/ubuntu/*'
             - 'home/.chezmoitemplates/ubuntu/*'
-          macos-15:
+          macos:
             - *shared
             - 'home/.chezmoiscripts/darwin/*'
             - 'home/.chezmoitemplates/darwin/*'
     - name: Set Matrix
       id: set-matrix
       run: |
-        MATRIX=$(echo '${{ steps.filter.outputs.changes }}' | jq -c 'del(.[] | select(. == "shared")) | {os: select(length > 0) }')
-        echo matrix="$MATRIX" >> $GITHUB_OUTPUT
+        CHANGES='${{ steps.filter.outputs.changes }}'
+        MATRIX=$(jq -c '
+          map(
+            if . == "ubuntu" then
+              ["ubuntu-24.04","ubuntu-24.04-arm"]
+            elif . == "macos" then
+              ["macos-15","macos-15-intel"]
+            else
+              []
+            end
+          )
+          | add
+        ' <<< "$CHANGES")
+        if [[ "$MATRIX" == "null" || "$MATRIX" == "" ]]; then
+          MATRIX='[]'
+        fi
+        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
   host-build:
-    needs: [changes]
-    if: ${{ needs.changes.outputs.matrix != '' && needs.changes.outputs.matrix != '[]' }}
-    strategy:
-      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
-      fail-fast: false
+    needs: changes
+    if: ${{ needs.changes.outputs.matrix != '[]' }}
     runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ${{ fromJSON(needs.changes.outputs.matrix) }}
+      fail-fast: false
     timeout-minutes: 60
     steps:
     - name: Checkout
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-    - name: Cache Homebrew
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-      if: ${{ startsWith(matrix.os, 'macos') }}
+    - name: Restore Cache
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: |
-          ~/Library/Caches/Homebrew
-        key: brew-cache-${{ runner.os }}-${{ hashFiles('home/**') }}
-        restore-keys: brew-cache-
-    - name: Cache Apt
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-      if: ${{ startsWith(matrix.os, 'ubuntu') }}
-      with:
-        path: /var/cache/apt/archives/*.deb
-        key: apt-cache-${{ runner.os }}-${{ hashFiles('home/**') }}
-        restore-keys: apt-cache-
+          ~/Library/Caches/Homebrew/Formula
+          ~/Library/Caches/Homebrew/downloads
+          ~/.local/share/mise/downloads
+          ~/.local/share/helm/plugins
+          ~/.local/share/krew/store
+        key: chezmoi-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/**') }}
+        restore-keys: chezmoi-cache-${{ runner.os }}-${{ runner.arch }}-
     - name: Run install
       env:
         GITHUB_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         HOMEBREW_NO_INSTALL_CLEANUP: 1
+        MISE_FETCH_REMOTE_VERSIONS_TIMEOUT: 60
       run: ./install.sh
     - name: Run tests
       run: ~/.local/bin/check-dotfiles
+    - name: Save Cache
+      if: ${{ always() }}
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: |
+          ~/Library/Caches/Homebrew/Formula
+          ~/Library/Caches/Homebrew/downloads
+          ~/.local/share/mise/downloads
+          ~/.local/share/helm/plugins
+          ~/.local/share/krew/store
+        key: chezmoi-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/**') }}
