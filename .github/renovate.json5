@@ -18,8 +18,7 @@
   dependencyDashboardAutoclose: true,
   mise: {
     managerFilePatterns: [
-      "home/private_dot_config/exact_mise/mise\.toml\\.tmpl",
-      "home/private_dot_config/exact_mise/exact_conf.d/.*\\.toml\\.tmpl"
+      "home/private_dot_config/exact_mise/.includes/*.toml"
     ],
   },
   packageRules: [

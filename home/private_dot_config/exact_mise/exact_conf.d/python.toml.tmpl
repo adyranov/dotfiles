@@ -1,4 +1,3 @@
-{{- if .toolchains.python }}
-[tools]
-python = '3.13.7'
-{{- end }}
+{{- if .toolchains.python -}}
+{{- include "private_dot_config/exact_mise/.includes/python.toml" }}
+{{- end -}}

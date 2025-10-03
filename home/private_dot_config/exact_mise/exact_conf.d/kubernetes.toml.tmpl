@@ -1,13 +1,3 @@
-{{- if .toolchains.kubernetes }}
-[tools]
-helm = '3.19.0'
-k3d = '5.8.3'
-k9s = '0.50.13'
-kubectl = '1.34.1'
-kustomize = '5.7.1'
-kubectx = '0.9.5'
-kubens = '0.9.5'
-kubecolor = '0.5.2'
-yq = '4.47.2'
-'ubi:Ramilito/kubesess' = '2.0.3-1'
-{{- end }}
+{{- if .toolchains.kubernetes -}}
+{{- include "private_dot_config/exact_mise/.includes/kubernetes.toml" }}
+{{- end -}}

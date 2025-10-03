@@ -1,4 +1,3 @@
-{{- if .toolchains.rust }}
-[tools]
-rust = '1.90'
-{{- end }}
+{{- if .toolchains.rust -}}
+{{- include "private_dot_config/exact_mise/.includes/rust.toml" }}
+{{- end -}}

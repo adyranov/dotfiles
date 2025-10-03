@@ -1,4 +1,3 @@
-{{- if .toolchains.node }}
-[tools]
-node = { version = "22", postinstall = "corepack enable" }
-{{- end }}
+{{- if .toolchains.node -}}
+{{- include "private_dot_config/exact_mise/.includes/node.toml" }}
+{{- end -}}

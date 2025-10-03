@@ -1,4 +1,3 @@
-{{- if .toolchains.golang }}
-[tools]
-golang = '1.25.1'
-{{- end }}
+{{- if .toolchains.golang -}}
+{{- include "private_dot_config/exact_mise/.includes/golang.toml" }}
+{{- end -}}
