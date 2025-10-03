@@ -1,0 +1,6 @@
+[tools]
+terraform = '1.13.3'
+terragrunt = '0.88.1'
+shellcheck = '0.11.0'
+sops = '3.11.0'
+tflint = '0.59.1'

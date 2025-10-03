@@ -1,6 +1,3 @@
-{{- if .toolchains.docker }}
-[tools]
-docker-cli = '28.4.0'
-nerdctl = { version ='2.1.6', os = ['linux'] }
-'ubi:wagoodman/dive' = '0.13.1'
-{{- end }}
+{{- if .toolchains.docker -}}
+{{- include "private_dot_config/exact_mise/.includes/docker.toml" }}
+{{- end -}}

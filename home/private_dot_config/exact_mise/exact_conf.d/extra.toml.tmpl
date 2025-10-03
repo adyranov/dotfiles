@@ -1,6 +1,3 @@
-{{- if .toolchains.extra }}
-[tools]
-datree = '1.9.19'
-popeye = '0.22.1'
-stern = '1.33.0'
-{{- end }}
+{{- if .toolchains.extra -}}
+{{- include "private_dot_config/exact_mise/.includes/extra.toml" }}
+{{- end -}}

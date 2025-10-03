@@ -1,0 +1,4 @@
+[tools]
+datree = '1.9.19'
+popeye = '0.22.1'
+stern = '1.33.0'

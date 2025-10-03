@@ -1,4 +1,3 @@
-{{- if .toolchains.cloud }}
-[tools]
-aws-cli = '2.31.6'
-{{- end }}
+{{- if .toolchains.cloud -}}
+{{- include "private_dot_config/exact_mise/.includes/cloud.toml" }}
+{{- end -}}
