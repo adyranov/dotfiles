@@ -61,13 +61,18 @@ jobs:
     - name: Set Matrix
       id: set-matrix
       run: |
-        MATRIX=$(echo '${{ steps.filter.outputs.changes }}' | jq -c 'del(.[] | select(. == "shared")) | {os: select(length > 0) }')
-        echo matrix="$MATRIX" >> $GITHUB_OUTPUT
+        CHANGES='${{ steps.filter.outputs.changes }}'
+        MATRIX=$(echo "$CHANGES" | jq -c 'del(.[] | select(. == "shared"))')
+        if [[ -z "$MATRIX" || "$MATRIX" == "null" ]]; then
+          MATRIX='[]'
+        fi
+        echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
   docker-build:
     needs: [changes]
-    if: ${{ needs.changes.outputs.matrix != '' && needs.changes.outputs.matrix != '[]' }}
+    if: ${{ needs.changes.outputs.matrix != '[]' }}
     strategy:
-      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+      matrix:
+        os: ${{ fromJSON(needs.changes.outputs.matrix) }}
       fail-fast: false
     runs-on: ubuntu-24.04
     timeout-minutes: 60

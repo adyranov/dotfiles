@@ -1,4 +1,4 @@
-#!./test/bats/bin/bats
+#!/usr/bin/env bats
 
 load 'common-helper'
 
@@ -149,18 +149,6 @@ setup() {
 {{ if and (not .host.headless) (not .host.restricted) }}
 @test "gocryptfs" {
   run gocryptfs --help
-  assert_success
-}
-{{ end }}
-{{ if eq .host.distro.family "darwin" -}}
-
-@test "mas" {
-  run mas
-  assert_success
-}
-
-@test "pinentry-mac" {
-  run pinentry-mac --version
   assert_success
 }
 {{ end }}

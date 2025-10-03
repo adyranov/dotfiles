@@ -1,0 +1,4 @@
+{{- if .toolchains.node }}
+[tools]
+node = { version = "22", postinstall = "corepack enable" }
+{{- end }}

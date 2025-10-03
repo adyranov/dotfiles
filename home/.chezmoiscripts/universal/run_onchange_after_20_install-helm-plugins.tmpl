@@ -5,14 +5,18 @@ source $HOME/.config/shell/exports.sh
 
 # {{ includeTemplate "universal/next-update" . }}
 
-helm_plugins=(
-  https://github.com/databus23/helm-diff
-  https://github.com/jkroepke/helm-secrets
+declare -A HELM_PLUGINS=(
+    ["diff"]="https://github.com/databus23/helm-diff" # pragma: allowlist secret
+    ["secrets"]="https://github.com/jkroepke/helm-secrets" # pragma: allowlist secret
 )
 
-for plugin in "${helm_plugins[@]}"
-do
-    echo Installing Helm plugin \"$plugin\"
-    helm plugin install $plugin 2>/dev/null|| true
+for name in "${!HELM_PLUGINS[@]}"; do
+    url=${HELM_PLUGINS[$name]}
+    if ! helm plugin list | awk '{print $1}' | grep -qx "$name"; then
+        echo "Installing Helm plugin $name"
+        helm plugin install "$url"
+    else
+        echo "Helm plugin $name already installed"
+    fi
 done
 {{- end -}}

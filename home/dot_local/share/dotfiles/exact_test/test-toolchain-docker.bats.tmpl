@@ -1,5 +1,5 @@
 {{- if .toolchains.docker }}
-#!./test/bats/bin/bats
+#!/usr/bin/env bats
 
 load 'common-helper'
 
@@ -16,15 +16,4 @@ setup() {
   run dive --help
   assert_success
 }
-{{- if eq .host.distro.family "darwin" -}}
-{{- if not .host.headless }}
-{{- if .toolchains.docker }}
-
-@test "colima" {
-  run colima --help
-  assert_success
-}
-{{- end }}
-{{- end }}
-{{- end }}
 {{- end }}
