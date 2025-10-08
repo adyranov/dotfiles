@@ -39,10 +39,10 @@
 {{- $brewPath := "/usr/local/bin/brew" }}
 {{- if eq .chezmoi.os "darwin" }}
   {{- if eq .chezmoi.arch "arm64" }}
-  {{- $brewPath := "/opt/homebrew/bin/brew" }}
+  {{- $brewPath = "/opt/homebrew/bin/brew" }}
   {{- end }}
 {{- else if eq .chezmoi.os "linux" }}
-  {{- $brewPath := "/home/linuxbrew/.linuxbrew/bin/brew" }}
+  {{- $brewPath = "/home/linuxbrew/.linuxbrew/bin/brew" }}
 {{- end }}
 
 {{- $chassisType := "desktop" }}
