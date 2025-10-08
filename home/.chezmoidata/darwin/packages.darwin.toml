@@ -1,11 +1,4 @@
 [packages.common]
-gocryptfs = {disabled = "headless", overrides = {darwin = {name = "gromgit/fuse/gocryptfs-mac"}}}
 mas = {os = "darwin", test = "mas version"}
 pinentry-mac = {os = "darwin", test = "pinentry-mac --version"}
 reattach-to-user-namespace = {os = "darwin", test = "reattach-to-user-namespace --version"}
-
-[packages.docker]
-qemu = {os = "darwin", test = "qemu-system-x86_64 --version"}
-colima = {os = "darwin", test = "colima version"}
-docker = {os = "darwin", test = "docker --version"}
-docker-buildx = {os = "darwin", test = "docker-buildx version"}

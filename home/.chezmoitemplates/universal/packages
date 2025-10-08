@@ -24,10 +24,13 @@
         {{- $pkgDisabled := index $override "disabled" | default (index $pkg "disabled" | default false) -}}
         {{- $disabled := false -}}
         {{- if kindIs "string" $pkgDisabled -}}
-            {{- if and (eq $pkgDisabled "headless") $root.host.headless -}}
+            {{- if and ($pkgDisabled | contains "headless") $root.host.headless -}}
                 {{- $disabled = true -}}
             {{- end -}}
-            {{- if eq $pkgDisabled $root.host.type -}}
+            {{- if and ($pkgDisabled | contains "restricted") $root.host.restricted -}}
+                {{- $disabled = true -}}
+            {{- end -}}
+            {{- if $pkgDisabled | contains $root.host.type -}}
                 {{- $disabled = true -}}
             {{- end -}}
         {{- else if kindIs "bool" $pkgDisabled -}}

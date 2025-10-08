@@ -18,7 +18,6 @@ gh = {test = "gh --version", overrides = {archlinux = {name = "github-cli"}}}
 git = {test = "git --version"}
 git-delta = {test = "delta --version", overrides = {ubuntu = {name = "delta", manager = "mise"}}}
 gnupg = {test = "gpg --version"}
-gocryptfs = {test = "gocryptfs -version"}
 httpie = {test = "http --version"}
 hyperfine = {test = "hyperfine --version", overrides = {ubuntu = {manager = "mise"}}}
 jq = {test = "jq --version"}
@@ -35,9 +34,15 @@ wget = {test = "wget --version"}
 zsh = {test = "zsh --version"}
 
 [packages.docker]
+qemu = {os = "darwin", test = "qemu-system-x86_64 --version"}
+colima = {os = "darwin", test = "colima version"}
+docker = {test = "docker --version", overrides = {ubuntu = {name = "docker-ce"}}}
+docker-compose = {test = "docker compose --version", overrides = {ubuntu = {name = "docker-compose-plugin"}}}
+docker-buildx = {os = "darwin", test = "docker-buildx version"}
 dive = {name = "ubi:wagoodman/dive", test = "dive --version", manager = "mise"}
 
 [packages.extra]
+gocryptfs = {disabled = "headless,restricted", test = "gocryptfs -version", overrides = {darwin = {name = "gromgit/fuse/gocryptfs-mac"}}}
 qrencode = {test = "qrencode --version"}
 unison = {test = "unison -version"}
 zbar = {test = "zbarimg --version", overrides = {ubuntu = {name = "zbar-tools"}}}
