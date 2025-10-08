@@ -5,114 +5,114 @@ plugin:
     confirm: false
     description: Blame
     scopes:
-    - all
+      - all
     command: sh
     background: false
     args:
-    - -c
-    - kubectl-blame $RESOURCE_NAME $NAME -n $NAMESPACE --context $CONTEXT | less
+      - -c
+      - kubectl-blame $RESOURCE_NAME $NAME -n $NAMESPACE --context $CONTEXT | less
   # Dive into image layers
   dive:
     shortCut: d
     confirm: false
     description: Dive image
     scopes:
-    - containers
+      - containers
     command: dive
     background: false
     args:
-    - $COL-IMAGE
+      - $COL-IMAGE
   # Get all resources in a namespace using the krew get-all plugin
   get-all-namespace:
     shortCut: g
     confirm: false
     description: get-all
     scopes:
-    - namespaces
+      - namespaces
     command: sh
     background: false
     args:
-    - -c
-    - kubectl get-all --context $CONTEXT -n $NAME | less -K
+      - -c
+      - kubectl get-all --context $CONTEXT -n $NAME | less -K
   get-all-other:
     shortCut: g
     confirm: false
     description: get-all
     scopes:
-    - all
+      - all
     command: sh
     background: false
     args:
-    - -c
-    - kubectl get-all --context $CONTEXT -n $NAMESPACE | less -K
+      - -c
+      - kubectl get-all --context $CONTEXT -n $NAMESPACE | less -K
   # Edit Secret
   edit-secret:
     shortCut: Ctrl-X
     confirm: false
     description: Edit Decoded Secret
     scopes:
-    - secrets
+      - secrets
     command: kubectl
     background: false
     args:
-    - modify-secret
-    - --namespace
-    - $NAMESPACE
-    - --context
-    - $CONTEXT
-    - $NAME
+      - modify-secret
+      - --namespace
+      - $NAMESPACE
+      - --context
+      - $CONTEXT
+      - $NAME
   # Leverage stern (https://github.com/stern/stern) to output logs.
   stern:
     shortCut: Ctrl-L
     confirm: false
     description: Logs <Stern>
     scopes:
-    - pods
+      - pods
     command: stern
     background: false
     args:
-    - --tail
-    - 50
-    - $FILTER
-    - -n
-    - $NAMESPACE
-    - --context
-    - $CONTEXT
+      - --tail
+      - 50
+      - $FILTER
+      - -n
+      - $NAMESPACE
+      - --context
+      - $CONTEXT
   # Removes all finalizers from the selected resource.
   remove_finalizers:
     shortCut: Ctrl-F
     confirm: true
     scopes:
-    - all
+      - all
     description: |
       Removes all finalizers from selected resource. Be careful when using it,
       it may leave dangling resources or delete them
     command: kubectl
     background: true
     args:
-    - patch
-    - --context
-    - $CONTEXT
-    - --namespace
-    - $NAMESPACE
-    - $RESOURCE_NAME
-    - $NAME
-    - -p
-    - '{"metadata":{"finalizers":null}}'
-    - --type
-    - merge
+      - patch
+      - --context
+      - $CONTEXT
+      - --namespace
+      - $NAMESPACE
+      - $RESOURCE_NAME
+      - $NAME
+      - -p
+      - '{"metadata":{"finalizers":null}}'
+      - --type
+      - merge
   # remove finalizers from a stuck namespace
   rm-ns:
     shortCut: n
     confirm: true
     description: Remove NS Finalizers
     scopes:
-    - namespace
+      - namespace
     command: sh
     background: false
     args:
-    - -c
-    - kubectl get namespace $NAME -o json | jq '.spec.finalizers=[]' | kubectl replace --raw /api/v1/namespaces/$NAME/finalize -f - > /dev/null
+      - -c
+      - kubectl get namespace $NAME -o json | jq '.spec.finalizers=[]' | kubectl replace --raw /api/v1/namespaces/$NAME/finalize -f - > /dev/null
   # watch events on selected resources
   # requires linux "watch" command
   # change '-n' to adjust refresh time in seconds
@@ -121,9 +121,9 @@ plugin:
     confirm: false
     description: Get Events
     scopes:
-    - all
+      - all
     command: sh
     background: false
     args:
-    - -c
-    - watch -n 5 kubectl get events --context $CONTEXT --namespace $NAMESPACE --field-selector involvedObject.name=$NAME
+      - -c
+      - watch -n 5 kubectl get events --context $CONTEXT --namespace $NAMESPACE --field-selector involvedObject.name=$NAME

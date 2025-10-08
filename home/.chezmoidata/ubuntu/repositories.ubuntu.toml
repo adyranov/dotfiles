@@ -1,0 +1,23 @@
+[repositories.ubuntu.azlux]
+key_url = "https://azlux.fr/repo.gpg"
+repo_line = "deb https://packages.azlux.fr/debian/ stable main"
+
+[repositories.ubuntu.docker]
+key_url = "https://download.docker.com/linux/ubuntu/gpg"
+repo_line = "deb https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+
+[repositories.ubuntu.eza-community]
+key_url = "https://raw.githubusercontent.com/eza-community/eza/main/deb.asc"
+repo_line = "deb http://deb.gierens.de stable main"
+
+[repositories.ubuntu.git-core-ubuntu-ppa]
+key_url = "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xe1dd270288b4e6030699e45fa1715d88e1df1f24"
+repo_line = "deb http://ppa.launchpad.net/git-core/ppa/ubuntu $(lsb_release -cs) main"
+
+[repositories.ubuntu.github-cli]
+key_url = "https://cli.github.com/packages/githubcli-archive-keyring.gpg"
+repo_line = "deb https://cli.github.com/packages stable main"
+
+[repositories.ubuntu.mise]
+key_url = "https://mise.jdx.dev/gpg-key.pub"
+repo_line = "deb https://mise.jdx.dev/deb stable main"

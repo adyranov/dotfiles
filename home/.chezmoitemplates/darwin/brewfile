@@ -1,76 +1,47 @@
+{{- $darwin := .darwin -}}
+{{- $host := .host -}}
+
 {{- $taps := list -}}
-{{- $brews := list -}}
+{{- $brews := splitList " " (includeTemplate "universal/packages" (dict "root" .)) }}
 {{- $casks := list -}}
+{{- $mas := list -}}
 
-{{- $taps = list
-"homebrew/autoupdate"
--}}
+{{- with $darwin.common }}
+  {{- $taps = concat $taps (index . "taps" | default list) -}}
+  {{- $brews = concat $brews (index . "brews" | default list) -}}
+  {{- $casks = concat $casks (index . "casks" | default list) -}}
+  {{- $mas = concat $mas (index . "mas" | default list) -}}
+{{- end }}
 
+{{- if not $host.work }}
+  {{- with $darwin.personal }}
+    {{- $taps = concat $taps (index . "taps" | default list) -}}
+    {{- $brews = concat $brews (index . "brews" | default list) -}}
+    {{- $casks = concat $casks (index . "casks" | default list) -}}
+    {{- $mas = concat $mas (index . "mas" | default list) -}}
+  {{- end }}
+{{- end }}
 
-{{- $brews = splitList " " (includeTemplate "darwin/packages" .) }}
-
-{{- if not .host.work -}}
-{{- $casks = concat $casks (list
-"anydesk"
-"appcleaner"
-"brave-browser"
-"calibre"
-"displaycal"
-"dropbox"
-"font-fira-code"
-"ghostty"
-"google-drive"
-"handbrake-app"
-"iina"
-"iterm2"
-"jetbrains-toolbox"
-"keepassxc"
-"localsend"
-"rectangle"
-"rustdesk"
-"signal"
-"spotify"
-"syncthing-app"
-"telegram-desktop"
-"veracrypt"
-"visual-studio-code"
-"vlc"
-"warp"
-"xnviewmp"
-"yandex-disk"
-"zoom"
-) -}}
-{{- if eq .host.type "desktop" -}}
-  {{- $casks = concat $casks (list "stats") -}}
-{{- end -}}
-
-{{- end -}}
+{{- if $host.work }}
+  {{- with $darwin.work }}
+    {{- $taps = concat $taps (index . "taps" | default list) -}}
+    {{- $brews = concat $brews (index . "brews" | default list) -}}
+    {{- $casks = concat $casks (index . "casks" | default list) -}}
+    {{- $mas = concat $mas (index . "mas" | default list) -}}
+  {{- end }}
+{{- end }}
 
 {{- range ($taps | sortAlpha | uniq) }}
 tap "{{ . }}"
-{{- end }}
-{{- if and (not .host.headless) (not .host.restricted) }}
-cask "macfuse"
-brew "gromgit/fuse/gocryptfs-mac"
 {{- end }}
 {{ range ($brews | sortAlpha | uniq) }}
 brew "{{ . }}"
 {{- end }}
 {{- if not .host.headless -}}
-{{- range ($casks | sortAlpha | uniq) }}
+{{ range ($casks | sortAlpha | uniq) }}
 cask "{{ . }}"
 {{- end }}
-{{ if not .host.work }}
-mas "Bitwarden", id: 1352778147
-mas "Brother iPrint&Scan", id: 1193539993
-mas "Disk Speed Test", id: 425264550
-mas "Keynote", id: 409183694
-mas "Messenger", id: 1480068668
-mas "Microsoft Remote Desktop", id: 1295203466
-mas "Numbers", id: 409201541
-mas "Pages", id: 409201541
-mas "Slack", id: 803453959
-mas "The Unarchiver", id: 425424353
-mas "WireGuard", id: 1451685025
-{{- end -}}
-{{- end -}}
+{{ range ($mas | uniq) }}
+mas "{{ .name }}", id: {{ .id }}
+{{- end }}
+{{- end }}

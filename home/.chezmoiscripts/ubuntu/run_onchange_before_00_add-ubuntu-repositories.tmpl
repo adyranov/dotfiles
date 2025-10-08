@@ -1,28 +1,22 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 function app_apt_repo {
-  if [ ! -f /etc/apt/sources.list.d/$1.list ]; then
-      curl -fsSL "$2" | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/$1.gpg
-      echo "$3" | sudo tee /etc/apt/sources.list.d/$1.list
+  local name="$1"
+  local key_url="$2"
+  local repo_line="$3"
+
+  if [ ! -f "/etc/apt/sources.list.d/${name}.list" ]; then
+    echo "Setting up APT repository: ${name}"
+    curl -fsSL "$key_url" | gpg --dearmor | sudo tee "/etc/apt/trusted.gpg.d/${name}.gpg" >/dev/null
+    echo "$repo_line" | sudo tee "/etc/apt/sources.list.d/${name}.list" >/dev/null
+  else
+    echo "APT repository ${name} already exists, skipping."
   fi
 }
 
-app_apt_repo "git-core-ubuntu-ppa" \
-"https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xe1dd270288b4e6030699e45fa1715d88e1df1f24" \
-"deb http://ppa.launchpad.net/git-core/ppa/ubuntu $(lsb_release -cs) main"
-
-app_apt_repo "github-cli" \
-"https://cli.github.com/packages/githubcli-archive-keyring.gpg" \
-"deb https://cli.github.com/packages stable main"
-
-app_apt_repo "azlux" \
-"https://azlux.fr/repo.gpg" \
-"deb https://packages.azlux.fr/debian/ stable main"
-
-app_apt_repo "docker" \
-"https://download.docker.com/linux/ubuntu/gpg" \
-"deb https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-
-app_apt_repo "eza-community" \
-"https://raw.githubusercontent.com/eza-community/eza/main/deb.asc" \
-"deb http://deb.gierens.de stable main"
+{{- with .repositories.ubuntu }}
+{{- range $name, $repo := . }}
+app_apt_repo "{{ $name }}" "{{ $repo.key_url }}" "{{ $repo.repo_line }}"
+{{- end }}
+{{- end }}

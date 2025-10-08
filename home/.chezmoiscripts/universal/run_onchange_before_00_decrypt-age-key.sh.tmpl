@@ -1,18 +1,13 @@
 {{- if .secrets.age -}}
 #!/usr/bin/env bash
 
-if [ ! "$(command -v age)" ]; then
-  echo "age command was not found"
-  exit 1
-fi
-
 {{- $encryptedKey := joinPath .host.source ".keys/key.txt.age" }}
 {{- $decryptedKey := joinPath .host.home ".config/age/key.txt" }}
 
 if [ ! -f "{{ $decryptedKey }}" ]; then
     echo "Decrypting {{ $encryptedKey }}"
     mkdir -p "{{ .host.home }}/.config/age"
-    age --decrypt --output "{{ $decryptedKey }}" "{{ $encryptedKey }}"
+    chezmoi age --decrypt --output "{{ $decryptedKey }}" "{{ $encryptedKey }}"
     chmod 600 "{{ $decryptedKey }}"
 fi
 {{- end -}}

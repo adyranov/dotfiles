@@ -30,6 +30,21 @@
 {{- $_ := set $distro "id" "archlinux" -}}
 {{- end -}}
 
+{{- $supported := "darwin,ubuntu,archlinux" }}
+{{- if not ($supported | contains $distro.id) }}
+{{- writeToStdout (printf "Unsupported distro: %s\n" $distro.id) }}
+{{- exit 1 }}
+{{- end }}
+
+{{- $brewPath := "/usr/local/bin/brew" }}
+{{- if eq .chezmoi.os "darwin" }}
+  {{- if eq .chezmoi.arch "arm64" }}
+  {{- $brewPath := "/opt/homebrew/bin/brew" }}
+  {{- end }}
+{{- else if eq .chezmoi.os "linux" }}
+  {{- $brewPath := "/home/linuxbrew/.linuxbrew/bin/brew" }}
+{{- end }}
+
 {{- $chassisType := "desktop" }}
 {{- if $ephemeral -}}
 {{-   $chassisType = "ephemeral" }}
@@ -95,9 +110,21 @@
 {{-   writeToStdout "Chezmoi is running in headless environment.\n" -}}
 {{- end -}}
 
+hooks:
+  read-source-state:
+    pre:
+      command: /usr/bin/env
+      args:
+        - -S
+        - bash
+        - -euo
+        - pipefail
+        - {{ joinPath .chezmoi.sourceDir (printf ".chezmoiscripts/%s/.init.sh" $distro.id) | toToml }}
+
 {{ if $secrets.age }}
 encryption: age
 age:
+  command: "rage"
   identity: "{{ $.chezmoi.homeDir }}/.config/age/key.txt"
   recipient: "age16kxd4ljclq9ksnxvl2ee7a5xnj744kwyv04p04ka0n3rzxdpl5nsq52svl" # pragma: allowlist secret
 {{- end }}
@@ -107,6 +134,8 @@ diff:
 status:
   exclude: ["always"]
 data:
+    brew:
+      path: "{{ $brewPath }}"
     cache:
       secrets:
         dir: "{{ joinPath .chezmoi.cacheDir "user" .chezmoi.username "secrets" }}"

@@ -1,4 +1,4 @@
-{{- if .toolchains.extra -}}
+{{- if .toolchains.kubernetes -}}
 #!/usr/bin/env bash
 
 source $HOME/.config/shell/exports.sh
@@ -6,8 +6,14 @@ source $HOME/.config/shell/exports.sh
 # {{ includeTemplate "universal/next-update" . }}
 
 declare -A HELM_PLUGINS=(
-    ["diff"]="https://github.com/databus23/helm-diff" # pragma: allowlist secret
-    ["secrets"]="https://github.com/jkroepke/helm-secrets" # pragma: allowlist secret
+{{- $packages := splitList " " (includeTemplate "universal/packages" (dict "root" . "packageManager" "helm")) -}}
+{{- range $pkg := $packages -}}
+{{- if ne $pkg "" }}
+  {{- $basename := regexReplaceAll ".*\\/([^/]+?)(\\.git)?$" $pkg "${1}" }}
+  {{- $name := regexReplaceAll "^helm-" $basename "" }}
+  ["{{ $name }}"]="{{ $pkg }}"
+{{- end -}}
+{{- end }}
 )
 
 for name in "${!HELM_PLUGINS[@]}"; do

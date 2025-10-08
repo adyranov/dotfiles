@@ -16,11 +16,6 @@
   ],
   minimumReleaseAge: '3 days',
   dependencyDashboardAutoclose: true,
-  mise: {
-    managerFilePatterns: [
-      "home/private_dot_config/exact_mise/.includes/*.toml"
-    ],
-  },
   packageRules: [
     {
       description: 'Require dashboard approval for major updates',

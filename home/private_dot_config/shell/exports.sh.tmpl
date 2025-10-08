@@ -62,6 +62,7 @@ export MAVEN_ARGS="$MAVEN_CONFIG" # For Maven >= 3.9.0
 export MINIKUBE_HOME="$XDG_DATA_HOME/minikube"
 # mise
 export MISE_NODE_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/npm/default-npm-packages"
+export MISE_NODE_COREPACK="true"
 export MISE_PYTHON_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/pip/default-python-packages"
 # node
 export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
@@ -117,11 +118,7 @@ case ":$PATH:" in
 esac
 
 {{- if eq .host.distro.family "darwin" }}
-{{- if eq .host.arch "arm64" }}
-eval $(/opt/homebrew/bin/brew shellenv)
-{{- else }}
-eval $(/usr/local/bin/brew shellenv)
-{{- end }}
+eval $({{ .brew.path }} shellenv)
 add_to_path $HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin
 {{- end }}
 add_to_path $KREW_ROOT/bin
@@ -133,7 +130,7 @@ unset -f add_to_path
 CURRENT_SHELL=$(ps -p $$ -o comm= | awk -F/ '{print $NF}' | sed 's/^-//')
 
 if [ -n "$CURRENT_SHELL" ]; then
-    eval "$("$HOME/.local/bin/mise" activate "$CURRENT_SHELL")"
+    eval "$(mise activate "$CURRENT_SHELL")"
 else
     echo "Warning: Could not detect current shell, skipping mise activation"
 fi

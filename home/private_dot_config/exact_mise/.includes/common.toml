@@ -1,9 +1,0 @@
-[tools]
-usage = 'latest'
-'ubi:schollz/croc' = '10.2.5'
-delta = '0.18.2'
-hyperfine = '1.19.0'
-tokei = '13.0.0-alpha.0'
-'ubi:bootandy/dust' = '1.2.3'
-'ubi:dalance/procs' = '0.14.10'
-sd = '1.0.0'

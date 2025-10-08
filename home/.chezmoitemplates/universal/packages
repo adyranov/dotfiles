@@ -1,0 +1,100 @@
+{{- $root := .root -}}
+{{- $packageManager := index . "packageManager" | default "system" -}}
+{{- $render := index . "render" | default "plain" -}}
+{{- $os := $root.host.distro.id -}}
+{{- $arch := $root.host.arch -}}
+
+{{- $packages := dict -}}
+
+{{- $enabledToolchains := list "common" -}}
+{{- range $toolName, $enabled := $root.toolchains }}
+    {{- if $enabled }}
+        {{- $enabledToolchains = append $enabledToolchains $toolName -}}
+    {{- end }}
+{{- end }}
+
+{{- range $i, $toolName := $enabledToolchains }}
+    {{- $toolPackages := index $root.packages $toolName | default dict -}}
+    {{- range $id, $pkg := $toolPackages }}
+        {{- $pkgOs := index $pkg "os" | default "" -}}
+        {{- if and $pkgOs (ne $pkgOs $os) }}{{- continue -}}{{- end }}
+        {{- $pkgOverrides := index $pkg "overrides" | default dict -}}
+        {{- $override := index $pkgOverrides $os | default dict -}}
+
+        {{- $pkgDisabled := index $override "disabled" | default (index $pkg "disabled" | default false) -}}
+        {{- $disabled := false -}}
+        {{- if kindIs "string" $pkgDisabled -}}
+            {{- if and (eq $pkgDisabled "headless") $root.host.headless -}}
+                {{- $disabled = true -}}
+            {{- end -}}
+            {{- if eq $pkgDisabled $root.host.type -}}
+                {{- $disabled = true -}}
+            {{- end -}}
+        {{- else if kindIs "bool" $pkgDisabled -}}
+            {{- $disabled = $pkgDisabled -}}
+        {{- end }}
+        {{- if $disabled -}} {{- continue -}} {{- end }}
+
+        {{- $pkgName := printf "%s" (index $override "name" | default (index $pkg "name" | default $id)) -}}
+        {{- $pkgMgr := printf "%s" (index $override "manager" | default (index $pkg "manager" | default "system")) -}}
+        {{- $pkgTest := printf "%s" (index $override "test" | default (index $pkg "test" | default "")) -}}
+        {{- $pkgVersion := printf "%s" (index $override "version" | default (index $pkg "version" | default "")) -}}
+        {{- $pkgExcludeArch := index $override "exclude_arch" | default list -}}
+
+        {{- $archExcluded := false -}}
+        {{- range $j, $a := $pkgExcludeArch }}
+            {{- if eq $arch $a -}}
+                {{- $archExcluded = true -}}
+            {{- end -}}
+        {{- end }}
+        {{- if $archExcluded -}} {{- continue -}} {{- end }}
+
+        {{- if eq $pkgMgr $packageManager -}}
+            {{- $_ := set $packages $id (dict
+                "name" $pkgName
+                "version" $pkgVersion
+                "test" $pkgTest
+            ) -}}
+        {{- end }}
+    {{- end }}
+{{- end }}
+
+{{- if eq $render "plain" -}}
+{{- $names := list -}}
+{{- range $id := sortAlpha (keys $packages) }}
+    {{- $pkg := index $packages $id -}}
+    {{- $name := index $pkg "name" -}}
+    {{- $version := index $pkg "version" -}}
+    {{- if $version }}
+        {{- $names = append $names (printf "%s@%s" $name $version) -}}
+    {{- else }}
+        {{- $names = append $names $name -}}
+    {{- end }}
+{{- end }}
+{{- $names | sortAlpha | uniq | join " " -}}
+{{- end -}}
+
+{{- if eq $render "mise" -}}
+{{- range $id := sortAlpha (keys $packages) }}
+    {{- $pkg := index $packages $id }}
+    {{- $name := index $pkg "name" }}
+    {{- $version := index $pkg "version" | default "latest" }}
+'{{ $name }}' = '{{ $version }}'
+{{- end }}
+{{- end -}}
+
+{{- if eq $render "bats" -}}
+{{- range $id := sortAlpha (keys $packages) }}
+    {{- $pkg := index $packages $id }}
+    {{- $name := index $pkg "name" }}
+    {{- $version := index $pkg "version" }}
+@test "{{ $id }}{{ if $version }} ({{ $version }}){{ end }}" {
+    {{- if index $pkg "test" }}
+    run {{ index $pkg "test" }}
+    assert_success
+    {{- else }}
+    skip "no test defined"
+    {{- end }}
+}
+{{- end }}
+{{- end -}}

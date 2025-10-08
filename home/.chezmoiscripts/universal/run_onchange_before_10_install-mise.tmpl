@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-# {{- includeTemplate "universal/next-update" . -}}
-
-if [[ ! $(command -v mise) ]]; then
-  curl https://mise.run | sh
-else
-  mise self-update -y
-fi
