@@ -1,0 +1,107 @@
+[packages.cloud]
+aws-cli = {test = "aws --version", manager = "mise"}
+
+[packages.common]
+bash = {test = "bash --version"}
+bat = {test = "bat --version"}
+broot = {test = "broot --version", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
+btop = {disabled = "ephemeral", test = "btop --version"}
+coreutils = {test = "realpath --version"}
+croc = {test = "croc --version", overrides = {ubuntu = {name = "ubi:schollz/croc", manager = "mise"}}}
+curl = {test = "curl --version"}
+direnv = {test = "direnv version"}
+duf = {test = "duf --version"}
+dust = {test = "dust --version", overrides = {ubuntu = {name = "ubi:bootandy/dust", manager = "mise"}}}
+eza = {test = "eza --version"}
+fd = {test = "fd --version", overrides = {ubuntu = {name = "fd-find"}}}
+gh = {test = "gh --version", overrides = {archlinux = {name = "github-cli"}}}
+git = {test = "git --version"}
+git-delta = {test = "delta --version", overrides = {ubuntu = {name = "delta", manager = "mise"}}}
+gnupg = {test = "gpg --version"}
+gocryptfs = {test = "gocryptfs -version"}
+httpie = {test = "http --version"}
+hyperfine = {test = "hyperfine --version", overrides = {ubuntu = {manager = "mise"}}}
+jq = {test = "jq --version"}
+mise = {test = "mise --version"}
+neovim = {test = "nvim --version"}
+procs = {test = "procs --version", overrides = {ubuntu = {name = "ubi:dalance/procs", manager = "mise"}}}
+rage = {test = "rage --version", overrides = {archlinux = {name = "rage-encryption"}, ubuntu = {name = "ubi:str4d/rage", manager = "mise"}}}
+rclone = {test = "rclone --version"}
+ripgrep = {test = "rg --version"}
+sd = {test = "sd --version", overrides = {ubuntu = {manager = "mise"}}}
+tmux = {test = "tmux -V"}
+tokei = {test = "tokei --version", overrides = {ubuntu = {manager = "mise"}}}
+wget = {test = "wget --version"}
+zsh = {test = "zsh --version"}
+
+[packages.docker]
+dive = {name = "ubi:wagoodman/dive", test = "dive --version", manager = "mise"}
+
+[packages.extra]
+qrencode = {test = "qrencode --version"}
+unison = {test = "unison -version"}
+zbar = {test = "zbarimg --version", overrides = {ubuntu = {name = "zbar-tools"}}}
+
+[packages.golang]
+go = {test = "go version", manager = "mise"}
+
+[packages.iac]
+terraform = {test = "terraform version", manager = "mise"}
+terragrunt = {test = "terragrunt --version", manager = "mise"}
+sops = {test = "sops --version", manager = "mise"}
+tflint = {test = "tflint --version", manager = "mise"}
+shellcheck = {test = "shellcheck --version", manager = "mise"}
+
+[packages.java]
+ant = {test = "ant -version", manager = "mise"}
+maven = {test = "mvn -v", manager = "mise"}
+java = {version = "25", test = "java -version", manager = "mise"}
+
+[packages.kubernetes]
+kubesess = {name = "ubi:Ramilito/kubesess", test = "kubesess --help", manager = "mise"}
+helm = {test = "helm version", manager = "mise"}
+k3d = {test = "k3d version", manager = "mise"}
+k9s = {test = "k9s version", manager = "mise"}
+kubectl = {test = "kubectl version --client", manager = "mise"}
+kustomize = {test = "kustomize version", manager = "mise"}
+kubectx = {test = "kubectx --version", manager = "mise"}
+kubens = {test = "kubens --version", manager = "mise"}
+kubecolor = {test = "kubecolor help", manager = "mise"}
+yq = {test = "yq --version", manager = "mise"}
+datree = {test = "datree version", manager = "mise"}
+popeye = {test = "popeye version", manager = "mise"}
+stern = {test = "stern --version", manager = "mise"}
+kubectl-access-matrix = {name = "access-matrix", test = "kubectl access-matrix --help", manager = "krew", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
+kubectl-blame = {name = "blame", test = "kubectl blame --help", manager = "krew"}
+kubectl-cost = {name = "cost", test = "kubectl cost --help", manager = "krew", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
+kubectl-datree = {name = "datree", test = "kubectl datree version", manager = "krew", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
+kubectl-deprecations = {name = "deprecations", test = "kubectl deprecations --help", manager = "krew", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
+kubectl-get-all = {name = "get-all", test = "kubectl get-all --help", manager = "krew"}
+kubectl-images = {name = "images", test = "kubectl images --help", manager = "krew"}
+kubectl-konfig = {name = "konfig", test = "kubectl konfig --help", manager = "krew"}
+kubectl-kubescape = {name = "kubescape", test = "kubectl kubescape --help", manager = "krew"}
+kubectl-kyverno = {name = "kyverno", test = "kubectl kyverno --help", manager = "krew", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
+kubectl-modify-secret = {name = "modify-secret", test = "kubectl modify-secret --help", manager = "krew"}
+kubectl-neat = {name = "neat", test = "kubectl neat --help", manager = "krew"}
+kubectl-node-shell = {name = "node-shell", test = "kubectl node-shell --version", manager = "krew"}
+kubectl-outdated = {name = "outdated", test = "kubectl outdated --help", manager = "krew"}
+kubectl-rbac-tool = {name = "rbac-tool", test = "kubectl rbac-tool --help", manager = "krew"}
+kubectl-resource-capacity = {name = "resource-capacity", test = "kubectl resource-capacity --help", manager = "krew"}
+kubectl-score = {name = "score", test = "kubectl score --help", manager = "krew", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
+kubectl-slice = {name = "slice", test = "kubectl slice --help", manager = "krew"}
+kubectl-sniff = {name = "sniff", test = "kubectl sniff --help", manager = "krew", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
+kubectl-tree = {name = "tree", test = "kubectl tree --help", manager = "krew", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
+kubectl-tunnel = {name = "tunnel", test = "kubectl tunnel --help", manager = "krew"}
+kubectl-view-allocations = {name = "view-allocations", test = "kubectl view-allocations --help", manager = "krew"}
+kubectl-who-can = {name = "who-can", test = "kubectl who-can --help", manager = "krew"}
+helm-diff = {name = "https://github.com/databus23/helm-diff", test = "helm diff --help", manager = "helm"}
+helm-secrets = {name = "https://github.com/jkroepke/helm-secrets", test = "helm secrets --help", manager = "helm"}
+
+[packages.node]
+node = {version = "22", test = "node --version && npm --version && yarn --version && pnpm --version", manager = "mise"}
+
+[packages.python]
+python = {test = "python3 --version && pip --version && pre-commit --version", manager = "mise"}
+
+[packages.rust]
+rust = {test = "rustc --version", manager = "mise"}

@@ -1,0 +1,9 @@
+#!/usr/bin/env bats
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+{{- includeTemplate "universal/packages" (dict "root" . "packageManager" "system" "render" "bats") }}

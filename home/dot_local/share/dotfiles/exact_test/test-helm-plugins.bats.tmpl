@@ -1,4 +1,3 @@
-{{- if .toolchains.extra -}}
 #!/usr/bin/env bats
 
 load 'common-helper'
@@ -7,13 +6,4 @@ setup() {
   common_setup
 }
 
-@test "helm diff" {
-  run helm diff version
-  assert_success
-}
-
-@test "helm secrets" {
-  run helm secrets version
-  assert_success
-}
-{{- end -}}
+{{- includeTemplate "universal/packages" (dict "root" . "packageManager" "helm" "render" "bats") }}

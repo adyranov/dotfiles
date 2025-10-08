@@ -1,0 +1,5 @@
+[packages.docker]
+docker-ce = {os = "ununtu"}
+docker-ce-cli = {os = "ubuntu"}
+docker-compose-plugin = {os = "ubuntu"}
+"containerd.io" = {os = "ubuntu"}

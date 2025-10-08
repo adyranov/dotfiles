@@ -1,0 +1,53 @@
+[darwin.common]
+taps = [
+  "homebrew/autoupdate"
+]
+
+[darwin.personal]
+casks = [
+  "anydesk",
+  "appcleaner",
+  "brave-browser",
+  "calibre",
+  "displaycal",
+  "dropbox",
+  "font-fira-code",
+  "ghostty",
+  "google-drive",
+  "handbrake-app",
+  "iina",
+  "iterm2",
+  "jetbrains-toolbox",
+  "keepassxc",
+  "localsend",
+  "rectangle",
+  "rustdesk",
+  "signal",
+  "spotify",
+  "syncthing-app",
+  "telegram-desktop",
+  "veracrypt",
+  "visual-studio-code",
+  "vlc",
+  "warp",
+  "xnviewmp",
+  "yandex-disk",
+  "zoom",
+  "stats",
+  "macfuse"
+]
+mas = [
+  {name = "Bitwarden", id = 1352778147},
+  {name = "Brother iPrint&Scan", id = 1193539993},
+  {name = "Disk Speed Test", id = 425264550},
+  {name = "Keynote", id = 409183694},
+  {name = "Messenger", id = 1480068668},
+  {name = "Microsoft Remote Desktop", id = 1295203466},
+  {name = "Numbers", id = 409201541},
+  {name = "Pages", id = 409201541},
+  {name = "Slack", id = 803453959},
+  {name = "The Unarchiver", id = 425424353},
+  {name = "WireGuard", id = 1451685025}
+]
+
+[darwin.work]

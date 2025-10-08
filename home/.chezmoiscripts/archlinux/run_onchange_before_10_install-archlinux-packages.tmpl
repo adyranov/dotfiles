@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
 
-{{- $packages := splitList " " (includeTemplate "archlinux/packages" .) }}
-
 # {{ includeTemplate "universal/next-update" . }}
-sudo pacman -Sy --noconfirm --needed {{ $packages | sortAlpha | uniq | join " " -}}
+sudo pacman -Sy --noconfirm --needed {{ includeTemplate "universal/packages" (dict "root" .) -}}

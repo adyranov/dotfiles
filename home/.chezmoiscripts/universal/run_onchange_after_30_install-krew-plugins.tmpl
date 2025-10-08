@@ -1,4 +1,4 @@
-{{- if .toolchains.extra -}}
+{{- if .toolchains.kubernetes -}}
 #!/usr/bin/env bash
 
 source $HOME/.config/shell/exports.sh
@@ -18,29 +18,12 @@ if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
 fi
 
 KREW_PLUGINS=(
-  access-matrix
-  blame
-  cost
-  datree
-  deprecations
-  get-all
-  images
-  konfig
-  kubescape
-  kyverno
-  modify-secret
-  neat
-  node-shell
-  outdated
-  rbac-tool
-  resource-capacity
-  score
-  slice
-  sniff
-  tree
-  tunnel
-  view-allocations
-  who-can
+{{- $packages := splitList " " (includeTemplate "universal/packages" (dict "root" . "packageManager" "krew")) -}}
+{{- range $pkg := $packages -}}
+{{- if ne $pkg "" }}
+  "{{ $pkg }}"
+{{- end -}}
+{{- end }}
 )
 
 $KREW_ROOT/bin/kubectl-krew update 2>/dev/null
