@@ -1,0 +1,6 @@
+{{- if eq .host.distro.family "darwin" -}}
+{{- output .brew.path "shellenv" }}
+{{- if .host.restricted }}
+export HOMEBREW_CASK_OPTS="--appdir=~/Applications"
+{{- end }}
+{{- end }}

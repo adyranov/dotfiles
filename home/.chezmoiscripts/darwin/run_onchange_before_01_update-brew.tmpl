@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+eval $({{ .brew.path }} shellenv)
+# {{ includeTemplate "universal/next-update" . }}
+brew update
+{{- if .host.interactive }}
+brew upgrade
+brew upgrade --cask --greedy
+brew cleanup
+{{- end -}}

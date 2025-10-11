@@ -1,94 +1,10 @@
-build_clean_all () {
-  pushd .;
-  currDir=`pwd`
-  for i in `find $currDir -maxdepth 7 -type d \( -name ".git" -o -name ".svn" \)`; do
-    if [ -f $i/../pom.xml ]
-    then
-      cd $i/../ > /dev/null;
-      pwd;
-      mvn clean > /dev/null;
-    fi
-    if [ -f $i/../build.gradle ]
-    then
-      cd $i/../ > /dev/null;
-      pwd;
-      ./gradlew clean > /dev/null;
-    fi
-  done;
-  popd;
-}
-
-mvn_plugin_updates () {
-  mvn versions:display-plugin-updates | grep -- "->" | sort | uniq
-}
-
-mvn_dependency_updates () {
-  mvn versions:display-dependency-updates | grep -- "->" | sort | uniq
-}
-
-git_update_all () {
-  pushd .;
-  currDir=`pwd`
-  for i in `find $currDir -maxdepth 7 -type d -name ".git"`; do
-    cd $i/../ > /dev/null;
-    pwd;
-    git pull > /dev/null;
-    if [ $? -ne 0 ]; then
-      echo "git pull error";
-      return;
-    fi
-  done;
-  popd;
-}
-
-
-git_clean_ignored () {
-  pushd .;
-  currDir=`pwd`
-  for i in `find $currDir -maxdepth 7 -type d -name ".git"`; do
-    cd $i/../ > /dev/null;
-    pwd;
-    git clean -dfx
-  done;
-  popd;
-}
-
-kralpine () {
-  kubectl run -i --rm --tty alpine --image=alpine -- sh
-}
-
-kexec () {
-  kubectl exec -it $1 -- ${2:-bash}
-}
-
-u() {
-  chezmoi upgrade
-  chezmoi update --init
-}
-
-__kubesess_export() {
-  local OUTPUT
-  OUTPUT="$(kubesess "$@")" || return $?
-  export KUBECONFIG="$OUTPUT"
-}
-
-kc() {
-  __kubesess_export ${1:+"-v "$1} context
-}
-
-kn() {
-  __kubesess_export ${1:+"-v "$1} namespace
-}
-
-_kc_completions()
-{
-  COMPREPLY=($(compgen -W "$(kubesess -v "${COMP_WORDS[1]}" completion-context)"))
-}
-
-_kn_completions()
-{
-  COMPREPLY=($(compgen -W "$(kubesess -v "${COMP_WORDS[1]}" completion-namespace)"))
-}
-
-complete -F _kc_completions kc
-complete -F _kn_completions kn
+FUNCTIONS_D_DIR="$XDG_CONFIG_HOME/shell/functions.d"
+if [ -d "$FUNCTIONS_D_DIR" ]; then
+  for FUNCTIONS_FILE in "$FUNCTIONS_D_DIR"/*; do
+    [ -r "$FUNCTIONS_FILE" ] || continue
+    # shellcheck source=/dev/null
+    . "$FUNCTIONS_FILE"
+  done
+  unset FUNCTIONS_FILE
+fi
+unset FUNCTIONS_D_DIR

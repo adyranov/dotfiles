@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-# {{ includeTemplate "universal/next-update" . }}
 sudo pacman -Sy --noconfirm --needed {{ includeTemplate "universal/packages" (dict "root" .) -}}

@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-set -x
+# {{ includeTemplate "universal/next-update" . }}
+echo "🍎 Configuring macOS settings..."
+
+if ls "~/Library/Safari" &>/dev/null; then
+    echo "✅ Terminal has Full Disk Access."
+else
+    echo "❌ Terminal does NOT have Full Disk Access."
+    echo "To grant access, go to: System Settings → Privacy & Security → Full Disk Access"
+    echo "Then add Terminal to the list and restart it."
+    exit 0
+fi
 
 # Close any open System Preferences panes, to prevent them from overriding
 # settings we’re about to change

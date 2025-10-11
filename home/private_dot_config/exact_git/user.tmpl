@@ -1,7 +1,11 @@
 [user]
   name = "{{ .git.name }}"
   email = "{{ .git.email }}"
+[credential "https://dev.azure.com"]
+  useHttpPath = true
 [credential "https://github.com"]
-  helper = !gh auth git-credential
+  helper =
+  helper = !{{ lookPath "gh" | default "gh" }} auth git-credential
 [credential "https://gist.github.com"]
-  helper = !gh auth git-credential
+  helper =
+  helper = !{{ lookPath "gh" | default "gh" }} auth git-credential

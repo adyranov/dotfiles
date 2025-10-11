@@ -1,0 +1,10 @@
+{{- if (lookPath "mise") -}}
+CURRENT_SHELL=$(ps -p $$ -o comm= | awk -F/ '{print $NF}' | sed 's/^-//')
+if [ "$CURRENT_SHELL" = "bash" ]; then
+{{ output "mise" "activate" "bash" }}
+elif [ "$CURRENT_SHELL" = "zsh" ]; then
+{{ output "mise" "activate" "zsh" }}
+else
+  echo "Warning: Could not detect supported shell (bash or zsh), skipping mise activation"
+fi
+{{- end -}}

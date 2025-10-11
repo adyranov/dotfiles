@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -eufo pipefail
+
+# {{ includeTemplate "universal/next-update" . }}
+mise upgrade
+mise prune -q -y
