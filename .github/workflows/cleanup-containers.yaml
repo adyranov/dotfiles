@@ -1,0 +1,31 @@
+name: Cleanup Containers
+on:
+  schedule:
+    - cron: 30 2 * * *
+  workflow_dispatch:
+    inputs:
+      keep-versions:
+        description: Minimum number of recent tags to keep per registry
+        default: "5"
+        required: true
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: false
+env:
+  KEEP_VERSIONS: ${{ inputs.keep-versions || '5' }}
+jobs:
+  cleanup-ghcr:
+    name: Clean up GHCR images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Delete old GHCR image versions
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5.0.0
+        with:
+          owner: ${{ github.repository_owner }}
+          package-name: ${{ github.event.repository.name }}
+          package-type: container
+          min-versions-to-keep: ${{ env.KEEP_VERSIONS }}
+          delete-only-untagged-versions: true
