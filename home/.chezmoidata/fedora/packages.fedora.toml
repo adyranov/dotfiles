@@ -1,0 +1,19 @@
+[packages.fedora.common]
+act = {manager = "mise", name = "ubi:nektos/act"}
+broot = {disabled = true}
+croc = {manager = "mise", name = "ubi:schollz/croc"}
+dust = {manager = "mise", name = "ubi:bootandy/dust"}
+eza = {manager = "mise"}
+fd = {name = "fd-find"}
+hyperfine = {manager = "mise"}
+mkcert = {manager = "mise"}
+procs = {manager = "mise", name = "ubi:dalance/procs"}
+rage = {manager = "mise", name = "ubi:str4d/rage"}
+sd = {manager = "mise"}
+tokei = {manager = "mise"}
+vivid = {manager = "mise"}
+
+[packages.fedora.docker]
+docker = {name = "docker-ce"}
+"docker-buildx" = {name = "docker-buildx-plugin"}
+"docker-compose" = {name = "docker-compose-plugin"}

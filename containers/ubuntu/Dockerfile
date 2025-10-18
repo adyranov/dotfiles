@@ -38,10 +38,7 @@ RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     && locale-gen \
     && chsh -s "/usr/bin/zsh" "$USER"
 
-CMD ["/usr/bin/zsh"]
-
-FROM base AS test
-ARG CACHE_BUST
+FROM base AS setup
 ARG USER
 ARG UID
 
@@ -49,6 +46,12 @@ ENV HOME=/home/$USER
 WORKDIR $HOME
 COPY --chown=$USER:$USER . .local/share/chezmoi
 USER $USER
+CMD ["/usr/bin/zsh"]
+
+FROM setup AS test
+ARG CACHE_BUST
+ARG USER
+ARG UID
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
     --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
@@ -66,17 +69,10 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,r
     && .local/bin/check-dotfiles \
     && echo "Cache bust: $CACHE_BUST"
 
-CMD ["/usr/bin/zsh"]
-
-FROM base
+FROM setup
 ARG CACHE_BUST
 ARG USER
 ARG UID
-
-ENV HOME=/home/$USER
-WORKDIR $HOME
-COPY --chown=$USER:$USER . .local/share/chezmoi
-USER $USER
 
 RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
     --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
@@ -88,5 +84,3 @@ RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,r
     .local/share/chezmoi/install.sh --data=false \
     && .local/bin/check-dotfiles \
     && echo "Cache bust: $CACHE_BUST"
-
-CMD ["/usr/bin/zsh"]

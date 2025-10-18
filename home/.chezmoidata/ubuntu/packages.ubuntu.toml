@@ -1,0 +1,34 @@
+[packages.ubuntu.common]
+act = {manager = "mise", name = "ubi:nektos/act"}
+broot = {exclude_arch = ["arm64"]}
+chezmoi = {manager = "mise"}
+croc = {manager = "mise", name = "ubi:schollz/croc"}
+dust = {manager = "mise", name = "ubi:bootandy/dust"}
+fd = {name = "fd-find"}
+"git-delta" = {manager = "mise", name = "delta"}
+hyperfine = {manager = "mise"}
+mkcert = {manager = "mise", name = "mkcert"}
+procs = {manager = "mise", name = "ubi:dalance/procs"}
+rage = {manager = "mise", name = "ubi:str4d/rage"}
+rbw = {exclude_arch = ["arm64"], manager = "mise", name = "ubi:doy/rbw"}
+sd = {manager = "mise"}
+tokei = {manager = "mise"}
+vivid = {manager = "mise"}
+
+[packages.ubuntu.docker]
+docker = {name = "docker-ce"}
+"docker-buildx" = {name = "docker-buildx-plugin"}
+"docker-compose" = {name = "docker-compose-plugin"}
+
+[packages.ubuntu.extra]
+zbar = {name = "zbar-tools"}
+
+[packages.ubuntu.kubernetes]
+"kubectl-access-matrix" = {exclude_arch = ["arm64"]}
+"kubectl-cost" = {exclude_arch = ["arm64"]}
+"kubectl-datree" = {exclude_arch = ["arm64"]}
+"kubectl-deprecations" = {exclude_arch = ["arm64"]}
+"kubectl-kyverno" = {exclude_arch = ["arm64"]}
+"kubectl-score" = {exclude_arch = ["arm64"]}
+"kubectl-sniff" = {exclude_arch = ["arm64"]}
+"kubectl-tree" = {exclude_arch = ["arm64"]}

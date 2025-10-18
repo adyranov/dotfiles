@@ -21,9 +21,14 @@ suggest_parallel() {
   case "$(uname -s)" in
     Darwin) log "  brew install parallel" ;;
     Linux)
-      if command -v apt-get >/dev/null 2>&1; then log "  sudo apt-get install parallel"
-      elif command -v pacman >/dev/null 2>&1; then log "  sudo pacman -S parallel"
-      else log "  Visit: https://www.gnu.org/software/parallel/"
+      if command -v apt-get >/dev/null 2>&1; then
+        log "  sudo apt-get install parallel"
+      elif command -v dnf >/dev/null 2>&1; then
+        log "  sudo dnf install parallel"
+      elif command -v pacman >/dev/null 2>&1; then
+        log "  sudo pacman -S parallel"
+      else
+        log "  Visit: https://www.gnu.org/software/parallel/"
       fi ;;
   esac
   log_info "Continuing with sequential builds..."
@@ -81,6 +86,7 @@ OPTIONS:
 EXAMPLES:
   \$0                                    # Build all containers
   \$0 archlinux                          # Build only archlinux container
+  \$0 fedora                             # Build only fedora container
   \$0 --list                             # List available containers
   \$0 --config /path/to/buildkitd.toml   # Use custom buildkitd config
 

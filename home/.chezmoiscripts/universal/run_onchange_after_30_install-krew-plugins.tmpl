@@ -9,7 +9,7 @@ source "$HOME"/.config/shell/exports.sh
 if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
     echo "🔧 Installing krew (kubectl plugin manager)…"
     (
-    set -x; cd "$(mktemp -d)" &&
+    cd "$(mktemp -d)" &&
     OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
     ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')" &&
     KREW="krew-${OS}_${ARCH}" &&

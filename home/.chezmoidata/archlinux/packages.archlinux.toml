@@ -1,0 +1,3 @@
+[packages.archlinux.common]
+gh = {name = "github-cli"}
+rage = {name = "rage-encryption"}

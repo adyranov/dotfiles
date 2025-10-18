@@ -1,0 +1,6 @@
+{{- includeTemplate "universal/common-before-template-header" . -}}
+
+echo "🛠️ Refreshing DNF metadata and installing packages…"
+sudo dnf -y upgrade --refresh
+sudo dnf -y install --setopt=install_weak_deps=False {{ includeTemplate "universal/packages" (dict "root" .) }}
+echo "✅ DNF packages ensured."

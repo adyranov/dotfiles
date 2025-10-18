@@ -53,6 +53,12 @@ jobs:
               - 'home/.chezmoiscripts/archlinux/*'
               - 'home/.chezmoitemplates/archlinux/*'
               - 'containers/archlinux/**/*'
+            fedora:
+              - *shared
+              - 'home/.chezmoidata/fedora/**'
+              - 'home/.chezmoiscripts/fedora/*'
+              - 'home/.chezmoitemplates/fedora/*'
+              - 'containers/fedora/Dockerfile'
             ubuntu:
               - *shared
               - 'home/.chezmoidata/ubuntu/**'

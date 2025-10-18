@@ -12,7 +12,7 @@
 ## Project Structure & Module Organization
 
 - `home/` mirrors the eventual `$HOME`. Files and folders prefixed `dot_`, `private_`, or `exact_` map to chezmoi source states; `.tmpl` files render via templates.
-- `home/.chezmoidata/universal/packages.universal.toml` is the source of truth for tools. Add overrides under `home/.chezmoidata/{darwin,ubuntu,archlinux}` rather than branching templates.
+- `home/.chezmoidata/universal/packages.universal.toml` is the source of truth for tools. Add overrides under `home/.chezmoidata/{darwin,fedora,ubuntu,archlinux}` rather than branching templates.
 - `home/.chezmoitemplates/` houses reusable templates.
 - Generated Bats specs originate from `home/dot_local/share/dotfiles/exact_test/`.
 - `home/dot_local/exact_bin/` ships helper links via chezmoi symlink source names (e.g., `symlink_check-dotfiles`), and `home/private_dot_config/shell/` contains shell exports and functions.
@@ -32,7 +32,8 @@
 ## CI Expectations
 
 - Host workflow (`.github/workflows/ci-host.yaml`): runs `./install.sh` on a matrix (macOS/Ubuntu and Intel/ARM) and then `~/.local/bin/check-dotfiles`.
-- Docker workflow (`.github/workflows/ci-docker.yaml`): builds OS images for `amd64` and `arm64`, runs the same dotfiles checks, and can publish images from main or on demand.
+- Docker workflow (`.github/workflows/ci-docker.yaml`): builds Arch Linux, Fedora, and Ubuntu images for `amd64` and `arm64`, runs the same dotfiles checks, and can publish images from main or on demand.
+  - Manual publish: dispatch the workflow with the `publish-image` input set to `true`.
 - If you add new top-level paths, update `dorny/paths-filter` filters in both workflows so CI triggers remain accurate.
 
 ## Coding Style & Naming Conventions
@@ -43,15 +44,15 @@
 
 ### Chezmoi
 
-- `home/.chezmoidata/**/*` alphabetize keys, keep names lower_snake_case, always define a `test` (a command or check used by templates/tests, e.g., `command -v tool` or `tool --version`), and express platform differences via `overrides.<os>`, `os =`, or `disabled` flags like `headless`, `restricted`, `desktop`, `wsl`, `ephemeral`. Include concrete overrides (e.g., `overrides.darwin.enabled = true`, `overrides.ubuntu.enabled = false`) and place OS-specific data under `home/.chezmoidata/{darwin,ubuntu,archlinux}`.
+- `home/.chezmoidata/**/*` alphabetize keys, keep names lower_snake_case, always define a `test` (a command or check used by templates/tests, e.g., `command -v tool` or `tool --version`), and express platform differences via `overrides.<os>`, `os =`, or `disabled` flags like `headless`, `restricted`, `desktop`, `wsl`, `ephemeral`. Include concrete overrides (e.g., `overrides.darwin.enabled = true`, `overrides.ubuntu.enabled = false`) and place OS-specific data under `home/.chezmoidata/{darwin,fedora,ubuntu,archlinux}`.
 - `home/.chezmoitemplates/**/*` reuse shared partials, prefer data-driven logic over Go template branching.
 - Prefer chezmoi source attributes for file state: use `executable_` prefixes for executables (755), `private_` for sensitive files (600), `exact_` to prune unmanaged files in a directory, and `symlink_` to create symlinks rather than committing literal symlink objects.
 - Package keys may follow upstream naming (including hyphens) for clarity and parity with tests; apply lower_snake_case to custom data keys you introduce.
 - TOML should be consistently ordered and linted; pre-commit enforces `toml-sort`, `yamlfmt`, `yamllint`, `editorconfig-checker`, `codespell`.
 - The template data defines `host` fields used across templates and data:
   - Booleans: `.host.work`, `.host.restricted`, `.host.headless`, `.host.interactive`
-  - OS/arch/type: `.host.distro.id` (`darwin`, `ubuntu`, `archlinux`), `.host.arch`, `.host.type` (`desktop`, `laptop`, `wsl`, `ephemeral`)
-- Supported OSes are `darwin`, `ubuntu`, and `archlinux`. Adding a new OS requires updating `home/.chezmoi.yaml.tmpl` (support check), `home/.chezmoidata/<os>`, and `home/.chezmoiscripts/<os>`.
+  - OS/arch/type: `.host.distro.id` (`darwin`, `ubuntu`, `fedora`, `archlinux`), `.host.arch`, `.host.type` (`desktop`, `laptop`, `wsl`, `ephemeral`)
+- Supported OSes are `darwin`, `ubuntu`, `fedora`, and `archlinux`. Adding a new OS requires updating `home/.chezmoi.yaml.tmpl` (support check), `home/.chezmoidata/<os>`, and `home/.chezmoiscripts/<os>`.
 
 ### Shell scripts
 
