@@ -6,6 +6,7 @@
 
 {{- $packages := dict -}}
 
+{{- /* Build the list of toolchains enabled for this host (always include common). */ -}}
 {{- $enabledToolchains := list "common" -}}
 {{- range $toolName, $enabled := $root.toolchains }}
     {{- if $enabled }}
@@ -13,14 +14,26 @@
     {{- end }}
 {{- end }}
 
-{{- range $i, $toolName := $enabledToolchains }}
-    {{- $toolPackages := index $root.packages $toolName | default dict -}}
-    {{- range $id, $pkg := $toolPackages }}
-        {{- $pkgOs := index $pkg "os" | default "" -}}
-        {{- if and $pkgOs (ne $pkgOs $os) }}{{- continue -}}{{- end }}
-        {{- $pkgOverrides := index $pkg "overrides" | default dict -}}
-        {{- $override := index $pkgOverrides $os | default dict -}}
+{{- $universalPackages := index $root.packages "universal" | default dict -}}
+{{- $osPackages := index $root.packages $os | default dict -}}
 
+{{- /* Merge universal and OS-specific packages for every enabled toolchain. */ -}}
+{{- range $i, $toolName := $enabledToolchains }}
+    {{- $basePackages := index $universalPackages $toolName | default dict -}}
+    {{- $overridePackages := index $osPackages $toolName | default dict -}}
+    {{- $packageIndex := dict -}}
+    {{- /* Build a combined view of package identifiers available for this toolchain. */ -}}
+    {{- range $id, $_ := $basePackages }}
+        {{- $nil := set $packageIndex $id true -}}
+    {{- end }}
+    {{- range $id, $_ := $overridePackages }}
+        {{- $nil := set $packageIndex $id true -}}
+    {{- end }}
+    {{- range $j, $id := sortAlpha (keys $packageIndex) }}
+        {{- $pkg := index $basePackages $id | default dict -}}
+        {{- $override := index $overridePackages $id | default dict -}}
+
+        {{- /* Resolve package attributes, allowing per-host overrides to win. */ -}}
         {{- $pkgDisabled := index $override "disabled" | default (index $pkg "disabled" | default false) -}}
         {{- $disabled := false -}}
         {{- if kindIs "string" $pkgDisabled -}}
@@ -62,6 +75,7 @@
     {{- end }}
 {{- end }}
 
+{{- /* Render the collected package list in the requested format. */ -}}
 {{- if eq $render "plain" -}}
 {{- $names := list -}}
 {{- range $id := sortAlpha (keys $packages) }}

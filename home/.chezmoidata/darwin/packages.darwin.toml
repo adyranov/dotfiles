@@ -1,4 +1,20 @@
-[packages.common]
-mas = {os = "darwin", test = "mas version"}
-pinentry-mac = {os = "darwin", test = "pinentry-mac --version"}
-reattach-to-user-namespace = {os = "darwin", test = "reattach-to-user-namespace --version"}
+[packages.darwin.cloud]
+"aws-cli" = {disabled = "headless", manager = "system", name = "awscli"}
+
+[packages.darwin.common]
+mas = {test = "mas version"}
+"pinentry-mac" = {test = "pinentry-mac --version"}
+"reattach-to-user-namespace" = {test = "reattach-to-user-namespace --version"}
+
+[packages.darwin.docker]
+colima = {test = "colima version"}
+qemu = {test = "qemu-system-x86_64 --version"}
+
+[packages.darwin.extra]
+gocryptfs = {name = "gromgit/fuse/gocryptfs-mac"}
+
+[packages.darwin.kubernetes]
+kubesess = {manager = "system", name = "kubesess"}
+
+[packages.darwin.python]
+uv = {manager = "system"}

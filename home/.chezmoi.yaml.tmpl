@@ -29,7 +29,7 @@
 {{- /* -------------------- OS / Distro -------------------- */ -}}
 {{- $distro := dict "family" .chezmoi.os "id" (get .chezmoi.osRelease "id" | default .chezmoi.os) -}}
 {{- if or (eq $distro.id "arch") (eq $distro.id "archarm") -}}{{- $_ := set $distro "id" "archlinux" -}}{{- end -}}
-{{- $supported := list "darwin" "ubuntu" "archlinux" -}}
+{{- $supported := list "darwin" "ubuntu" "archlinux" "fedora" -}}
 {{- $isSupported := false -}}
 {{- range $supported -}}{{- if eq . $distro.id -}}{{- $isSupported = true -}}{{- end -}}{{- end -}}
 {{- if not $isSupported -}}
