@@ -1,0 +1,26 @@
+__kubesess_export() {
+  local OUTPUT
+  OUTPUT="$(kubesess "$@")" || return $?
+  export KUBECONFIG="$OUTPUT"
+}
+
+kc() {
+  __kubesess_export ${1:+"-v "$1} context
+}
+
+kn() {
+  __kubesess_export ${1:+"-v "$1} namespace
+}
+
+_kc_completions()
+{
+  COMPREPLY=($(compgen -W "$(kubesess -v "${COMP_WORDS[1]}" completion-context)"))
+}
+
+_kn_completions()
+{
+  COMPREPLY=($(compgen -W "$(kubesess -v "${COMP_WORDS[1]}" completion-namespace)"))
+}
+
+complete -F _kc_completions kc
+complete -F _kn_completions kn

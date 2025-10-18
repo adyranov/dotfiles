@@ -4,3 +4,6 @@ Include {{ .host.home }}/.config/ssh/config.d/work.conf
 Include {{ .host.home }}/.config/ssh/config.d/personal.conf
 {{- end }}
 Include {{ .host.home }}/.config/ssh/config.d/common.conf
+{{- if (eq .host.distro.family "darwin") }}
+Include {{ .host.home }}/.config/colima/ssh_config
+{{- end }}

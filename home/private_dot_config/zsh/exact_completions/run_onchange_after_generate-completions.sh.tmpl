@@ -1,9 +1,4 @@
-#!/usr/bin/env bash
-set -eufo pipefail
-
-source $HOME/.config/shell/exports.sh
-
-# {{ includeTemplate "universal/next-update" . }}
+{{- includeTemplate "universal/common-after-template-header" . -}}
 
 {{- $compDir:= joinPath .host.home ".config/zsh/completions" -}}
 

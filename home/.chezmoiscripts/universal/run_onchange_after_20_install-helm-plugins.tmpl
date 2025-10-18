@@ -1,9 +1,10 @@
 {{- if .toolchains.kubernetes -}}
 #!/usr/bin/env bash
 
-source $HOME/.config/shell/exports.sh
+# {{ includeTemplate "universal/next-update" . -}}
 
-# {{ includeTemplate "universal/next-update" . }}
+# shellcheck disable=SC1091
+source "$HOME"/.config/shell/exports.sh
 
 declare -A HELM_PLUGINS=(
 {{- $packages := splitList " " (includeTemplate "universal/packages" (dict "root" . "packageManager" "helm")) -}}
@@ -16,13 +17,15 @@ declare -A HELM_PLUGINS=(
 {{- end }}
 )
 
+echo "🔌 Ensuring Helm plugins…"
 for name in "${!HELM_PLUGINS[@]}"; do
     url=${HELM_PLUGINS[$name]}
     if ! helm plugin list | awk '{print $1}' | grep -qx "$name"; then
-        echo "Installing Helm plugin $name"
+        echo "➕ Installing Helm plugin: $name"
         helm plugin install "$url"
     else
-        echo "Helm plugin $name already installed"
+        echo "✅ Helm plugin already installed: $name"
     fi
 done
+echo "✅ Helm plugins up to date."
 {{- end -}}

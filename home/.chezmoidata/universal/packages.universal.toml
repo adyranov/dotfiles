@@ -1,11 +1,14 @@
 [packages.cloud]
-aws-cli = {test = "aws --version", manager = "mise"}
+aws-cli = {test = "aws --version", manager = "mise", overrides = {darwin = {name = "awscli", manager = "system", disabled = "headless"}}}
+azure-cli = {test = "az --version"}
 
 [packages.common]
+act = {test = "act --version", overrides = {ubuntu = {name = "ubi:nektos/act", manager = "mise"}}}
 bash = {test = "bash --version"}
 bat = {test = "bat --version"}
 broot = {test = "broot --version", overrides = {ubuntu = {exclude_arch = ["arm64"]}}}
 btop = {disabled = "ephemeral", test = "btop --version"}
+chezmoi = {test = "chezmoi --version", overrides = {ubuntu = {manager = "mise"}}}
 coreutils = {test = "realpath --version"}
 croc = {test = "croc --version", overrides = {ubuntu = {name = "ubi:schollz/croc", manager = "mise"}}}
 curl = {test = "curl --version"}
@@ -22,23 +25,26 @@ httpie = {test = "http --version"}
 hyperfine = {test = "hyperfine --version", overrides = {ubuntu = {manager = "mise"}}}
 jq = {test = "jq --version"}
 mise = {test = "mise --version"}
+mkcert = {test = "mkcert -version", overrides = {ubuntu = {name = "mkcert", manager = "mise"}}}
 neovim = {test = "nvim --version"}
 procs = {test = "procs --version", overrides = {ubuntu = {name = "ubi:dalance/procs", manager = "mise"}}}
 rage = {test = "rage --version", overrides = {archlinux = {name = "rage-encryption"}, ubuntu = {name = "ubi:str4d/rage", manager = "mise"}}}
+rbw = {test = "rbw --version", overrides = {ubuntu = {name = "ubi:doy/rbw", exclude_arch = ["arm64"], manager = "mise"}}}
 rclone = {test = "rclone --version"}
 ripgrep = {test = "rg --version"}
 sd = {test = "sd --version", overrides = {ubuntu = {manager = "mise"}}}
 tmux = {test = "tmux -V"}
 tokei = {test = "tokei --version", overrides = {ubuntu = {manager = "mise"}}}
+vivid = {test = "vivid --version", overrides = {ubuntu = {manager = "mise"}}}
 wget = {test = "wget --version"}
 zsh = {test = "zsh --version"}
 
 [packages.docker]
 qemu = {os = "darwin", test = "qemu-system-x86_64 --version"}
 colima = {os = "darwin", test = "colima version"}
-docker = {test = "docker --version", overrides = {ubuntu = {name = "docker-ce"}}}
-docker-compose = {test = "docker compose --version", overrides = {ubuntu = {name = "docker-compose-plugin"}}}
-docker-buildx = {os = "darwin", test = "docker-buildx version"}
+docker = {test = "docker -v", overrides = {ubuntu = {name = "docker-ce"}}}
+docker-compose = {test = "docker compose version", overrides = {ubuntu = {name = "docker-compose-plugin"}}}
+docker-buildx = {test = "docker buildx version", overrides = {ubuntu = {name = "docker-buildx-plugin"}}}
 dive = {name = "ubi:wagoodman/dive", test = "dive --version", manager = "mise"}
 
 [packages.extra]
@@ -63,7 +69,7 @@ maven = {test = "mvn -v", manager = "mise"}
 java = {version = "25", test = "java -version", manager = "mise"}
 
 [packages.kubernetes]
-kubesess = {name = "ubi:Ramilito/kubesess", test = "kubesess --help", manager = "mise"}
+kubesess = {name = "ubi:Ramilito/kubesess", test = "kubesess --help", manager = "mise", overrides = {darwin = {name = "kubesess", manager = "system"}}}
 helm = {test = "helm version", manager = "mise"}
 k3d = {test = "k3d version", manager = "mise"}
 k9s = {test = "k9s version", manager = "mise"}
@@ -107,6 +113,7 @@ node = {version = "22", test = "node --version && npm --version && yarn --versio
 
 [packages.python]
 python = {test = "python3 --version && pip --version && pre-commit --version", manager = "mise"}
+uv = {name = "uv", test = "uv --version", manager = "mise", overrides = {darwin = {manager = "system"}}}
 
 [packages.rust]
 rust = {test = "rustc --version", manager = "mise"}

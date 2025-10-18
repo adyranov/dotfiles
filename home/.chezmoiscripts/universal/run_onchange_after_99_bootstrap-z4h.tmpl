@@ -1,5 +1,16 @@
 {{- if not .host.interactive -}}
-#!/usr/bin/env bash
+{{- includeTemplate "universal/common-after-template-header" . -}}
 
-Z4H_BOOTSTRAPPING=1 exec zsh && exit 0
+command -v script >/dev/null 2>&1 || {
+  echo "❌ z4h bootstrap requires the 'script' command to allocate a PTY." >&2
+  exit 1
+}
+
+echo "⚙️ Initializing ZSH"
+if script -q -c true /dev/null 2>/dev/null; then
+  exec env Z4H_BOOTSTRAPPING=1 script -q -c 'env Z4H_BOOTSTRAPPING=1 zsh -ic exit' /dev/null
+else
+  exec env Z4H_BOOTSTRAPPING=1 script -qe /dev/null env Z4H_BOOTSTRAPPING=1 zsh -ic exit
+fi
+
 {{- end -}}

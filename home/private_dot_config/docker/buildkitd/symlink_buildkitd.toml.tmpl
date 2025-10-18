@@ -1,0 +1,5 @@
+{{ if .host.work -}}
+./buildkitd.work.toml
+{{- else -}}
+./buildkitd.personal.toml
+{{- end }}

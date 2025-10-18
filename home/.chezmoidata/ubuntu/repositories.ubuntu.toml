@@ -18,6 +18,11 @@ repo_line = "deb http://ppa.launchpad.net/git-core/ppa/ubuntu $(lsb_release -cs)
 key_url = "https://cli.github.com/packages/githubcli-archive-keyring.gpg"
 repo_line = "deb https://cli.github.com/packages stable main"
 
+[repositories.ubuntu.microsoft-azure-cli]
+key_url = "https://packages.microsoft.com/keys/microsoft.asc"
+keyring_path = "/etc/apt/keyrings/microsoft.gpg"
+repo_line = "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli $(lsb_release -cs) main"
+
 [repositories.ubuntu.mise]
 key_url = "https://mise.jdx.dev/gpg-key.pub"
 repo_line = "deb https://mise.jdx.dev/deb stable main"

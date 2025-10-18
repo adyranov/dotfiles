@@ -1,11 +1,13 @@
 {{- if .toolchains.kubernetes -}}
 #!/usr/bin/env bash
 
-source $HOME/.config/shell/exports.sh
+# {{ includeTemplate "universal/next-update" . -}}
 
-# {{ includeTemplate "universal/next-update" . }}
+# shellcheck disable=SC1091
+source "$HOME"/.config/shell/exports.sh
 
 if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
+    echo "🔧 Installing krew (kubectl plugin manager)…"
     (
     set -x; cd "$(mktemp -d)" &&
     OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
@@ -13,8 +15,9 @@ if [[ ! -e $KREW_ROOT/bin/kubectl-krew ]]; then
     KREW="krew-${OS}_${ARCH}" &&
     curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
     tar zxvf "${KREW}.tar.gz" &&
-    ./"${KREW}" install krew
+    ./"${KREW}" install krew >/dev/null 2>&1
     )
+    echo "✅ krew installed."
 fi
 
 KREW_PLUGINS=(
@@ -26,15 +29,19 @@ KREW_PLUGINS=(
 {{- end }}
 )
 
+$KREW_ROOT/bin/kubectl-krew version >/dev/null 2>&1 || true
+echo "🔄 Updating krew indexes…"
 $KREW_ROOT/bin/kubectl-krew update 2>/dev/null
 $KREW_ROOT/bin/kubectl-krew upgrade 2>/dev/null
 
+echo "🔌 Ensuring krew plugins…"
 for plugin in "${KREW_PLUGINS[@]}"; do
     if ! $KREW_ROOT/bin/kubectl-krew list | grep -q "^$plugin$"; then
-        echo Installing Krew plugin "$plugin"
-        $KREW_ROOT/bin/kubectl-krew install "$plugin"
+        echo "➕ Installing krew plugin: $plugin"
+        $KREW_ROOT/bin/kubectl-krew install "$plugin" >/dev/null 2>&1
     else
-        echo Krew plugin "$plugin" already installed
+        echo "✅ krew plugin already installed: $plugin"
     fi
 done
+echo "✅ krew plugins up to date."
 {{- end -}}

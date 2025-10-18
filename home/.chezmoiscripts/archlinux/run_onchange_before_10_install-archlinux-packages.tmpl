@@ -1,4 +1,5 @@
-#!/usr/bin/env bash
+{{- includeTemplate "universal/common-before-template-header" . -}}
 
-# {{ includeTemplate "universal/next-update" . }}
-sudo pacman -Sy --noconfirm --needed {{ includeTemplate "universal/packages" (dict "root" .) -}}
+echo "🛠️ Updating pacman DB and installing packages…"
+sudo pacman -Syu --noconfirm --needed {{ includeTemplate "universal/packages" (dict "root" .) }}
+echo "✅ pacman packages ensured."

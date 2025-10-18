@@ -1,0 +1,41 @@
+{{- if .host.interactive -}}
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "$(uname -s)" in
+  Darwin)
+    osascript <<'EOF'
+      tell application "System Events"
+        activate
+        try
+          text returned of (display dialog "Enter your sudo password:" ¬
+            default answer "" ¬
+            buttons {"Cancel", "OK"} ¬
+            default button "OK" ¬
+            with hidden answer)
+        on error
+          error number 1
+        end try
+      end tell
+EOF
+    ;;
+
+  Linux)
+    if [ -n "${WSL_DISTRO_NAME:-}" ]; then
+      pw=$(powershell.exe -Command \
+        "Add-Type -AssemblyName Microsoft.VisualBasic; \
+         [Microsoft.VisualBasic.Interaction]::InputBox('Enter your WSL sudo password','WSL sudo')" \
+        | tr -d '\r')
+      [ -z "$pw" ] && exit 1
+      echo "$pw"
+    else
+      for cand in /usr/bin/ssh-askpass /usr/bin/ksshaskpass /usr/bin/x11-ssh-askpass; do
+        if [ -x "$cand" ]; then
+          exec "$cand" "Enter your sudo password:"
+        fi
+      done
+    fi
+    ;;
+esac
+exit 1
+{{- end -}}

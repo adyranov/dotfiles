@@ -1,4 +1,68 @@
-*
-!home
-!.chezmoi*
+# Ignore everything by default
+**
+
+# Allow core chezmoi sources
 !install.sh
+!.chezmoi*
+!home/
+
+# IDE & editor
+**/.idea/
+**/.vscode/
+**/.direnv/
+**/.envrc
+
+# Virtual environments
+**/.venv/
+**/venv/
+**/env/
+**/ENV/
+
+# Python
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/*.py[co]
+**/.coverage
+**/coverage.*
+
+# Logs
+**/*.log*
+**/*.out
+**/*.err
+**/*.stackdump
+
+# Package caches
+**/.npm/
+**/.pnpm-store/
+**/.cache/
+**/.local/
+
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+
+# Build artifacts
+**/*.class
+**/*.jar
+**/*.zip
+**/*.tar*
+**/*.so
+**/*.dll
+**/*.exe
+**/*.o
+**/*.a
+
+# OS cruft
+**/.DS_Store
+**/Desktop.ini
+**/Thumbs.db
+**/.Spotlight-V100
+**/.Trashes
+**/._*
+
+# Editor swap files
+**/*.swp
+**/*.swo
+**/*~

@@ -1,0 +1,22 @@
+{
+  "recommendations": [
+    "DavidAnson.vscode-markdownlint",
+    "eamodio.gitlens",
+    "editorconfig.editorconfig",
+    "foxundermoon.shell-format",
+    "github.vscode-github-actions",
+    "ms-azuretools.vscode-docker",
+    "redhat.vscode-yaml",
+    "streetsidesoftware.code-spell-checker",
+    "tamasfe.even-better-toml",
+    "timonwong.shellcheck",
+    "twpayne.chezmoi",
+    "ms-vscode-remote.remote-containers",
+    "hashicorp.terraform",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    "yzhang.markdown-all-in-one",
+    "bierner.markdown-mermaid",
+    "esbenp.prettier-vscode"
+  ],
+  "unwantedRecommendations": []
+}

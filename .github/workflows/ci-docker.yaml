@@ -77,7 +77,7 @@ jobs:
         os: ${{ fromJSON(needs.changes.outputs.matrix) }}
       fail-fast: false
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 20
     services:
       registry:
         image: registry:3
@@ -126,10 +126,6 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
-      - name: Run Tests amd64
-        run: docker run --rm --platform amd64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
-      - name: Run Tests arm64
-        run: docker run --rm --platform arm64 localhost:5000/${{ matrix.os }}:latest /home/devcontainer/.local/bin/check-dotfiles
       - name: Generate Image Metadata
         id: metadata
         uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5

@@ -1,0 +1,17 @@
+add_to_path ()
+case ":$PATH:" in
+    *:"$1":*)
+        ;;
+    *)
+        export PATH="$1:$PATH"
+        ;;
+esac
+
+{{- if eq .host.distro.family "darwin" }}
+add_to_path $HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin
+{{- end }}
+add_to_path $KREW_ROOT/bin
+add_to_path $CARGO_HOME/bin
+add_to_path $HOME/.local/bin
+
+unset -f add_to_path

@@ -1,13 +1,14 @@
 {{- if .secrets.age -}}
-#!/usr/bin/env bash
+{{- includeTemplate "universal/common-before-template-header" . -}}
 
-{{- $encryptedKey := joinPath .host.source ".keys/key.txt.age" }}
-{{- $decryptedKey := joinPath .host.home ".config/age/key.txt" }}
+{{- $encryptedKey := joinPath .host.source ".keys/key.txt.age" -}}
+{{- $decryptedKey := joinPath .host.home ".config/age/key.txt" -}}
 
 if [ ! -f "{{ $decryptedKey }}" ]; then
-    echo "Decrypting {{ $encryptedKey }}"
+    echo "🔐 Decrypting age key: {{ $encryptedKey }}"
     mkdir -p "{{ .host.home }}/.config/age"
     chezmoi age --decrypt --output "{{ $decryptedKey }}" "{{ $encryptedKey }}"
     chmod 600 "{{ $decryptedKey }}"
+    echo "✅ Wrote key to {{ $decryptedKey }} (0600)"
 fi
 {{- end -}}

@@ -1,0 +1,6 @@
+{{- if (lookPath "vivid") -}}
+export LS_COLORS={{ printf "%q" (trim (output "vivid" "generate" "one-dark")) }}
+{{- end }}
+
+# disable pre-commit colors for one-dark
+export PRE_COMMIT_COLOR="never"

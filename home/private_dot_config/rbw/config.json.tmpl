@@ -1,0 +1,3 @@
+{{- if eq .host.distro.family "linux" }}
+{{- template "universal/rbw-config" . }}
+{{- end }}

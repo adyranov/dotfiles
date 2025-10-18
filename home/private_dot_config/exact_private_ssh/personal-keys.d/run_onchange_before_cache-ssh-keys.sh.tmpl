@@ -1,17 +1,11 @@
-#!/usr/bin/env bash
-set -eufo pipefail
+{{- includeTemplate "universal/common-before-template-header" . -}}
 
-# {{ includeTemplate "universal/next-update" . }}
-
-if [ ! "$(command -v bw)" ]; then
-  echo "Bitwarden CLI command was not found"
+if [ ! "$(command -v rbw)" ]; then
+  echo "Bitwarden CLI 'rbw' command was not found"
   exit 1
-elif ! bw --nointeraction --quiet login --check; then
-  echo "Please login to Bitwarden and set the BW_SESSION environment variable"
-  exit 1
-elif ! bw --nointeraction --quiet unlock --check; then
-  echo "Please unlock Bitwarden and set the BW_SESSION environment variable"
-  exit 1
+elif ! rbw unlocked; then
+  echo "Please unlock Bitwarden"
+  rbw unlock
 fi
 
 rm -f "{{ .cache.secrets.dir }}/*"
@@ -24,6 +18,6 @@ secrets=(
 
 for secret in "${secrets[@]}"
 do
-    bw get notes $secret > "{{ .cache.secrets.dir }}/$secret"
+    rbw get $secret > "{{ .cache.secrets.dir }}/$secret"
     chmod 600 "{{ .cache.secrets.dir }}/$secret"
 done

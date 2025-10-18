@@ -1,22 +1,35 @@
-#!/usr/bin/env bash
-set -euo pipefail
+{{- includeTemplate "universal/common-before-template-header" . -}}
 
-function app_apt_repo {
+app_apt_repo() {
   local name="$1"
   local key_url="$2"
   local repo_line="$3"
+  local keyring_path="${4:-}"
+  local list_file="/etc/apt/sources.list.d/${name}.list"
+  local key_file="${keyring_path:-/etc/apt/trusted.gpg.d/${name}.gpg}"
 
-  if [ ! -f "/etc/apt/sources.list.d/${name}.list" ]; then
-    echo "Setting up APT repository: ${name}"
-    curl -fsSL "$key_url" | gpg --dearmor | sudo tee "/etc/apt/trusted.gpg.d/${name}.gpg" >/dev/null
-    echo "$repo_line" | sudo tee "/etc/apt/sources.list.d/${name}.list" >/dev/null
+  sudo install -d -m 0755 "$(dirname "$key_file")"
+
+  if [ ! -f "$key_file" ]; then
+    echo "🔑 Importing signing key for ${name}"
+    curl -fsSL "$key_url" | gpg --dearmor | sudo tee "$key_file" >/dev/null
+    sudo chmod 0644 "$key_file"
   else
-    echo "APT repository ${name} already exists, skipping."
+    echo "✅ Signing key already present for ${name}, skipping"
+  fi
+
+  if [ ! -f "$list_file" ] || ! grep -Fx "$repo_line" "$list_file" >/dev/null 2>&1; then
+    echo "➕ Configuring APT repository: ${name}"
+    printf '%s\n' "$repo_line" | sudo tee "$list_file" >/dev/null
+  else
+    echo "✅ APT repository ${name} already configured, skipping"
   fi
 }
 
 {{- with .repositories.ubuntu }}
 {{- range $name, $repo := . }}
-app_apt_repo "{{ $name }}" "{{ $repo.key_url }}" "{{ $repo.repo_line }}"
+{{- $keyring := "" -}}
+{{- if hasKey $repo "keyring_path" }}{{- $keyring = index $repo "keyring_path" }}{{- end }}
+app_apt_repo "{{ $name }}" "{{ $repo.key_url }}" "{{ $repo.repo_line }}" {{ quote $keyring }}
 {{- end }}
 {{- end }}

@@ -1,0 +1,15 @@
+{{- includeTemplate "universal/common-before-template-header" . -}}
+
+eval $({{ .brew.path }} shellenv)
+{{- includeTemplate "universal/sudo-keep-alive" . }}
+echo "🍺 Updating Homebrew…"
+brew update
+{{- if .host.interactive }}
+echo "📦 Upgrading formulae…"
+brew upgrade
+echo "🧰 Upgrading casks…"
+brew upgrade --cask --greedy
+echo "🧹 Cleaning up…"
+brew cleanup
+echo "✅ Homebrew updated."
+{{- end -}}
