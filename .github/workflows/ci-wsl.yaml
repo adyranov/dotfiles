@@ -64,7 +64,6 @@ jobs:
             build-essential \
             ca-certificates \
             curl \
-            dos2unix \
             git \
             gnupg \
             locales \
@@ -73,13 +72,6 @@ jobs:
             wget \
             zsh
           sudo locale-gen en_US.UTF-8
-      - name: Normalize line endings
-        shell: wsl-bash {0}
-        run: |
-          set -eux
-          workspace="$(wslpath '${{ github.workspace }}')"
-          cd "$workspace"
-          find . -type f -name '*.sh' -print0 | xargs -0 dos2unix --
       - name: Run install.sh
         shell: wsl-bash {0}
         env:

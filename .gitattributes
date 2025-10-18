@@ -1,0 +1,15 @@
+# Normalize endings to LF for portability across environments
+* text=auto eol=lf
+
+# Ensure shell and template files always use LF
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+*.tmpl text eol=lf
+
+# Preserve binary files as-is
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
