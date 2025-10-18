@@ -26,11 +26,19 @@ Prebuilt images are also published to GHCR and Docker Hub:
   - Arch: `docker pull adyranov/dotfiles:archlinux && docker run --rm -it -e TERM -e COLORTERM adyranov/dotfiles:archlinux`
 
 
+### Windows / WSL
+
+- Install WSL Ubuntu 24.04 (PowerShell as Administrator): `wsl --install -d Ubuntu-24.04`
+- After reboot, open Ubuntu (WSL) and install prerequisites: `sudo apt update && sudo apt install -y curl git zsh`
+- Clone and apply the dotfiles inside WSL: `git clone https://github.com/adyranov/dotfiles && cd dotfiles && ./install.sh`
+- Validate with `~/.local/bin/check-dotfiles` and rerun `./install.sh` whenever you need to converge.
+
+
 ## 🧩 How It Works
 
 - Single source of truth: tools live in `.chezmoidata/*/packages.*.toml` and render via a shared template at `.chezmoitemplates/universal/packages` into the right target (system package manager, `mise`, `krew`, `helm`, and tests).
 - Per-OS overrides: each package may define `overrides.<os>` with keys like `name`, `manager`, `version`, `test`, and `exclude_arch` to fine-tune behavior per platform/arch.
-- Conditional disables: set `disabled` to either a boolean, or a comma/space separated string of flags. Supported flags: `headless`, `restricted`, and host type values `desktop`, `laptop`, `wsl`, `ephemeral`. Example: `disabled = "headless,restricted"`.
+- Conditional disables: set `disabled` to either a boolean, or a comma/space separated string of flags. Supported flags: `headless` (non-interactive sessions), `restricted`, and host type values `desktop`, `laptop`, `wsl`, `ephemeral`. Example: `disabled = "headless,restricted"`.
 - OS pinning: set `os = "darwin" | "ubuntu" | "fedora" | "archlinux"` on a package to include it only on that OS.
 
 See examples in `home/.chezmoidata/universal/packages.universal.toml` and OS-specific overrides in `home/.chezmoidata/darwin`, `home/.chezmoidata/fedora`, `home/.chezmoidata/ubuntu`, and `home/.chezmoidata/archlinux`.
@@ -46,6 +54,7 @@ See examples in `home/.chezmoidata/universal/packages.universal.toml` and OS-spe
 - Bootstrap local hooks: `./scripts/setup-pre-commit.sh` (installs a repo-local virtualenv and the `pre-commit` hook).
 - Run validations anytime: `pre-commit run --all-files`.
 - Project layout follows chezmoi conventions. See `home/` for source state, `home/.chezmoidata/**` for data-driven packages, and `home/.chezmoitemplates/**` for reusable templates.
+- Line endings are enforced via `.gitattributes` (LF for Unix tooling, CRLF for Windows scripts). Keep new files consistent with these defaults.
 - Maintainers: see `AGENTS.md` for contributor guidelines and CI expectations.
 
 ## 🛠 Init & Customization
@@ -57,7 +66,7 @@ See examples in `home/.chezmoidata/universal/packages.universal.toml` and OS-spe
   - Disable all then opt-in: `WITHOUT_TOOLCHAINS=true WITH_PYTHON=true`
 - Environment detection:
   - Ephemeral/container environments are auto-detected and tagged as `ephemeral`.
-  - Non-interactive sessions are tagged as `headless`.
+  - Non-interactive sessions set `.host.interactive = false` (treated as `headless` in package rules).
   - macOS Intel/Apple Silicon and Linuxbrew brew paths are auto-detected and exported for templates.
 - Password manager: `rbw` (Bitwarden CLI) config is rendered automatically on macOS and Linux with your Git email and a suitable `pinentry` (uses `pinentry-mac` when available).
 
@@ -80,6 +89,7 @@ Notes:
 - Host workflow (`.github/workflows/ci-host.yaml`) installs via `./install.sh` on macOS and Ubuntu (Intel/ARM) and then runs `~/.local/bin/check-dotfiles`.
 - Docker workflow (`.github/workflows/ci-docker.yaml`) builds Arch Linux, Fedora, and Ubuntu images for `amd64` and `arm64`, runs the same checks, and can optionally publish images.
   - To publish images manually, trigger the workflow with `workflow_dispatch` and set `publish-image` to `true`.
+- WSL workflow (`.github/workflows/ci-wsl.yaml`) provisions Ubuntu 24.04 inside Windows runners, restores cached APT/mise/rustup/cargo/krew/helm downloads, runs `./install.sh`, then `~/.local/bin/check-dotfiles`.
 - When adding new top-level paths, update the `dorny/paths-filter` sections in both workflows so CI triggers remain accurate.
 
 ## 🖥 Supported Platforms

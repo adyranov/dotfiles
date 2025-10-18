@@ -7,12 +7,12 @@ export XDG_STATE_HOME="$HOME/.local/state"
 export XDG_RUNTIME_DIR=
 {{- if eq .host.distro.family "darwin" -}}
   "$TMPDIR"
-{{- else if not .host.headless -}}
+{{- else if .host.interactive -}}
   "/run/user/$(id -u)"
 {{- else -}}
   "/tmp"
 {{- end }}
-{{- if not .host.headless }}
+{{- if .host.interactive }}
 export XDG_MUSIC_DIR="$HOME/Music"
 export XDG_VIDEOS_DIR="$HOME/Videos"
 export XDG_DESKTOP_DIR="$HOME/Desktop"
@@ -89,7 +89,7 @@ export WGETRC="$XDG_CONFIG_HOME/wget/wgetrc"
 export ZSH_EVALCACHE_DIR="$XDG_CACHE_HOME/zsh-evalcache"
 
 # Editor
-{{- if not .host.headless }}
+{{- if .host.interactive }}
 export EDITOR="code --wait"
 {{- end }}
 

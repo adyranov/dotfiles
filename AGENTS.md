@@ -34,13 +34,15 @@
 - Host workflow (`.github/workflows/ci-host.yaml`): runs `./install.sh` on a matrix (macOS/Ubuntu and Intel/ARM) and then `~/.local/bin/check-dotfiles`.
 - Docker workflow (`.github/workflows/ci-docker.yaml`): builds Arch Linux, Fedora, and Ubuntu images for `amd64` and `arm64`, runs the same dotfiles checks, and can publish images from main or on demand.
   - Manual publish: dispatch the workflow with the `publish-image` input set to `true`.
-- If you add new top-level paths, update `dorny/paths-filter` filters in both workflows so CI triggers remain accurate.
+- WSL workflow (`.github/workflows/ci-wsl.yaml`): provisions Ubuntu 24.04 inside Windows runners, restores cached package directories (APT, mise, rustup, cargo, krew, helm), runs `./install.sh`, then executes `~/.local/bin/check-dotfiles`.
+- If you add new top-level paths, update the `dorny/paths-filter` filters in each workflow so CI triggers remain accurate.
 
 ## Coding Style & Naming Conventions
 
 ### General
 
 - Use the .editorconfig file located in the repository root to maintain consistent formatting across all files.
+- Respect `.gitattributes` enforced line endings (LF for Unix tooling, CRLF for Windows scripts); do not override these defaults.
 
 ### Chezmoi
 
@@ -50,7 +52,7 @@
 - Package keys may follow upstream naming (including hyphens) for clarity and parity with tests; apply lower_snake_case to custom data keys you introduce.
 - TOML should be consistently ordered and linted; pre-commit enforces `toml-sort`, `yamlfmt`, `yamllint`, `editorconfig-checker`, `codespell`.
 - The template data defines `host` fields used across templates and data:
-  - Booleans: `.host.work`, `.host.restricted`, `.host.headless`, `.host.interactive`
+  - Booleans: `.host.work`, `.host.restricted`, `.host.interactive`
   - OS/arch/type: `.host.distro.id` (`darwin`, `ubuntu`, `fedora`, `archlinux`), `.host.arch`, `.host.type` (`desktop`, `laptop`, `wsl`, `ephemeral`)
 - Supported OSes are `darwin`, `ubuntu`, `fedora`, and `archlinux`. Adding a new OS requires updating `home/.chezmoi.yaml.tmpl` (support check), `home/.chezmoidata/<os>`, and `home/.chezmoiscripts/<os>`.
 
