@@ -1,0 +1,77 @@
+name: CI WSL
+on:
+  push:
+    branches:
+      - main
+      - feature/*
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: 0 23 * * 4
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run-wsl: ${{ steps.filter.outputs.wsl }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Paths Filter
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ github.event.pull_request.base.ref || github.base_ref || github.ref }}
+          filters: |
+            wsl:
+              - 'home/.chezmoi*'
+              - 'home/.chezmoidata/universal/**'
+              - 'home/.chezmoiscripts/universal/**'
+              - 'home/.chezmoitemplates/universal/**'
+              - 'home/dot_*'
+              - 'home/dot_*/**'
+              - 'home/private_dot_*'
+              - 'home/private_dot_*/**'
+              - 'home/.chezmoidata/ubuntu/**'
+              - 'home/.chezmoiscripts/ubuntu/*'
+              - 'home/.chezmoitemplates/ubuntu/*'
+              - 'install.sh'
+              - '.github/workflows/ci-wsl.yaml'
+  wsl:
+    needs: changes
+    if: ${{ needs.changes.outputs.run-wsl == 'true' }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Setup WSL
+        uses: Vampire/setup-wsl@6a8db447be7ed35f2f499c02c6e60ff77ef11278 # v6.0.0
+        with:
+          distribution: Ubuntu-24.04
+      - name: Run install.sh
+        shell: wsl-bash {0}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MISE_ALWAYS_KEEP_DOWNLOAD: true
+          MISE_FETCH_REMOTE_VERSIONS_TIMEOUT: 60
+          MISE_HTTP_TIMEOUT: 60
+          WITHOUT_TOOLCHAINS: true
+        run: |
+          set -eux
+          workspace="$(wslpath '${{ github.workspace }}')"
+          cd "$workspace"
+          ./install.sh
+      - name: Run check-dotfiles
+        shell: wsl-bash {0}
+        run: |
+          set -eux
+          workspace="$(wslpath '${{ github.workspace }}')"
+          cd "$workspace"
+          ~/.local/bin/check-dotfiles

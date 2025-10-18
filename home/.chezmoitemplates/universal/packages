@@ -37,7 +37,7 @@
         {{- $pkgDisabled := index $override "disabled" | default (index $pkg "disabled" | default false) -}}
         {{- $disabled := false -}}
         {{- if kindIs "string" $pkgDisabled -}}
-            {{- if and ($pkgDisabled | contains "headless") $root.host.headless -}}
+            {{- if and ($pkgDisabled | contains "headless") (not $root.host.interactive) -}}
                 {{- $disabled = true -}}
             {{- end -}}
             {{- if and ($pkgDisabled | contains "restricted") $root.host.restricted -}}

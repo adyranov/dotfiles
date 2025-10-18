@@ -37,7 +37,7 @@ tap "{{ . }}"
 {{ range ($brews | sortAlpha | uniq) }}
 brew "{{ . }}"
 {{- end }}
-{{- if not .host.headless -}}
+{{- if .host.interactive -}}
 {{ range ($casks | sortAlpha | uniq) }}
 cask "{{ . }}"
 {{- end }}

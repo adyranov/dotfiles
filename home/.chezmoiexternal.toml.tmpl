@@ -1,7 +1,7 @@
 
 {{- $refreshPeriod := "168h" }}
 
-{{- if not .host.headless }}
+{{- if .host.interactive }}
 {{-   $fontDir := "" }}
 {{-   if eq .host.distro.family "darwin" }}
 {{-     $fontDir = "Library/Fonts" }}

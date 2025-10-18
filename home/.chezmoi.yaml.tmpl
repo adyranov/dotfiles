@@ -13,17 +13,48 @@
   {{- $_ := set $data $k (default (dict) (get $data $k)) -}}
 {{- end -}}
 
-{{- /* -------------------- Ephemeral / Headless Detection -------------------- */ -}}
+{{- /* -------------------- Ephemeral Environment -------------------- */ -}}
 {{- $ephemeral := false -}}
-{{- if or (stat "/.dockerenv") (stat "/run/.containerenv") -}}
+{{- $ephemeralReasons := list -}}
+
+{{- if stat "/.dockerenv" -}}
   {{- $ephemeral = true -}}
-{{- else if (and (stat "/proc/1/cgroup") (regexMatch "(docker|lxc|podman|kubepods|containerd)" (output "cat" "/proc/1/cgroup"))) -}}
-  {{- $ephemeral = true -}}
-{{- else if (and (stat "/proc/1/mountinfo") (regexMatch "(overlay|containers)" (output "cat" "/proc/1/mountinfo"))) -}}
-  {{- $ephemeral = true -}}
+  {{- $ephemeralReasons = append $ephemeralReasons "Detected /.dockerenv" -}}
 {{- end -}}
+{{- if stat "/run/.containerenv" -}}
+  {{- $ephemeral = true -}}
+  {{- $ephemeralReasons = append $ephemeralReasons "Detected /run/.containerenv" -}}
+{{- end -}}
+
+{{- if stat "/proc/1/cgroup" -}}
+  {{- $cgroup := output "cat" "/proc/1/cgroup" -}}
+  {{- $match := regexFind "(docker|lxc|podman|kubepods|containerd)" $cgroup -}}
+  {{- if $match -}}
+    {{- $ephemeral = true -}}
+    {{- $ephemeralReasons = append $ephemeralReasons (printf "/proc/1/cgroup matched %s" $match) -}}
+  {{- end -}}
+{{- end -}}
+
+{{- if stat "/proc/1/mountinfo" -}}
+  {{- $mountinfo := output "cat" "/proc/1/mountinfo" -}}
+  {{- $match := regexFind "(overlay|containers)" $mountinfo -}}
+  {{- if $match -}}
+    {{- $ephemeral = true -}}
+    {{- $ephemeralReasons = append $ephemeralReasons (printf "/proc/1/mountinfo matched %s" $match) -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $isWSL := or (env "WSL_DISTRO_NAME") (env "WSL_INTEROP") (and (eq .chezmoi.os "linux") (contains (lower (output "uname" "-r")) "microsoft")) -}}
+{{- if and $ephemeral $isWSL -}}
+  {{- $ephemeral = false -}}
+  {{- $ephemeralReasons = list -}}
+{{- end -}}
+
 {{- if $ephemeral -}}
-  {{- writeToStdout "🛳️ Running in container / ephemeral environment.\n" -}}
+  {{- writeToStdout "🛳️ Running in a containerized (ephemeral) environment.\n" -}}
+  {{- range $reason := $ephemeralReasons -}}
+    {{- writeToStdout (printf "   • %s\n" $reason) -}}
+  {{- end -}}
 {{- end -}}
 
 {{- /* -------------------- OS / Distro -------------------- */ -}}
@@ -33,7 +64,7 @@
 {{- $isSupported := false -}}
 {{- range $supported -}}{{- if eq . $distro.id -}}{{- $isSupported = true -}}{{- end -}}{{- end -}}
 {{- if not $isSupported -}}
-  {{- writeToStdout (printf "⚠️ Unsupported distro: %s\n" $distro.id) -}}
+  {{- writeToStdout (printf "⚠️ Unsupported distribution: %s\n" $distro.id) -}}
   {{- exit 1 -}}
 {{- end -}}
 
@@ -53,16 +84,26 @@
 {{- if $ephemeral -}}
   {{- $chassisType = "ephemeral" -}}
 {{- else if eq .chezmoi.os "linux" -}}
-  {{- if contains (.chezmoi.kernel.osrelease | lower) "microsoft" -}}
+  {{- if $isWSL -}}
     {{- $chassisType = "wsl" -}}
   {{- else -}}
-    {{- $chassisType = (output "hostnamectl" "--json=short" | mustFromJson).Chassis -}}
+    {{- $hostnamectl := output "hostnamectl" "--json=short" -}}
+    {{- $parsed := mustFromJson $hostnamectl -}}
+    {{- $chassis := $parsed.Chassis | default "desktop" -}}
+    {{- $chassisType = $chassis -}}
   {{- end -}}
 {{- else if eq .chezmoi.os "darwin" -}}
-  {{- if contains "MacBook" (output "sysctl" "-n" "hw.model") -}}{{- $chassisType = "laptop" -}}{{- end -}}
+  {{- $hwModel := output "sysctl" "-n" "hw.model" -}}
+  {{- if contains "MacBook" $hwModel -}}
+    {{- $chassisType = "laptop" -}}
+  {{- else -}}
+    {{- $chassisType = "desktop" -}}
+  {{- end -}}
 {{- else if eq .chezmoi.os "windows" -}}
-  {{- $chassisType = output "powershell.exe" "-noprofile" "-command" "if (Get-WmiObject -Class win32_battery) { echo 'laptop' } else { echo 'desktop' }" -}}
+  {{- $psCmd := "if (Get-WmiObject -Class win32_battery) { 'laptop' } elseif ((Get-WmiObject -Class Win32_SystemEnclosure).ChassisTypes -contains 8) { 'laptop' } else { 'desktop' }" -}}
+  {{- $chassisType = output "powershell.exe" "-noprofile" "-command" $psCmd -}}
 {{- end -}}
+{{- writeToStdout (printf "📦 Detected host type: %s\n" $chassisType) -}}
 
 {{- /* -------------------- Toolchain Defaults -------------------- */ -}}
 {{- $toolchainsEnabled := dict -}}
@@ -81,7 +122,7 @@
 {{- end -}}
 
 {{- /* -------------------- Interactive Prompts -------------------- */ -}}
-{{- $headless := false -}}
+{{- $interactive := true -}}
 {{- if stdinIsATTY -}}
   {{- $work = promptBoolOnce $data.host "work" "🏢 Work Environment" $work -}}
   {{- $restricted = promptBoolOnce $data.host "restricted" "🔒 Restricted Environment" $restricted -}}
@@ -142,10 +183,10 @@
     {{- writeToStdout "🐳 Enabled Docker for Kubernetes.\n" -}}
   {{- end -}}
 
-{{- writeToStdout "💡 Tip: you can re-enter your name and email with `chezmoi init --data=false`.\n" -}}
+{{- writeToStdout "💡 Tip: You can re-enter your name and email with `chezmoi init --data=false`.\n" -}}
 {{- else -}}
-  {{- $headless = true -}}
-  {{- writeToStdout "🤖 Running in headless environment.\n" -}}
+  {{- $interactive = false -}}
+  {{- writeToStdout "🤖 Running in a non-interactive environment.\n" -}}
 {{- end -}}
 
 hooks:
@@ -194,9 +235,8 @@ data:
     source: "{{ .chezmoi.sourceDir }}"
     type: "{{ $chassisType }}"
     work: {{ $work }}
-    interactive: {{ stdinIsATTY }}
+    interactive: {{ $interactive }}
     restricted: {{ $restricted }}
-    headless: {{ $headless }}
   secrets:
     age: {{ $secrets.age }}
     bitwarden: {{ $secrets.bitwarden }}
