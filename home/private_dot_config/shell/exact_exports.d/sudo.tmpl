@@ -1,0 +1,6 @@
+{{- if .host.interactive -}}
+export SUDO_ASKPASS="$HOME/.local/bin/sudo-askpass"
+alias sudo='sudo -A '
+{{- else -}}
+alias sudo='sudo ' # https://wiki.archlinux.org/title/Sudo#Passing_aliases
+{{- end -}}

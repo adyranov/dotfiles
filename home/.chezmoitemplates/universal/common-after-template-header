@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -eufo pipefail
+
+# {{ includeTemplate "universal/next-update" . -}}
+
+# shellcheck disable=SC1091
+. "$HOME"/.config/shell/exports.sh

@@ -1,14 +1,7 @@
-#!/usr/bin/env bash
+{{- includeTemplate "universal/common-before-template-header" . -}}
 
-eval $({{ .brew.path }} shellenv)
-
-# {{ includeTemplate "universal/next-update" . }}
-brew update
+echo "📦 Ensuring Homebrew bundle packages…"
 brew bundle --verbose --file=/dev/stdin <<EOF
 {{ includeTemplate "darwin/brewfile" . }}
 EOF
-{{- if .host.interactive }}
-brew upgrade
-brew upgrade --cask --greedy
-brew cleanup
-{{- end -}}
+echo "✅ Homebrew bundle applied."

@@ -1,0 +1,4 @@
+u() {
+  chezmoi upgrade
+  chezmoi update --init
+}

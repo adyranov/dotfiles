@@ -1,7 +1,4 @@
 {{- /* chezmoi:modify-template */ -}}
-{{- if (eq .host.distro.family "darwin") -}}
-Include {{ .host.home }}/.colima/ssh_config
-{{- end }}
 Include {{ .host.home }}/.config/ssh/config
 
 {{- if regexMatch "(?m)^#### dotfiles:unmodified" .chezmoi.stdin }}

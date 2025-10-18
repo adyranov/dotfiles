@@ -1,0 +1,16 @@
+{{- if not .host.restricted }}
+_chezmoi_sudo_keepalive_pid=""
+if ! sudo -n true 2>/dev/null; then
+  echo "🔐 Refreshing sudo credentials…"
+  sudo -v
+  _chezmoi_sudo_keepalive() {
+    while true; do
+      sudo -n true
+      sleep 60
+    done
+  }
+  _chezmoi_sudo_keepalive &
+  _chezmoi_sudo_keepalive_pid=$!
+fi
+trap 'if [ -n "${_chezmoi_sudo_keepalive_pid:-}" ]; then kill "$_chezmoi_sudo_keepalive_pid" >/dev/null 2>&1 || true; fi' EXIT
+{{- end }}

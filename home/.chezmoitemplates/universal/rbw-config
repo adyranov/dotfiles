@@ -1,0 +1,4 @@
+{
+  "email": "{{ .git.email }}",
+  "pinentry": "{{ lookPath "pinentry-mac" | default "pinentry" }}"
+}

@@ -1,0 +1,41 @@
+{{- includeTemplate "universal/common-after-template-header" . -}}
+
+echo "🔍 Searching for available zsh installations..."
+for cand in "/usr/local/bin/zsh" "/opt/homebrew/bin/zsh" "/usr/bin/zsh" "/bin/zsh"; do
+  if [ -x "$cand" ]; then
+    zsh_path="$cand"
+    echo "✅ Found zsh at: $zsh_path"
+    break
+  fi
+done
+
+if [ -z "${zsh_path:-}" ]; then
+  echo "❌ No zsh found, exiting."
+  exit 0
+fi
+
+if [ "$SHELL" = "$zsh_path" ]; then
+  echo "ℹ️ Current shell is already zsh ($SHELL), nothing to do."
+  exit 0
+fi
+
+echo "🔍 Checking if $zsh_path is listed in /etc/shells..."
+if ! grep -qx "$zsh_path" /etc/shells 2>/dev/null; then
+  {{ if not .host.restricted -}}
+  echo "➕ Adding $zsh_path to /etc/shells (requires sudo)..."
+  echo "$zsh_path" | sudo tee -a /etc/shells >/dev/null || true
+  {{ else -}}
+  echo "⚠️ $zsh_path not in /etc/shells, add manually." >&2
+  {{ end -}}
+else
+  echo "✅ $zsh_path already listed in /etc/shells."
+fi
+
+{{ if not .host.restricted -}}
+echo "🔄 Changing login shell to $zsh_path..."
+if sudo chsh -s "$zsh_path" "$USER"; then
+  echo "🎉 Shell successfully changed to zsh."
+else
+  echo "⚠️ Failed to change shell to zsh."
+fi
+{{ end -}}

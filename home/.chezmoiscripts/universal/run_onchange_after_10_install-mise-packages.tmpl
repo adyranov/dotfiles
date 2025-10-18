@@ -1,7 +1,4 @@
-#!/usr/bin/env bash
-set -eufo pipefail
-
-source $HOME/.config/shell/exports.sh
+{{- includeTemplate "universal/common-after-template-header" . -}}
 
 {{- $files := list -}}
 {{- range $path := glob (list .host.source "private_dot_config/exact_mise/**/*.toml" | join "/") }}
@@ -9,4 +6,6 @@ source $HOME/.config/shell/exports.sh
 {{- end }}
 
 # hash: {{ $files | join "" | sha256sum }}
+echo "📦 Installing mise packages…"
 mise install
+echo "✅ mise packages ensured."

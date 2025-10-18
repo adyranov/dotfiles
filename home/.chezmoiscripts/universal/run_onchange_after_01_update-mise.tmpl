@@ -1,0 +1,7 @@
+{{- includeTemplate "universal/common-after-template-header" . -}}
+
+echo "🔄 Upgrading mise toolchains…"
+mise upgrade
+echo "🧹 Pruning old versions…"
+mise prune -q -y
+echo "✅ mise toolchains updated."

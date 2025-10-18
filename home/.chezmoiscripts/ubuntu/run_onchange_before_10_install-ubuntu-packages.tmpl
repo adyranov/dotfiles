@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
+{{- includeTemplate "universal/common-before-template-header" . -}}
 
-# {{ includeTemplate "universal/next-update" . }}
-sudo apt-get update
-sudo apt-get install -y --no-install-recommends {{ includeTemplate "universal/packages" (dict "root" .) -}}
+echo "🛠️ Updating APT cache and installing packages…"
+sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get install -y --no-install-recommends {{ includeTemplate "universal/packages" (dict "root" .) }}
+echo "✅ APT packages ensured."

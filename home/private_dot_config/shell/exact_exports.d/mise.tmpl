@@ -1,0 +1,21 @@
+{{- if (lookPath "mise") -}}
+CURRENT_SHELL=""
+
+if [ -n "${ZSH_VERSION:-}" ]; then
+  CURRENT_SHELL="zsh"
+elif [ -n "${BASH_VERSION:-}" ]; then
+  CURRENT_SHELL="bash"
+fi
+
+if [ -z "${CURRENT_SHELL}" ] && command -v ps >/dev/null 2>&1; then
+  CURRENT_SHELL="$(ps -p $$ -o comm= | awk -F/ '{print $NF}' | sed 's/^-//')"
+fi
+
+case "${CURRENT_SHELL}" in
+  zsh) {{ output "mise" "activate" "zsh" }} ;;
+  bash) {{ output "mise" "activate" "bash" }} ;;
+  *)
+    echo "Warning: Could not detect supported shell (bash or zsh), skipping mise activation"
+    ;;
+esac
+{{- end -}}

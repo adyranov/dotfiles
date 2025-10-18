@@ -1,3 +1,87 @@
-/.idea/
+# IDE & editor settings
+.idea/
+.idea_modules/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Local environment helpers
+.direnv/
 .envrc
-/test/bats*
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Generated test tooling
+test/bats*
+
+# Python caches & coverage
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyc
+*.pyo
+*.pyd
+.coverage
+coverage.*
+
+# Logs & debug output
+*.log
+*.log.*
+*.out
+*.err
+*.stackdump
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Package caches
+.npm/
+.pnpm-store/
+.cache/
+
+# Terraform state
+.terraform/
+.terraform.lock.hcl
+
+# Local data caches
+.local/
+
+# Build artifacts
+*.so
+*.dll
+*.exe
+*.obj
+*.o
+*.a
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar
+*.gz
+*.tgz
+*.bz2
+*.7z
+*.msi
+*.dmg
+
+# OS cruft
+.DS_Store
+Desktop.ini
+Thumbs.db
+ehthumbs.db
+.Spotlight-V100
+.Trashes
+._*
+
+# Editor swap files
+*.swp
+*.swo
+*~
