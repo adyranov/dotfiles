@@ -1,0 +1,70 @@
+{{- $ca_bundle := joinPath .host.home ".config/certificates/ca-bundle.pem" -}}
+{{- if (stat $ca_bundle) -}}
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Hash: {{ include $ca_bundle | sha256sum }}
+
+TRUSTSTORE_DIR="${XDG_DATA_HOME:=$HOME/.local/share}/java"
+TRUSTSTORE="$TRUSTSTORE_DIR/truststore.jks"
+CA_BUNDLE="$HOME/.config/certificates/ca-bundle.pem"
+
+command -v keytool >/dev/null 2>&1 || exit 0
+[ -f "$CA_BUNDLE" ] || exit 0
+
+mkdir -p "$TRUSTSTORE_DIR"
+
+# Create empty truststore if needed
+if [ ! -f "$TRUSTSTORE" ]; then
+  keytool -genkey -alias temp -keystore "$TRUSTSTORE" -storepass changeit \
+    -validity 1 -keyalg RSA -dname "CN=Temporary" -noprompt >/dev/null 2>&1 || true
+  keytool -delete -alias temp -keystore "$TRUSTSTORE" -storepass changeit \
+    -noprompt >/dev/null 2>&1 || true
+fi
+
+# Remove all existing CA certificates
+keytool -list -keystore "$TRUSTSTORE" -storepass changeit 2>/dev/null | \
+  grep "^ca_" | awk '{print $1}' | tr -d ',' > /tmp/ca-aliases.txt || true
+
+while IFS= read -r alias; do
+  [ -z "$alias" ] && continue
+  keytool -delete -alias "$alias" -keystore "$TRUSTSTORE" -storepass changeit \
+    -noprompt >/dev/null 2>&1 || true
+done < /tmp/ca-aliases.txt
+rm -f /tmp/ca-aliases.txt
+
+# Split CA bundle into individual certificates and import each
+tmpdir=$(mktemp -d)
+trap "rm -rf '$tmpdir'" EXIT
+
+csplit -f "$tmpdir/cert-" -b %d.pem "$CA_BUNDLE" '/-----END CERTIFICATE-----/+1' '{*}' >/dev/null 2>&1 || true
+
+echo "📦 Importing certificates to truststore..."
+echo ""
+
+cert_num=0
+for cert_file in "$tmpdir"/cert-*.pem; do
+  [ -s "$cert_file" ] || continue
+
+  # Extract certificate information
+  subject=$(openssl x509 -in "$cert_file" -noout -subject 2>/dev/null | sed 's/^subject=//')
+  issuer=$(openssl x509 -in "$cert_file" -noout -issuer 2>/dev/null | sed 's/^issuer=//')
+  fingerprint=$(openssl x509 -in "$cert_file" -noout -fingerprint -sha256 2>/dev/null | awk -F= '{print $2}')
+
+  # Import to truststore
+  keytool -import -alias "ca_$cert_num" -file "$cert_file" -keystore "$TRUSTSTORE" \
+    -storepass changeit -noprompt >/dev/null 2>&1 || true
+
+  # Print certificate info
+  printf "  [%02d] ✅ Imported\n" "$cert_num"
+  printf "       Subject:  %s\n" "$subject"
+  printf "       Issuer:   %s\n" "$issuer"
+  printf "       SHA256:   %s\n" "$fingerprint"
+  [ $((cert_num + 1)) -lt $(ls "$tmpdir"/cert-*.pem 2>/dev/null | wc -l) ] && echo ""
+
+  cert_num=$((cert_num + 1))
+done
+
+echo ""
+echo "✅ Truststore: $TRUSTSTORE (imported $cert_num certificate(s))"
+{{- end }}

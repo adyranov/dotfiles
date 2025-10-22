@@ -82,6 +82,7 @@ OPTIONS:
   -c, --config CONFIG_PATH      Use custom buildkitd config file
                                 (default: ~/.config/docker/buildkitd/buildkitd.toml)
       --full-test               Build test stage (full install) instead of release image
+  --ca-certs PATH           Provide a PEM bundle to inject into system trust store (mounted as secret)
 
 EXAMPLES:
   \$0                                    # Build all containers
@@ -138,6 +139,7 @@ filter_containers() {
 SELECTED_CONTAINERS=()
 LIST_ONLY=false
 BUILD_TEST=false
+CA_CERTS_PATH=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -150,6 +152,15 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       BUILDKITD_CONFIG="$2"
+      shift 2
+      ;;
+    --ca-certs)
+      if [ -z "${2:-}" ]; then
+        log_error "Option $1 requires an argument"
+        usage
+        exit 1
+      fi
+      CA_CERTS_PATH="$2"
       shift 2
       ;;
     --full-test) BUILD_TEST=true; shift ;;
@@ -206,10 +217,24 @@ run_container() {
     build_args+=(--target "$target_stage")
   fi
 
+  # Secrets array
+  local secret_args=()
   if [ -n "${GITHUB_TOKEN:-}" ]; then
-    printf '%s' "${GITHUB_TOKEN}" | docker buildx build "${build_args[@]}" --secret id=GITHUB_TOKEN,src=/dev/stdin "${ROOT_DIR}"
+    secret_args+=("--secret" "id=GITHUB_TOKEN,src=/dev/stdin")
+  fi
+  if [ -n "$CA_CERTS_PATH" ]; then
+    if [ ! -f "$CA_CERTS_PATH" ]; then
+      log_error "CA certs file not found: $CA_CERTS_PATH"
+      exit 1
+    fi
+    secret_args+=("--secret" "id=CUSTOM_CA,src=$(realpath "$CA_CERTS_PATH")")
+    log_info "[${name}] injecting custom CA bundle"
+  fi
+
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    printf '%s' "${GITHUB_TOKEN}" | docker buildx build "${build_args[@]}" "${secret_args[@]}" "${ROOT_DIR}"
   else
-    docker buildx build "${build_args[@]}" "${ROOT_DIR}"
+    docker buildx build "${build_args[@]}" "${secret_args[@]}" "${ROOT_DIR}"
   fi || {
     log_error "[${name}] build failed for ${build_stage_label}"
     exit 1

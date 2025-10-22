@@ -8,11 +8,13 @@ FROM fedora:42 AS base
 ARG USER
 ARG UID
 
-RUN --mount=type=cache,id=dnf-cache,target=/var/cache/dnf,sharing=locked \
+RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=false \
+    --mount=type=cache,id=dnf-cache,target=/var/cache/dnf,sharing=locked \
     --mount=type=cache,id=dnf-lib,target=/var/lib/dnf,sharing=locked \
     --mount=type=tmpfs,target=/var/log \
     --mount=type=tmpfs,target=/tmp \
     set -eux \
+    && if [ -s /run/secrets/custom_ca.pem ]; then install -m 0644 /run/secrets/custom_ca.pem /etc/pki/ca-trust/source/anchors/custom-ca.pem && update-ca-trust; fi \
     && dnf -y upgrade --refresh \
     && dnf -y install --setopt=install_weak_deps=False \
         ca-certificates \

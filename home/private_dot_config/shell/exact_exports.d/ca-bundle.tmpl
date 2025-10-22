@@ -1,0 +1,30 @@
+CA_BUNDLE_PATH="${XDG_CONFIG_HOME:=$HOME/.config}/certificates/ca-bundle.pem"
+
+# Only export if the CA bundle exists
+if [ -f "$CA_BUNDLE_PATH" ]; then
+  # Standard SSL/TLS environment variables
+  # Used by: curl, wget, openssl, git, and many CLI tools
+  export SSL_CERT_FILE="$CA_BUNDLE_PATH"
+  export CURL_CA_BUNDLE="$CA_BUNDLE_PATH"
+
+  # Python
+  # Used by: requests library, pip, poetry, urllib
+  export REQUESTS_CA_BUNDLE="$CA_BUNDLE_PATH"
+  export PYTHONHTTPSVERIFY=1
+
+  # Node.js / npm / yarn / pnpm
+  # Used by: npm, yarn, pnpm, all Node.js https requests
+  export NODE_EXTRA_CA_CERTS="$CA_BUNDLE_PATH"
+  export npm_config_cafile="$CA_BUNDLE_PATH"
+
+  # Git
+  # Used by: git clone, git push, git pull over https
+  export GIT_SSL_CAINFO="$CA_BUNDLE_PATH"
+
+  # Java / Maven / Gradle / All JVM tools
+  # JAVA_TOOL_OPTIONS affects all Java processes automatically
+  JAVA_TRUSTSTORE="${XDG_DATA_HOME:=$HOME/.local/share}/java/truststore.jks"
+  if [ -f "$JAVA_TRUSTSTORE" ]; then
+    export JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }-Djavax.net.ssl.trustStore=$JAVA_TRUSTSTORE -Djavax.net.ssl.trustStorePassword=changeit"
+  fi
+fi

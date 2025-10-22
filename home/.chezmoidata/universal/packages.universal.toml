@@ -67,19 +67,20 @@ maven = {manager = "mise", test = "mvn -v"}
 java = {manager = "mise", test = "java -version", version = "25"}
 
 [packages.universal.kubernetes]
-kubesess = {manager = "mise", name = "ubi:Ramilito/kubesess", test = "kubesess --help"}
+datree = {manager = "mise", test = "datree version"}
 helm = {manager = "mise", test = "helm version"}
 k3d = {manager = "mise", test = "k3d version"}
 k9s = {manager = "mise", test = "k9s version"}
 kubectl = {manager = "mise", test = "kubectl version --client"}
-kustomize = {manager = "mise", test = "kustomize version"}
-kubectx = {manager = "mise", test = "kubectx --version"}
-kubens = {manager = "mise", test = "kubens --version"}
+kubectx = {manager = "mise", test = "kubectx --help"}
+kubens = {manager = "mise", test = "kubens --help"}
 kubecolor = {manager = "mise", test = "kubecolor help"}
-yq = {manager = "mise", test = "yq --version"}
-datree = {manager = "mise", test = "datree version"}
+kubesess = {manager = "mise", name = "ubi:Ramilito/kubesess", test = "kubesess --help"}
+kustomize = {manager = "mise", test = "kustomize version"}
+oc = {manager = "mise", test = "oc version --client"}
 popeye = {manager = "mise", test = "popeye version"}
 stern = {manager = "mise", test = "stern --version"}
+yq = {manager = "mise", test = "yq --version"}
 kubectl-access-matrix = {manager = "krew", name = "access-matrix", test = "kubectl access-matrix --help"}
 kubectl-blame = {manager = "krew", name = "blame", test = "kubectl blame --help"}
 kubectl-cost = {manager = "krew", name = "cost", test = "kubectl cost --help"}

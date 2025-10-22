@@ -1,6 +1,0 @@
-_py_path="${PYTHONPATH-}"
-case ":${_py_path}:" in
-  *:"$XDG_DATA_HOME/python":*) ;;
-  *) export PYTHONPATH="$XDG_DATA_HOME/python${_py_path:+:${_py_path}}" ;;
-esac
-unset _py_path

@@ -1,3 +1,4 @@
+{{- if .secrets.bitwarden -}}
 {{- includeTemplate "universal/common-before-template-header" . -}}
 
 if [ ! "$(command -v rbw)" ]; then
@@ -8,16 +9,18 @@ elif ! rbw unlocked; then
   rbw unlock
 fi
 
-rm -f "{{ .cache.secrets.dir }}/*"
-mkdir -p "{{ .cache.secrets.dir }}"
+rm -f "{{ .secrets.cache }}/*"
+mkdir -p "{{ .secrets.cache }}"
 
 secrets=(
-  id_ed25519.key
-  id_rsa.key
+{{- range .secrets.universal.bitwarden }}
+  {{ . | quote }}
+{{- end }}
 )
 
 for secret in "${secrets[@]}"
 do
-    rbw get $secret > "{{ .cache.secrets.dir }}/$secret"
-    chmod 600 "{{ .cache.secrets.dir }}/$secret"
+    rbw get $secret > "{{ .secrets.cache  }}/$secret"
+    chmod 600 "{{ .secrets.cache  }}/$secret"
 done
+{{- end -}}

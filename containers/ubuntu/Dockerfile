@@ -11,11 +11,13 @@ ARG UID
 RUN rm -f /etc/apt/apt.conf.d/docker-clean \
     && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 
-RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
+RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=false \
+    --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
     --mount=type=tmpfs,target=/var/log \
     --mount=type=tmpfs,target=/tmp \
     set -eux \
+    && if [ -s /run/secrets/custom_ca.pem ]; then cp /run/secrets/custom_ca.pem /usr/local/share/ca-certificates/custom-ca.pem && update-ca-certificates; fi \
     && groupadd --gid "$UID" "$USER" \
     && useradd -s /bin/bash --uid "$UID" --gid "$USER" -m "$USER" \
     && mkdir -p /etc/sudoers.d \

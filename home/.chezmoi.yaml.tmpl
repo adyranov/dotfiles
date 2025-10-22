@@ -1,7 +1,7 @@
 {{- /* -------------------- Basic User / Environment -------------------- */ -}}
-{{- $username := "adyranov" -}}
-{{- $name := "" -}}
-{{- $email := "" -}}
+{{- $personalUsername := "adyranov" -}}
+{{- $personalName := "" -}}
+{{- $personalEmail := "" -}}
 {{- $restricted := false -}}
 {{- $work := false -}}
 {{- $gpg := dict "sign" "" "encrypt" "" -}}
@@ -9,7 +9,7 @@
 {{- $toolchains := list "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" -}}
 
 {{- $data := . -}}
-{{- range $k := list "git" "gpg" "host" "toolchains" -}}
+{{- range $k := list "personal" "gpg" "host" "toolchains" -}}
   {{- $_ := set $data $k (default (dict) (get $data $k)) -}}
 {{- end -}}
 
@@ -103,7 +103,6 @@
   {{- $psCmd := "if (Get-WmiObject -Class win32_battery) { 'laptop' } elseif ((Get-WmiObject -Class Win32_SystemEnclosure).ChassisTypes -contains 8) { 'laptop' } else { 'desktop' }" -}}
   {{- $chassisType = output "powershell.exe" "-noprofile" "-command" $psCmd -}}
 {{- end -}}
-{{- writeToStdout (printf "📦 Detected host type: %s\n" $chassisType) -}}
 
 {{- /* -------------------- Toolchain Defaults -------------------- */ -}}
 {{- $toolchainsEnabled := dict -}}
@@ -126,11 +125,11 @@
 {{- if stdinIsATTY -}}
   {{- $work = promptBoolOnce $data.host "work" "🏢 Work Environment" $work -}}
   {{- $restricted = promptBoolOnce $data.host "restricted" "🔒 Restricted Environment" $restricted -}}
-  {{- $username = promptStringOnce $data.git "username" "👤 Git Username" $username -}}
+  {{- $personalUsername = promptStringOnce $data.personal "username" "👤 Personal Git Username" $personalUsername -}}
 
-  {{- if eq $username "adyranov" -}}
-    {{- $name = "Artem Dyranov" -}}
-    {{- $email = "artem.dyranov@gmail.com" -}}
+  {{- if eq $personalUsername "adyranov" -}}
+    {{- $personalName = "Artem Dyranov" -}}
+    {{- $personalEmail = "artem.dyranov@gmail.com" -}}
     {{- if not $work -}}
       {{- $_ := set $gpg "sign" "0xAE12214C66692D96" -}}
       {{- $_ := set $gpg "encrypt" "0xE770F55D35040481" -}}
@@ -138,8 +137,8 @@
     {{- end -}}
   {{- end -}}
 
-  {{- $name = promptStringOnce $data.git "name" "📝 Git Name" $name -}}
-  {{- $email = promptStringOnce $data.git "email" "📧 Git Email" $email -}}
+  {{- $personalName = promptStringOnce $data.personal "name" "📝 Personal Git Name" $personalName -}}
+  {{- $personalEmail = promptStringOnce $data.personal "email" "📧 Personal Git Email" $personalEmail -}}
 
   {{- $toolchainIcons := dict
       "cloud"       "☁️"
@@ -216,13 +215,10 @@ status:
 data:
   brew:
     path: "{{ $brewPath }}"
-  cache:
-    secrets:
-      dir: "{{ joinPath .chezmoi.cacheDir "user" .chezmoi.username "secrets" }}"
-  git:
-    email: "{{ $email }}"
-    name: "{{ $name }}"
-    username: {{ $username }}
+  personal:
+    email: "{{ $personalEmail }}"
+    name: "{{ $personalName }}"
+    username: {{ $personalUsername }}
   gpg:
     sign: "{{ $gpg.sign }}"
     encrypt: "{{ $gpg.encrypt }}"
@@ -240,6 +236,7 @@ data:
   secrets:
     age: {{ $secrets.age }}
     bitwarden: {{ $secrets.bitwarden }}
+    cache: "{{ joinPath .chezmoi.cacheDir "user" .chezmoi.username "secrets" }}"
   toolchains:
   {{- range $t, $enabled := $toolchainsEnabled }}
     {{ $t}}: {{ $enabled }}

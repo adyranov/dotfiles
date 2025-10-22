@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Tool: extract_corporate_ca
+# Purpose: Extract CA certificate bundle from HTTPS endpoint
+# Usage: extract_corporate_ca <host> <output-pem>
+
+usage() {
+  cat <<'EOF'
+🔐 extract_corporate_ca
+
+Usage: extract_corporate_ca <host> <output-pem>
+
+Extracts all non-leaf certificates from the TLS certificate chain.
+
+Examples:
+  extract_corporate_ca www.google.com ca-bundle.pem
+  extract_corporate_ca repo.maven.apache.org maven-ca.pem
+EOF
+}
+
+getCertProp() {
+  local cert_file="$1" prop="$2"
+  case "$prop" in
+    subject|issuer) openssl x509 -noout -"$prop" -in "$cert_file" 2>/dev/null | sed "s/^$prop=//" ;;
+    fingerprint) openssl x509 -noout -fingerprint -sha256 -in "$cert_file" 2>/dev/null | awk -F= '{print $2}' | tr -d ':' ;;
+  esac
+}
+
+main() {
+  [ $# -ge 2 ] || { usage >&2; return 1; }
+  local host="$1" output="$2"
+
+  for tool in openssl awk grep; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "❌ Required tool '$tool' not found" >&2; return 4; }
+  done
+
+  case "$output" in /*) ;; *) output="$(pwd)/$output" ;; esac
+
+  local tmpdir
+  tmpdir="$(mktemp -d)" || return 4
+
+  # Use background cleanup to avoid variable scope issues
+  (trap 'rm -rf "$tmpdir"' EXIT;
+    local chain_file="$tmpdir/chain.pem"
+    echo "🌐 Fetching certificate chain from $host:443 ..."
+    if ! openssl s_client -showcerts -servername "$host" -connect "$host:443" \
+      < /dev/null 2>/dev/null | \
+      awk '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/' > "$chain_file" 2>/dev/null; then
+      echo "❌ Failed to fetch certificate chain" >&2
+      return 2
+    fi
+
+    [ -s "$chain_file" ] || { echo "❌ Retrieved empty certificate chain" >&2; return 2; }
+
+    echo "📦 Parsing certificate chain..."
+
+    local cert_num=0 current_cert=""
+    while IFS= read -r line; do
+      if [ "$line" = "-----BEGIN CERTIFICATE-----" ]; then
+        current_cert="$line"$'\n'
+      elif [ "$line" = "-----END CERTIFICATE-----" ]; then
+        current_cert="$current_cert$line"
+        printf "%s\n" "$current_cert" > "$tmpdir/cert-$cert_num.pem"
+        cert_num=$((cert_num + 1))
+        current_cert=""
+      elif [ -n "$current_cert" ]; then
+        current_cert="$current_cert$line"$'\n'
+      fi
+    done < "$chain_file"
+
+    [ "$cert_num" -gt 0 ] || { echo "❌ No certificates found in chain" >&2; return 3; }
+
+    echo "✅ Found $cert_num certificate(s) in chain"
+    echo ""
+
+    local bundle_file="$tmpdir/bundle.pem" bundle_count=0 seen_fps_file="$tmpdir/seen-fps.txt"
+    : > "$bundle_file" "$seen_fps_file"
+
+    for ((i = 0; i < cert_num; i++)); do
+      local cert_file="$tmpdir/cert-$i.pem"
+      local subj iss fp
+      subj="$(getCertProp "$cert_file" subject)"
+      iss="$(getCertProp "$cert_file" issuer)"
+      fp="$(getCertProp "$cert_file" fingerprint)"
+
+      if [ $i -eq 0 ]; then
+        printf "  [%02d] 📋 LEAF CERTIFICATE (not included in bundle)\n" "$i"
+        printf "       Subject:  %s\n" "$subj"
+        printf "       Issuer:   %s\n" "$iss"
+        printf "       SHA256:   %s\n" "$fp"
+      else
+        if grep -q "^$fp\$" "$seen_fps_file" 2>/dev/null; then
+          printf "  [%02d] ⏭️  SKIP (duplicate)\n" "$i"
+          continue
+        fi
+        cat "$cert_file" >> "$bundle_file"
+        echo "$fp" >> "$seen_fps_file"
+        bundle_count=$((bundle_count + 1))
+
+        printf "  [%02d] ✅ INCLUDED\n" "$i"
+        printf "       Subject:  %s\n" "$subj"
+        printf "       Issuer:   %s\n" "$iss"
+        printf "       SHA256:   %s\n" "$fp"
+      fi
+    done
+
+    echo ""
+    [ -s "$bundle_file" ] || { echo "❌ No CA certificates to include in bundle" >&2; return 3; }
+
+    mkdir -p "$(dirname "$output")"
+    cp "$bundle_file" "$output"
+    chmod 600 "$output"
+
+    echo "🎉 CA bundle created: $output"
+    echo "✅ Bundle contains $bundle_count certificate(s)"
+    echo ""
+    echo "🔐 Verifying leaf certificate against bundle..."
+    if openssl verify -CAfile "$output" "$tmpdir/cert-0.pem" >/dev/null 2>&1; then
+      echo "✅ Verification successful - leaf certificate is trusted by the bundle"
+    else
+      echo "⚠️  Verification indicates leaf may not be directly verifiable"
+      echo "   (This is normal for certificate chains with multiple intermediate CAs)"
+    fi
+
+    echo ""
+    echo "📊 Certificate chain summary:"
+    echo "   Total certificates in chain: $cert_num"
+    echo "   Leaf certificate (not in bundle): 1"
+    echo "   CA certificates in bundle: $bundle_count"
+  ) || return $?
+}
+
+main "$@"
