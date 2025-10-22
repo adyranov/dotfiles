@@ -17,6 +17,7 @@ duf = {test = "duf --version"}
 dust = {test = "dust --version"}
 eza = {test = "eza --version"}
 fd = {test = "fd --version"}
+fzf = {test = "fzf --version"}
 gh = {test = "gh --version"}
 git = {test = "git --version"}
 git-delta = {test = "delta --version"}
