@@ -211,6 +211,7 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 | [k3d](https://k3d.io/) | Lightweight K3s clusters | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [k9s](https://k9scli.io/) | TUI for Kubernetes | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [kubectl](https://kubernetes.io/docs/reference/kubectl/) | Kubernetes control plane CLI | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [OpenShift oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) | OpenShift CLI | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [kustomize](https://github.com/kubernetes-sigs/kustomize) | YAML customization | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [kubectx](https://github.com/ahmetb/kubectx) | Context switcher | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [kubens](https://github.com/ahmetb/kubectx) | Namespace switcher | `mise ✅` | ✅ | ✅ | ✅ | ✅ |

@@ -8,10 +8,12 @@ FROM adyranov/archlinux AS base
 ARG USER
 ARG UID
 
-RUN --mount=type=cache,id=pacman-pkg,target=/var/cache/pacman/pkg,sharing=locked \
+RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=false \
+    --mount=type=cache,id=pacman-pkg,target=/var/cache/pacman/pkg,sharing=locked \
     --mount=type=tmpfs,target=/var/log \
     --mount=type=tmpfs,target=/tmp \
     set -eux \
+    && if [ -s /run/secrets/custom_ca.pem ]; then install -m 0644 /run/secrets/custom_ca.pem /etc/ca-certificates/trust-source/anchors/custom-ca.pem && trust extract-compat; fi \
     && groupadd --gid "$UID" "$USER" \
     && useradd -s /bin/bash -u "$UID" --gid "$USER" -m "$USER" \
     && mkdir -p /etc/sudoers.d \

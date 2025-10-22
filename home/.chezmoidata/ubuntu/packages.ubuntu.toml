@@ -24,6 +24,7 @@ docker = {name = "docker-ce"}
 zbar = {name = "zbar-tools"}
 
 [packages.ubuntu.kubernetes]
+oc = {exclude_arch = ["arm64"]}
 "kubectl-access-matrix" = {exclude_arch = ["arm64"]}
 "kubectl-cost" = {exclude_arch = ["arm64"]}
 "kubectl-datree" = {exclude_arch = ["arm64"]}

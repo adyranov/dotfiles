@@ -8,13 +8,29 @@ mas = {test = "mas version"}
 
 [packages.darwin.docker]
 colima = {test = "colima version"}
+dive = {manager = "system", name = "dive"}
 qemu = {test = "qemu-system-x86_64 --version"}
 
 [packages.darwin.extra]
 gocryptfs = {name = "gromgit/fuse/gocryptfs-mac"}
 
-[packages.darwin.kubernetes]
-kubesess = {manager = "system", name = "kubesess"}
+[packages.darwin.iac]
+shellcheck = {manager = "system"}
+sops = {manager = "system"}
+terragrunt = {manager = "system"}
+tflint = {manager = "system"}
 
-[packages.darwin.python]
-uv = {manager = "system"}
+[packages.darwin.kubernetes]
+helm = {manager = "system"}
+k3d = {manager = "system"}
+k9s = {manager = "system"}
+kubecolor = {manager = "system"}
+kubectl = {manager = "system", name = "kubernetes-cli"}
+kubectx = {manager = "system"}
+kubens = {manager = "system", name = "kubectx"}
+kubesess = {manager = "system", name = "kubesess"}
+kustomize = {manager = "system"}
+oc = {manager = "system", name = "openshift-cli"}
+popeye = {manager = "system"}
+stern = {manager = "system"}
+yq = {manager = "system"}

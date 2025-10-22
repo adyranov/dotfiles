@@ -4,4 +4,5 @@
     path = ~/.config/git/diff
     path = ~/.config/git/merge
     path = ~/.config/git/user
+    {{ if .secrets.age }}path = ~/.config/git/work{{- end }}
     path = ~/.config/git/local
