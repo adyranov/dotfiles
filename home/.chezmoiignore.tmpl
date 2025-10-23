@@ -4,6 +4,9 @@ install.sh
 .chezmoiscripts/*/**
 !.chezmoiscripts/{{ .host.distro.id }}/**
 !.chezmoiscripts/universal/**
+{{- if ne .host.distro.family "darwin" }}
+home/private_Library
+{{- end }}
 {{- if not .secrets.age }}
 **/*.age
 {{- end }}
