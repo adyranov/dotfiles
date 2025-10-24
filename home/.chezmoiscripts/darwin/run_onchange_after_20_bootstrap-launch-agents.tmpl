@@ -24,18 +24,26 @@ if [ ! -d "$launch_agent_dir" ]; then
   exit 0
 fi
 
-# Find all plist files using find instead of glob
-agents=()
-while IFS= read -r -d '' file; do
-  agents+=("$file")
-done < <(find "$launch_agent_dir" -name "*.plist" -print0 2>/dev/null)
+managed_agents=(
+{{- $launchAgentSourceDir := joinPath .host.source "private_Library" "LaunchAgents" -}}
+{{- range $path := glob (print $launchAgentSourceDir "/**/*.plist*") }}
+  "{{ trimSuffix ".tmpl" (trimPrefix (print $launchAgentSourceDir "/") $path) }}"
+{{- end }}
+)
 
-if [ ${#agents[@]} -eq 0 ]; then
-  echo "⚠️  No launch agent plists found in $launch_agent_dir"
+if [ ${#managed_agents[@]} -eq 0 ]; then
+  echo "⚠️  No LaunchAgents managed by chezmoi; skipping"
   exit 0
 fi
 
-for plist in "${agents[@]}"; do
+for relative_path in "${managed_agents[@]}"; do
+  plist="$launch_agent_dir/$relative_path"
+
+  if [ ! -f "$plist" ]; then
+    echo "ℹ️  Skipping $relative_path (not present in $launch_agent_dir)"
+    continue
+  fi
+
   label="$(basename "$plist" .plist)"
   echo "⏳ Reloading $label..."
   if launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1; then
