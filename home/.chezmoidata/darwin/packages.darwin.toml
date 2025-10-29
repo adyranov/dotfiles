@@ -5,6 +5,7 @@
 mas = {test = "mas version"}
 "pinentry-mac" = {test = "pinentry-mac --version"}
 "reattach-to-user-namespace" = {test = "reattach-to-user-namespace --version"}
+zsh = {disabled = true}
 
 [packages.darwin.docker]
 colima = {test = "colima version"}

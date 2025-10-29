@@ -4,6 +4,6 @@
           xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.1.0 http://maven.apache.org/xsd/settings-1.1.0.xsd">
     <localRepository>{{ joinPath .host.home ".local" "share" "maven" "repository" }}</localRepository>
 {{ if .host.work -}}
-{{ joinPath .host.source "private_dot_config" "maven" "encrypted_work.settings.xml.age" | include | decrypt }}
+{{ joinPath .host.source "private_dot_config" "exact_maven" "encrypted_work.settings.xml.age" | include | decrypt }}
 {{- end }}
 </settings>

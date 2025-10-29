@@ -57,16 +57,15 @@ jobs:
           distribution: Ubuntu-24.04
       - name: Run install.sh
         shell: wsl-bash {0}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MISE_ALWAYS_KEEP_DOWNLOAD: true
-          MISE_FETCH_REMOTE_VERSIONS_TIMEOUT: 60
-          MISE_HTTP_TIMEOUT: 60
-          WITHOUT_TOOLCHAINS: true
         run: |
           set -eux
           workspace="$(wslpath '${{ github.workspace }}')"
           cd "$workspace"
+          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          export MISE_ALWAYS_KEEP_DOWNLOAD="true"
+          export MISE_FETCH_REMOTE_VERSIONS_TIMEOUT="60"
+          export MISE_HTTP_TIMEOUT="60"
+          export WITHOUT_TOOLCHAINS="true"
           ./install.sh
       - name: Run check-dotfiles
         shell: wsl-bash {0}

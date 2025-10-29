@@ -43,6 +43,7 @@ zstyle ':z4h:*' fzf-flags --prompt='» ' --pointer='▶' --marker='✓ ' --color
 z4h install ohmyzsh/ohmyzsh || return
 z4h install mroth/evalcache || return
 z4h install wfxr/forgit || return
+z4h install djui/alias-tips || return
 
 function z4h-postinstall:replace-with-github-clone() {
   [[ -n $Z4H_PACKAGE_DIR && -n $Z4H_PACKAGE_NAME ]] && 'command' -v git 1>/dev/null || return 1
@@ -94,10 +95,13 @@ z4h load mroth/evalcache
 
 # Customize forgit aliases to avoid conflicts with oh-my-zsh Git aliases
 forgit_log=fglo
+forgit_reflog=fgrl
 forgit_diff=fgd
+forgit_show=fgso
 forgit_add=fga
 forgit_reset_head=fgrh
 forgit_ignore=fgi
+forgit_attributes=fgat
 forgit_checkout_file=fgcf
 forgit_checkout_branch=fgcb
 forgit_branch_delete=fgbd
@@ -106,10 +110,13 @@ forgit_checkout_commit=fgco
 forgit_revert_commit=fgrc
 forgit_clean=fgclean
 forgit_stash_show=fgss
+forgit_stash_push=fgsp
 forgit_cherry_pick=fgcp
 forgit_rebase=fgrb
 forgit_blame=fgbl
 forgit_fixup=fgfu
+forgit_squash=fgsq
+forgit_reword=fgrw
 z4h load wfxr/forgit
 
 z4h load olets/zsh-abbr
@@ -124,10 +131,10 @@ z4h bindkey z4h-fzf-dir-history    Shift+Down   # cd into a child directory
 autoload -Uz zmv
 
 # Define functions and completions.
-z4h source $HOME/.config/shell/functions.sh
+z4h source $HOME/.config/zsh/functions.sh
 
 # Define aliases.
-z4h source $HOME/.config/shell/aliases.sh
+z4h source $HOME/.config/zsh/aliases.sh
 
 # Define named directories: ~w <=> Windows home directory on WSL.
 (( $+z4h_win_home )) && hash -d w=$z4h_win_home

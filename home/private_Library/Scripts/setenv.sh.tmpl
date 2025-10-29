@@ -1,0 +1,34 @@
+#!/bin/bash
+set -e
+
+EXPORTS_FILE="{{ .chezmoi.homeDir }}/.config/shell/exports.sh"
+[ -f "$EXPORTS_FILE" ] || { echo "Error: $EXPORTS_FILE not found" >&2; exit 1; }
+
+EXTRA_EXCLUDED_VARS=("LS_COLORS" "PATH" "PWD" "SHLVL")
+
+exports_dump=$(env -i HOME="$HOME" EXPORTS_FILE="$EXPORTS_FILE" bash -c 'set -e; source "$EXPORTS_FILE"; env')
+
+printf '%s\n' "$exports_dump" | sort | while IFS='=' read -r key value; do
+    [ -n "$key" ] || continue
+
+    if [[ "$key" == _* ]]; then
+        printf '# Excluded %s\n' "$key"
+        continue
+    fi
+
+    excluded=false
+    for excluded_key in "${EXTRA_EXCLUDED_VARS[@]}"; do
+        if [[ "$key" == "$excluded_key" ]]; then
+            excluded=true
+            break
+        fi
+    done
+
+    if $excluded; then
+        printf '# Excluded %s\n' "$key"
+        continue
+    fi
+
+    printf 'launchctl setenv %s %s\n' "$key" "$value"
+    launchctl setenv "$key" "$value" 2>/dev/null || true
+done
