@@ -1,0 +1,62 @@
+{{- includeTemplate "universal/common-after-template-header" . -}}
+
+{{- $launch_agent_files := list -}}
+{{- range $path := glob (list .host.source "private_Library/LaunchAgents/**/*" | join "/") }}
+{{- $launch_agent_files = concat $launch_agent_files (list (include $path)) -}}
+{{- end }}
+
+{{- $script_files := list -}}
+{{- range $path := glob (list .host.source "private_Library/Scripts/**/*" | join "/") }}
+{{- $script_files = concat $script_files (list (include $path)) -}}
+{{- end }}
+
+# Hash: LaunchAgents={{ $launch_agent_files | join "" | sha256sum }}
+# Hash: Scripts={{ $script_files | join "" | sha256sum }}
+
+echo "🚀 Bootstrapping launch agents..."
+
+# Use the actual home directory, not the chezmoi source directory
+home_dir="$HOME"
+launch_agent_dir="$home_dir/Library/LaunchAgents"
+
+if [ ! -d "$launch_agent_dir" ]; then
+  echo "⚠️  LaunchAgents directory not found; skipping"
+  exit 0
+fi
+
+managed_agents=(
+{{- $launchAgentSourceDir := joinPath .host.source "private_Library" "LaunchAgents" -}}
+{{- range $path := glob (print $launchAgentSourceDir "/**/*.plist*") }}
+  "{{ trimSuffix ".tmpl" (trimPrefix (print $launchAgentSourceDir "/") $path) }}"
+{{- end }}
+)
+
+if [ ${#managed_agents[@]} -eq 0 ]; then
+  echo "⚠️  No LaunchAgents managed by chezmoi; skipping"
+  exit 0
+fi
+
+for relative_path in "${managed_agents[@]}"; do
+  plist="$launch_agent_dir/$relative_path"
+
+  if [ ! -f "$plist" ]; then
+    echo "ℹ️  Skipping $relative_path (not present in $launch_agent_dir)"
+    continue
+  fi
+
+  label="$(basename "$plist" .plist)"
+  echo "⏳ Reloading $label..."
+  if launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1; then
+    echo "  ✅ bootout $label"
+  else
+    echo "  ℹ️  bootout $label failed or not loaded; continuing"
+  fi
+
+  if launchctl bootstrap "gui/$(id -u)" "$plist" >/dev/null 2>&1; then
+    echo "  ✅ bootstrap $label"
+  else
+    echo "  ❌ bootstrap failed for $label"
+  fi
+done
+
+echo "✅ Launch agent bootstrap complete"

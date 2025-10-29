@@ -41,6 +41,20 @@ Prebuilt images are also published to GHCR and Docker Hub:
 - Conditional disables: set `disabled` to either a boolean, or a comma/space separated string of flags. Supported flags: `headless` (non-interactive sessions), `restricted`, and host type values `desktop`, `laptop`, `wsl`, `ephemeral`. Example: `disabled = "headless,restricted"`.
 - OS pinning: set `os = "darwin" | "ubuntu" | "fedora" | "archlinux"` on a package to include it only on that OS.
 
+### XDG-first layout
+
+- Exports file: shell environment is centralized in `~/.config/shell/exports.sh` to enforce XDG base directories across tools.
+- Core dirs: `XDG_CONFIG_HOME=~/.config`, `XDG_CACHE_HOME=~/.cache`, `XDG_DATA_HOME=~/.local/share`, `XDG_STATE_HOME=~/.local/state`.
+- Moved dotfiles: bash/zsh history and sessions, npm cache/prefix, cargo/rustup, gradle, krew, pass, wget, readline, less, svn, git excludes, asdf files, and more are redirected under the XDG tree.
+- Mac and Linux behave the same; `$XDG_RUNTIME_DIR` is set per host type (macOS uses `$TMPDIR`).
+- Preview removals after migrating: `chezmoi --remove --dry-run apply` shows legacy dotfiles ready to prune.
+
+### macOS Launch Agents
+
+- Managed agents live under `home/private_Library/LaunchAgents` (rendered to `~/Library/LaunchAgents`).
+- The bootstrap script only reloads agents that are managed by chezmoi: `home/.chezmoiscripts/darwin/run_onchange_after_20_bootstrap-launch-agents.tmpl`.
+- Non-macOS hosts ignore `home/private_Library/**` via template guards so Linux/WSL environments stay clean.
+
 See examples in `home/.chezmoidata/universal/packages.universal.toml` and OS-specific overrides in `home/.chezmoidata/darwin`, `home/.chezmoidata/fedora`, `home/.chezmoidata/ubuntu`, and `home/.chezmoidata/archlinux`.
 
 ## 🧪 Validate Locally
@@ -136,6 +150,7 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 | [dust](https://github.com/bootandy/dust) | du alternative in Rust | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
 | [eza](https://github.com/eza-community/eza) | Modern ls replacement | `system` | ✅ | ✅ | ✅ | ✅ |
 | [fd](https://github.com/sharkdp/fd) | Fast find utility | `system` (`fd-find` on Ubuntu/Fedora) | ✅ | ✅ | ✅ | ✅ |
+| [fzf](https://github.com/junegunn/fzf) | Fuzzy finder | `system` | ✅ | ✅ | ✅ | ✅ |
 | [GitHub CLI](https://github.com/cli/cli) | GitHub command-line client | `system` (`github-cli` on Arch) | ✅ | ✅ | ✅ | ✅ |
 | [Git](https://git-scm.com/) | Distributed VCS | `system` | ✅ | ✅ | ✅ | ✅ |
 | [delta](https://github.com/dandavison/delta) | Git diff pager | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
