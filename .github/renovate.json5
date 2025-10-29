@@ -2,6 +2,7 @@
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [
     'config:recommended',
+    'workarounds:all',
     ':automergeDigest',
     ':automergeMinor',
     ':enablePreCommit',
@@ -9,13 +10,36 @@
     ':semanticCommits',
     ':semanticCommitScope(deps)',
     'helpers:pinGitHubActionDigests',
+    'docker:pinDigests',
     'group:allNonMajor',
+  ],
+  timezone: 'UTC',
+  prConcurrentLimit: 10,
+  branchConcurrentLimit: 10,
+  prCreation: 'not-pending',
+  rebaseWhen: 'conflicted',
+  secrets: {
+    githubToken: '{{ env.GITHUB_TOKEN }}',
+  },
+  hostRules: [
+    {
+      matchHost: 'api.github.com',
+      token: '{{ secrets.githubToken }}',
+    },
   ],
   labels: [
     'dependencies',
   ],
   minimumReleaseAge: '3 days',
   dependencyDashboardAutoclose: true,
+  lockFileMaintenance: {
+    enabled: true,
+    automerge: true,
+    automergeType: 'branch',
+    extends: [
+      'schedule:weekly',
+    ],
+  },
   packageRules: [
     {
       description: 'Require dashboard approval for major updates',
