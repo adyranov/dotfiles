@@ -4,7 +4,7 @@ ARG CACHE_BUST=1
 ARG USER=devcontainer
 ARG UID=54321
 
-FROM fedora:42 AS base
+FROM fedora:43 AS base
 ARG USER
 ARG UID
 
