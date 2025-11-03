@@ -86,7 +86,7 @@ jobs:
     timeout-minutes: 20
     services:
       registry:
-        image: registry:3
+        image: registry:3@sha256:cd92709b4191c5779cd7215ccd695db6c54652e7a62843197e367427efb84d0e
         ports:
           - 5000:5000
     steps:
