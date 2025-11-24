@@ -1,10 +1,10 @@
-# syntax=docker/dockerfile:1.19
+# syntax=docker/dockerfile:1.19@sha256:b6afd42430b15f2d2a4c5a02b919e98a525b785b1aaff16747d2f623364e39b6
 
 ARG CACHE_BUST=1
 ARG USER=devcontainer
 ARG UID=54321
 
-FROM adyranov/archlinux AS base
+FROM adyranov/archlinux@sha256:74eff5267d8a71771c44c4c9cc6bc23ae8537149c056b9e3d31746f2073a429f AS base
 ARG USER
 ARG UID
 
