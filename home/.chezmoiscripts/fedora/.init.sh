@@ -11,7 +11,7 @@ fi
 
 sudo dnf copr -y enable jdxcode/mise
 
-PACKAGES=(mise rage rbw util-linux-script)
+PACKAGES=(mise rage util-linux-script)
 
 for pkg in "${PACKAGES[@]}"; do
   if ! command -v "$pkg" >/dev/null 2>&1; then

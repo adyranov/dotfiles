@@ -2,13 +2,6 @@
 alias reload="exec ${SHELL} -l"
 command -v kubecolor &>/dev/null && alias kubectl='kubecolor'
 
-# ls => eza
-if command -v eza &> /dev/null; then
-  alias ls='eza --group-directories-first --sort=name --classify'
-  alias la='ls -la'
-  alias lt='ls --tree --level=2'
-fi
-
 # cat/less/man => bat
 command -v batcat &>/dev/null && ! command -v bat &>/dev/null && alias bat=batcat
 if command -v bat &>/dev/null; then

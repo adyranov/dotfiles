@@ -11,7 +11,7 @@ if ! command -v brew >/dev/null 2>&1; then
   fi
 fi
 
-PACKAGES=(rage rbw)
+PACKAGES=(rage)
 
 for pkg in "${PACKAGES[@]}"; do
     if ! command -v "$pkg" >/dev/null 2>&1; then

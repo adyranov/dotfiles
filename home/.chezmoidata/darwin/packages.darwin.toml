@@ -3,6 +3,7 @@
 
 [packages.darwin.common]
 mas = {test = "mas version"}
+openssh = {test = "$HOMEBREW_PREFIX/bin/ssh -V"}
 "pinentry-mac" = {test = "pinentry-mac --version"}
 "reattach-to-user-namespace" = {test = "reattach-to-user-namespace --version"}
 zsh = {disabled = true}

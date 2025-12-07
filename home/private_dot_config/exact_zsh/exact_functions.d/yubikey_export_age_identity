@@ -1,0 +1,20 @@
+yubikey_export_age_identity() {
+    local f="${XDG_CONFIG_HOME:-$HOME/.config}/age/yubikeys.txt"
+    local d="$(dirname "$f")"
+
+    mkdir -p "$d" && chmod 700 "$d"
+    touch "$f" && chmod 600 "$f"
+
+    local raw key
+    raw=$(age-plugin-yubikey --identity) || return 1
+    key=$(echo "$raw" | grep "^AGE-")
+
+    [[ -z "$key" ]] && echo "Error: No identity found." >&2 && return 1
+
+    if grep -Fq "$key" "$f"; then
+        echo "Identity already added."
+    else
+        echo "$raw" >> "$f"
+        echo "Identity added."
+    fi
+}

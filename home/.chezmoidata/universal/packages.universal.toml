@@ -4,6 +4,7 @@ azure-cli = {test = "az --version"}
 
 [packages.universal.common]
 act = {test = "act --version"}
+age-plugin-yubikey = {test = "age-plugin-yubikey --version"}
 bash = {test = "bash --version"}
 bat = {test = "bat --version"}
 broot = {test = "broot --version"}
@@ -30,7 +31,6 @@ mkcert = {test = "mkcert -version"}
 neovim = {test = "nvim --version"}
 procs = {test = "procs --version"}
 rage = {test = "rage --version"}
-rbw = {test = "rbw --version"}
 rclone = {test = "rclone --version"}
 ripgrep = {test = "rg --version"}
 sd = {test = "sd --version"}
@@ -106,7 +106,6 @@ kubectl-tunnel = {manager = "krew", name = "tunnel", test = "kubectl tunnel --he
 kubectl-view-allocations = {manager = "krew", name = "view-allocations", test = "kubectl view-allocations --help"}
 kubectl-who-can = {manager = "krew", name = "who-can", test = "kubectl who-can --help"}
 helm-diff = {manager = "helm", name = "https://github.com/databus23/helm-diff", test = "helm diff --help"}
-helm-secrets = {manager = "helm", name = "https://github.com/jkroepke/helm-secrets", test = "helm secrets --help"}
 
 [packages.universal.node]
 node = {manager = "mise", test = "node --version && npm --version && yarn --version && pnpm --version", version = "22"}

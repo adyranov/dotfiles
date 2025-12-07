@@ -1,0 +1,14 @@
+yubikey_export_ssh_key() {
+    local target_dir="${HOME}/.ssh"
+
+    mkdir -p "${target_dir}" || {
+        echo "Error: Could not create directory ${target_dir}" >&2
+        return 1
+    }
+
+    echo "Downloading resident keys from YubiKey to ${target_dir}..."
+    (
+        # Run in subshell to avoid changing current directory of the main shell
+        cd "${target_dir}" && ssh-keygen -K -N ""
+    )
+}

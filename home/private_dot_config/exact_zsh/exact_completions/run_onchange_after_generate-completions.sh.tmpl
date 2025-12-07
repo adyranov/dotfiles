@@ -3,10 +3,6 @@
 {{- $compDir:= joinPath .host.home ".config/zsh/completions" -}}
 
 
-if [ "$(command -v bw)" ]; then
-  bw completion --shell zsh > "{{ $compDir }}/_bw"
-fi
-
 if [ "$(command -v datree)" ]; then
   datree completion zsh > "{{ $compDir }}/_datree"
 fi
