@@ -22,7 +22,7 @@ for name in "${!HELM_PLUGINS[@]}"; do
     url=${HELM_PLUGINS[$name]}
     if ! helm plugin list | awk '{print $1}' | grep -qx "$name"; then
         echo "➕ Installing Helm plugin: $name"
-        helm plugin install "$url"
+        helm plugin install "$url" --verify=false
     else
         echo "✅ Helm plugin already installed: $name"
     fi
