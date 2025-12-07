@@ -1,14 +1,38 @@
 yubikey_export_ssh_key() {
-    local target_dir="${HOME}/.ssh"
+    local storage="${XDG_DATA_HOME:-$HOME/.local/share}/ssh/keys"
+    local active="${HOME}/.ssh"
 
-    mkdir -p "${target_dir}" || {
-        echo "Error: Could not create directory ${target_dir}" >&2
-        return 1
-    }
+    mkdir -p "$storage" && chmod 700 "$storage"
+    mkdir -p "$active"  && chmod 700 "$active"
 
-    echo "Downloading resident keys from YubiKey to ${target_dir}..."
+    echo "Select alias color:"
+    PS3="> "
+    local alias
+    select c in blue green purple orange red yellow black white quit; do
+        [[ "$c" == "quit" ]] && return 0
+        [[ -n "$c" ]] && alias="id_yk_$c" && break
+    done
+
+    echo "🔌 Insert YubiKey and press Enter..."
+    read -r
+
     (
-        # Run in subshell to avoid changing current directory of the main shell
-        cd "${target_dir}" && ssh-keygen -K -N ""
+        cd "$storage" || return 1
+        touch .marker; sleep 1
+
+        ssh-keygen -K -N ""
+
+        local f=$(find . -type f -newer .marker ! -name "*.pub" ! -name ".marker" | head -n 1)
+        rm -f .marker
+
+        [[ -z "$f" ]] && echo "Error: No key detected." >&2 && return 1
+        f=$(basename "$f")
+
+        # Link from Data Storage -> Active Home
+        ln -sf "${storage}/${f}"     "${active}/${alias}"
+        ln -sf "${storage}/${f}.pub" "${active}/${alias}.pub"
+
+        echo "✅ Store: ${storage}/${f}"
+        echo "🔗 Link:  ${active}/${alias}"
     )
 }

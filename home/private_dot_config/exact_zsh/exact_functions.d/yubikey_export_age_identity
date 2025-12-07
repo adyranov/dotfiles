@@ -1,20 +1,25 @@
 yubikey_export_age_identity() {
-    local f="${XDG_CONFIG_HOME:-$HOME/.config}/age/yubikeys.txt"
-    local d="$(dirname "$f")"
-
+    local d="${XDG_CONFIG_HOME:-$HOME/.config}/age"
     mkdir -p "$d" && chmod 700 "$d"
-    touch "$f" && chmod 600 "$f"
+
+    echo "Select alias color for this YubiKey:"
+    PS3="> "
+    local f
+    select color in blue green purple orange red yellow black white quit; do
+        [[ "$color" == "quit" ]] && return 0
+        [[ -n "$color" ]] && f="${d}/identity_yk_${color}.txt" && break
+    done
+
+    echo "🔌 Insert YubiKey and press Enter..."
+    read -r
 
     local raw key
-    raw=$(age-plugin-yubikey --identity) || return 1
+    raw=$(age-plugin-yubikey --identity 2>&1)
     key=$(echo "$raw" | grep "^AGE-")
 
     [[ -z "$key" ]] && echo "Error: No identity found." >&2 && return 1
 
-    if grep -Fq "$key" "$f"; then
-        echo "Identity already added."
-    else
-        echo "$raw" >> "$f"
-        echo "Identity added."
-    fi
+    touch "$f" && chmod 600 "$f"
+    echo "$raw" > "$f"
+    echo "✅ Identity saved to $f"
 }
