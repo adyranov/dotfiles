@@ -1,10 +1,10 @@
-# syntax=docker/dockerfile:1.19
+# syntax=docker/dockerfile:1.19@sha256:b6afd42430b15f2d2a4c5a02b919e98a525b785b1aaff16747d2f623364e39b6
 
 ARG CACHE_BUST=1
 ARG USER=devcontainer
 ARG UID=54321
 
-FROM buildpack-deps:noble-curl AS base
+FROM buildpack-deps:noble-curl@sha256:12bbe6a019ebb73425417dd8a1c7376d9c23d5bbd151e69db126a9192eb408df AS base
 ARG USER
 ARG UID
 
