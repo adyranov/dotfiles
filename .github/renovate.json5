@@ -18,15 +18,6 @@
   branchConcurrentLimit: 10,
   prCreation: 'not-pending',
   rebaseWhen: 'conflicted',
-  secrets: {
-    githubToken: '{{ env.GITHUB_TOKEN }}',
-  },
-  hostRules: [
-    {
-      matchHost: 'api.github.com',
-      token: '{{ secrets.githubToken }}',
-    },
-  ],
   labels: [
     'dependencies',
   ],
@@ -49,21 +40,9 @@
       dependencyDashboardApproval: true,
     },
     {
-      description: 'Auto merge GitHub Actions weekly',
+      description: 'Weekly automerge for CI/Tools',
       matchManagers: [
         'github-actions',
-      ],
-      automerge: true,
-      automergeType: 'branch',
-      ignoreTests: true,
-      extends: [
-        'schedule:weekly',
-      ],
-      groupName: 'github-actions',
-    },
-    {
-      description: 'Auto merge pre-commit hooks weekly',
-      matchManagers: [
         'pre-commit',
       ],
       automerge: true,
@@ -72,7 +51,6 @@
       extends: [
         'schedule:weekly',
       ],
-      groupName: 'pre-commit',
     },
   ],
 }
