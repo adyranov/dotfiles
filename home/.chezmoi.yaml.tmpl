@@ -129,11 +129,10 @@
 
   {{- if eq $personalUsername "adyranov" -}}
     {{- $personalName = "Artem Dyranov" -}}
-    {{- $personalEmail = "artem.dyranov@gmail.com" -}}
+    {{- $personalEmail = "1038141+adyranov@users.noreply.github.com" -}}
     {{- if not $work -}}
       {{- $_ := set $gpg "sign" "0xAE12214C66692D96" -}}
       {{- $_ := set $gpg "encrypt" "0xE770F55D35040481" -}}
-      {{- $_ := set $secrets "bitwarden" true -}}
     {{- end -}}
   {{- end -}}
 
@@ -203,11 +202,9 @@ hooks:
 encryption: age
 age:
   command: "rage"
-  identity: "{{ $.chezmoi.homeDir }}/.config/age/key.txt"
+  identity: "{{ $.chezmoi.homeDir }}/.config/age/chezmoi.txt"
   recipient: "age16kxd4ljclq9ksnxvl2ee7a5xnj744kwyv04p04ka0n3rzxdpl5nsq52svl" # pragma: allowlist secret
 {{- end }}
-bitwarden:
-  command: "rbw"
 diff:
   pager: "delta"
 status:
@@ -235,8 +232,6 @@ data:
     restricted: {{ $restricted }}
   secrets:
     age: {{ $secrets.age }}
-    bitwarden: {{ $secrets.bitwarden }}
-    cache: "{{ joinPath .chezmoi.cacheDir "user" .chezmoi.username "secrets" }}"
   toolchains:
   {{- range $t, $enabled := $toolchainsEnabled }}
     {{ $t}}: {{ $enabled }}

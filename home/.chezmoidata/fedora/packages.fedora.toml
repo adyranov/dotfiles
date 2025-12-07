@@ -1,5 +1,7 @@
 [packages.fedora.common]
 act = {manager = "mise", name = "ubi:nektos/act"}
+age-plugin-yubikey = {manager = "mise", name = "ubi:str4d/age-plugin-yubikey", exclude_arch = ["arm64"]}
+"pcsc-lite" = {name = "pcsc-lite"}
 broot = {disabled = true}
 croc = {manager = "mise", name = "ubi:schollz/croc"}
 dust = {manager = "mise", name = "ubi:bootandy/dust"}
@@ -10,7 +12,6 @@ mkcert = {manager = "mise"}
 procs = {manager = "mise", name = "ubi:dalance/procs"}
 rage = {manager = "mise", name = "ubi:str4d/rage"}
 sd = {manager = "mise"}
-tokei = {manager = "mise"}
 vivid = {manager = "mise"}
 
 [packages.fedora.docker]

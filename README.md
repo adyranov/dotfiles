@@ -82,7 +82,6 @@ See examples in `home/.chezmoidata/universal/packages.universal.toml` and OS-spe
   - Ephemeral/container environments are auto-detected and tagged as `ephemeral`.
   - Non-interactive sessions set `.host.interactive = false` (treated as `headless` in package rules).
   - macOS Intel/Apple Silicon and Linuxbrew brew paths are auto-detected and exported for templates.
-- Password manager: `rbw` (Bitwarden CLI) config is rendered automatically on macOS and Linux with your Git email and a suitable `pinentry` (uses `pinentry-mac` when available).
 
 ## 🧪 Containers
 
@@ -154,7 +153,6 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 | [GitHub CLI](https://github.com/cli/cli) | GitHub command-line client | `system` (`github-cli` on Arch) | ✅ | ✅ | ✅ | ✅ |
 | [Git](https://git-scm.com/) | Distributed VCS | `system` | ✅ | ✅ | ✅ | ✅ |
 | [delta](https://github.com/dandavison/delta) | Git diff pager | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [GnuPG](https://gnupg.org/) | Encryption and signing | `system` | ✅ | ✅ | ✅ | ✅ |
 | [HTTPie](https://github.com/httpie/cli) | Friendly HTTP client | `system` | ✅ | ✅ | ✅ | ✅ |
 | [hyperfine](https://github.com/sharkdp/hyperfine) | Command benchmarking | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
 | [jq](https://stedolan.github.io/jq/) | JSON processor | `system` | ✅ | ✅ | ✅ | ✅ |
@@ -163,7 +161,6 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 | [Neovim](https://github.com/neovim/neovim) | Modal code editor | `system` | ✅ | ✅ | ✅ | ✅ |
 | [procs](https://github.com/dalance/procs) | Process viewer | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
 | [rage](https://github.com/str4d/rage) | Age-compatible encryption | `system` (Ubuntu via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [rbw](https://github.com/doy/rbw) | Bitwarden CLI | `system` (Ubuntu via `mise ✅`) | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
 | [rclone](https://rclone.org/) | Cloud storage sync | `system` | ✅ | ✅ | ✅ | ✅ |
 | [ripgrep](https://github.com/BurntSushi/ripgrep) | Recursive text search | `system` | ✅ | ✅ | ✅ | ✅ |
 | [sd](https://github.com/chmln/sd) | Intuitive sed alternative | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
@@ -331,7 +328,6 @@ These desktop apps are installed on macOS via Homebrew casks or the App Store (m
 
 | App | Description |
 | --- | --- |
-| [Bitwarden](https://bitwarden.com/) | Password manager |
 | [Brother iPrint&Scan](https://apps.apple.com/app/brother-iprint-scan/id1193539993) | Printer/scanner utility |
 | [Keynote](https://www.apple.com/keynote/) | Apple presentations |
 | [Messenger](https://www.messenger.com/desktop) | Facebook Messenger client |

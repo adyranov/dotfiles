@@ -1,7 +1,7 @@
 name: Cleanup Containers
 on:
   schedule:
-    - cron: 30 2 * * *
+    - cron: 30 2 * * 6
   workflow_dispatch:
     inputs:
       keep-versions:

@@ -28,6 +28,8 @@ casks = [
   "spotify",
   "syncthing-app",
   "telegram-desktop",
+  "tinymediamanager",
+  "tor-browser",
   "transmission",
   "veracrypt",
   "visual-studio-code",
@@ -40,7 +42,6 @@ casks = [
   "macfuse"
 ]
 mas = [
-  {name = "Bitwarden", id = 1352778147},
   {name = "Brother iPrint&Scan", id = 1193539993},
   {name = "Keynote", id = 409183694},
   {name = "Messenger", id = 1480068668},

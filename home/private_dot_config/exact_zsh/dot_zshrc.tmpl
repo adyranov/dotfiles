@@ -76,6 +76,7 @@ fpath=(
 # Use additional Git repositories pulled in with `z4h install`.
 z4h source ohmyzsh/ohmyzsh/lib/clipboard.zsh
 z4h source ohmyzsh/ohmyzsh/lib/directories.zsh
+z4h source ohmyzsh/ohmyzsh/lib/functions.zsh
 
 # kubectl completions
 mkdir -p "$ZSH_CACHE_DIR/completions"
@@ -83,13 +84,30 @@ mkdir -p "$ZSH_CACHE_DIR/completions"
 {{- if eq .host.distro.family "darwin" }}
 z4h load ohmyzsh/ohmyzsh/plugins/brew
 {{- end }}
+z4h load ohmyzsh/ohmyzsh/plugins/copyfile
+z4h load ohmyzsh/ohmyzsh/plugins/copypath
+z4h load ohmyzsh/ohmyzsh/plugins/docker
+z4h load ohmyzsh/ohmyzsh/plugins/docker-compose
 z4h load ohmyzsh/ohmyzsh/plugins/encode64
 z4h load ohmyzsh/ohmyzsh/plugins/extract
+
+zstyle ':omz:plugins:eza' dirs-first yes
+zstyle ':omz:plugins:eza' git-status yes
+zstyle ':omz:plugins:eza' header yes
+zstyle ':omz:plugins:eza' icons yes
+zstyle ':omz:plugins:eza' hyperlink yes
+z4h load ohmyzsh/ohmyzsh/plugins/eza
+
 z4h load ohmyzsh/ohmyzsh/plugins/git
 z4h load ohmyzsh/ohmyzsh/plugins/gpg-agent
 z4h load ohmyzsh/ohmyzsh/plugins/kubectl
+
+zstyle :omz:plugins:ssh-agent identities id_ed25519_sk_rk_YubiKey_27512016 id_ed25519_sk_rk_YubiKey_27512017
+z4h load ohmyzsh/ohmyzsh/plugins/ssh-agent
+
 z4h load ohmyzsh/ohmyzsh/plugins/sudo
 z4h load ohmyzsh/ohmyzsh/plugins/terraform
+z4h load ohmyzsh/ohmyzsh/plugins/web-search
 
 z4h load mroth/evalcache
 

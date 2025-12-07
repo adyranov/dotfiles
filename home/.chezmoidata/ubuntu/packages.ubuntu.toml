@@ -1,8 +1,10 @@
 [packages.ubuntu.common]
 act = {manager = "mise", name = "ubi:nektos/act"}
+age-plugin-yubikey = {manager = "mise", name = "ubi:str4d/age-plugin-yubikey", exclude_arch = ["arm64"]}
+pcscd = {name = "pcscd"}
 broot = {exclude_arch = ["arm64"]}
 chezmoi = {manager = "mise"}
-croc = {manager = "mise", name = "ubi:schollz/croc"}
+croc = {disabled = true}
 dust = {manager = "mise", name = "ubi:bootandy/dust"}
 fd = {name = "fd-find"}
 "git-delta" = {manager = "mise", name = "delta"}
@@ -10,9 +12,8 @@ hyperfine = {manager = "mise"}
 mkcert = {manager = "mise", name = "mkcert"}
 procs = {manager = "mise", name = "ubi:dalance/procs"}
 rage = {manager = "mise", name = "ubi:str4d/rage"}
-rbw = {exclude_arch = ["arm64"], manager = "mise", name = "ubi:doy/rbw"}
 sd = {manager = "mise"}
-tokei = {manager = "mise"}
+tokei = {disabled = true}
 vivid = {manager = "mise"}
 
 [packages.ubuntu.docker]

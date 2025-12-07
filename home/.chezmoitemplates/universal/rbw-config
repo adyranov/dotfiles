@@ -1,4 +1,0 @@
-{
-  "email": "{{ .personal.email }}",
-  "pinentry": "{{ lookPath "pinentry-mac" | default "pinentry" }}"
-}
