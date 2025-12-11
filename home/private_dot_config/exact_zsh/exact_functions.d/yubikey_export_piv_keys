@@ -1,0 +1,33 @@
+yubikey_export_piv_keys() {
+    local storage="${XDG_DATA_HOME:-$HOME/.local/share}/ssh/keys"
+    local active="${HOME}/.ssh"
+    local slots=(9a 83)
+
+    mkdir -p "$storage" "$active" && chmod 700 "$storage" "$active"
+
+    echo "🔌 Insert YubiKey and press Enter..."
+    read -r
+
+    for slot in "${slots[@]}"; do
+        local cn=$(ykman piv certificates export $slot - 2>/dev/null | openssl x509 -noout -subject 2>/dev/null | sed -n 's/^.*CN *= *//p' | sed 's/\/.*//; s/,.*//')
+        [[ -z "$cn" ]] && continue
+
+        local key=$(ykman piv keys export $slot - 2>/dev/null | ssh-keygen -i -m PKCS8 -f /dev/stdin)
+        local type=$(echo "$key" | awk '{print $1}')
+
+        [[ "$type" == "ecdsa-sha2-nistp384" ]] && type="ECC P-384"
+        [[ "$type" == "ssh-rsa" ]] && type="RSA"
+
+        echo -e "\n🔑 Slot $slot ($type) | CN: $cn"
+        echo -n "   Export? [y/N] "
+        read -r REPLY
+
+        if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+            local f="id_piv_${slot}.pub"
+            echo "$key" > "${storage}/$f"
+            chmod 644 "${storage}/$f"
+            ln -sf "${storage}/$f" "${active}/$f"
+            echo "   ✅ Saved: ${active}/$f"
+        fi
+    done
+}

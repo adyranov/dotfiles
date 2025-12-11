@@ -766,7 +766,7 @@
             <key>Columns</key>
             <integer>80</integer>
             <key>Command</key>
-            <string>/opt/homebrew/bin/tmux -CC</string>
+            <string>/bin/zsh</string>
             <key>Cursor Color</key>
             <dict>
                 <key>Alpha Component</key>
@@ -807,7 +807,7 @@
                 <real>0.67058825492858887</real>
             </dict>
             <key>Custom Command</key>
-            <string>No</string>
+            <string>Custom Shell</string>
             <key>Custom Directory</key>
             <string>Recycle</string>
             <key>Default Bookmark</key>

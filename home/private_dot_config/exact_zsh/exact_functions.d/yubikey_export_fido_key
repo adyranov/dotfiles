@@ -1,4 +1,4 @@
-yubikey_export_ssh_key() {
+yubikey_export_fido_key() {
     local storage="${XDG_DATA_HOME:-$HOME/.local/share}/ssh/keys"
     local active="${HOME}/.ssh"
 
