@@ -1,25 +1,35 @@
 yubikey_export_age_identity() {
     local d="${XDG_CONFIG_HOME:-$HOME/.config}/age"
-    mkdir -p "$d" && chmod 700 "$d"
+    local f="${d}/identities.txt"
 
-    echo "Select alias color for this YubiKey:"
-    PS3="> "
-    local f
-    select color in blue green purple orange red yellow black white quit; do
-        [[ "$color" == "quit" ]] && return 0
-        [[ -n "$color" ]] && f="${d}/identity_yk_${color}.txt" && break
-    done
+    mkdir -p "$d" && chmod 700 "$d"
+    if [[ ! -f "$f" ]]; then
+        touch "$f"
+        chmod 600 "$f"
+    fi
 
     echo "🔌 Insert YubiKey and press Enter..."
     read -r
 
-    local raw key
-    raw=$(age-plugin-yubikey --identity 2>&1)
-    key=$(echo "$raw" | grep "^AGE-")
+    local raw
+    if ! raw=$(age-plugin-yubikey --identity --slot 1 2>/dev/null); then
+        echo "❌ Error reading Slot 82 (Is the YubiKey inserted?)" >&2
+        return 1
+    fi
 
-    [[ -z "$key" ]] && echo "Error: No identity found." >&2 && return 1
+    local key_string=$(echo "$raw" | grep "^AGE-PLUGIN-YUBIKEY-")
 
-    touch "$f" && chmod 600 "$f"
-    echo "$raw" > "$f"
-    echo "✅ Identity saved to $f"
+    if [[ -z "$key_string" ]]; then
+        echo "❌ No valid Age identity found in Slot 82." >&2
+        return 1
+    fi
+
+    if grep -Fq "$key_string" "$f"; then
+        echo "⚠️  Identity already exists in $f. Skipping."
+    else
+        # Append the full block (includes comments with Serial #)
+        echo "" >> "$f"
+        echo "$raw" >> "$f"
+        echo "✅ Appended identity to $f"
+    fi
 }
