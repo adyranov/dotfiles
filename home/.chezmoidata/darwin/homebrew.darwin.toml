@@ -1,7 +1,4 @@
 [darwin.common]
-taps = [
-  "homebrew/autoupdate"
-]
 
 [darwin.personal]
 casks = [
@@ -9,6 +6,7 @@ casks = [
   "appcleaner",
   "brave-browser",
   "calibre",
+  "cryptomator",
   "cursor",
   "ghostty",
   "google-drive",
@@ -18,6 +16,7 @@ casks = [
   "jetbrains-toolbox",
   "keepassxc",
   "keka",
+  "kindle-previewer",
   "localsend",
   "maccy",
   "pearcleaner",
@@ -34,7 +33,6 @@ casks = [
   "veracrypt",
   "visual-studio-code",
   "vlc",
-  "warp",
   "xnviewmp",
   "yandex-disk",
   "zoom",

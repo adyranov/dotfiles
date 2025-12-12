@@ -9,7 +9,6 @@ bash = {test = "bash --version"}
 bat = {test = "bat --version"}
 broot = {test = "broot --version"}
 btop = {disabled = "ephemeral", test = "btop --version"}
-chezmoi = {test = "chezmoi --version"}
 coreutils = {test = "realpath --version"}
 croc = {test = "croc --version"}
 curl = {test = "curl --version"}
