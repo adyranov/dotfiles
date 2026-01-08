@@ -4,10 +4,8 @@
 [packages.darwin.common]
 mas = {test = "mas version"}
 openssh = {test = "$HOMEBREW_PREFIX/bin/ssh -V"}
-opensc = {test = "opensc-tool --version"}
 "pinentry-mac" = {test = "pinentry-mac --version"}
 "reattach-to-user-namespace" = {test = "reattach-to-user-namespace --version"}
-ykman = {test = "ykman --version"}
 zsh = {disabled = true}
 
 [packages.darwin.docker]
@@ -17,6 +15,9 @@ qemu = {test = "qemu-system-x86_64 --version"}
 
 [packages.darwin.extra]
 gocryptfs = {name = "gromgit/fuse/gocryptfs-mac"}
+opensc = {test = "opensc-tool --version"}
+pam-u2f = {test = "pamu2fcfg --version"}
+ykman = {test = "ykman --version"}
 
 [packages.darwin.iac]
 shellcheck = {manager = "system"}
