@@ -1,0 +1,46 @@
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "Inter", "Font Awesome 6 Free";
+    font-size: 14px;
+    min-height: 0;
+}
+
+window#waybar {
+    background: rgba(30, 30, 46, 0.8);
+    color: #cdd6f4;
+    transition-property: background-color;
+    transition-duration: .5s;
+    backdrop-filter: blur(10px);
+}
+
+#custom-launcher {
+    font-size: 18px;
+    color: #cdd6f4;
+    padding: 0 10px;
+    margin-left: 5px;
+}
+
+#window {
+    font-weight: bold;
+    margin-left: 10px;
+}
+
+#clock {
+    font-weight: bold;
+}
+
+#battery,
+#pulseaudio,
+#network,
+#tray {
+    padding: 0 10px;
+    background-color: transparent;
+    color: #cdd6f4;
+}
+
+#custom-power {
+    padding: 0 10px;
+    margin-right: 5px;
+    color: #f38ba8;
+}

@@ -1,0 +1,18 @@
+{{- $root := .root -}}
+{{- $packageManager := index . "packageManager" | default "pacman" -}}
+{{- $host := $root.host -}}
+{{- $cachyos := $root.cachyos | default dict -}}
+{{- $packages := list -}}
+
+{{- $common := index $cachyos "common" | default dict -}}
+{{- $personal := index $cachyos "personal" | default dict -}}
+{{- $work := index $cachyos "work" | default dict -}}
+{{- $profile := $personal -}}
+{{- if $host.work -}}
+  {{- $profile = $work -}}
+{{- end -}}
+
+{{- $packages = concat $packages (index $common $packageManager | default list) -}}
+{{- $packages = concat $packages (index $profile $packageManager | default list) -}}
+
+{{- $packages | sortAlpha | uniq | join " " -}}

@@ -1,5 +1,3 @@
-[darwin.common]
-
 [darwin.personal]
 casks = [
   "anydesk",
@@ -53,5 +51,3 @@ mas = [
   {name = "WireGuard", id = 1451685025},
   {name = "Xcode", id = 497799835}
 ]
-
-[darwin.work]

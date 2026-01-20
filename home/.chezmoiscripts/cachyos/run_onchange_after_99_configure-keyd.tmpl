@@ -1,0 +1,14 @@
+{{- if eq .host.distro.id "cachyos" -}}
+#!/bin/bash
+set -euo pipefail
+
+# hash: {{ include "private_dot_config/exact_shell/keyd.conf" | sha256sum }}
+
+if [ -f "$HOME/.config/shell/keyd.conf" ]; then
+    echo "Configuring keyd for Mac-like keyboard layout..."
+    sudo mkdir -p /etc/keyd
+    sudo cp "$HOME/.config/shell/keyd.conf" /etc/keyd/default.conf
+    sudo systemctl enable --now keyd
+    sudo systemctl restart keyd
+fi
+{{- end -}}

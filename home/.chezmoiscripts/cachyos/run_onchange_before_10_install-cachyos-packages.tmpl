@@ -1,0 +1,27 @@
+{{- includeTemplate "universal/common-before-template-header" . -}}
+
+pacman_packages="{{ includeTemplate "universal/packages" (dict "root" . "packageManager" "system") }}"
+desktop_pacman_packages="{{ includeTemplate "cachyos/desktop-packages" (dict "root" . "packageManager" "pacman") }}"
+all_pacman_packages="$pacman_packages $desktop_pacman_packages"
+
+set -- $all_pacman_packages
+if [ "$#" -gt 0 ]; then
+  echo "🛠️ Updating pacman DB and installing packages…"
+  sudo pacman -Syu --noconfirm --needed "$@"
+  echo "✅ pacman packages ensured."
+fi
+
+aur_packages="{{ includeTemplate "universal/packages" (dict "root" . "packageManager" "aur") }}"
+desktop_aur_packages="{{ includeTemplate "cachyos/desktop-packages" (dict "root" . "packageManager" "aur") }}"
+all_aur_packages="$aur_packages $desktop_aur_packages"
+
+set -- $all_aur_packages
+if [ "$#" -gt 0 ]; then
+  if ! command -v paru >/dev/null 2>&1; then
+    echo "📦 Installing paru for AUR packages…"
+    sudo pacman -Syu --noconfirm --needed paru
+  fi
+  echo "🧰 Installing AUR packages with paru…"
+  paru -S --noconfirm --needed "$@"
+  echo "✅ AUR packages ensured."
+fi

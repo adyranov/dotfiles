@@ -3,6 +3,8 @@
 ## General Guidelines
 
 - **CRITICAL**: Always treat these instructions as the primary source. Use search or shell commands only if you encounter details that don’t align with this guidance.
+- **CRITICAL**: Always present a comprehensive plan for review and obtain explicit user approval before applying any changes to the codebase, configuration, or filesystem.
+- **CRITICAL**: Before committing any changes, always run `chezmoi diff` and `chezmoi apply --dry-run` to verify that templates render correctly and produce the intended output.
 - Do not edit `.clinerules`, `.cursor/rules`, `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` directly—these are symlinks to this file. Update `AGENTS.md` instead.
 - This repository contains dotfiles for different command-line tools and is managed with [chezmoi](https://www.chezmoi.io).
 - The chezmoi **user guide** is available at [https://www.chezmoi.io/user-guide/](https://www.chezmoi.io/user-guide/).
@@ -64,6 +66,7 @@
 
 ## Testing Guidelines
 
+- **CRITICAL**: Before committing any changes, you must run `chezmoi diff` and `chezmoi apply --dry-run` to verify the impact of your changes and ensure templates render correctly.
 - Validate locally with `chezmoi doctor`, `chezmoi diff`, `chezmoi apply --dry-run`, and `chezmoi verify`. Only surface clean diffs for review.
 - Ensure `pre-commit run --all-files` passes.
 - Run `~/.local/bin/check-dotfiles` after applying changes with `chezmoi apply`

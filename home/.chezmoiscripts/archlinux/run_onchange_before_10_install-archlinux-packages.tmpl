@@ -3,3 +3,4 @@
 echo "🛠️ Updating pacman DB and installing packages…"
 sudo pacman -Syu --noconfirm --needed {{ includeTemplate "universal/packages" (dict "root" .) }}
 echo "✅ pacman packages ensured."
+
