@@ -3,7 +3,6 @@ act = {manager = "mise", name = "ubi:nektos/act"}
 age-plugin-yubikey = {manager = "mise", name = "ubi:str4d/age-plugin-yubikey", exclude_arch = ["arm64"]}
 "pcsc-lite" = {name = "pcsc-lite"}
 broot = {disabled = true}
-croc = {manager = "mise", name = "ubi:schollz/croc"}
 dust = {manager = "mise", name = "ubi:bootandy/dust"}
 eza = {manager = "mise"}
 fd = {name = "fd-find"}

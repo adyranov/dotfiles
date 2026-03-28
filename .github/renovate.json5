@@ -40,6 +40,16 @@
       dependencyDashboardApproval: true,
     },
     {
+      description: 'Limit Fedora to version 44',
+      matchPackageNames: [
+        'fedora',
+      ],
+      matchManagers: [
+        'dockerfile',
+      ],
+      allowedVersions: '<=44',
+    },
+    {
       description: 'Weekly automerge for CI/Tools',
       matchManagers: [
         'github-actions',
