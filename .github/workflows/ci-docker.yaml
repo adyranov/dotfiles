@@ -134,7 +134,7 @@ jobs:
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
       - name: Generate Image Metadata
         id: metadata
-        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
         with:
           images: |
             ghcr.io/${{ github.repository }}
