@@ -4,7 +4,7 @@ ARG CACHE_BUST=1
 ARG USER=devcontainer
 ARG UID=54321
 
-FROM buildpack-deps:noble-curl@sha256:12bbe6a019ebb73425417dd8a1c7376d9c23d5bbd151e69db126a9192eb408df AS base
+FROM buildpack-deps:noble-curl@sha256:063c8c84355a91d90b216dea62a6a9b462367ad136158f88a157f6f206364e3c AS base
 ARG USER
 ARG UID
 
