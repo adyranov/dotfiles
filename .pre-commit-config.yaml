@@ -24,7 +24,7 @@ repos:
       - id: trailing-whitespace
         exclude: .*\.md.tmpl$
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.11
+    rev: v1.7.12
     hooks:
       - id: actionlint
   - repo: https://github.com/google/yamlfmt
@@ -81,7 +81,7 @@ repos:
       - id: editorconfig-checker
         exclude: plist|tmpl|pub|age
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 43.96.0
+    rev: 43.110.14
     hooks:
       - id: renovate-config-validator
 default_language_version:
