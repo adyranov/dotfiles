@@ -43,7 +43,7 @@ zsh = {test = "zsh --version"}
 docker = {test = "docker -v"}
 docker-compose = {test = "docker compose version"}
 docker-buildx = {test = "docker buildx version"}
-dive = {manager = "mise", name = "ubi:wagoodman/dive", test = "dive --version"}
+dive = {manager = "mise", name = "github:wagoodman/dive", test = "dive --version"}
 
 [packages.universal.extra]
 gocryptfs = {disabled = "headless,restricted", test = "gocryptfs -version"}
@@ -75,7 +75,7 @@ kubectl = {manager = "mise", test = "kubectl version --client"}
 kubectx = {manager = "mise", test = "kubectx --help"}
 kubens = {manager = "mise", test = "kubens --help"}
 kubecolor = {manager = "mise", test = "kubecolor help"}
-kubesess = {manager = "mise", name = "ubi:Ramilito/kubesess", test = "kubesess --help"}
+kubesess = {manager = "mise", name = "github:Ramilito/kubesess", test = "kubesess --help"}
 kustomize = {manager = "mise", test = "kustomize version"}
 oc = {manager = "mise", test = "oc version --client"}
 popeye = {manager = "mise", test = "popeye version"}
@@ -110,7 +110,7 @@ helm-diff = {manager = "helm", name = "https://github.com/databus23/helm-diff", 
 node = {manager = "mise", test = "node --version && npm --version && yarn --version && pnpm --version", version = "22"}
 
 [packages.universal.python]
-python = {manager = "mise", test = "python3 --version && pip --version && pre-commit --version"}
+python = {manager = "mise", test = "python3 --version && pip --version && pre-commit --version", version = "3.14.3"}
 uv = {manager = "mise", name = "uv", test = "uv --version"}
 
 [packages.universal.rust]

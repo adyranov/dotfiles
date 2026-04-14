@@ -14,57 +14,91 @@ command -v keytool >/dev/null 2>&1 || exit 0
 
 mkdir -p "$TRUSTSTORE_DIR"
 
-# Create empty truststore if needed
-if [ ! -f "$TRUSTSTORE" ]; then
+# Find the standard Java cacerts to use as the base truststore
+findSystemCacerts() {
+  # Try JAVA_HOME first
+  if [ -n "${JAVA_HOME:-}" ]; then
+    for path in "$JAVA_HOME/lib/security/cacerts" "$JAVA_HOME/jre/lib/security/cacerts"; do
+      [ -f "$path" ] && echo "$path" && return
+    done
+  fi
+
+  # Try keytool's own Java installation
+  local keytool_path
+  keytool_path="$(command -v keytool 2>/dev/null)" || true
+  if [ -n "$keytool_path" ]; then
+    keytool_path="$(readlink -f "$keytool_path" 2>/dev/null || realpath "$keytool_path" 2>/dev/null || echo "$keytool_path")"
+    local java_home
+    java_home="$(dirname "$(dirname "$keytool_path")")"
+    for path in "$java_home/lib/security/cacerts" "$java_home/jre/lib/security/cacerts"; do
+      [ -f "$path" ] && echo "$path" && return
+    done
+  fi
+
+  # Common locations
+  for path in \
+    /etc/pki/java/cacerts \
+    /etc/ssl/certs/java/cacerts \
+    /usr/local/share/ca-certificates/java/cacerts; do
+    [ -f "$path" ] && echo "$path" && return
+  done
+}
+
+# Always start from a fresh copy of the system cacerts
+system_cacerts="$(findSystemCacerts)"
+if [ -n "$system_cacerts" ]; then
+  echo "📦 Copying system cacerts from $system_cacerts"
+  cp "$system_cacerts" "$TRUSTSTORE"
+else
+  echo "⚠️  No system cacerts found, creating empty truststore"
+  rm -f "$TRUSTSTORE"
   keytool -genkey -alias temp -keystore "$TRUSTSTORE" -storepass changeit \
     -validity 1 -keyalg RSA -dname "CN=Temporary" -noprompt >/dev/null 2>&1 || true
   keytool -delete -alias temp -keystore "$TRUSTSTORE" -storepass changeit \
     -noprompt >/dev/null 2>&1 || true
 fi
 
-# Remove all existing CA certificates
-keytool -list -keystore "$TRUSTSTORE" -storepass changeit 2>/dev/null | \
-  grep "^ca_" | awk '{print $1}' | tr -d ',' > /tmp/ca-aliases.txt || true
+# Collect SHA-256 fingerprints already in the truststore
+existing_fps="$(keytool -list -keystore "$TRUSTSTORE" -storepass changeit 2>/dev/null | \
+  awk -F': ' '/SHA-?256/{gsub(/ /,"",$2); print toupper($2)}')" || true
 
-while IFS= read -r alias; do
-  [ -z "$alias" ] && continue
-  keytool -delete -alias "$alias" -keystore "$TRUSTSTORE" -storepass changeit \
-    -noprompt >/dev/null 2>&1 || true
-done < /tmp/ca-aliases.txt
-rm -f /tmp/ca-aliases.txt
-
-# Split CA bundle into individual certificates and import each
+# Split CA bundle into individual certificates and import missing ones
 tmpdir=$(mktemp -d)
 trap "rm -rf '$tmpdir'" EXIT
 
 csplit -f "$tmpdir/cert-" -b %d.pem "$CA_BUNDLE" '/-----END CERTIFICATE-----/+1' '{*}' >/dev/null 2>&1 || true
 
-echo "📦 Importing certificates to truststore..."
+echo "📦 Checking certificates against truststore..."
 echo ""
 
+imported=0
+skipped=0
 cert_num=0
 for cert_file in "$tmpdir"/cert-*.pem; do
   [ -s "$cert_file" ] || continue
 
-  # Extract certificate information
-  subject=$(openssl x509 -in "$cert_file" -noout -subject 2>/dev/null | sed 's/^subject=//')
-  issuer=$(openssl x509 -in "$cert_file" -noout -issuer 2>/dev/null | sed 's/^issuer=//')
-  fingerprint=$(openssl x509 -in "$cert_file" -noout -fingerprint -sha256 2>/dev/null | awk -F= '{print $2}')
+  subject=$(openssl x509 -in "$cert_file" -noout -subject 2>/dev/null | sed 's/^subject=//') || continue
+  fingerprint=$(openssl x509 -in "$cert_file" -noout -fingerprint -sha256 2>/dev/null | awk -F= '{print $2}') || continue
+  fingerprint_clean="$(echo "$fingerprint" | tr -d ' ' | tr '[:lower:]' '[:upper:]')"
 
-  # Import to truststore
-  keytool -import -alias "ca_$cert_num" -file "$cert_file" -keystore "$TRUSTSTORE" \
+  # Check if certificate is already in the truststore
+  if echo "$existing_fps" | grep -qi "$fingerprint_clean" 2>/dev/null; then
+    skipped=$((skipped + 1))
+    printf "  [%03d] ✅ Present  %s\n" "$cert_num" "$subject"
+    cert_num=$((cert_num + 1))
+    continue
+  fi
+
+  keytool -import -alias "ca_bundle_$cert_num" -file "$cert_file" -keystore "$TRUSTSTORE" \
     -storepass changeit -noprompt >/dev/null 2>&1 || true
 
-  # Print certificate info
-  printf "  [%02d] ✅ Imported\n" "$cert_num"
-  printf "       Subject:  %s\n" "$subject"
-  printf "       Issuer:   %s\n" "$issuer"
-  printf "       SHA256:   %s\n" "$fingerprint"
-  [ $((cert_num + 1)) -lt $(ls "$tmpdir"/cert-*.pem 2>/dev/null | wc -l) ] && echo ""
+  imported=$((imported + 1))
+  printf "  [%03d] 📥 Imported %s\n" "$cert_num" "$subject"
+  printf "         SHA256:   %s\n" "$fingerprint"
 
   cert_num=$((cert_num + 1))
 done
 
 echo ""
-echo "✅ Truststore: $TRUSTSTORE (imported $cert_num certificate(s))"
+echo "✅ Truststore: $TRUSTSTORE ($imported imported, $skipped already present)"
 {{- end }}

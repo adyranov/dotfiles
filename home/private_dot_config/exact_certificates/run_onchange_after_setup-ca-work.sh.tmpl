@@ -1,0 +1,118 @@
+{{- if .host.work -}}
+{{- if (eq .host.distro.family "darwin") -}}
+{{- $ca_work := joinPath .host.home ".config/certificates/ca-work.pem" -}}
+#!/usr/bin/env bash
+set -euo pipefail
+
+# {{ includeTemplate "universal/next-update" . -}}
+
+CA_WORK="{{ $ca_work }}"
+KEYCHAINS=(
+  "/System/Library/Keychains/SystemRootCertificates.keychain"
+  "/Library/Keychains/System.keychain"
+)
+
+for tool in security openssl; do
+  command -v "$tool" >/dev/null 2>&1 || { echo "Required tool '$tool' not found" >&2; exit 4; }
+done
+
+# Collect SHA-1 fingerprints of explicitly distrusted certificates
+getDeniedFingerprints() {
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  local denied_file="$tmpdir/denied.txt"
+  : > "$denied_file"
+
+  for domain in user admin; do
+    local plist="$tmpdir/${domain}.plist"
+    if security trust-settings-export -d "$domain" "$plist" 2>/dev/null; then
+      /usr/libexec/PlistBuddy -c "Print :trustList" "$plist" 2>/dev/null | \
+        awk '
+          /^    [A-F0-9]/ { current_hash = $1 }
+          /kSecTrustSettingsResult/ { getline; if ($NF == 3) print current_hash }
+        ' >> "$denied_file" 2>/dev/null || true
+    fi
+  done
+
+  sort -u "$denied_file"
+  rm -rf "$tmpdir"
+}
+
+denied_fps="$(getDeniedFingerprints)"
+
+outfile="$(mktemp)"
+trap 'rm -f "$outfile"' EXIT
+
+echo "📦 Extracting trusted certificates from system keychains..."
+echo ""
+
+trusted_count=0
+denied_count=0
+expired_count=0
+
+for keychain in "${KEYCHAINS[@]}"; do
+  if [ ! -f "$keychain" ]; then
+    printf "  ⚠️  Keychain not found, skipping: %s\n" "$keychain" >&2
+    continue
+  fi
+
+  tmpdir="$(mktemp -d)"
+
+  security find-certificate -a -p "$keychain" > "$tmpdir/all.pem" 2>/dev/null
+
+  cert_num=0
+  current_cert=""
+  while IFS= read -r line; do
+    if [ "$line" = "-----BEGIN CERTIFICATE-----" ]; then
+      current_cert="$line"$'\n'
+    elif [ "$line" = "-----END CERTIFICATE-----" ]; then
+      current_cert="$current_cert$line"
+      printf "%s\n" "$current_cert" > "$tmpdir/cert-$cert_num.pem"
+      cert_num=$((cert_num + 1))
+      current_cert=""
+    elif [ -n "$current_cert" ]; then
+      current_cert="$current_cert$line"$'\n'
+    fi
+  done < "$tmpdir/all.pem"
+
+  for ((i = 0; i < cert_num; i++)); do
+    local_cert="$tmpdir/cert-$i.pem"
+
+    subject="$(openssl x509 -in "$local_cert" -noout -subject 2>/dev/null | sed 's/^subject=//')"
+    sha1="$(openssl x509 -in "$local_cert" -noout -fingerprint -sha1 2>/dev/null | awk -F= '{print $2}' | tr -d ':')"
+
+    # Skip explicitly denied certs
+    if [ -n "$denied_fps" ] && echo "$denied_fps" | grep -qi "$sha1" 2>/dev/null; then
+      denied_count=$((denied_count + 1))
+      printf "  [%03d] ❌ Denied   %s\n" "$((trusted_count + denied_count + expired_count))" "$subject"
+      continue
+    fi
+
+    # Skip expired certs
+    if ! openssl x509 -in "$local_cert" -noout -checkend 0 >/dev/null 2>&1; then
+      expired_count=$((expired_count + 1))
+      printf "  [%03d] ⚠️  Expired  %s\n" "$((trusted_count + denied_count + expired_count))" "$subject"
+      continue
+    fi
+
+    trusted_count=$((trusted_count + 1))
+    printf "  [%03d] ✅ Trusted  %s\n" "$((trusted_count + denied_count + expired_count))" "$subject"
+    cat "$local_cert" >> "$outfile"
+    echo "" >> "$outfile"
+  done
+
+  rm -rf "$tmpdir"
+done
+
+echo ""
+
+# Only update the file if content changed
+if [ -f "$CA_WORK" ] && cmp -s "$outfile" "$CA_WORK"; then
+  echo "✅ $CA_WORK is already up to date ($trusted_count certificate(s), $denied_count denied, $expired_count expired)"
+else
+  mv "$outfile" "$CA_WORK"
+  trap - EXIT
+  echo "✅ Wrote $trusted_count trusted certificate(s) to $CA_WORK ($denied_count denied, $expired_count expired)"
+fi
+{{- end -}}
+{{- end -}}
