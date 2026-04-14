@@ -52,7 +52,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup WSL
-        uses: Vampire/setup-wsl@6a8db447be7ed35f2f499c02c6e60ff77ef11278 # v6.0.0
+        uses: Vampire/setup-wsl@887f39deb6c0976365e546926fe66f41b77d65ff # v6.1.0
         with:
           distribution: Ubuntu-24.04
       - name: Run install.sh
