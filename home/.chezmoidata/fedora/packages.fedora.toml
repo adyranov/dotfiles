@@ -1,8 +1,5 @@
 [packages.fedora.common]
 act = {manager = "mise", name = "github:nektos/act"}
-age-plugin-yubikey = {manager = "mise", name = "github:str4d/age-plugin-yubikey", exclude_arch = [
-  "arm64"
-]}
 "pcsc-lite" = {name = "pcsc-lite"}
 broot = {disabled = true}
 dust = {manager = "mise", name = "github:bootandy/dust"}

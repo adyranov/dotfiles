@@ -2,6 +2,7 @@
 "aws-cli" = {disabled = "headless", manager = "system", name = "awscli"}
 
 [packages.darwin.common]
+age-plugin-yubikey = {test = "age-plugin-yubikey --version"}
 mas = {test = "mas version"}
 openssh = {test = "$HOMEBREW_PREFIX/bin/ssh -V"}
 "pinentry-mac" = {test = "pinentry-mac --version"}

@@ -4,7 +4,6 @@ azure-cli = {test = "az --version"}
 
 [packages.universal.common]
 act = {test = "act --version"}
-age-plugin-yubikey = {test = "age-plugin-yubikey --version"}
 bash = {test = "bash --version"}
 bat = {test = "bat --version"}
 broot = {test = "broot --version"}
