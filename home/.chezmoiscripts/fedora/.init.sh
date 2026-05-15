@@ -3,7 +3,7 @@ set -euo pipefail
 
 arch="$(uname -m)"
 
-if [[ "${arch}" == "x86_64" ]]; then
+if [[ ${arch} == "x86_64" ]]; then
   sudo dnf copr -y enable jackyzy823/rust-rage
 else
   echo "Skipping jackyzy823/rust-rage COPR enable on ${arch} (unsupported chroot)."

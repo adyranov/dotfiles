@@ -1,12 +1,13 @@
 [packages.fedora.common]
 act = {manager = "mise", name = "github:nektos/act"}
-"pcsc-lite" = {name = "pcsc-lite"}
 broot = {disabled = true}
 dust = {manager = "mise", name = "github:bootandy/dust"}
 eza = {manager = "mise"}
 fd = {name = "fd-find"}
 hyperfine = {manager = "mise"}
+lazygit = {manager = "mise"}
 mkcert = {manager = "mise"}
+"pcsc-lite" = {name = "pcsc-lite"}
 procs = {manager = "mise", name = "github:dalance/procs"}
 rage = {manager = "mise", name = "github:str4d/rage"}
 sd = {manager = "mise"}

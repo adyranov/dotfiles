@@ -1,0 +1,171 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.editorconfig'
+      - '.gitattributes'
+      - '.gitignore'
+      - '.pre-commit-config.yaml'
+      - '.github/renovate.json5'
+      - '.github/workflows/cleanup-containers.yaml'
+      - '.github/workflows/update-license-year.yaml'
+      - 'scripts/**'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.editorconfig'
+      - '.gitattributes'
+      - '.gitignore'
+      - '.pre-commit-config.yaml'
+      - '.github/renovate.json5'
+      - '.github/workflows/cleanup-containers.yaml'
+      - '.github/workflows/update-license-year.yaml'
+      - 'scripts/**'
+  workflow_dispatch:
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      host-matrix: ${{ steps.set-outputs.outputs.host-matrix }}
+      docker-matrix: ${{ steps.set-outputs.outputs.docker-matrix }}
+      run-wsl: ${{ steps.set-outputs.outputs.run-wsl }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Paths Filter
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: ${{ github.event.pull_request.base.ref || github.base_ref || github.ref }}
+          filters: |
+            shared: &shared
+              - 'home/.chezmoi*'
+              - 'home/.chezmoidata/universal/**'
+              - 'home/.chezmoiscripts/universal/**'
+              - 'home/.chezmoitemplates/universal/**'
+              - 'home/*dot_*'
+              - 'home/*dot_*/**'
+              - 'install.sh'
+              - '.github/workflows/ci.yaml'
+            host-ubuntu:
+              - *shared
+              - 'home/.chezmoidata/ubuntu/**'
+              - 'home/.chezmoiscripts/ubuntu/*'
+              - 'home/.chezmoitemplates/ubuntu/*'
+              - '.github/workflows/ci-host.yaml'
+            host-macos:
+              - *shared
+              - 'home/.chezmoidata/darwin/**'
+              - 'home/.chezmoiscripts/darwin/*'
+              - 'home/.chezmoitemplates/darwin/*'
+              - 'home/private_Library/**'
+              - '.github/workflows/ci-host.yaml'
+            docker-archlinux:
+              - *shared
+              - 'home/.chezmoidata/archlinux/**'
+              - 'home/.chezmoiscripts/archlinux/*'
+              - 'home/.chezmoitemplates/archlinux/*'
+              - 'containers/archlinux/**'
+              - '.github/workflows/ci-docker.yaml'
+            docker-fedora:
+              - *shared
+              - 'home/.chezmoidata/fedora/**'
+              - 'home/.chezmoiscripts/fedora/*'
+              - 'home/.chezmoitemplates/fedora/*'
+              - 'containers/fedora/**'
+              - '.github/workflows/ci-docker.yaml'
+            docker-ubuntu:
+              - *shared
+              - 'home/.chezmoidata/ubuntu/**'
+              - 'home/.chezmoiscripts/ubuntu/*'
+              - 'home/.chezmoitemplates/ubuntu/*'
+              - 'containers/ubuntu/**'
+              - '.github/workflows/ci-docker.yaml'
+            wsl:
+              - *shared
+              - 'home/.chezmoidata/ubuntu/**'
+              - 'home/.chezmoiscripts/ubuntu/*'
+              - 'home/.chezmoitemplates/ubuntu/*'
+              - '.github/workflows/ci-wsl.yaml'
+      - name: Set Outputs
+        id: set-outputs
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            {
+              echo 'host-matrix=["ubuntu-24.04","ubuntu-24.04-arm","macos-26","macos-26-intel"]'
+              echo 'docker-matrix=["archlinux","fedora","ubuntu"]'
+              echo 'run-wsl=true'
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGES='${{ steps.filter.outputs.changes }}'
+
+          HOST_MATRIX="$(jq -c '
+            map(
+              if . == "host-ubuntu" then
+                ["ubuntu-24.04","ubuntu-24.04-arm"]
+              elif . == "host-macos" then
+                ["macos-26","macos-26-intel"]
+              else
+                []
+              end
+            )
+            | add
+          ' <<< "$CHANGES")"
+          if [[ "$HOST_MATRIX" == "null" || -z "$HOST_MATRIX" ]]; then
+            HOST_MATRIX='[]'
+          fi
+
+          DOCKER_MATRIX="$(echo "${CHANGES}" | jq -c '[.[] | select(startswith("docker-"))] | map(ltrimstr("docker-"))')"
+          if [[ -z "${DOCKER_MATRIX}" || "${DOCKER_MATRIX}" == "null" || "${DOCKER_MATRIX}" == "[]" ]]; then
+            DOCKER_MATRIX='[]'
+          fi
+
+          {
+            echo "host-matrix=${HOST_MATRIX}"
+            echo "docker-matrix=${DOCKER_MATRIX}"
+            echo "run-wsl=${{ steps.filter.outputs.wsl }}"
+          } >> "$GITHUB_OUTPUT"
+  host:
+    needs: changes
+    if: needs.changes.outputs.host-matrix != '[]'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-host.yaml
+    with:
+      matrix: ${{ needs.changes.outputs.host-matrix }}
+    secrets: inherit
+  docker:
+    needs: changes
+    if: needs.changes.outputs.docker-matrix != '[]'
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+      security-events: write
+    uses: ./.github/workflows/ci-docker.yaml
+    with:
+      matrix: ${{ needs.changes.outputs.docker-matrix }}
+    secrets: inherit
+  wsl:
+    needs: changes
+    if: needs.changes.outputs.run-wsl == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-wsl.yaml
+    secrets: inherit

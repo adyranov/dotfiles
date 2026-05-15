@@ -8,9 +8,9 @@ command -v script >/dev/null 2>&1 || {
 
 echo "⚙️ Initializing ZSH"
 if script -q -c true /dev/null 2>/dev/null; then
-  exec env Z4H_BOOTSTRAPPING=1 script -q -c 'env Z4H_BOOTSTRAPPING=1 zsh -ic exit' /dev/null
+  exec script -q -c 'env Z4H_BOOTSTRAPPING=1 _CHEZMOI_Z4H_BOOTSTRAP=1 zsh -i' /dev/null
 else
-  exec env Z4H_BOOTSTRAPPING=1 script -qe /dev/null env Z4H_BOOTSTRAPPING=1 zsh -ic exit
+  exec script -qe /dev/null env Z4H_BOOTSTRAPPING=1 _CHEZMOI_Z4H_BOOTSTRAP=1 zsh -i
 fi
 
 {{- end -}}

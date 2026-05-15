@@ -44,4 +44,22 @@ for plugin in "${KREW_PLUGINS[@]}"; do
     fi
 done
 echo "✅ krew plugins up to date."
+
+echo "🗑️ Removing stale krew plugins…"
+installed=$($KREW_ROOT/bin/kubectl-krew list 2>/dev/null | tail -n +1)
+for plugin in $installed; do
+    [ "$plugin" = "krew" ] && continue
+    found=false
+    for wanted in "${KREW_PLUGINS[@]}"; do
+        if [ "$plugin" = "$wanted" ]; then
+            found=true
+            break
+        fi
+    done
+    if [ "$found" = "false" ]; then
+        echo "🗑️ Removing stale krew plugin: $plugin"
+        $KREW_ROOT/bin/kubectl-krew uninstall "$plugin" >/dev/null 2>&1 || true
+    fi
+done
+echo "✅ krew plugin cleanup complete."
 {{- end -}}

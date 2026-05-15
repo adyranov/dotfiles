@@ -55,6 +55,7 @@
         {{- $pkgMgr := printf "%s" (index $override "manager" | default (index $pkg "manager" | default "system")) -}}
         {{- $pkgTest := printf "%s" (index $override "test" | default (index $pkg "test" | default "")) -}}
         {{- $pkgVersion := printf "%s" (index $override "version" | default (index $pkg "version" | default "")) -}}
+        {{- $pkgPlatforms := index $override "platforms" | default (index $pkg "platforms" | default dict) -}}
         {{- $pkgExcludeArch := index $override "exclude_arch" | default list -}}
 
         {{- $archExcluded := false -}}
@@ -70,6 +71,7 @@
                 "name" $pkgName
                 "version" $pkgVersion
                 "test" $pkgTest
+                "platforms" $pkgPlatforms
             ) -}}
         {{- end }}
     {{- end }}
@@ -96,7 +98,21 @@
     {{- $pkg := index $packages $id }}
     {{- $name := index $pkg "name" }}
     {{- $version := index $pkg "version" | default "latest" }}
+    {{- $platforms := index $pkg "platforms" }}
+    {{- if gt (len $platforms) 0 }}
+    {{- $platformParts := list -}}
+    {{- range $platform := sortAlpha (keys $platforms) -}}
+        {{- $popts := index $platforms $platform -}}
+        {{- $optParts := list -}}
+        {{- range $key := sortAlpha (keys $popts) -}}
+            {{- $optParts = append $optParts (printf "%s = \"%s\"" $key (index $popts $key)) -}}
+        {{- end -}}
+        {{- $platformParts = append $platformParts (printf "%s = {%s}" $platform ($optParts | join ", ")) -}}
+    {{- end }}
+"{{ $name }}" = {version = "{{ $version }}", platforms = { {{- $platformParts | join ", " -}} }}
+    {{- else }}
 '{{ $name }}' = '{{ $version }}'
+    {{- end }}
 {{- end }}
 {{- end -}}
 

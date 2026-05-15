@@ -1,0 +1,41 @@
+# Theme
+theme = Atom One Dark
+
+# Font
+font-family = MesloLGS NF
+font-size = 14
+
+# Cursor
+cursor-style-blink = false
+cursor-click-to-move = true
+
+# Window
+window-padding-balance = true
+window-theme = dark
+window-inherit-working-directory = true
+tab-inherit-working-directory = true
+split-inherit-working-directory = true
+scrollbar = never
+confirm-close-surface = false
+
+# Bell
+bell-features = attention,title,no-system
+
+# Input
+mouse-hide-while-typing = true
+clipboard-read = allow
+clipboard-trim-trailing-spaces = true
+
+# Shell
+shell-integration-features = cursor,sudo,title,ssh-env,ssh-terminfo
+
+# Quick terminal
+quick-terminal-position = top
+quick-terminal-screen = mouse
+quick-terminal-animation-duration = 0.1
+keybind = global:cmd+backquote=toggle_quick_terminal
+
+# macOS
+initial-window = false
+macos-option-as-alt = true
+macos-auto-secure-input = true

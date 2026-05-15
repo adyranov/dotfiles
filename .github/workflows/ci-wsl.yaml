@@ -1,60 +1,29 @@
 name: CI WSL
 on:
-  push:
-    branches:
-      - main
-      - feature/*
-  pull_request:
-    branches:
-      - main
-  schedule:
-    - cron: 0 23 * * 4
+  workflow_call: {}
   workflow_dispatch:
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ci-wsl-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
-  changes:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      run-wsl: ${{ steps.filter.outputs.wsl }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Paths Filter
-        id: filter
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: ${{ github.event.pull_request.base.ref || github.base_ref || github.ref }}
-          filters: |
-            wsl:
-              - 'home/.chezmoi*'
-              - 'home/.chezmoidata/universal/**'
-              - 'home/.chezmoiscripts/universal/**'
-              - 'home/.chezmoitemplates/universal/**'
-              - 'home/dot_*'
-              - 'home/dot_*/**'
-              - 'home/private_dot_*'
-              - 'home/private_dot_*/**'
-              - 'home/.chezmoidata/ubuntu/**'
-              - 'home/.chezmoiscripts/ubuntu/*'
-              - 'home/.chezmoitemplates/ubuntu/*'
-              - 'install.sh'
-              - '.github/workflows/ci-wsl.yaml'
   wsl:
-    needs: changes
-    if: ${{ needs.changes.outputs.run-wsl == 'true' }}
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup WSL
-        uses: Vampire/setup-wsl@887f39deb6c0976365e546926fe66f41b77d65ff # v6.1.0
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         with:
           distribution: Ubuntu-24.04
+      - name: Restore Cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            \\wsl$\Ubuntu-24.04\root\.local\share\mise\downloads
+            \\wsl$\Ubuntu-24.04\var\cache\apt\archives
+          key: chezmoi-cache-wsl-${{ hashFiles('home/**') }}
+          restore-keys: chezmoi-cache-wsl-
       - name: Run install.sh
         shell: wsl-bash {0}
         run: |
@@ -74,3 +43,11 @@ jobs:
           workspace="$(wslpath '${{ github.workspace }}')"
           cd "$workspace"
           ~/.local/bin/check-dotfiles
+      - name: Save Cache
+        if: ${{ always() }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            \\wsl$\Ubuntu-24.04\root\.local\share\mise\downloads
+            \\wsl$\Ubuntu-24.04\var\cache\apt\archives
+          key: chezmoi-cache-wsl-${{ hashFiles('home/**') }}

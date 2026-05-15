@@ -4,12 +4,12 @@ eval $({{ .brew.path }} shellenv)
 {{- includeTemplate "universal/sudo-keep-alive" . }}
 echo "🍺 Updating Homebrew…"
 brew update
-{{- if .host.interactive }}
+{{- if or (eq .host.type "ephemeral") .host.interactive }}
 echo "📦 Upgrading formulae…"
 brew upgrade
 echo "🧰 Upgrading casks…"
 brew upgrade --cask --greedy
 echo "🧹 Cleaning up…"
 brew cleanup
+{{- end }}
 echo "✅ Homebrew updated."
-{{- end -}}

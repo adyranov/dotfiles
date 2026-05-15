@@ -1,25 +1,3 @@
-# COMPILED SOURCE
-*.o
-*.so
-*.com
-*.dll
-*.exe
-*.class
-
-# BINARY ARCHIVE FILES
-*.7z
-*.gz
-*.dmg
-*.iso
-*.jar
-*.rar
-*.tar
-*.zip
-*.war
-
-# LOGS
-*.log
-
 # OS RELATED FILES
 ._*
 .Trashes
