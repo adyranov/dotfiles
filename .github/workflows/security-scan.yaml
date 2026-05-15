@@ -1,0 +1,45 @@
+name: Security Scan
+on:
+  workflow_run:
+    workflows: [CI Docker]
+    types: [completed]
+  workflow_dispatch:
+concurrency:
+  group: security-scan-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  trivy:
+    if: >-
+      github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      packages: read
+      security-events: write
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+      - name: Run Trivy vulnerability scanner
+        id: trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/amd64
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:ubuntu
+          scanners: vuln,secret,misconfig
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
+          format: sarif
+          output: trivy-results.sarif
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
+        if: always() && steps.trivy.outcome == 'success'
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-ubuntu

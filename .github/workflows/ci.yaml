@@ -3,31 +3,35 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - '.editorconfig'
-      - '.gitattributes'
-      - '.gitignore'
-      - '.pre-commit-config.yaml'
-      - '.github/renovate.json5'
-      - '.github/workflows/cleanup-containers.yaml'
-      - '.github/workflows/update-license-year.yaml'
-      - 'scripts/**'
+    paths:
+      - '**'
+      - '!**.md'
+      - '!LICENSE'
+      - '!.editorconfig'
+      - '!.gitattributes'
+      - '!.gitignore'
+      - '!.pre-commit-config.yaml'
+      - '!.github/renovate.json5'
+      - '!.github/workflows/**'
+      - '.github/workflows/ci.yaml'
+      - '.github/workflows/ci-*.yaml'
+      - '!scripts/**'
   pull_request:
     branches:
       - main
-    paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - '.editorconfig'
-      - '.gitattributes'
-      - '.gitignore'
-      - '.pre-commit-config.yaml'
-      - '.github/renovate.json5'
-      - '.github/workflows/cleanup-containers.yaml'
-      - '.github/workflows/update-license-year.yaml'
-      - 'scripts/**'
+    paths:
+      - '**'
+      - '!**.md'
+      - '!LICENSE'
+      - '!.editorconfig'
+      - '!.gitattributes'
+      - '!.gitignore'
+      - '!.pre-commit-config.yaml'
+      - '!.github/renovate.json5'
+      - '!.github/workflows/**'
+      - '.github/workflows/ci.yaml'
+      - '.github/workflows/ci-*.yaml'
+      - '!scripts/**'
   workflow_dispatch:
 concurrency:
   group: ci-${{ github.head_ref || github.ref }}
@@ -157,7 +161,6 @@ jobs:
       contents: read
       id-token: write
       packages: write
-      security-events: write
     uses: ./.github/workflows/ci-docker.yaml
     with:
       matrix: ${{ needs.changes.outputs.docker-matrix }}

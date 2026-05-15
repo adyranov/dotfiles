@@ -41,7 +41,6 @@ jobs:
       meta-tags: |
         type=schedule,prefix=${{ matrix.os }}-,pattern={{date 'YYYYMMDD'}}
         type=raw,value=${{ matrix.os }},enable={{is_default_branch}}
-        type=ref,event=branch,prefix=${{ matrix.os }}-
         type=ref,event=pr,prefix=${{ matrix.os }}-pr-
       meta-flavor: |
         latest=${{ github.ref_name == 'main' && contains(matrix.os, 'ubuntu') }}
@@ -53,38 +52,3 @@ jobs:
         - registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-  security-scan:
-    needs: [docker-build]
-    if: >-
-      !cancelled() && ((github.event_name == 'push' && github.ref_name == 'main') || github.event_name == 'schedule' || inputs.publish == true)
-    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
-    timeout-minutes: 5
-    permissions:
-      packages: read
-      security-events: write
-    strategy:
-      matrix:
-        os: [fedora, ubuntu]
-        platform: [linux/amd64, linux/arm64]
-      fail-fast: false
-    steps:
-      - name: Run Trivy vulnerability scanner
-        id: trivy
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        env:
-          TRIVY_USERNAME: ${{ github.repository_owner }}
-          TRIVY_PASSWORD: ${{ github.token }}
-        with:
-          image-ref: ghcr.io/${{ github.repository }}:${{ matrix.os }}
-          ignore-unfixed: true
-          vuln-type: os
-          severity: CRITICAL,HIGH
-          format: sarif
-          cache: false
-          output: trivy-results-${{ matrix.os }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}.sarif
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
-        if: steps.trivy.outcome == 'success'
-        with:
-          sarif_file: trivy-results-${{ matrix.os }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}.sarif
-          category: trivy-${{ matrix.os }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
