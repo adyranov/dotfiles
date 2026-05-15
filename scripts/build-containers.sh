@@ -19,17 +19,18 @@ get_name() { basename "$1"; }
 suggest_parallel() {
   log_info "GNU parallel not found. Install for faster builds:"
   case "$(uname -s)" in
-    Darwin) log "  brew install parallel" ;;
-    Linux)
-      if command -v apt-get >/dev/null 2>&1; then
-        log "  sudo apt-get install parallel"
-      elif command -v dnf >/dev/null 2>&1; then
-        log "  sudo dnf install parallel"
-      elif command -v pacman >/dev/null 2>&1; then
-        log "  sudo pacman -S parallel"
-      else
-        log "  Visit: https://www.gnu.org/software/parallel/"
-      fi ;;
+  Darwin) log "  brew install parallel" ;;
+  Linux)
+    if command -v apt-get >/dev/null 2>&1; then
+      log "  sudo apt-get install parallel"
+    elif command -v dnf >/dev/null 2>&1; then
+      log "  sudo dnf install parallel"
+    elif command -v pacman >/dev/null 2>&1; then
+      log "  sudo pacman -S parallel"
+    else
+      log "  Visit: https://www.gnu.org/software/parallel/"
+    fi
+    ;;
   esac
   log_info "Continuing with sequential builds..."
 }
@@ -71,7 +72,7 @@ create_builder() {
 
 # Usage
 usage() {
-  cat << EOF
+  cat <<EOF
 Usage: \$0 [OPTIONS] [CONTAINER_NAMES...]
 
 Build and test Docker containers.
@@ -143,29 +144,45 @@ CA_CERTS_PATH=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -h|--help) usage; exit 0 ;;
-    -l|--list) LIST_ONLY=true; shift ;;
-    -c|--config)
-      if [ -z "${2:-}" ]; then
-        log_error "Option $1 requires an argument"
-        usage
-        exit 1
-      fi
-      BUILDKITD_CONFIG="$2"
-      shift 2
-      ;;
-    --ca-certs)
-      if [ -z "${2:-}" ]; then
-        log_error "Option $1 requires an argument"
-        usage
-        exit 1
-      fi
-      CA_CERTS_PATH="$2"
-      shift 2
-      ;;
-    --full-test) BUILD_TEST=true; shift ;;
-    -*) log_error "Unknown option: $1"; usage; exit 1 ;;
-    *) SELECTED_CONTAINERS+=("$1"); shift ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  -l | --list)
+    LIST_ONLY=true
+    shift
+    ;;
+  -c | --config)
+    if [ -z "${2:-}" ]; then
+      log_error "Option $1 requires an argument"
+      usage
+      exit 1
+    fi
+    BUILDKITD_CONFIG="$2"
+    shift 2
+    ;;
+  --ca-certs)
+    if [ -z "${2:-}" ]; then
+      log_error "Option $1 requires an argument"
+      usage
+      exit 1
+    fi
+    CA_CERTS_PATH="$2"
+    shift 2
+    ;;
+  --full-test)
+    BUILD_TEST=true
+    shift
+    ;;
+  -*)
+    log_error "Unknown option: $1"
+    usage
+    exit 1
+    ;;
+  *)
+    SELECTED_CONTAINERS+=("$1")
+    shift
+    ;;
   esac
 done
 
@@ -247,7 +264,10 @@ run_container() {
   fi
 
   log "🚀 [${name}] run start (${build_stage_label})"
-  docker run --rm -w "${working_dir}" "${tag}" || { log_error "[${name}] ${build_stage_label} failed"; exit 1; }
+  docker run --rm -w "${working_dir}" "${tag}" || {
+    log_error "[${name}] ${build_stage_label} failed"
+    exit 1
+  }
 
   log_success "[${name}] done"
 }
@@ -278,11 +298,17 @@ run_containers() {
 
 # Main execution
 main() {
-  docker info >/dev/null || { log_error "Docker unavailable"; exit 1; }
+  docker info >/dev/null || {
+    log_error "Docker unavailable"
+    exit 1
+  }
 
   local all_containers
   mapfile -t all_containers < <(discover_containers)
-  [ ${#all_containers[@]} -eq 0 ] && { log_error "No containers found"; exit 1; }
+  [ ${#all_containers[@]} -eq 0 ] && {
+    log_error "No containers found"
+    exit 1
+  }
 
   if [ "$LIST_ONLY" = true ]; then
     display_containers "${all_containers[@]}"

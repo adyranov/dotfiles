@@ -24,6 +24,7 @@ gnupg = {test = "gpg --version"}
 httpie = {test = "http --version"}
 hyperfine = {test = "hyperfine --version"}
 jq = {test = "jq --version"}
+lazygit = {test = "lazygit --version"}
 mise = {test = "mise --version"}
 mkcert = {test = "mkcert -version"}
 neovim = {test = "nvim --version"}
@@ -32,17 +33,19 @@ rage = {test = "rage --version"}
 rclone = {test = "rclone --version"}
 ripgrep = {test = "rg --version"}
 sd = {test = "sd --version"}
+tealdeer = {test = "tldr --version"}
 tmux = {test = "tmux -V"}
 tokei = {test = "tokei --version"}
 vivid = {test = "vivid --version"}
 wget = {test = "wget --version"}
+zoxide = {test = "zoxide --version"}
 zsh = {test = "zsh --version"}
 
 [packages.universal.docker]
-docker = {test = "docker -v"}
-docker-compose = {test = "docker compose version"}
-docker-buildx = {test = "docker buildx version"}
 dive = {manager = "mise", name = "github:wagoodman/dive", test = "dive --version"}
+docker = {test = "docker -v"}
+docker-buildx = {test = "docker buildx version"}
+docker-compose = {test = "docker compose version"}
 
 [packages.universal.extra]
 gocryptfs = {disabled = "headless,restricted", test = "gocryptfs -version"}
@@ -54,62 +57,62 @@ zbar = {test = "zbarimg --version"}
 go = {manager = "mise", test = "go version"}
 
 [packages.universal.iac]
+shellcheck = {manager = "mise", test = "shellcheck --version"}
+sops = {manager = "mise", test = "sops --version"}
 terraform = {manager = "mise", test = "terraform version"}
 terragrunt = {manager = "mise", test = "terragrunt --version"}
-sops = {manager = "mise", test = "sops --version"}
 tflint = {manager = "mise", test = "tflint --version"}
-shellcheck = {manager = "mise", test = "shellcheck --version"}
 
 [packages.universal.java]
 ant = {manager = "mise", test = "ant -version"}
+java = {manager = "mise", test = "java -version", version = "lts"}
 maven = {manager = "mise", test = "mvn -v"}
-java = {manager = "mise", test = "java -version", version = "25"}
 
 [packages.universal.kubernetes]
-datree = {manager = "mise", test = "datree version"}
 helm = {manager = "mise", test = "helm version"}
+helm-diff = {manager = "helm", name = "https://github.com/databus23/helm-diff", test = "helm diff --help"}
 k3d = {manager = "mise", test = "k3d version"}
 k9s = {manager = "mise", test = "k9s version"}
-kubectl = {manager = "mise", test = "kubectl version --client"}
-kubectx = {manager = "mise", test = "kubectx --help"}
-kubens = {manager = "mise", test = "kubens --help"}
 kubecolor = {manager = "mise", test = "kubecolor help"}
-kubesess = {manager = "mise", name = "github:Ramilito/kubesess", test = "kubesess --help"}
-kustomize = {manager = "mise", test = "kustomize version"}
-oc = {manager = "mise", test = "oc version --client"}
-popeye = {manager = "mise", test = "popeye version"}
-stern = {manager = "mise", test = "stern --version"}
-yq = {manager = "mise", test = "yq --version"}
+kubectl = {manager = "mise", test = "kubectl version --client"}
 kubectl-access-matrix = {manager = "krew", name = "access-matrix", test = "kubectl access-matrix --help"}
-kubectl-blame = {manager = "krew", name = "blame", test = "kubectl blame --help"}
 kubectl-cost = {manager = "krew", name = "cost", test = "kubectl cost --help"}
-kubectl-datree = {manager = "krew", name = "datree", test = "kubectl datree version"}
-kubectl-deprecations = {manager = "krew", name = "deprecations", test = "kubectl deprecations --help"}
 kubectl-get-all = {manager = "krew", name = "get-all", test = "kubectl get-all --help"}
 kubectl-images = {manager = "krew", name = "images", test = "kubectl images --help"}
 kubectl-konfig = {manager = "krew", name = "konfig", test = "kubectl konfig --help"}
 kubectl-kubescape = {manager = "krew", name = "kubescape", test = "kubectl kubescape --help"}
 kubectl-kyverno = {manager = "krew", name = "kyverno", test = "kubectl kyverno --help"}
-kubectl-modify-secret = {manager = "krew", name = "modify-secret", test = "kubectl modify-secret --help"}
 kubectl-neat = {manager = "krew", name = "neat", test = "kubectl neat --help"}
 kubectl-node-shell = {manager = "krew", name = "node-shell", test = "kubectl node-shell --version"}
-kubectl-outdated = {manager = "krew", name = "outdated", test = "kubectl outdated --help"}
 kubectl-rbac-tool = {manager = "krew", name = "rbac-tool", test = "kubectl rbac-tool --help"}
 kubectl-resource-capacity = {manager = "krew", name = "resource-capacity", test = "kubectl resource-capacity --help"}
 kubectl-score = {manager = "krew", name = "score", test = "kubectl score --help"}
-kubectl-slice = {manager = "krew", name = "slice", test = "kubectl slice --help"}
-kubectl-sniff = {manager = "krew", name = "sniff", test = "kubectl sniff --help"}
 kubectl-tree = {manager = "krew", name = "tree", test = "kubectl tree --help"}
-kubectl-tunnel = {manager = "krew", name = "tunnel", test = "kubectl tunnel --help"}
-kubectl-view-allocations = {manager = "krew", name = "view-allocations", test = "kubectl view-allocations --help"}
 kubectl-who-can = {manager = "krew", name = "who-can", test = "kubectl who-can --help"}
-helm-diff = {manager = "helm", name = "https://github.com/databus23/helm-diff", test = "helm diff --help"}
+kubectx = {manager = "mise", test = "kubectx --help"}
+kubens = {manager = "mise", test = "kubens --help"}
+kustomize = {manager = "mise", test = "kustomize version"}
+oc = {manager = "mise", test = "oc version --client"}
+popeye = {manager = "mise", test = "popeye version"}
+stern = {manager = "mise", test = "stern --version"}
+yq = {manager = "mise", test = "yq --version"}
+
+[packages.universal.kubernetes.kubesess]
+manager = "mise"
+name = "github:Ramilito/kubesess"
+test = "kubesess --help"
+
+[packages.universal.kubernetes.kubesess.platforms]
+linux-arm64 = {bin_path = "target/aarch64-unknown-linux-gnu/release"}
+linux-x64 = {bin_path = "target/x86_64-unknown-linux-gnu/release"}
+macos-arm64 = {bin_path = "target/aarch64-apple-darwin/release"}
+macos-x64 = {bin_path = "target/x86_64-apple-darwin/release"}
 
 [packages.universal.node]
-node = {manager = "mise", test = "node --version && npm --version && yarn --version && pnpm --version", version = "22"}
+node = {manager = "mise", test = "node --version && npm --version && yarn --version && pnpm --version", version = "lts"}
 
 [packages.universal.python]
-python = {manager = "mise", test = "python3 --version && pip --version && pre-commit --version", version = "3.14.3"}
+python = {manager = "mise", test = "python3 --version && pip --version && pre-commit --version"}
 uv = {manager = "mise", name = "uv", test = "uv --version"}
 
 [packages.universal.rust]

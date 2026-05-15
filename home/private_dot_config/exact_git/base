@@ -1,3 +1,5 @@
+[core]
+    autocrlf = input
 [branch]
     autosetuprebase = always
 [diff]
@@ -8,7 +10,7 @@
 [fetch]
     prune = true
 [help]
-    autocorrect = 1
+    autocorrect = prompt
 [init]
     defaultBranch = main
 [merge]

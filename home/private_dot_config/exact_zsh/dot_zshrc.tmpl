@@ -61,6 +61,12 @@ zstyle :z4h:olets/zsh-abbr postinstall z4h-postinstall:replace-with-github-clone
 # perform network I/O must be done above. Everything else is best done below.
 z4h init || return
 
+# Exit immediately when bootstrapping z4h (e.g. in CI/Docker).
+[[ -n "${_CHEZMOI_Z4H_BOOTSTRAP-}" ]] && exit 0
+
+# Deduplicate entries in PATH.
+typeset -U PATH path
+
 # Export environment variables.
 z4h source $HOME/.config/shell/exports.sh
 
@@ -164,8 +170,8 @@ setopt complete_aliases
 
 # History
 # https://unix.stackexchange.com/questions/273861/unlimited-history-in-zsh
-HISTSIZE=10000000
-SAVEHIST=10000000
+HISTSIZE=1000000
+SAVEHIST=1000000
 setopt BANG_HIST                 # Treat the '!' character specially during expansion.
 setopt EXTENDED_HISTORY          # Write the history file in the ":start:elapsed;command" format.
 setopt INC_APPEND_HISTORY        # Write to the history file immediately, not when the shell exits.
@@ -190,6 +196,11 @@ fi
 # Load broot
 if command -v broot >/dev/null 2>&1; then
   _evalcache broot --print-shell-function zsh
+fi
+
+# Load zoxide
+if command -v zoxide >/dev/null 2>&1; then
+  _evalcache zoxide init zsh
 fi
 
 # Load local configuration.

@@ -1,6 +1,5 @@
 [packages.ubuntu.common]
 act = {manager = "mise", name = "github:nektos/act"}
-pcscd = {name = "pcscd"}
 broot = {exclude_arch = ["arm64"]}
 chezmoi = {manager = "mise"}
 croc = {disabled = true}
@@ -8,7 +7,9 @@ dust = {manager = "mise", name = "github:bootandy/dust"}
 fd = {name = "fd-find"}
 "git-delta" = {manager = "mise", name = "delta"}
 hyperfine = {manager = "mise"}
+lazygit = {manager = "mise"}
 mkcert = {manager = "mise", name = "mkcert"}
+pcscd = {name = "pcscd"}
 procs = {manager = "mise", name = "github:dalance/procs"}
 rage = {manager = "mise", name = "github:str4d/rage"}
 sd = {manager = "mise"}
@@ -24,12 +25,9 @@ docker = {name = "docker-ce"}
 zbar = {name = "zbar-tools"}
 
 [packages.ubuntu.kubernetes]
-oc = {exclude_arch = ["arm64"]}
 "kubectl-access-matrix" = {exclude_arch = ["arm64"]}
 "kubectl-cost" = {exclude_arch = ["arm64"]}
-"kubectl-datree" = {exclude_arch = ["arm64"]}
-"kubectl-deprecations" = {exclude_arch = ["arm64"]}
 "kubectl-kyverno" = {exclude_arch = ["arm64"]}
 "kubectl-score" = {exclude_arch = ["arm64"]}
-"kubectl-sniff" = {exclude_arch = ["arm64"]}
 "kubectl-tree" = {exclude_arch = ["arm64"]}
+oc = {exclude_arch = ["arm64"]}

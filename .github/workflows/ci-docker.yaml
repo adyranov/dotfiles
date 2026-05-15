@@ -1,163 +1,90 @@
 name: CI Docker
 on:
-  push:
-    branches:
-      - main
-      - feature/*
-  pull_request:
-    branches:
-      - main
+  workflow_call:
+    inputs:
+      matrix:
+        type: string
+        default: '["archlinux","fedora","ubuntu"]'
   schedule:
     - cron: 0 23 * * 6
   workflow_dispatch:
     inputs:
-      publish-image:
-        description: Publish a docker image
+      publish:
+        description: Publish docker images
         required: true
         default: false
         type: boolean
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ci-docker-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
-env:
-  PLATFORMS: linux/arm64,linux/amd64
-  PUBLISH_IMAGE: ${{ (github.event_name == 'push' && github.ref_name == 'main') || github.event.inputs.publish-image == 'true' }}
 jobs:
-  changes:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Paths Filter
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        id: filter
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: ${{ github.event.pull_request.base.ref || github.base_ref || github.ref }}
-          filters: |
-            shared: &shared
-              - 'home/.chezmoi*'
-              - 'home/.chezmoidata/universal/**'
-              - 'home/.chezmoiscripts/universal/**'
-              - 'home/.chezmoitemplates/universal/**'
-              - 'home/dot_*/**'
-              - 'home/private_dot_*/**'
-              - 'install.sh'
-              - '.github/workflows/ci-docker.yaml'
-            archlinux:
-              - *shared
-              - 'home/.chezmoidata/archlinux/**'
-              - 'home/.chezmoiscripts/archlinux/*'
-              - 'home/.chezmoitemplates/archlinux/*'
-              - 'containers/archlinux/**/*'
-            fedora:
-              - *shared
-              - 'home/.chezmoidata/fedora/**'
-              - 'home/.chezmoiscripts/fedora/*'
-              - 'home/.chezmoitemplates/fedora/*'
-              - 'containers/fedora/Dockerfile'
-            ubuntu:
-              - *shared
-              - 'home/.chezmoidata/ubuntu/**'
-              - 'home/.chezmoiscripts/ubuntu/*'
-              - 'home/.chezmoitemplates/ubuntu/*'
-              - 'containers/ubuntu/Dockerfile'
-      - name: Set Matrix
-        id: set-matrix
-        shell: bash
-        run: |
-          CHANGES='${{ steps.filter.outputs.changes }}'
-          MATRIX="$(echo "${CHANGES}" | jq -c 'del(.[] | select(. == "shared"))')"
-          if [[ -z "${MATRIX}" || "${MATRIX}" == "null" || "${MATRIX}" == "[]" ]]; then
-            MATRIX='[]'
-          fi
-          echo "matrix=${MATRIX}" >> "${GITHUB_OUTPUT}"
   docker-build:
-    needs: [changes]
-    if: ${{ needs.changes.outputs.matrix != '[]' }}
     strategy:
       matrix:
-        os: ${{ fromJSON(needs.changes.outputs.matrix) }}
+        os: ${{ fromJSON(inputs.matrix || '["archlinux","fedora","ubuntu"]') }}
       fail-fast: false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    services:
-      registry:
-        image: registry:3@sha256:cd92709b4191c5779cd7215ccd695db6c54652e7a62843197e367427efb84d0e
-        ports:
-          - 5000:5000
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4
-      - name: Setup Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
-        with:
-          driver-opts: network=host
-          install: true
-          platforms: ${{ env.PLATFORMS }}
-      - name: Cache Docker Layers
-        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ matrix.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ matrix.os }}-buildx
-      - name: Login to DockerHub
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
-        with:
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: docker/github-builder/.github/workflows/build.yml@c2782c55efa56a01b9c30021db8f5ec3993228a3 # v1.8.0
+    with:
+      output: image
+      push: ${{ (github.event_name == 'push' && github.ref_name == 'main') || github.event_name == 'schedule' || inputs.publish == true }}
+      context: .
+      file: containers/${{ matrix.os }}/Dockerfile
+      platforms: linux/arm64,linux/amd64
+      cache: true
+      meta-images: |
+        ghcr.io/${{ github.repository }}
+        docker.io/${{ github.repository }}
+      meta-tags: |
+        type=schedule,prefix=${{ matrix.os }}-,pattern={{date 'YYYYMMDD'}}
+        type=raw,value=${{ matrix.os }},enable={{is_default_branch}}
+        type=ref,event=branch,prefix=${{ matrix.os }}-
+        type=ref,event=pr,prefix=${{ matrix.os }}-pr-
+      meta-flavor: |
+        latest=${{ github.ref_name == 'main' && contains(matrix.os, 'ubuntu') }}
+    secrets:
+      registry-auths: |
+        - registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
-        with:
-          registry: ghcr.io
+        - registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and Export to Local Docker Registry
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
+  security-scan:
+    needs: [docker-build]
+    if: >-
+      !cancelled() && ((github.event_name == 'push' && github.ref_name == 'main') || github.event_name == 'schedule' || inputs.publish == true)
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 5
+    permissions:
+      packages: read
+      security-events: write
+    strategy:
+      matrix:
+        os: [fedora, ubuntu]
+        platform: [linux/amd64, linux/arm64]
+      fail-fast: false
+    steps:
+      - name: Run Trivy vulnerability scanner
+        id: trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_USERNAME: ${{ github.repository_owner }}
+          TRIVY_PASSWORD: ${{ github.token }}
         with:
-          file: containers/${{ matrix.os }}/Dockerfile
-          context: .
-          push: true
-          platforms: ${{ env.PLATFORMS }}
-          tags: localhost:5000/${{ matrix.os }}:latest
-          secrets: |
-            "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
-          builder: ${{ steps.buildx.outputs.name }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
-      - name: Generate Image Metadata
-        id: metadata
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
+          image-ref: ghcr.io/${{ github.repository }}:${{ matrix.os }}
+          ignore-unfixed: true
+          vuln-type: os
+          severity: CRITICAL,HIGH
+          format: sarif
+          cache: false
+          output: trivy-results-${{ matrix.os }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}.sarif
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
+        if: steps.trivy.outcome == 'success'
         with:
-          images: |
-            ghcr.io/${{ github.repository }}
-            docker.io/${{ github.repository }}
-          tags: |
-            type=schedule,prefix=${{ matrix.os }}-,pattern={{date 'YYYYMMDD'}}
-            type=raw,value=${{ matrix.os }},enable={{is_default_branch}}
-          flavor: latest=${{ github.ref_name == 'main' && contains(matrix.os, 'ubuntu') }}
-      - name: Push Image
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7
-        with:
-          file: containers/${{ matrix.os }}/Dockerfile
-          context: .
-          push: ${{ env.PUBLISH_IMAGE }}
-          platforms: ${{ env.PLATFORMS }}
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
-          secrets: |
-            "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}"
-          builder: ${{ steps.buildx.outputs.name }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
-      - name: Move Docker Cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          sarif_file: trivy-results-${{ matrix.os }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}.sarif
+          category: trivy-${{ matrix.os }}-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}

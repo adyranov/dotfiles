@@ -1,82 +1,20 @@
 name: CI Host
 on:
-  push:
-    branches:
-      - main
-      - feature/*
-  pull_request:
-    branches:
-      - main
-  schedule:
-    - cron: 0 23 * * 5
+  workflow_call:
+    inputs:
+      matrix:
+        type: string
+        required: true
   workflow_dispatch:
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  group: ci-host-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
-  changes:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Paths Filter
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        id: filter
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          base: ${{ github.event.pull_request.base.ref || github.base_ref || github.ref }}
-          filters: |
-            shared: &shared
-              - 'home/.chezmoi*'
-              - 'home/.chezmoidata/universal/**'
-              - 'home/.chezmoiscripts/universal/**'
-              - 'home/.chezmoitemplates/universal/**'
-              - 'home/dot_*'
-              - 'home/dot_*/**'
-              - 'home/private_dot_*'
-              - 'home/private_dot_*/**'
-              - 'install.sh'
-              - .github/workflows/ci-host.yaml
-            ubuntu:
-              - *shared
-              - 'home/.chezmoidata/ubuntu/**'
-              - 'home/.chezmoiscripts/ubuntu/*'
-              - 'home/.chezmoitemplates/ubuntu/*'
-            macos:
-              - *shared
-              - 'home/.chezmoidata/darwin/**'
-              - 'home/.chezmoiscripts/darwin/*'
-              - 'home/.chezmoitemplates/darwin/*'
-      - name: Set Matrix
-        id: set-matrix
-        run: |
-          CHANGES='${{ steps.filter.outputs.changes }}'
-          MATRIX="$(jq -c '
-            map(
-              if . == "ubuntu" then
-                ["ubuntu-24.04","ubuntu-24.04-arm"]
-              elif . == "macos" then
-                ["macos-15","macos-15-intel"]
-              else
-                []
-              end
-            )
-            | add
-          ' <<< "$CHANGES")"
-          if [[ "$MATRIX" == "null" || "$MATRIX" == "" ]]; then
-            MATRIX='[]'
-          fi
-          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
   host-build:
-    needs: changes
-    if: ${{ needs.changes.outputs.matrix != '[]' }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ${{ fromJSON(needs.changes.outputs.matrix) }}
+        os: ${{ fromJSON(inputs.matrix || '["ubuntu-24.04","ubuntu-24.04-arm","macos-26","macos-26-intel"]') }}
       fail-fast: false
     timeout-minutes: 20
     steps:

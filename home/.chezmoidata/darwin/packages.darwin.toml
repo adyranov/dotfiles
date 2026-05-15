@@ -6,7 +6,6 @@ age-plugin-yubikey = {test = "age-plugin-yubikey --version"}
 mas = {test = "mas version"}
 openssh = {test = "$HOMEBREW_PREFIX/bin/ssh -V"}
 "pinentry-mac" = {test = "pinentry-mac --version"}
-"reattach-to-user-namespace" = {test = "reattach-to-user-namespace --version"}
 zsh = {disabled = true}
 
 [packages.darwin.docker]
@@ -24,7 +23,6 @@ ykman = {test = "ykman --version"}
 shellcheck = {manager = "system"}
 sops = {manager = "system"}
 terragrunt = {manager = "system"}
-tflint = {manager = "system"}
 
 [packages.darwin.kubernetes]
 helm = {manager = "system"}

@@ -7,8 +7,6 @@ setup_agents_file() {
   for f in \
     "$root/CLAUDE.md" \
     "$root/GEMINI.md" \
-    "$root/.clinerules" \
-    "$root/.cursor/rules" \
     "$root/.github/copilot-instructions.md"
   do
     mkdir -p "$(dirname "$f")"

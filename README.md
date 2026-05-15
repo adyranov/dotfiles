@@ -25,14 +25,12 @@ Prebuilt images are also published to GHCR and Docker Hub:
   - Fedora: `docker pull adyranov/dotfiles:fedora && docker run --rm -it -e TERM -e COLORTERM adyranov/dotfiles:fedora`
   - Arch: `docker pull adyranov/dotfiles:archlinux && docker run --rm -it -e TERM -e COLORTERM adyranov/dotfiles:archlinux`
 
-
 ### Windows / WSL
 
 - Install WSL Ubuntu 24.04 (PowerShell as Administrator): `wsl --install -d Ubuntu-24.04`
 - After reboot, open Ubuntu (WSL) and install prerequisites: `sudo apt update && sudo apt install -y curl git zsh`
 - Clone and apply the dotfiles inside WSL: `git clone https://github.com/adyranov/dotfiles && cd dotfiles && ./install.sh`
 - Validate with `~/.local/bin/check-dotfiles` and rerun `./install.sh` whenever you need to converge.
-
 
 ## 🧩 How It Works
 
@@ -91,9 +89,11 @@ Use the helper to build and test local validation containers:
 - Build all: `./scripts/build-containers.sh`
 - Build one: `./scripts/build-containers.sh archlinux|fedora|ubuntu`
 - Use custom BuildKit config: `./scripts/build-containers.sh --config ~/.config/docker/buildkitd/buildkitd.toml`
+- Inject custom CA bundle: `./scripts/build-containers.sh --ca-certs /path/to/ca-bundle.pem`
 - Build full test stage (installs all tools): `./scripts/build-containers.sh --full-test [archlinux|fedora|ubuntu]`
 
 Notes:
+
 - Supports parallel builds when `parallel` is installed; otherwise runs sequentially (the script hints how to install it).
 - Pass `GITHUB_TOKEN` to enable authenticated fetches during container builds.
 
@@ -103,7 +103,10 @@ Notes:
 - Docker workflow (`.github/workflows/ci-docker.yaml`) builds Arch Linux, Fedora, and Ubuntu images for `amd64` and `arm64`, runs the same checks, and can optionally publish images.
   - To publish images manually, trigger the workflow with `workflow_dispatch` and set `publish-image` to `true`.
 - WSL workflow (`.github/workflows/ci-wsl.yaml`) provisions Ubuntu 24.04 inside Windows runners, restores cached APT/mise/rustup/cargo/krew/helm downloads, runs `./install.sh`, then `~/.local/bin/check-dotfiles`.
-- When adding new top-level paths, update the `dorny/paths-filter` sections in both workflows so CI triggers remain accurate.
+- Security scan (`.github/workflows/security-scan.yaml`) runs Trivy weekly against the latest container image and uploads SARIF results to the GitHub Security tab.
+- Container cleanup (`.github/workflows/cleanup-containers.yaml`) prunes old untagged container versions from GHCR on a weekly schedule.
+- License year update (`.github/workflows/update-license-year.yaml`) automatically bumps the copyright year in `LICENSE` on January 1st.
+- When adding new top-level paths, update the `dorny/paths-filter` sections in the CI workflows so triggers remain accurate.
 
 ## 🖥 Supported Platforms
 
@@ -126,161 +129,157 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 
 ### ☁️ Cloud
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [AWS CLI](https://github.com/aws/aws-cli) | Manage AWS services | `mise ✅` (macOS: `system`) | ✅ | ✅ | ✅ | ✅ |
-| [Azure CLI](https://github.com/Azure/azure-cli) | Manage Azure resources | `system` | ✅ | ✅ | ✅ | ✅ |
+| Tool                                            | Description            | Install                     | macOS | Ubuntu | Fedora | Arch |
+| ----------------------------------------------- | ---------------------- | --------------------------- | ----- | ------ | ------ | ---- |
+| [AWS CLI](https://github.com/aws/aws-cli)       | Manage AWS services    | `mise ✅` (macOS: `system`) | ✅    | ✅     | ✅     | ✅   |
+| [Azure CLI](https://github.com/Azure/azure-cli) | Manage Azure resources | `system`                    | ✅    | ✅     | ✅     | ✅   |
 
 ### 🛠 Common CLI
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [Bash](https://www.gnu.org/software/bash/) | POSIX shell for scripting | `system` | ✅ | ✅ | ✅ | ✅ |
-| [act](https://github.com/nektos/act) | Run GitHub Actions locally | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [bat](https://github.com/sharkdp/bat) | Syntax-aware pager | `system` | ✅ | ✅ | ✅ | ✅ |
-| [broot](https://github.com/Canop/broot) | Tree-based directory navigator | `system` | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
-| [btop](https://github.com/aristocratos/btop) | Modern resource monitor | `system` | ✅ | ✅ | ✅ | ✅ |
-| [GNU Coreutils](https://www.gnu.org/software/coreutils/) | GNU userland tools | `system` | ✅ | ✅ | ✅ | ✅ |
-| [chezmoi](https://www.chezmoi.io/) | Manage dotfiles across machines | `system` (Ubuntu via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [croc](https://github.com/schollz/croc) | Secure file transfer | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [curl](https://curl.se/) | HTTP toolkit | `system` | ✅ | ✅ | ✅ | ✅ |
-| [direnv](https://github.com/direnv/direnv) | Directory-aware env loader | `system` | ✅ | ✅ | ✅ | ✅ |
-| [duf](https://github.com/muesli/duf) | Disk usage overview | `system` | ✅ | ✅ | ✅ | ✅ |
-| [dust](https://github.com/bootandy/dust) | du alternative in Rust | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [eza](https://github.com/eza-community/eza) | Modern ls replacement | `system` | ✅ | ✅ | ✅ | ✅ |
-| [fd](https://github.com/sharkdp/fd) | Fast find utility | `system` (`fd-find` on Ubuntu/Fedora) | ✅ | ✅ | ✅ | ✅ |
-| [fzf](https://github.com/junegunn/fzf) | Fuzzy finder | `system` | ✅ | ✅ | ✅ | ✅ |
-| [GitHub CLI](https://github.com/cli/cli) | GitHub command-line client | `system` (`github-cli` on Arch) | ✅ | ✅ | ✅ | ✅ |
-| [Git](https://git-scm.com/) | Distributed VCS | `system` | ✅ | ✅ | ✅ | ✅ |
-| [delta](https://github.com/dandavison/delta) | Git diff pager | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [HTTPie](https://github.com/httpie/cli) | Friendly HTTP client | `system` | ✅ | ✅ | ✅ | ✅ |
-| [hyperfine](https://github.com/sharkdp/hyperfine) | Command benchmarking | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [jq](https://stedolan.github.io/jq/) | JSON processor | `system` | ✅ | ✅ | ✅ | ✅ |
-| [mise](https://github.com/jdx/mise) | Runtime/version manager | `system` (Fedora via bootstrap script) | ✅ | ✅ | ✅ | ✅ |
-| [mkcert](https://github.com/FiloSottile/mkcert) | Local TLS certificate generator | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [Neovim](https://github.com/neovim/neovim) | Modal code editor | `system` | ✅ | ✅ | ✅ | ✅ |
-| [procs](https://github.com/dalance/procs) | Process viewer | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [rage](https://github.com/str4d/rage) | Age-compatible encryption | `system` (Ubuntu via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [rclone](https://rclone.org/) | Cloud storage sync | `system` | ✅ | ✅ | ✅ | ✅ |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) | Recursive text search | `system` | ✅ | ✅ | ✅ | ✅ |
-| [sd](https://github.com/chmln/sd) | Intuitive sed alternative | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [tmux](https://github.com/tmux/tmux) | Terminal multiplexer | `system` | ✅ | ✅ | ✅ | ✅ |
-| [tokei](https://github.com/XAMPPRocky/tokei) | Code statistics | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [vivid](https://github.com/sharkdp/vivid) | LS_COLORS theme generator | `system` (Ubuntu/Fedora via `mise ✅`) | ✅ | ✅ | ✅ | ✅ |
-| [wget](https://www.gnu.org/software/wget/) | Network downloader | `system` | ✅ | ✅ | ✅ | ✅ |
-| [Zsh](https://www.zsh.org/) | Advanced shell | `system` | ✅ | ✅ | ✅ | ✅ |
+| Tool                                                     | Description                     | Install                                | macOS | Ubuntu          | Fedora | Arch |
+| -------------------------------------------------------- | ------------------------------- | -------------------------------------- | ----- | --------------- | ------ | ---- |
+| [act](https://github.com/nektos/act)                     | Run GitHub Actions locally      | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [Bash](https://www.gnu.org/software/bash/)               | POSIX shell for scripting       | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [bat](https://github.com/sharkdp/bat)                    | Syntax-aware pager              | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [broot](https://github.com/Canop/broot)                  | Tree-based directory navigator  | `system`                               | ✅    | ✅ / ❌ (arm64) | ❌     | ✅   |
+| [btop](https://github.com/aristocratos/btop)             | Modern resource monitor         | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [chezmoi](https://www.chezmoi.io/)                       | Manage dotfiles across machines | `system` (Ubuntu via `mise ✅`)        | ✅    | ✅              | ✅     | ✅   |
+| [GNU Coreutils](https://www.gnu.org/software/coreutils/) | GNU userland tools              | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [croc](https://github.com/schollz/croc)                  | Secure file transfer            | `system`                               | ✅    | ❌              | ✅     | ✅   |
+| [curl](https://curl.se/)                                 | HTTP toolkit                    | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [delta](https://github.com/dandavison/delta)             | Git diff pager                  | `system` (Ubuntu via `mise ✅`)        | ✅    | ✅              | ✅     | ✅   |
+| [direnv](https://github.com/direnv/direnv)               | Directory-aware env loader      | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [duf](https://github.com/muesli/duf)                     | Disk usage overview             | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [dust](https://github.com/bootandy/dust)                 | du alternative in Rust          | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [eza](https://github.com/eza-community/eza)              | Modern ls replacement           | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [fd](https://github.com/sharkdp/fd)                      | Fast find utility               | `system` (`fd-find` on Ubuntu/Fedora)  | ✅    | ✅              | ✅     | ✅   |
+| [fzf](https://github.com/junegunn/fzf)                   | Fuzzy finder                    | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [Git](https://git-scm.com/)                              | Distributed VCS                 | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [GitHub CLI](https://github.com/cli/cli)                 | GitHub command-line client      | `system` (`github-cli` on Arch)        | ✅    | ✅              | ✅     | ✅   |
+| [GnuPG](https://gnupg.org/)                              | OpenPGP encryption toolkit      | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [HTTPie](https://github.com/httpie/cli)                  | Friendly HTTP client            | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [hyperfine](https://github.com/sharkdp/hyperfine)        | Command benchmarking            | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [jq](https://stedolan.github.io/jq/)                     | JSON processor                  | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [lazygit](https://github.com/jesseduffield/lazygit)      | Terminal UI for Git             | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [mise](https://github.com/jdx/mise)                      | Runtime/version manager         | `system` (Fedora via bootstrap script) | ✅    | ✅              | ✅     | ✅   |
+| [mkcert](https://github.com/FiloSottile/mkcert)          | Local TLS certificate generator | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [Neovim](https://github.com/neovim/neovim)               | Modal code editor               | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [procs](https://github.com/dalance/procs)                | Process viewer                  | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [rage](https://github.com/str4d/rage)                    | Age-compatible encryption       | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [rclone](https://rclone.org/)                            | Cloud storage sync              | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [ripgrep](https://github.com/BurntSushi/ripgrep)         | Recursive text search           | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [sd](https://github.com/chmln/sd)                        | Intuitive sed alternative       | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [tealdeer](https://github.com/dbrgn/tealdeer)            | Fast tldr client                | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [tmux](https://github.com/tmux/tmux)                     | Terminal multiplexer            | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [tokei](https://github.com/XAMPPRocky/tokei)             | Code statistics                 | `system`                               | ✅    | ❌              | ✅     | ✅   |
+| [vivid](https://github.com/sharkdp/vivid)                | LS_COLORS theme generator       | `system` (Ubuntu/Fedora via `mise ✅`) | ✅    | ✅              | ✅     | ✅   |
+| [wget](https://www.gnu.org/software/wget/)               | Network downloader              | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [zoxide](https://github.com/ajeetdsouza/zoxide)          | Smarter cd command              | `system`                               | ✅    | ✅              | ✅     | ✅   |
+| [Zsh](https://www.zsh.org/)                              | Advanced shell                  | `system`                               | ✅    | ✅              | ✅     | ✅   |
 
 ### 🐳 Containers
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [QEMU](https://www.qemu.org/) | Virtualization backend | `system` | ✅ | ❌ | ❌ | ❌ |
-| [Colima](https://github.com/abiosoft/colima) | Docker on macOS | `system` | ✅ | ❌ | ❌ | ❌ |
-| [Docker Engine](https://www.docker.com/) | Container runtime | `system` (`docker-ce` on Ubuntu/Fedora) | ✅ | ✅ | ✅ | ✅ |
-| [Docker Compose](https://docs.docker.com/compose/) | Compose v2 plugin | `system` (`docker-compose-plugin`) | ✅ | ✅ | ✅ | ✅ |
-| [Docker Buildx](https://docs.docker.com/build/buildx/) | Extended docker build | `system` (`docker-buildx-plugin`) | ✅ | ✅ | ✅ | ✅ |
-| [Dive](https://github.com/wagoodman/dive) | Analyze container layers | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| Tool                                                   | Description              | Install                                 | macOS | Ubuntu | Fedora | Arch |
+| ------------------------------------------------------ | ------------------------ | --------------------------------------- | ----- | ------ | ------ | ---- |
+| [QEMU](https://www.qemu.org/)                          | Virtualization backend   | `system`                                | ✅    | ❌     | ❌     | ❌   |
+| [Colima](https://github.com/abiosoft/colima)           | Docker on macOS          | `system`                                | ✅    | ❌     | ❌     | ❌   |
+| [Docker Engine](https://www.docker.com/)               | Container runtime        | `system` (`docker-ce` on Ubuntu/Fedora) | ✅    | ✅     | ✅     | ✅   |
+| [Docker Compose](https://docs.docker.com/compose/)     | Compose v2 plugin        | `system` (`docker-compose-plugin`)      | ✅    | ✅     | ✅     | ✅   |
+| [Docker Buildx](https://docs.docker.com/build/buildx/) | Extended docker build    | `system` (`docker-buildx-plugin`)       | ✅    | ✅     | ✅     | ✅   |
+| [Dive](https://github.com/wagoodman/dive)              | Analyze container layers | `mise ✅` (macOS: `system`)             | ✅    | ✅     | ✅     | ✅   |
 
 ### ➕ Extras
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [gocryptfs](https://github.com/rfjakob/gocryptfs) | Encrypted overlay filesystem | `system` (`gocryptfs-mac`) | ✅ | ✅ | ✅ | ✅ |
-| [qrencode](https://fukuchi.org/works/qrencode/) | QR code generator | `system` | ✅ | ✅ | ✅ | ✅ |
-| [Unison](https://www.cis.upenn.edu/~bcpierce/unison/) | Bi-directional file sync | `system` | ✅ | ✅ | ✅ | ✅ |
-| [ZBar](https://github.com/mchehab/zbar) | Barcode scanner CLI | `system` (`zbar-tools` on Ubuntu) | ✅ | ✅ | ✅ | ✅ |
+| Tool                                                         | Description                  | Install                           | macOS | Ubuntu | Fedora | Arch |
+| ------------------------------------------------------------ | ---------------------------- | --------------------------------- | ----- | ------ | ------ | ---- |
+| [gocryptfs](https://github.com/rfjakob/gocryptfs)            | Encrypted overlay filesystem | `system` (`gocryptfs-mac`)        | ✅    | ✅     | ✅     | ✅   |
+| [OpenSC](https://github.com/OpenSC/OpenSC)                   | Smart card middleware        | `system`                          | ✅    | ❌     | ❌     | ❌   |
+| [pam-u2f](https://github.com/Yubico/pam-u2f)                 | U2F PAM module               | `system`                          | ✅    | ❌     | ❌     | ❌   |
+| [qrencode](https://fukuchi.org/works/qrencode/)              | QR code generator            | `system`                          | ✅    | ✅     | ✅     | ✅   |
+| [Unison](https://www.cis.upenn.edu/~bcpierce/unison/)        | Bi-directional file sync     | `system`                          | ✅    | ✅     | ✅     | ✅   |
+| [YubiKey Manager](https://github.com/Yubico/yubikey-manager) | YubiKey configuration tool   | `system`                          | ✅    | ❌     | ❌     | ❌   |
+| [ZBar](https://github.com/mchehab/zbar)                      | Barcode scanner CLI          | `system` (`zbar-tools` on Ubuntu) | ✅    | ✅     | ✅     | ✅   |
 
 ### 🦫 Go Runtime
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [Go](https://go.dev/) | Go language toolchain | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| Tool                  | Description           | Install   | macOS | Ubuntu | Fedora | Arch |
+| --------------------- | --------------------- | --------- | ----- | ------ | ------ | ---- |
+| [Go](https://go.dev/) | Go language toolchain | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 
 ### 🏗 Infrastructure as Code
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [Terraform](https://www.terraform.io/) | Provision cloud infrastructure | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [Terragrunt](https://github.com/gruntwork-io/terragrunt) | Terraform wrapper | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [sops](https://github.com/getsops/sops) | Secrets encryption | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [TFLint](https://github.com/terraform-linters/tflint) | Terraform linting | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [ShellCheck](https://www.shellcheck.net/) | Shell script analyzer | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| Tool                                                     | Description                    | Install   | macOS | Ubuntu | Fedora | Arch |
+| -------------------------------------------------------- | ------------------------------ | --------- | ----- | ------ | ------ | ---- |
+| [Terraform](https://www.terraform.io/)                   | Provision cloud infrastructure | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [Terragrunt](https://github.com/gruntwork-io/terragrunt) | Terraform wrapper              | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [sops](https://github.com/getsops/sops)                  | Secrets encryption             | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [TFLint](https://github.com/terraform-linters/tflint)    | Terraform linting              | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [ShellCheck](https://www.shellcheck.net/)                | Shell script analyzer          | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 
 ### ☕️ Java Stack
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [Apache Ant](https://ant.apache.org/) | Java build system | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [Apache Maven](https://maven.apache.org/) | Java dependency manager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [OpenJDK 25](https://openjdk.org/) | Java runtime + compiler | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| Tool                                      | Description             | Install   | macOS | Ubuntu | Fedora | Arch |
+| ----------------------------------------- | ----------------------- | --------- | ----- | ------ | ------ | ---- |
+| [Apache Ant](https://ant.apache.org/)     | Java build system       | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [Apache Maven](https://maven.apache.org/) | Java dependency manager | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [OpenJDK (LTS)](https://openjdk.org/)     | Java runtime + compiler | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 
 ### ☸️ Kubernetes Core
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [kubesess](https://github.com/Ramilito/kubesess) | Switch kubecontexts quickly | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [Helm](https://helm.sh/) | Kubernetes package manager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [k3d](https://k3d.io/) | Lightweight K3s clusters | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [k9s](https://k9scli.io/) | TUI for Kubernetes | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [kubectl](https://kubernetes.io/docs/reference/kubectl/) | Kubernetes control plane CLI | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [OpenShift oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) | OpenShift CLI | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [kustomize](https://github.com/kubernetes-sigs/kustomize) | YAML customization | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [kubectx](https://github.com/ahmetb/kubectx) | Context switcher | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [kubens](https://github.com/ahmetb/kubectx) | Namespace switcher | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [kubecolor](https://github.com/dty1er/kubecolor) | Colorize kubectl output | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [yq](https://github.com/mikefarah/yq) | YAML processor | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [Datree](https://github.com/datreeio/datree) | Policy checks for configs | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [Popeye](https://github.com/derailed/popeye) | Cluster sanitizer | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [Stern](https://github.com/stern/stern) | Tail multi-pod logs | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [helm-diff](https://github.com/databus23/helm-diff) | Helm release diffing | `helm` | ✅ | ✅ | ✅ | ✅ |
-| [helm-secrets](https://github.com/jkroepke/helm-secrets) | Secrets in Helm charts | `helm` | ✅ | ✅ | ✅ | ✅ |
+| Tool                                                                                                                      | Description                  | Install   | macOS | Ubuntu | Fedora | Arch |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------- | ----- | ------ | ------ | ---- |
+| [kubesess](https://github.com/Ramilito/kubesess)                                                                          | Switch kubecontexts quickly  | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [Helm](https://helm.sh/)                                                                                                  | Kubernetes package manager   | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [k3d](https://k3d.io/)                                                                                                    | Lightweight K3s clusters     | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [k9s](https://k9scli.io/)                                                                                                 | TUI for Kubernetes           | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [kubectl](https://kubernetes.io/docs/reference/kubectl/)                                                                  | Kubernetes control plane CLI | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [OpenShift oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) | OpenShift CLI                | `mise ✅` | ✅    | ✅ / ❌ (arm64) | ✅     | ✅   |
+| [kustomize](https://github.com/kubernetes-sigs/kustomize)                                                                 | YAML customization           | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [kubectx](https://github.com/ahmetb/kubectx)                                                                              | Context switcher             | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [kubens](https://github.com/ahmetb/kubectx)                                                                               | Namespace switcher           | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [kubecolor](https://github.com/dty1er/kubecolor)                                                                          | Colorize kubectl output      | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [yq](https://github.com/mikefarah/yq)                                                                                     | YAML processor               | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [Popeye](https://github.com/derailed/popeye)                                                                              | Cluster sanitizer            | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [Stern](https://github.com/stern/stern)                                                                                   | Tail multi-pod logs          | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [helm-diff](https://github.com/databus23/helm-diff)                                                                       | Helm release diffing         | `helm`    | ✅    | ✅     | ✅     | ✅   |
 
 ### 🔌 kubectl Plugins
 
-| Plugin | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [access-matrix](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/access-matrix.yaml) | RBAC visibility | `krew` | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
-| [blame](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/blame.yaml) | Track config authors | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [cost](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/cost.yaml) | Estimate cluster spend | `krew` | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
-| [datree](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/datree.yaml) | Policy validation | `krew` | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
-| [deprecations](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/deprecations.yaml) | Detect deprecated APIs | `krew` | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
-| [get-all](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/get-all.yaml) | Dump all resources | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [images](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/images.yaml) | List images in cluster | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [konfig](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/konfig.yaml) | Merge kubeconfigs | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [kubescape](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/kubescape.yaml) | CIS benchmark scanner | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [kyverno](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/kyverno.yaml) | Policy CLI | `krew` | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
-| [modify-secret](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/modify-secret.yaml) | Patch secrets inline | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [neat](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/neat.yaml) | Clean manifest output | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [node-shell](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/node-shell.yaml) | SSH into nodes | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [outdated](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/outdated.yaml) | Detect stale resources | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [rbac-tool](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/rbac-tool.yaml) | RBAC visualization | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [resource-capacity](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/resource-capacity.yaml) | Capacity overview | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [score](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/score.yaml) | Workload scoring | `krew` | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
-| [slice](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/slice.yaml) | Split big manifests | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [sniff](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/sniff.yaml) | Packet capture | `krew` | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
-| [tree](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/tree.yaml) | Resource hierarchy | `krew` | ✅ | ✅ / ❌ (arm64) | ✅ | ✅ |
-| [tunnel](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/tunnel.yaml) | Port-forward helper | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [view-allocations](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/view-allocations.yaml) | Allocation heatmap | `krew` | ✅ | ✅ | ✅ | ✅ |
-| [who-can](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/who-can.yaml) | RBAC access checks | `krew` | ✅ | ✅ | ✅ | ✅ |
+| Plugin                                                                                                        | Description            | Install | macOS | Ubuntu          | Fedora | Arch |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------- | ------- | ----- | --------------- | ------ | ---- |
+| [access-matrix](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/access-matrix.yaml)         | RBAC visibility        | `krew`  | ✅    | ✅ / ❌ (arm64) | ✅     | ✅   |
+| [cost](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/cost.yaml)                           | Estimate cluster spend | `krew`  | ✅    | ✅ / ❌ (arm64) | ✅     | ✅   |
+| [get-all](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/get-all.yaml)                     | Dump all resources     | `krew`  | ✅    | ✅              | ✅     | ✅   |
+| [images](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/images.yaml)                       | List images in cluster | `krew`  | ✅    | ✅              | ✅     | ✅   |
+| [konfig](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/konfig.yaml)                       | Merge kubeconfigs      | `krew`  | ✅    | ✅              | ✅     | ✅   |
+| [kubescape](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/kubescape.yaml)                 | CIS benchmark scanner  | `krew`  | ✅    | ✅              | ✅     | ✅   |
+| [kyverno](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/kyverno.yaml)                     | Policy CLI             | `krew`  | ✅    | ✅ / ❌ (arm64) | ✅     | ✅   |
+| [neat](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/neat.yaml)                           | Clean manifest output  | `krew`  | ✅    | ✅              | ✅     | ✅   |
+| [node-shell](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/node-shell.yaml)               | SSH into nodes         | `krew`  | ✅    | ✅              | ✅     | ✅   |
+| [rbac-tool](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/rbac-tool.yaml)                 | RBAC visualization     | `krew`  | ✅    | ✅              | ✅     | ✅   |
+| [resource-capacity](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/resource-capacity.yaml) | Capacity overview      | `krew`  | ✅    | ✅              | ✅     | ✅   |
+| [score](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/score.yaml)                         | Workload scoring       | `krew`  | ✅    | ✅ / ❌ (arm64) | ✅     | ✅   |
+| [tree](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/tree.yaml)                           | Resource hierarchy     | `krew`  | ✅    | ✅ / ❌ (arm64) | ✅     | ✅   |
+| [who-can](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/who-can.yaml)                     | RBAC access checks     | `krew`  | ✅    | ✅              | ✅     | ✅   |
 
 ### 🟢 Node.js
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [Node.js 22](https://nodejs.org/) | JS runtime + package managers | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| Tool                                 | Description                   | Install   | macOS | Ubuntu | Fedora | Arch |
+| ------------------------------------ | ----------------------------- | --------- | ----- | ------ | ------ | ---- |
+| [Node.js (LTS)](https://nodejs.org/) | JS runtime + package managers | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 
 ### 🐍 Python
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [Python](https://www.python.org/) | Python runtime & pip tooling | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
-| [uv](https://github.com/astral-sh/uv) | Fast Python package manager | `mise ✅` (macOS: `system`) | ✅ | ✅ | ✅ | ✅ |
+| Tool                                  | Description                  | Install   | macOS | Ubuntu | Fedora | Arch |
+| ------------------------------------- | ---------------------------- | --------- | ----- | ------ | ------ | ---- |
+| [Python](https://www.python.org/)     | Python runtime & pip tooling | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| [uv](https://github.com/astral-sh/uv) | Fast Python package manager  | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 
 ### 🦀 Rust
 
-| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
-| --- | --- | --- | --- | --- | --- | --- |
-| [Rust](https://www.rust-lang.org/) | Rust toolchain (rustup) | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| Tool                               | Description             | Install   | macOS | Ubuntu | Fedora | Arch |
+| ---------------------------------- | ----------------------- | --------- | ----- | ------ | ------ | ---- |
+| [Rust](https://www.rust-lang.org/) | Rust toolchain (rustup) | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 
 ## 🧰 GUI Apps (macOS)
 
@@ -288,55 +287,56 @@ These desktop apps are installed on macOS via Homebrew casks or the App Store (m
 
 ### 🍺 Homebrew Casks
 
-| App | Description |
-| --- | --- |
-| [AnyDesk](https://anydesk.com/) | Remote desktop access |
-| [AppCleaner](https://freemacsoft.net/appcleaner/) | Uninstall apps completely |
-| [Brave Browser](https://brave.com/) | Privacy-focused web browser |
-| [Calibre](https://calibre-ebook.com/) | E-book manager |
-| [Cursor](https://www.cursor.com/) | AI-powered code editor |
-| [Ghostty](https://ghostty.org/) | GPU-accelerated terminal |
-| [Google Drive](https://www.google.com/drive/download/) | Cloud storage desktop client |
-| [HandBrake](https://handbrake.fr/) | Video transcoder |
-| [IINA](https://iina.io/) | Modern media player |
-| [iTerm2](https://iterm2.com/) | Terminal emulator for macOS |
-| [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/) | Manage JetBrains IDEs |
-| [KeePassXC](https://keepassxc.org/) | Password manager |
-| [Keka](https://www.keka.io/) | File archiver |
-| [LocalSend](https://localsend.org/) | Local network file transfer |
-| [Maccy](https://maccy.app/) | Clipboard manager |
-| [Pearcleaner](https://github.com/alienator88/Pearcleaner) | Remove app leftovers |
-| [Rectangle](https://rectangleapp.com/) | Window manager (tiling) |
-| [RustDesk](https://rustdesk.com/) | Open-source remote desktop |
-| [OnyX](https://www.titanium-software.fr/en/onyx.html) | macOS maintenance utility |
-| [Signal](https://signal.org/) | Private messenger |
-| [Spotify](https://www.spotify.com/) | Music streaming client |
-| [Syncthing](https://syncthing.net/) | Peer-to-peer file sync |
-| [Telegram Desktop](https://desktop.telegram.org/) | Telegram client |
-| [Transmission](https://transmissionbt.com/) | BitTorrent client |
-| [VeraCrypt](https://www.veracrypt.fr/) | Disk encryption |
-| [Visual Studio Code](https://code.visualstudio.com/) | Code editor |
-| [VLC](https://www.videolan.org/vlc/) | Media player |
-| [Warp](https://www.warp.dev/) | Modern terminal |
-| [XnView MP](https://www.xnview.com/en/xnviewmp/) | Image viewer and organizer |
-| [Yandex Disk](https://disk.yandex.com/) | Cloud storage desktop client |
-| [Zoom](https://zoom.us/download) | Video conferencing |
-| [Stats](https://github.com/exelban/stats) | Menu bar system monitor |
-| [macFUSE](https://github.com/macfuse/macfuse) | Filesystem in userspace support |
+| App                                                                    | Description                     |
+| ---------------------------------------------------------------------- | ------------------------------- |
+| [AnyDesk](https://anydesk.com/)                                        | Remote desktop access           |
+| [AppCleaner](https://freemacsoft.net/appcleaner/)                      | Uninstall apps completely       |
+| [Brave Browser](https://brave.com/)                                    | Privacy-focused web browser     |
+| [Calibre](https://calibre-ebook.com/)                                  | E-book manager                  |
+| [Cryptomator](https://cryptomator.org/)                                | Cloud storage encryption        |
+| [Cursor](https://www.cursor.com/)                                      | AI-powered code editor          |
+| [Ghostty](https://ghostty.org/)                                        | GPU-accelerated terminal        |
+| [Google Drive](https://www.google.com/drive/download/)                 | Cloud storage desktop client    |
+| [HandBrake](https://handbrake.fr/)                                     | Video transcoder                |
+| [IINA](https://iina.io/)                                               | Modern media player             |
+| [iTerm2](https://iterm2.com/)                                          | Terminal emulator for macOS     |
+| [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/)            | Manage JetBrains IDEs           |
+| [KeePassXC](https://keepassxc.org/)                                    | Password manager                |
+| [Keka](https://www.keka.io/)                                           | File archiver                   |
+| [Kindle Previewer](https://kdp.amazon.com/en_US/help/topic/G202131170) | E-book preview tool             |
+| [LocalSend](https://localsend.org/)                                    | Local network file transfer     |
+| [Maccy](https://maccy.app/)                                            | Clipboard manager               |
+| [macFUSE](https://github.com/macfuse/macfuse)                          | Filesystem in userspace support |
+| [OnyX](https://www.titanium-software.fr/en/onyx.html)                  | macOS maintenance utility       |
+| [Pearcleaner](https://github.com/alienator88/Pearcleaner)              | Remove app leftovers            |
+| [Rectangle](https://rectangleapp.com/)                                 | Window manager (tiling)         |
+| [RustDesk](https://rustdesk.com/)                                      | Open-source remote desktop      |
+| [Signal](https://signal.org/)                                          | Private messenger               |
+| [Spotify](https://www.spotify.com/)                                    | Music streaming client          |
+| [Stats](https://github.com/exelban/stats)                              | Menu bar system monitor         |
+| [Syncthing](https://syncthing.net/)                                    | Peer-to-peer file sync          |
+| [Telegram Desktop](https://desktop.telegram.org/)                      | Telegram client                 |
+| [tinyMediaManager](https://www.tinymediamanager.org/)                  | Media file organizer            |
+| [Tor Browser](https://www.torproject.org/)                             | Privacy browser                 |
+| [Transmission](https://transmissionbt.com/)                            | BitTorrent client               |
+| [VeraCrypt](https://www.veracrypt.fr/)                                 | Disk encryption                 |
+| [Visual Studio Code](https://code.visualstudio.com/)                   | Code editor                     |
+| [XnView MP](https://www.xnview.com/en/xnviewmp/)                       | Image viewer and organizer      |
+| [Yandex Disk](https://disk.yandex.com/)                                | Cloud storage desktop client    |
+| [Zoom](https://zoom.us/download)                                       | Video conferencing              |
 
 ### 🍎 App Store (mas)
 
-| App | Description |
-| --- | --- |
-| [Brother iPrint&Scan](https://apps.apple.com/app/brother-iprint-scan/id1193539993) | Printer/scanner utility |
-| [Keynote](https://www.apple.com/keynote/) | Apple presentations |
-| [Messenger](https://www.messenger.com/desktop) | Facebook Messenger client |
-| [Numbers](https://www.apple.com/numbers/) | Apple spreadsheets |
-| [Pages](https://www.apple.com/pages/) | Apple word processor |
-| [Slack](https://slack.com/) | Team messaging |
-| [Tailscale](https://tailscale.com/) | Mesh VPN client |
-| [The Unarchiver](https://theunarchiver.com/) | Archive extractor |
-| [WhatsApp](https://www.whatsapp.com/download) | Messenger client |
-| [Windows App](https://www.microsoft.com/windows-app) | Microsoft remote desktop |
-| [WireGuard](https://www.wireguard.com/) | VPN client |
-| [Xcode](https://developer.apple.com/xcode/) | Apple IDE |
+| App                                                                                | Description               |
+| ---------------------------------------------------------------------------------- | ------------------------- |
+| [Brother iPrint&Scan](https://apps.apple.com/app/brother-iprint-scan/id1193539993) | Printer/scanner utility   |
+| [Keynote](https://www.apple.com/keynote/)                                          | Apple presentations       |
+| [Messenger](https://www.messenger.com/desktop)                                     | Facebook Messenger client |
+| [Numbers](https://www.apple.com/numbers/)                                          | Apple spreadsheets        |
+| [Pages](https://www.apple.com/pages/)                                              | Apple word processor      |
+| [Slack](https://slack.com/)                                                        | Team messaging            |
+| [Tailscale](https://tailscale.com/)                                                | Mesh VPN client           |
+| [WhatsApp](https://www.whatsapp.com/download)                                      | Messenger client          |
+| [Windows App](https://www.microsoft.com/windows-app)                               | Microsoft remote desktop  |
+| [WireGuard](https://www.wireguard.com/)                                            | VPN client                |
+| [Xcode](https://developer.apple.com/xcode/)                                        | Apple IDE                 |

@@ -3,7 +3,7 @@
 ## General Guidelines
 
 - **CRITICAL**: Always treat these instructions as the primary source. Use search or shell commands only if you encounter details that don’t align with this guidance.
-- Do not edit `.clinerules`, `.cursor/rules`, `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` directly—these are symlinks to this file. Update `AGENTS.md` instead.
+- Do not edit `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` directly—these are symlinks to this file. Update `AGENTS.md` instead.
 - This repository contains dotfiles for different command-line tools and is managed with [chezmoi](https://www.chezmoi.io).
 - The chezmoi **user guide** is available at [https://www.chezmoi.io/user-guide/](https://www.chezmoi.io/user-guide/).
 - The chezmoi **reference documentation** is available at [https://www.chezmoi.io/reference/](https://www.chezmoi.io/reference/).
