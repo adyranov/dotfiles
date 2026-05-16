@@ -61,9 +61,6 @@ zstyle :z4h:olets/zsh-abbr postinstall z4h-postinstall:replace-with-github-clone
 # perform network I/O must be done above. Everything else is best done below.
 z4h init || return
 
-# Exit immediately when bootstrapping z4h (e.g. in CI/Docker).
-[[ -n "${_CHEZMOI_Z4H_BOOTSTRAP-}" ]] && exit 0
-
 # Deduplicate entries in PATH.
 typeset -U PATH path
 
@@ -108,6 +105,7 @@ z4h load ohmyzsh/ohmyzsh/plugins/git
 z4h load ohmyzsh/ohmyzsh/plugins/gpg-agent
 z4h load ohmyzsh/ohmyzsh/plugins/kubectl
 
+zstyle :omz:plugins:ssh-agent quiet yes
 zstyle :omz:plugins:ssh-agent identities id_yk_blue id_yk_green
 z4h load ohmyzsh/ohmyzsh/plugins/ssh-agent
 
@@ -205,3 +203,6 @@ fi
 
 # Load local configuration.
 z4h source $ZDOTDIR/.zshrc.local
+
+# Exit immediately when bootstrapping z4h (e.g. in CI/Docker).
+[[ -n "${_CHEZMOI_Z4H_BOOTSTRAP-}" ]] && exit 0

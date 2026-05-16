@@ -4,7 +4,7 @@
 [packages.darwin.common]
 age-plugin-yubikey = {test = "age-plugin-yubikey --version"}
 mas = {test = "mas version"}
-openssh = {test = "$HOMEBREW_PREFIX/bin/ssh -V"}
+openssh-client = {name = "openssh", test = "test -x $HOMEBREW_PREFIX/bin/ssh && test -x $HOMEBREW_PREFIX/bin/ssh-agent && test -x $HOMEBREW_PREFIX/bin/ssh-add"}
 "pinentry-mac" = {test = "pinentry-mac --version"}
 zsh = {disabled = true}
 

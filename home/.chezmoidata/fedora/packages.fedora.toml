@@ -7,6 +7,7 @@ fd = {name = "fd-find"}
 hyperfine = {manager = "mise"}
 lazygit = {manager = "mise"}
 mkcert = {manager = "mise"}
+openssh-client = {name = "openssh-clients"}
 "pcsc-lite" = {name = "pcsc-lite"}
 procs = {manager = "mise", name = "github:dalance/procs"}
 rage = {manager = "mise", name = "github:str4d/rage"}

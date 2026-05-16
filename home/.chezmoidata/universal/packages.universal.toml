@@ -28,6 +28,7 @@ lazygit = {test = "lazygit --version"}
 mise = {test = "mise --version"}
 mkcert = {test = "mkcert -version"}
 neovim = {test = "nvim --version"}
+openssh-client = {test = "command -v ssh && command -v ssh-agent && command -v ssh-add"}
 procs = {test = "procs --version"}
 rage = {test = "rage --version"}
 rclone = {test = "rclone --version"}
