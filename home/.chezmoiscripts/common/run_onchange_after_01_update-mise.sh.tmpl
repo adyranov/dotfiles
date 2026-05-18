@@ -1,0 +1,13 @@
+{{- includeTemplate "common/headers/after" . -}}
+
+{{- if or (eq .host.type "ephemeral") .host.interactive }}
+echo "🔄 Upgrading mise toolchains…"
+mise upgrade
+echo "🧹 Pruning old versions…"
+mise prune -q -y
+echo "✅ mise toolchains updated."
+{{- else }}
+echo "🔄 Installing mise toolchains…"
+mise install
+echo "✅ mise toolchains installed."
+{{- end }}

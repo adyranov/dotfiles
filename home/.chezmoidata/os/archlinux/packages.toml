@@ -1,0 +1,4 @@
+[packages.archlinux.core]
+gh = {name = "github-cli"}
+openssh-client = {name = "openssh"}
+rage = {name = "rage-encryption"}

@@ -2,8 +2,10 @@ README.md
 install.sh
 .keys
 .chezmoiscripts/*/**
-!.chezmoiscripts/{{ .host.distro.id }}/**
-!.chezmoiscripts/universal/**
+!.chezmoiscripts/before/**
+!.chezmoiscripts/common/**
+!.chezmoiscripts/os/{{ .host.distro.id }}/**
+!.chezmoiscripts/post/**
 {{- if ne .host.distro.family "darwin" }}
 home/private_Library
 {{- end }}

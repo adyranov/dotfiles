@@ -1,0 +1,27 @@
+{{- if .toolchains.kubernetes -}}
+{{- includeTemplate "common/headers/after" . -}}
+
+
+declare -A HELM_PLUGINS=(
+{{- $packages := splitList " " (includeTemplate "common/helpers/render-packages" (dict "root" . "packageManager" "helm")) -}}
+{{- range $pkg := $packages -}}
+{{- if ne $pkg "" }}
+  {{- $basename := regexReplaceAll ".*\\/([^/]+?)(\\.git)?$" $pkg "${1}" }}
+  {{- $name := regexReplaceAll "^helm-" $basename "" }}
+  ["{{ $name }}"]="{{ $pkg }}"
+{{- end -}}
+{{- end }}
+)
+
+echo "🔌 Ensuring Helm plugins…"
+for name in "${!HELM_PLUGINS[@]}"; do
+    url=${HELM_PLUGINS[$name]}
+    if ! helm plugin list | awk '{print $1}' | grep -qx "$name"; then
+        echo "➕ Installing Helm plugin: $name"
+        helm plugin install "$url" --verify=false
+    else
+        echo "✅ Helm plugin already installed: $name"
+    fi
+done
+echo "✅ Helm plugins up to date."
+{{- end -}}

@@ -34,10 +34,10 @@ Prebuilt images are also published to GHCR and Docker Hub:
 
 ## 🧩 How It Works
 
-- Single source of truth: tools live in `.chezmoidata/*/packages.*.toml` and render via a shared template at `.chezmoitemplates/universal/packages` into the right target (system package manager, `mise`, `krew`, `helm`, and tests).
-- Per-OS overrides: each package may define `overrides.<os>` with keys like `name`, `manager`, `version`, `test`, and `exclude_arch` to fine-tune behavior per platform/arch.
+- Single source of truth: tools live in `.chezmoidata/base/packages.toml` (`packages.base.<toolchain>`, e.g. `packages.base.core`), merge through `.chezmoidata/os/<distro>/packages.toml`, then render via `.chezmoitemplates/common/helpers/render-packages` into the right target (system package manager, `mise`, `krew`, `helm`, and tests).
+- Layered overrides: later layers win — `packages.base` (defaults) → `packages.<distro>` keyed by `host.distro.id` (sparse keys such as `name`, `manager`, `version`, `test`, `exclude_arch`).
 - Conditional disables: set `disabled` to either a boolean, or a comma/space separated string of flags. Supported flags: `headless` (non-interactive sessions), `restricted`, and host type values `desktop`, `laptop`, `wsl`, `ephemeral`. Example: `disabled = "headless,restricted"`.
-- OS pinning: set `os = "darwin" | "ubuntu" | "fedora" | "archlinux"` on a package to include it only on that OS.
+- OS pinning: set `os = "darwin" | "ubuntu" | "fedora" | "archlinux"` on a package entry to include it only on that distro.
 
 ### XDG-first layout
 
@@ -50,14 +50,15 @@ Prebuilt images are also published to GHCR and Docker Hub:
 ### macOS Launch Agents
 
 - Managed agents live under `home/private_Library/LaunchAgents` (rendered to `~/Library/LaunchAgents`).
-- The bootstrap script only reloads agents that are managed by chezmoi: `home/.chezmoiscripts/darwin/run_onchange_after_20_bootstrap-launch-agents.tmpl`.
+- Launch agents are reloaded by `home/.chezmoiscripts/os/darwin/run_onchange_after_20_bootstrap-launch-agents.tmpl` (after macOS defaults in `run_onchange_after_10_configure-darwin.tmpl`).
 - Non-macOS hosts ignore `home/private_Library/**` via template guards so Linux/WSL environments stay clean.
 
-See examples in `home/.chezmoidata/universal/packages.universal.toml` and OS-specific overrides in `home/.chezmoidata/darwin`, `home/.chezmoidata/fedora`, `home/.chezmoidata/ubuntu`, and `home/.chezmoidata/archlinux`.
+See examples in `home/.chezmoidata/base/` and `home/.chezmoidata/os/<distro>/`.
 
 ## 🧪 Validate Locally
 
-- After applying dotfiles, run `check-dotfiles` to execute generated Bats tests for system packages, `mise` tools, Helm and Krew plugins.
+- After applying dotfiles, run `check-dotfiles` to execute generated Bats tests for system packages, `mise` tools, Helm and Krew plugins, plus shell/Git config checks in `test-config.bats`.
+- Run package-only checks with `check-dotfiles <tool>…` (keys from `packages.toml`, e.g. `check-dotfiles kubectl helm`); use `check-dotfiles --list` or `check-dotfiles --help` for available tools and options.
 - The test runner lives at `~/.local/share/dotfiles/test/check-dotfiles.sh` and is symlinked to `~/.local/bin/check-dotfiles`.
 - The runner fetches Bats plugins on demand and cleans them up after the run.
 
@@ -65,7 +66,7 @@ See examples in `home/.chezmoidata/universal/packages.universal.toml` and OS-spe
 
 - Bootstrap local hooks: `./scripts/setup-pre-commit.sh` (installs a repo-local virtualenv and the `pre-commit` hook).
 - Run validations anytime: `pre-commit run --all-files`.
-- Project layout follows chezmoi conventions. See `home/` for source state, `home/.chezmoidata/**` for data-driven packages, and `home/.chezmoitemplates/**` for reusable templates.
+- Project layout follows chezmoi conventions. See `home/` for source state, `home/.chezmoidata/**` for data-driven packages, and `home/.chezmoitemplates/{common,os}/**` for reusable templates.
 - Line endings are enforced via `.gitattributes` (LF for Unix tooling, CRLF for Windows scripts). Keep new files consistent with these defaults.
 - Maintainers: see `AGENTS.md` for contributor guidelines and CI expectations.
 

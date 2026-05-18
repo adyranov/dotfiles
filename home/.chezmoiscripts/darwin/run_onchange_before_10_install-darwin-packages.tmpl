@@ -1,7 +1,0 @@
-{{- includeTemplate "universal/common-before-template-header" . -}}
-
-echo "📦 Ensuring Homebrew bundle packages…"
-brew bundle --no-upgrade --verbose --file=/dev/stdin <<EOF
-{{ includeTemplate "darwin/brewfile" . }}
-EOF
-echo "✅ Homebrew bundle applied."

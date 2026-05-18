@@ -1,0 +1,19 @@
+{{- if .secrets.age -}}
+{{- includeTemplate "common/headers/before" . -}}
+{{- $encryptedKey := joinPath .host.source ".keys/chezmoi.txt.age" -}}
+{{- $decryptedKey := joinPath .host.home ".config/age/chezmoi.txt" -}}
+{{- if (stat $encryptedKey) }}
+# Hash: {{ include $encryptedKey | sha256sum }}
+{{- end }}
+{{- if not (stat $decryptedKey) }}
+# TargetMissing: true
+{{- end }}
+
+if [ ! -f "{{ $decryptedKey }}" ]; then
+    echo "🔐 Decrypting age key: {{ $encryptedKey }}"
+    mkdir -p -m 700 "{{ .host.home }}/.config/age"
+    chezmoi age decrypt -p --output "{{ $decryptedKey }}" "{{ $encryptedKey }}"
+    chmod 600 "{{ $decryptedKey }}"
+    echo "✅ Wrote key to {{ $decryptedKey }} (0600)"
+fi
+{{- end -}}

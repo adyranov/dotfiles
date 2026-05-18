@@ -1,0 +1,55 @@
+[brew.darwin.common]
+
+[brew.darwin.personal]
+casks = [
+  "anydesk",
+  "appcleaner",
+  "brave-browser",
+  "calibre",
+  "cryptomator",
+  "cursor",
+  "ghostty",
+  "google-drive",
+  "handbrake-app",
+  "iina",
+  "iterm2",
+  "jetbrains-toolbox",
+  "keepassxc",
+  "keka",
+  "kindle-previewer",
+  "localsend",
+  "maccy",
+  "macfuse",
+  "onyx",
+  "pearcleaner",
+  "rectangle",
+  "rustdesk",
+  "signal",
+  "spotify",
+  "stats",
+  "syncthing-app",
+  "telegram-desktop",
+  "tinymediamanager",
+  "tor-browser",
+  "transmission",
+  "veracrypt",
+  "visual-studio-code",
+  "xnviewmp",
+  "yandex-disk",
+  "zoom"
+]
+mas = [
+  {id = 1193539993, name = "Brother iPrint&Scan"},
+  {id = 1295203466, name = "Windows App"},
+  {id = 1451685025, name = "WireGuard"},
+  {id = 1475387142, name = "Tailscale"},
+  {id = 1480068668, name = "Messenger"},
+  {id = 310633997, name = "WhatsApp"},
+  {id = 409183694, name = "Keynote"},
+  {id = 409201541, name = "Pages"},
+  {id = 409203825, name = "Numbers"},
+  {id = 497799835, name = "Xcode"},
+  {id = 803453959, name = "Slack"}
+]
+
+[brew.darwin.work]

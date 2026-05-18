@@ -1,0 +1,37 @@
+{{- $repos := .repositories.fedora | default dict -}}
+
+dnf_repo_configured() {
+  local repo_id="$1"
+  dnf repolist --id "$repo_id" 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$repo_id"
+}
+
+dnf_repofile_configured() {
+  local repofile_url="$1"
+  local repofile_name
+  repofile_name=$(basename "$repofile_url")
+  [ -f "/etc/yum.repos.d/${repofile_name}" ]
+}
+
+{{- range $toolchain, $toolchainRepos := $repos }}
+{{- $enabled := or (eq $toolchain "core") (index $.toolchains $toolchain) -}}
+{{- if $enabled }}
+{{- range $name, $repo := $toolchainRepos }}
+{{- $repo_id := index $repo "repo_id" | default $name -}}
+{{- if index $repo "repo_url" }}
+if dnf_repofile_configured "{{ $repo.repo_url }}"; then
+  echo "✅ DNF repository {{ $name }} already configured, skipping"
+else
+  echo "➕ Configuring DNF repository: {{ $name }}"
+  sudo dnf config-manager addrepo --from-repofile="{{ $repo.repo_url }}"
+fi
+{{- else }}
+if dnf_repo_configured "{{ $repo_id }}"; then
+  echo "✅ DNF repository {{ $name }} already configured, skipping"
+else
+  echo "➕ Configuring DNF repository: {{ $name }}"
+  sudo dnf config-manager addrepo --id="{{ $repo_id }}" --set=baseurl={{ $repo.baseurl }} --set=gpgcheck=1 --set=gpgkey={{ $repo.gpgkey }}
+fi
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

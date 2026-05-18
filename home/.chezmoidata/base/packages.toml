@@ -1,0 +1,120 @@
+[packages.base.cloud]
+aws-cli = {manager = "mise", test = "aws --version"}
+azure-cli = {test = "az --version"}
+
+[packages.base.core]
+act = {test = "act --version"}
+bash = {test = "bash --version"}
+bat = {test = "bat --version"}
+broot = {test = "broot --version"}
+btop = {disabled = "ephemeral", test = "btop --version"}
+coreutils = {test = "realpath --version"}
+croc = {test = "croc --version"}
+curl = {test = "curl --version"}
+direnv = {test = "direnv version"}
+duf = {test = "duf --version"}
+dust = {test = "dust --version"}
+eza = {test = "eza --version"}
+fd = {test = "fd --version"}
+fzf = {test = "fzf --version"}
+gh = {test = "gh --version"}
+git = {test = "git --version"}
+git-delta = {test = "delta --version"}
+gnupg = {test = "gpg --version"}
+httpie = {test = "http --version"}
+hyperfine = {test = "hyperfine --version"}
+jq = {test = "jq --version"}
+lazygit = {test = "lazygit --version"}
+mise = {test = "mise --version"}
+mkcert = {test = "mkcert -version"}
+neovim = {test = "nvim --version"}
+openssh-client = {test = "command -v ssh && command -v ssh-agent && command -v ssh-add"}
+procs = {test = "procs --version"}
+rage = {test = "rage --version"}
+rclone = {test = "rclone --version"}
+ripgrep = {test = "rg --version"}
+sd = {test = "sd --version"}
+tealdeer = {test = "tldr --version"}
+tmux = {test = "tmux -V"}
+tokei = {test = "tokei --version"}
+vivid = {test = "vivid --version"}
+wget = {test = "wget --version"}
+zoxide = {test = "zoxide --version"}
+zsh = {test = "zsh --version"}
+
+[packages.base.docker]
+dive = {manager = "mise", name = "github:wagoodman/dive", test = "dive --version"}
+docker = {test = "docker -v"}
+docker-buildx = {test = "docker buildx version"}
+docker-compose = {test = "docker compose version"}
+
+[packages.base.extra]
+gocryptfs = {disabled = "headless,restricted", test = "gocryptfs -version"}
+qrencode = {test = "qrencode --version"}
+unison = {test = "unison -version"}
+zbar = {test = "zbarimg --version"}
+
+[packages.base.golang]
+go = {manager = "mise", test = "go version"}
+
+[packages.base.iac]
+shellcheck = {manager = "mise", test = "shellcheck --version"}
+sops = {manager = "mise", test = "sops --version"}
+terraform = {manager = "mise", test = "terraform version"}
+terragrunt = {manager = "mise", test = "terragrunt --version"}
+tflint = {manager = "mise", test = "tflint --version"}
+
+[packages.base.java]
+ant = {manager = "mise", test = "ant -version"}
+java = {manager = "mise", test = "java -version", version = "lts"}
+maven = {manager = "mise", test = "mvn -v"}
+
+[packages.base.kubernetes]
+helm = {manager = "mise", test = "helm version"}
+helm-diff = {manager = "helm", name = "https://github.com/databus23/helm-diff", test = "helm diff --help"}
+k3d = {manager = "mise", test = "k3d version"}
+k9s = {manager = "mise", test = "k9s version"}
+kubecolor = {manager = "mise", test = "kubecolor help"}
+kubectl = {manager = "mise", test = "kubectl version --client"}
+kubectl-access-matrix = {manager = "krew", name = "access-matrix", test = "kubectl access-matrix --help"}
+kubectl-cost = {manager = "krew", name = "cost", test = "kubectl cost --help"}
+kubectl-get-all = {manager = "krew", name = "get-all", test = "kubectl get-all --help"}
+kubectl-images = {manager = "krew", name = "images", test = "kubectl images --help"}
+kubectl-konfig = {manager = "krew", name = "konfig", test = "kubectl konfig --help"}
+kubectl-kubescape = {manager = "krew", name = "kubescape", test = "kubectl kubescape --help"}
+kubectl-kyverno = {manager = "krew", name = "kyverno", test = "kubectl kyverno --help"}
+kubectl-neat = {manager = "krew", name = "neat", test = "kubectl neat --help"}
+kubectl-node-shell = {manager = "krew", name = "node-shell", test = "kubectl node-shell --version"}
+kubectl-rbac-tool = {manager = "krew", name = "rbac-tool", test = "kubectl rbac-tool --help"}
+kubectl-resource-capacity = {manager = "krew", name = "resource-capacity", test = "kubectl resource-capacity --help"}
+kubectl-score = {manager = "krew", name = "score", test = "kubectl score --help"}
+kubectl-tree = {manager = "krew", name = "tree", test = "kubectl tree --help"}
+kubectl-who-can = {manager = "krew", name = "who-can", test = "kubectl who-can --help"}
+kubectx = {manager = "mise", test = "kubectx --help"}
+kubens = {manager = "mise", test = "kubens --help"}
+kustomize = {manager = "mise", test = "kustomize version"}
+oc = {manager = "mise", test = "oc version --client"}
+popeye = {manager = "mise", test = "popeye version"}
+stern = {manager = "mise", test = "stern --version"}
+yq = {manager = "mise", test = "yq --version"}
+
+[packages.base.kubernetes.kubesess]
+manager = "mise"
+name = "github:Ramilito/kubesess"
+test = "kubesess --help"
+
+[packages.base.kubernetes.kubesess.platforms]
+linux-arm64 = {bin_path = "target/aarch64-unknown-linux-gnu/release"}
+linux-x64 = {bin_path = "target/x86_64-unknown-linux-gnu/release"}
+macos-arm64 = {bin_path = "target/aarch64-apple-darwin/release"}
+macos-x64 = {bin_path = "target/x86_64-apple-darwin/release"}
+
+[packages.base.node]
+node = {manager = "mise", test = "node --version && npm --version && yarn --version && pnpm --version", version = "lts"}
+
+[packages.base.python]
+python = {manager = "mise", test = "python3 --version && pip --version && pre-commit --version"}
+uv = {manager = "mise", name = "uv", test = "uv --version"}
+
+[packages.base.rust]
+rust = {manager = "mise", test = "rustc --version"}
