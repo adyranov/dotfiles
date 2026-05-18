@@ -1,0 +1,6 @@
+
+echo "📦 Ensuring Homebrew bundle packages…"
+brew bundle --no-upgrade --verbose --file=/dev/stdin <<EOF
+{{ includeTemplate "os/darwin/brewfile" . }}
+EOF
+echo "✅ Homebrew bundle applied."

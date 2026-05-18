@@ -11,10 +11,14 @@
 
 ## Project Structure & Module Organization
 
+- Shared-vs-OS terminology — three nearby words intentionally name distinct layers and should not be conflated:
+  - `base` is the **data** layer: `home/.chezmoidata/base/packages.toml` holds OS-agnostic package definitions (`packages.base.<toolchain>`) merged with `packages.<distro>.<toolchain>` from `home/.chezmoidata/os/<distro>/`.
+  - `common` is the **template / script** layer: `home/.chezmoitemplates/common/` (shared partials and helpers) and `home/.chezmoiscripts/common/` (after-phase scripts that run on every OS). The `before/`, `os/<distro>/`, and `post/` siblings under `home/.chezmoiscripts/` are also OS-agnostic except for `os/<distro>/`.
+  - `core` is the **toolchain** label: the always-on toolchain bucket inside `packages.base.core` / `packages.<distro>.core` and `repositories.<distro>.core.*`. It is implicitly enabled and is intentionally absent from the user-selectable toolchain list in `home/.chezmoi.yaml.tmpl`.
 - `home/` mirrors the eventual `$HOME`. Files and folders prefixed `dot_`, `private_`, or `exact_` map to chezmoi source states; `.tmpl` files render via templates.
-- `home/.chezmoidata/universal/packages.universal.toml` is the source of truth for tools. Add overrides under `home/.chezmoidata/{darwin,fedora,ubuntu,archlinux}` rather than branching templates.
-- `home/.chezmoitemplates/` houses reusable templates.
-- Generated Bats specs originate from `home/dot_local/share/dotfiles/exact_test/`.
+- `home/.chezmoidata/base/packages.toml` is the source of truth for tools (`packages.base.*` sections keyed by toolchain, e.g. `packages.base.core`). Per-distro overrides live under `home/.chezmoidata/os/<distro>/` (aligned with `host.distro.id` and `chezmoiscripts/os/<distro>/`).
+- `home/.chezmoiscripts/` holds numbered `run_*` scripts under `before/` (decrypt, bootstrap/install dispatchers), `common/` (shared after-phase tooling), `os/<distro>/` (`.init.sh` pre-bootstrap hook; optional after-phase scripts such as macOS defaults), and `post/` (scripts that must run after `os/`, e.g. z4h bootstrap). `.chezmoiignore` limits scripts to `before/`, `common/`, `post/`, and `os/{{ .host.distro.id }}/`. Each `os/<distro>/.init.sh` is invoked via the `read-source-state` pre-hook in `home/.chezmoi.yaml.tmpl` and must only install tools needed before chezmoi can read source state (e.g. `rage`, Homebrew, COPRs). `home/.chezmoitemplates/` holds reusable partials under `common/` (headers, helpers) and `os/<distro>/` (`bootstrap`, `install` partials loaded by `before/run_onchange_before_{10,20}_*` via `common/helpers/load-os-partial`). A missing `bootstrap` or `install` partial is a no-op (`load-os-partial` checks with `stat`). Fedora `bootstrap` uses dnf5 `config-manager addrepo` (`--from-repofile` or `--set=baseurl`); `dnf5-plugins` must be present (installed in `os/fedora/.init.sh`).
+- Generated Bats specs originate from `home/private_dot_local/share/exact_dotfiles/test/*.bats.tmpl` (rendered to `~/.local/share/dotfiles/test/*.bats`).
 - `home/dot_local/exact_bin/` ships helper links via chezmoi symlink source names (e.g., `symlink_check-dotfiles`), and `home/private_dot_config/shell/` contains shell exports and functions.
 - `.github/workflows/` contains CI workflows executed by GitHub Actions
 - `.github/renovate.json5` is a Renovate Bot configuration file.
@@ -46,15 +50,15 @@
 
 ### Chezmoi
 
-- `home/.chezmoidata/**/*` alphabetize keys, keep names lower_snake_case, always define a `test` (a command or check used by templates/tests, e.g., `command -v tool` or `tool --version`), and express platform differences via `overrides.<os>`, `os =`, or `disabled` flags like `headless`, `restricted`, `desktop`, `wsl`, `ephemeral`. Include concrete overrides (e.g., `overrides.darwin.enabled = true`, `overrides.ubuntu.enabled = false`) and place OS-specific data under `home/.chezmoidata/{darwin,fedora,ubuntu,archlinux}`.
-- `home/.chezmoitemplates/**/*` reuse shared partials, prefer data-driven logic over Go template branching.
+- `home/.chezmoidata/**/*` alphabetize keys, keep names lower_snake_case, always define a `test` on entries in `packages.base` (a command or check used by templates/tests, e.g., `command -v tool` or `tool --version`). Express platform differences via layered TOML (`packages.base` → `packages.<distro>` via `host.distro.id`), with toolchain sections such as `core` (always-on CLI), `docker`, `kubernetes`, etc. Optional `os = "<distro>"` pinning on a package entry, and `disabled` flags like `headless`, `restricted`, `desktop`, `wsl`, `ephemeral`. Optional toolchains are listed in `.chezmoi.yaml.tmpl` (`$toolchains`, `$toolchainIcons`); `chezmoi init` writes `data.toolchains.<id>` booleans to `chezmoi.toml`. The `core` toolchain is always on and is not part of that list. Layout: `base/packages.toml`, `os/<distro>/` (`packages.toml`, optional `repositories.toml` keyed by toolchain; `darwin/` also has `brew.toml`). APT/DNF repos are nested as `repositories.<distro>.<toolchain>.<name>` and applied by `os/<distro>/bootstrap` only when that toolchain is enabled (`core` is always enabled). Homebrew profiles use `brew.darwin.<profile>` (e.g. `brew.darwin.common`, `brew.darwin.personal`, `brew.darwin.work` with `taps`, `brews`, `casks`, `mas`; `common`/`personal`/`work` are host profiles, not the `core` toolchain). CLI tools remain in `packages.darwin.*`.
+- `home/.chezmoitemplates/**` reuse shared partials; prefer data-driven logic over Go template branching. Bats tests for packages are generated via `render-packages` with `render = "bats"`; each test name matches the package key in `packages.toml`.
 - Prefer chezmoi source attributes for file state: use `executable_` prefixes for executables (755), `private_` for sensitive files (600), `exact_` to prune unmanaged files in a directory, and `symlink_` to create symlinks rather than committing literal symlink objects.
 - Package keys may follow upstream naming (including hyphens) for clarity and parity with tests; apply lower_snake_case to custom data keys you introduce.
 - TOML should be consistently ordered and linted; pre-commit enforces `toml-sort`, `yamlfmt`, `yamllint`, `editorconfig-checker`, `codespell`.
 - The template data defines `host` fields used across templates and data:
   - Booleans: `.host.work`, `.host.restricted`, `.host.interactive`
   - OS/arch/type: `.host.distro.id` (`darwin`, `ubuntu`, `fedora`, `archlinux`), `.host.arch`, `.host.type` (`desktop`, `laptop`, `wsl`, `ephemeral`)
-- Supported OSes are `darwin`, `ubuntu`, `fedora`, and `archlinux`. Adding a new OS requires updating `home/.chezmoi.yaml.tmpl` (support check), `home/.chezmoidata/<os>`, and `home/.chezmoiscripts/<os>`.
+- Supported OSes are `darwin`, `ubuntu`, `fedora`, and `archlinux`. Adding a new OS requires updating `home/.chezmoi.yaml.tmpl` (support check), `home/.chezmoidata/os/<distro>/`, `home/.chezmoiscripts/os/<distro>/.init.sh`, and `home/.chezmoitemplates/os/<distro>/`.
 
 ### Shell scripts
 
@@ -66,7 +70,8 @@
 
 - Validate locally with `chezmoi doctor`, `chezmoi diff`, `chezmoi apply --dry-run`, and `chezmoi verify`. Only surface clean diffs for review.
 - Ensure `pre-commit run --all-files` passes.
-- Run `~/.local/bin/check-dotfiles` after applying changes with `chezmoi apply`
+- Run `~/.local/bin/check-dotfiles` after applying changes with `chezmoi apply`. The runner (`home/private_dot_local/share/exact_dotfiles/test/executable_check-dotfiles.sh`, symlinked as `check-dotfiles`) executes generated Bats suites for system packages, `mise` tools, and Helm/Krew plugins, plus `test-config.bats` for shell/Git settings.
+- Run a single package test by package key (same id as in `packages.toml`): `check-dotfiles openssh-client`, or several at once: `check-dotfiles kubectl helm k9s` (package suites only; does not run `test-config.bats`). Use `check-dotfiles --list` to print available tool names grouped by suite file; `check-dotfiles --help` for usage.
 - Use `chezmoi --remove --dry-run apply` to preview removals enforced by `home/.chezmoiremove.tmpl` and avoid unintended deletions.
 
 ## Commit & Pull Request Guidelines

@@ -1,0 +1,13 @@
+{{- /*
+  Usage: includeTemplate "common/helpers/load-os-partial" (dict "root" . "phase" "bootstrap")
+
+  Includes home/.chezmoitemplates/os/<distro>/<phase> when it exists,
+  otherwise expands to nothing. The looked-up partial must be body-only:
+  no shebang, no `set -e…` — the calling script supplies the header
+  (typically via common/headers/before or common/headers/after).
+*/ -}}
+{{- $root := .root -}}
+{{- $rel := printf "os/%s/%s" $root.host.distro.id .phase -}}
+{{- if stat (joinPath $root.host.source ".chezmoitemplates" $rel) }}
+{{ includeTemplate $rel $root }}
+{{- end -}}

@@ -57,52 +57,54 @@ jobs:
           filters: |
             shared: &shared
               - 'home/.chezmoi*'
-              - 'home/.chezmoidata/universal/**'
-              - 'home/.chezmoiscripts/universal/**'
-              - 'home/.chezmoitemplates/universal/**'
+              - 'home/.chezmoidata/base/**'
+              - 'home/.chezmoiscripts/before/**'
+              - 'home/.chezmoiscripts/common/**'
+              - 'home/.chezmoiscripts/post/**'
+              - 'home/.chezmoitemplates/common/**'
               - 'home/*dot_*'
               - 'home/*dot_*/**'
               - 'install.sh'
               - '.github/workflows/ci.yaml'
             host-ubuntu:
               - *shared
-              - 'home/.chezmoidata/ubuntu/**'
-              - 'home/.chezmoiscripts/ubuntu/*'
-              - 'home/.chezmoitemplates/ubuntu/*'
+              - 'home/.chezmoidata/os/ubuntu/**'
+              - 'home/.chezmoiscripts/os/ubuntu/**'
+              - 'home/.chezmoitemplates/os/ubuntu/**'
               - '.github/workflows/ci-host.yaml'
             host-macos:
               - *shared
-              - 'home/.chezmoidata/darwin/**'
-              - 'home/.chezmoiscripts/darwin/*'
-              - 'home/.chezmoitemplates/darwin/*'
+              - 'home/.chezmoidata/os/darwin/**'
+              - 'home/.chezmoiscripts/os/darwin/**'
+              - 'home/.chezmoitemplates/os/darwin/**'
               - 'home/private_Library/**'
               - '.github/workflows/ci-host.yaml'
             docker-archlinux:
               - *shared
-              - 'home/.chezmoidata/archlinux/**'
-              - 'home/.chezmoiscripts/archlinux/*'
-              - 'home/.chezmoitemplates/archlinux/*'
+              - 'home/.chezmoidata/os/archlinux/**'
+              - 'home/.chezmoiscripts/os/archlinux/**'
+              - 'home/.chezmoitemplates/os/archlinux/**'
               - 'containers/archlinux/**'
               - '.github/workflows/ci-docker.yaml'
             docker-fedora:
               - *shared
-              - 'home/.chezmoidata/fedora/**'
-              - 'home/.chezmoiscripts/fedora/*'
-              - 'home/.chezmoitemplates/fedora/*'
+              - 'home/.chezmoidata/os/fedora/**'
+              - 'home/.chezmoiscripts/os/fedora/**'
+              - 'home/.chezmoitemplates/os/fedora/**'
               - 'containers/fedora/**'
               - '.github/workflows/ci-docker.yaml'
             docker-ubuntu:
               - *shared
-              - 'home/.chezmoidata/ubuntu/**'
-              - 'home/.chezmoiscripts/ubuntu/*'
-              - 'home/.chezmoitemplates/ubuntu/*'
+              - 'home/.chezmoidata/os/ubuntu/**'
+              - 'home/.chezmoiscripts/os/ubuntu/**'
+              - 'home/.chezmoitemplates/os/ubuntu/**'
               - 'containers/ubuntu/**'
               - '.github/workflows/ci-docker.yaml'
             wsl:
               - *shared
-              - 'home/.chezmoidata/ubuntu/**'
-              - 'home/.chezmoiscripts/ubuntu/*'
-              - 'home/.chezmoitemplates/ubuntu/*'
+              - 'home/.chezmoidata/os/ubuntu/**'
+              - 'home/.chezmoiscripts/os/ubuntu/**'
+              - 'home/.chezmoitemplates/os/ubuntu/**'
               - '.github/workflows/ci-wsl.yaml'
       - name: Set Outputs
         id: set-outputs

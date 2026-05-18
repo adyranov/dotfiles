@@ -13,6 +13,17 @@
   {{- $_ := set $data $k (default (dict) (get $data $k)) -}}
 {{- end -}}
 
+{{- /* -------------------- OS / Distro -------------------- */ -}}
+{{- $distro := dict "family" .chezmoi.os "id" (get .chezmoi.osRelease "id" | default .chezmoi.os) -}}
+{{- if or (eq $distro.id "arch") (eq $distro.id "archarm") -}}{{- $_ := set $distro "id" "archlinux" -}}{{- end -}}
+{{- $supported := list "darwin" "ubuntu" "archlinux" "fedora" -}}
+{{- $isSupported := false -}}
+{{- range $supported -}}{{- if eq . $distro.id -}}{{- $isSupported = true -}}{{- end -}}{{- end -}}
+{{- if not $isSupported -}}
+  {{- writeToStdout (printf "⚠️ Unsupported distribution: %s\n" $distro.id) -}}
+  {{- exit 1 -}}
+{{- end -}}
+
 {{- /* -------------------- Ephemeral Environment -------------------- */ -}}
 {{- $ephemeral := false -}}
 {{- $ephemeralReasons := list -}}
@@ -44,7 +55,7 @@
   {{- end -}}
 {{- end -}}
 
-{{- $isWSL := or (env "WSL_DISTRO_NAME") (env "WSL_INTEROP") (and (eq .chezmoi.os "linux") (contains (lower (output "uname" "-r")) "microsoft")) -}}
+{{- $isWSL := or (env "WSL_DISTRO_NAME") (env "WSL_INTEROP") (and (eq $distro.family "linux") (contains (lower (output "uname" "-r")) "microsoft")) -}}
 {{- if and $ephemeral $isWSL -}}
   {{- $ephemeral = false -}}
   {{- $ephemeralReasons = list -}}
@@ -57,20 +68,9 @@
   {{- end -}}
 {{- end -}}
 
-{{- /* -------------------- OS / Distro -------------------- */ -}}
-{{- $distro := dict "family" .chezmoi.os "id" (get .chezmoi.osRelease "id" | default .chezmoi.os) -}}
-{{- if or (eq $distro.id "arch") (eq $distro.id "archarm") -}}{{- $_ := set $distro "id" "archlinux" -}}{{- end -}}
-{{- $supported := list "darwin" "ubuntu" "archlinux" "fedora" -}}
-{{- $isSupported := false -}}
-{{- range $supported -}}{{- if eq . $distro.id -}}{{- $isSupported = true -}}{{- end -}}{{- end -}}
-{{- if not $isSupported -}}
-  {{- writeToStdout (printf "⚠️ Unsupported distribution: %s\n" $distro.id) -}}
-  {{- exit 1 -}}
-{{- end -}}
-
 {{- /* -------------------- Brew Path -------------------- */ -}}
 {{- $brewPath := "" -}}
-{{- if eq .chezmoi.os "darwin" -}}
+{{- if eq $distro.family "darwin" -}}
   {{- $brewPath = "/usr/local/bin/brew" -}}
   {{- if eq .chezmoi.arch "arm64" -}}
     {{- $brewPath = "/opt/homebrew/bin/brew" -}}
@@ -83,7 +83,7 @@
 {{- $chassisType := "desktop" -}}
 {{- if $ephemeral -}}
   {{- $chassisType = "ephemeral" -}}
-{{- else if eq .chezmoi.os "linux" -}}
+{{- else if eq $distro.family "linux" -}}
   {{- if $isWSL -}}
     {{- $chassisType = "wsl" -}}
   {{- else -}}
@@ -92,14 +92,14 @@
     {{- $chassis := $parsed.Chassis | default "desktop" -}}
     {{- $chassisType = $chassis -}}
   {{- end -}}
-{{- else if eq .chezmoi.os "darwin" -}}
+{{- else if eq $distro.family "darwin" -}}
   {{- $hwModel := output "sysctl" "-n" "hw.model" -}}
   {{- if contains "MacBook" $hwModel -}}
     {{- $chassisType = "laptop" -}}
   {{- else -}}
     {{- $chassisType = "desktop" -}}
   {{- end -}}
-{{- else if eq .chezmoi.os "windows" -}}
+{{- else if eq $distro.family "windows" -}}
   {{- $psCmd := "if (Get-WmiObject -Class win32_battery) { 'laptop' } elseif ((Get-WmiObject -Class Win32_SystemEnclosure).ChassisTypes -contains 8) { 'laptop' } else { 'desktop' }" -}}
   {{- $chassisType = output "powershell.exe" "-noprofile" "-command" $psCmd -}}
 {{- end -}}
@@ -196,7 +196,7 @@ hooks:
         - bash
         - -euo
         - pipefail
-        - {{ joinPath .chezmoi.sourceDir (printf ".chezmoiscripts/%s/.init.sh" $distro.id) | toToml }}
+        - {{ joinPath .chezmoi.sourceDir (printf ".chezmoiscripts/os/%s/.init.sh" $distro.id) | toToml }}
 
 {{- if $secrets.age }}
 encryption: age
@@ -234,7 +234,7 @@ data:
     age: {{ $secrets.age }}
   toolchains:
   {{- range $t, $enabled := $toolchainsEnabled }}
-    {{ $t}}: {{ $enabled }}
+    {{ $t }}: {{ $enabled }}
   {{- end }}
   toolchainsSelected:
   {{- range $i, $t := $toolchainsSelected }}

@@ -1,0 +1,8 @@
+
+echo "🛠️ Updating APT cache and installing packages…"
+sudo apt-get update
+{{- if or (eq .host.type "ephemeral") .host.interactive }}
+sudo apt-get upgrade -y
+{{- end }}
+sudo apt-get install -y --no-install-recommends {{ includeTemplate "common/helpers/render-packages" (dict "root" .) }}
+echo "✅ APT packages ensured."

@@ -1,6 +1,6 @@
 [tools]
 'usage' = 'latest'
-{{- includeTemplate "universal/packages" (dict "root" . "packageManager" "mise" "render" "mise") }}
+{{- includeTemplate "common/helpers/render-packages" (dict "root" . "packageManager" "mise" "render" "mise") }}
 
 [settings]
 gpg_verify = true

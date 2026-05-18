@@ -1,0 +1,38 @@
+{{- $brew := index .brew .host.distro.id | default dict -}}
+{{- $host := .host -}}
+
+{{- $taps := list -}}
+{{- $brews := splitList " " (includeTemplate "common/helpers/render-packages" (dict "root" .)) }}
+{{- $casks := list -}}
+{{- $mas := list -}}
+
+{{- $profiles := list "common" -}}
+{{- if $host.work -}}
+  {{- $profiles = append $profiles "work" -}}
+{{- else -}}
+  {{- $profiles = append $profiles "personal" -}}
+{{- end }}
+
+{{- range $profile := $profiles }}
+  {{- with index $brew $profile }}
+    {{- $taps = concat $taps (index . "taps" | default list) -}}
+    {{- $brews = concat $brews (index . "brews" | default list) -}}
+    {{- $casks = concat $casks (index . "casks" | default list) -}}
+    {{- $mas = concat $mas (index . "mas" | default list) -}}
+  {{- end }}
+{{- end }}
+
+{{- range ($taps | sortAlpha | uniq) }}
+tap "{{ . }}"
+{{- end }}
+{{ range ($brews | sortAlpha | uniq) }}
+brew "{{ . }}"
+{{- end }}
+{{- if .host.interactive -}}
+{{ range ($casks | sortAlpha | uniq) }}
+cask "{{ . }}"
+{{- end }}
+{{ range ($mas | uniq) }}
+mas "{{ .name }}", id: {{ .id }}
+{{- end }}
+{{- end }}
