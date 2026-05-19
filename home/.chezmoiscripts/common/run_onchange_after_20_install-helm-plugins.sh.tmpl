@@ -13,15 +13,15 @@ declare -A HELM_PLUGINS=(
 {{- end }}
 )
 
-echo "🔌 Ensuring Helm plugins…"
+echo "☸️  Ensuring Helm plugins..."
 for name in "${!HELM_PLUGINS[@]}"; do
     url=${HELM_PLUGINS[$name]}
     if ! helm plugin list | awk '{print $1}' | grep -qx "$name"; then
-        echo "➕ Installing Helm plugin: $name"
+        echo "  ↳ Installing: $name"
         helm plugin install "$url" --verify=false
     else
-        echo "✅ Helm plugin already installed: $name"
+        echo "  ✅ Already installed: $name"
     fi
 done
-echo "✅ Helm plugins up to date."
+echo "✅ Helm plugins ensured."
 {{- end -}}

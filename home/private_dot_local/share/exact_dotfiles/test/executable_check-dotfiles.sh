@@ -97,17 +97,6 @@ buildFilterRegex() {
   printf '^(%s)($| )' "$joined"
 }
 
-bootstrapBats() {
-  git clone --depth=1 https://github.com/bats-core/bats-core.git "$DIR"/bats 2>/dev/null || true
-  git clone --depth=1 https://github.com/bats-core/bats-assert.git "$DIR"/bats-assert 2>/dev/null || true
-  git clone --depth=1 https://github.com/bats-core/bats-support.git "$DIR"/bats-support 2>/dev/null || true
-  git clone --depth=1 https://github.com/bats-core/bats-file.git "$DIR"/bats-file 2>/dev/null || true
-}
-
-cleanupBats() {
-  rm -rf "$DIR"/bats "$DIR"/bats-assert "$DIR"/bats-support "$DIR"/bats-file
-}
-
 main() {
   local tools=()
   local do_list=false
@@ -152,9 +141,6 @@ main() {
   if [ ${#tools[@]} -gt 0 ]; then
     validateTools "${tools[@]}"
   fi
-
-  bootstrapBats
-  trap cleanupBats EXIT
 
   local bats_args=()
   local bats_files=()

@@ -1,19 +1,20 @@
 {{- if .host.work -}}
-{{- if (eq .host.distro.family "darwin") -}}
-{{- $ca_work := joinPath .host.home ".config/certificates/ca-work.pem" -}}
-#!/usr/bin/env bash
-set -euo pipefail
+{{- includeTemplate "common/headers/after" . -}}
 
-# {{ includeTemplate "common/helpers/next-update" . -}}
-
+{{ $ca_work := joinPath .host.home ".config/certificates/ca-work.pem" -}}
 CA_WORK="{{ $ca_work }}"
 KEYCHAINS=(
   "/System/Library/Keychains/SystemRootCertificates.keychain"
   "/Library/Keychains/System.keychain"
 )
 
+echo "🏢 Setting up corporate CA bundle..."
+
 for tool in security openssl; do
-  command -v "$tool" >/dev/null 2>&1 || { echo "Required tool '$tool' not found" >&2; exit 4; }
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "  ❌ Required tool '$tool' not found, skipping." >&2
+    exit 0
+  fi
 done
 
 # Collect SHA-1 fingerprints of explicitly distrusted certificates
@@ -114,5 +115,6 @@ else
   trap - EXIT
   echo "✅ Wrote $trusted_count trusted certificate(s) to $CA_WORK ($denied_count denied, $expired_count expired)"
 fi
-{{- end -}}
+
+echo "✅ Corporate CA bundle setup complete."
 {{- end -}}

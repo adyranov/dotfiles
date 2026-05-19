@@ -6,7 +6,8 @@ command -v script >/dev/null 2>&1 || {
   exit 1
 }
 
-echo "⚙️ Initializing ZSH"
+echo "🐚 Initializing Zsh with zsh4humans (z4h)..."
+echo "  ↳ This will finalize the shell environment and may take a moment."
 if script -q -c true /dev/null 2>/dev/null; then
   exec script -q -c 'env Z4H_BOOTSTRAPPING=1 _CHEZMOI_Z4H_BOOTSTRAP=1 zsh -i' /dev/null
 else

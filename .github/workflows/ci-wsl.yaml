@@ -40,9 +40,7 @@ jobs:
         shell: wsl-bash {0}
         run: |
           set -eux
-          workspace="$(wslpath '${{ github.workspace }}')"
-          cd "$workspace"
-          ~/.local/bin/check-dotfiles
+          zsh -lic 'check-dotfiles'
       - name: Save Cache
         if: ${{ always() }}
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5

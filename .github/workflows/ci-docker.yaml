@@ -35,6 +35,7 @@ jobs:
       file: containers/${{ matrix.os }}/Dockerfile
       platforms: linux/arm64,linux/amd64
       cache: true
+      sbom: true
       meta-images: |
         ghcr.io/${{ github.repository }}
         docker.io/${{ github.repository }}

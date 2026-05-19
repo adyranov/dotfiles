@@ -25,7 +25,7 @@ zstyle ':z4h:autosuggestions' forward-char 'accept'
 zstyle ':z4h:fzf-complete' recurse-dirs 'no'
 
 # Enable direnv to automatically source .envrc files.
-zstyle ':z4h:direnv'         enable 'no'
+zstyle ':z4h:direnv'         enable 'yes'
 # Show "loading" and "unloading" notifications from direnv.
 zstyle ':z4h:direnv:success' notify 'no'
 
@@ -36,14 +36,7 @@ zstyle ':z4h:ssh-agent:' start 'no'
 zstyle ':z4h:*' fzf-flags --prompt='» ' --pointer='▶' --marker='✓ ' --color=bg+:-1,marker:010
 
 # Clone additional Git repositories from GitHub.
-#
-# This doesn't do anything apart from cloning the repository and keeping it
-# up-to-date. Cloned files can be used after `z4h init`. This is just an
-# example. If you don't plan to use Oh My Zsh, delete this line.
 z4h install ohmyzsh/ohmyzsh || return
-z4h install mroth/evalcache || return
-z4h install wfxr/forgit || return
-z4h install djui/alias-tips || return
 
 function z4h-postinstall:replace-with-github-clone() {
   [[ -n $Z4H_PACKAGE_DIR && -n $Z4H_PACKAGE_NAME ]] && 'command' -v git 1>/dev/null || return 1
@@ -60,6 +53,11 @@ zstyle :z4h:olets/zsh-abbr postinstall z4h-postinstall:replace-with-github-clone
 # is fully initialized. Everything that requires user interaction or can
 # perform network I/O must be done above. Everything else is best done below.
 z4h init || return
+
+# Load shell history/search from atuin when available.
+if command -v atuin >/dev/null 2>&1; then
+  eval "$(atuin init zsh)"
+fi
 
 # Deduplicate entries in PATH.
 typeset -U PATH path
@@ -81,12 +79,6 @@ z4h source ohmyzsh/ohmyzsh/lib/clipboard.zsh
 z4h source ohmyzsh/ohmyzsh/lib/directories.zsh
 z4h source ohmyzsh/ohmyzsh/lib/functions.zsh
 
-# kubectl completions
-mkdir -p "$ZSH_CACHE_DIR/completions"
-
-{{- if eq .host.distro.family "darwin" }}
-z4h load ohmyzsh/ohmyzsh/plugins/brew
-{{- end }}
 z4h load ohmyzsh/ohmyzsh/plugins/copyfile
 z4h load ohmyzsh/ohmyzsh/plugins/copypath
 z4h load ohmyzsh/ohmyzsh/plugins/docker
@@ -103,43 +95,12 @@ z4h load ohmyzsh/ohmyzsh/plugins/eza
 
 z4h load ohmyzsh/ohmyzsh/plugins/git
 z4h load ohmyzsh/ohmyzsh/plugins/gpg-agent
-z4h load ohmyzsh/ohmyzsh/plugins/kubectl
 
 zstyle :omz:plugins:ssh-agent quiet yes
 zstyle :omz:plugins:ssh-agent identities id_yk_blue id_yk_green
 z4h load ohmyzsh/ohmyzsh/plugins/ssh-agent
 
 z4h load ohmyzsh/ohmyzsh/plugins/sudo
-z4h load ohmyzsh/ohmyzsh/plugins/terraform
-z4h load ohmyzsh/ohmyzsh/plugins/web-search
-
-z4h load mroth/evalcache
-
-# Customize forgit aliases to avoid conflicts with oh-my-zsh Git aliases
-forgit_log=fglo
-forgit_reflog=fgrl
-forgit_diff=fgd
-forgit_show=fgso
-forgit_add=fga
-forgit_reset_head=fgrh
-forgit_ignore=fgi
-forgit_attributes=fgat
-forgit_checkout_file=fgcf
-forgit_checkout_branch=fgcb
-forgit_branch_delete=fgbd
-forgit_checkout_tag=fgct
-forgit_checkout_commit=fgco
-forgit_revert_commit=fgrc
-forgit_clean=fgclean
-forgit_stash_show=fgss
-forgit_stash_push=fgsp
-forgit_cherry_pick=fgcp
-forgit_rebase=fgrb
-forgit_blame=fgbl
-forgit_fixup=fgfu
-forgit_squash=fgsq
-forgit_reword=fgrw
-z4h load wfxr/forgit
 
 z4h load olets/zsh-abbr
 
@@ -166,39 +127,17 @@ setopt glob_dots     # no special treatment for file names with a leading dot
 setopt no_auto_menu  # require an extra TAB press to open the completion menu
 setopt complete_aliases
 
-# History
-# https://unix.stackexchange.com/questions/273861/unlimited-history-in-zsh
-HISTSIZE=1000000
-SAVEHIST=1000000
-setopt BANG_HIST                 # Treat the '!' character specially during expansion.
-setopt EXTENDED_HISTORY          # Write the history file in the ":start:elapsed;command" format.
-setopt INC_APPEND_HISTORY        # Write to the history file immediately, not when the shell exits.
-setopt SHARE_HISTORY             # Share history between all sessions.
-setopt HIST_EXPIRE_DUPS_FIRST    # Expire duplicate entries first when trimming history.
-setopt HIST_IGNORE_DUPS          # Don't record an entry that was just recorded again.
-setopt HIST_IGNORE_ALL_DUPS      # Delete old recorded entry if new entry is a duplicate.
-setopt HIST_FIND_NO_DUPS         # Do not display a line previously found.
-setopt HIST_IGNORE_SPACE         # Don't record an entry starting with a space.
-setopt HIST_SAVE_NO_DUPS         # Don't write duplicate entries in the history file.
-setopt HIST_REDUCE_BLANKS        # Remove superfluous blanks before recording entry.
-setopt HIST_VERIFY               # Don't execute immediately upon history expansion.
-
 # Remove slow command not found handler
 [[ ! -v functions[command_not_found_handler] ]] || unfunction command_not_found_handler
 
 # Load direnv
 if command -v direnv >/dev/null 2>&1; then
-  _evalcache direnv hook zsh
-fi
-
-# Load broot
-if command -v broot >/dev/null 2>&1; then
-  _evalcache broot --print-shell-function zsh
+  eval "$(direnv hook zsh)"
 fi
 
 # Load zoxide
 if command -v zoxide >/dev/null 2>&1; then
-  _evalcache zoxide init zsh
+  eval "$(zoxide init zsh)"
 fi
 
 # Load local configuration.

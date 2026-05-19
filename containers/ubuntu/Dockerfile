@@ -11,6 +11,7 @@ ARG UID
 RUN rm -f /etc/apt/apt.conf.d/docker-clean \
     && echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 
+# hadolint ignore=DL3008
 RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=false \
     --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
@@ -55,7 +56,7 @@ ARG CACHE_BUST
 ARG USER
 ARG UID
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
     --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
     --mount=type=cache,id=mise,target="${HOME}/.local/share/mise",uid=${UID},gid=${UID},sharing=locked \
@@ -76,7 +77,7 @@ ARG CACHE_BUST
 ARG USER
 ARG UID
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
     --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
     --mount=type=tmpfs,target=/var/log \

@@ -15,7 +15,6 @@ on:
       - '!.github/workflows/**'
       - '.github/workflows/ci.yaml'
       - '.github/workflows/ci-*.yaml'
-      - '!scripts/**'
   pull_request:
     branches:
       - main
@@ -31,7 +30,6 @@ on:
       - '!.github/workflows/**'
       - '.github/workflows/ci.yaml'
       - '.github/workflows/ci-*.yaml'
-      - '!scripts/**'
   workflow_dispatch:
 concurrency:
   group: ci-${{ github.head_ref || github.ref }}
@@ -148,7 +146,7 @@ jobs:
             echo "run-wsl=${{ steps.filter.outputs.wsl }}"
           } >> "$GITHUB_OUTPUT"
   host:
-    needs: changes
+    needs: [changes]
     if: needs.changes.outputs.host-matrix != '[]'
     permissions:
       contents: read
@@ -157,7 +155,7 @@ jobs:
       matrix: ${{ needs.changes.outputs.host-matrix }}
     secrets: inherit
   docker:
-    needs: changes
+    needs: [changes]
     if: needs.changes.outputs.docker-matrix != '[]'
     permissions:
       contents: read
@@ -168,7 +166,7 @@ jobs:
       matrix: ${{ needs.changes.outputs.docker-matrix }}
     secrets: inherit
   wsl:
-    needs: changes
+    needs: [changes]
     if: needs.changes.outputs.run-wsl == 'true'
     permissions:
       contents: read

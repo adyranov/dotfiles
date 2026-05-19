@@ -1,0 +1,35 @@
+[settings]
+experimental = true
+
+[tasks.apply]
+description = "Apply dotfiles changes using chezmoi"
+run = "chezmoi apply $@"
+usage = """
+arg "[FLAGS]..." help="Flags to pass to chezmoi apply"
+"""
+
+[tasks.bootstrap]
+description = "Bootstrap development environment (Git hooks, etc.)"
+run = "pre-commit install --install-hooks --hook-type pre-commit"
+
+[tasks.lint]
+description = "Run pre-commit hooks on all files"
+run = "pre-commit run --all-files $@"
+usage = """
+arg "[FLAGS]..." help="Flags to pass to pre-commit"
+"""
+
+[tasks.test]
+description = "Run dotfiles validation tests"
+run = "~/.local/bin/check-dotfiles $@"
+usage = """
+arg "[TOOLS]..." help="Specific tools/suites to test"
+"""
+
+[tools]
+chezmoi = "latest"
+hadolint = "latest"
+pre-commit = "latest"
+python = "3.14"
+shellcheck = "latest"
+uv = "latest"

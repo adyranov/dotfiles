@@ -1,13 +1,15 @@
 {{- includeTemplate "common/headers/after" . -}}
 
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
-echo "🔄 Upgrading mise toolchains…"
+echo "🔄 Upgrading mise toolchains..."
+echo "  ↳ This may install new versions of your configured tools."
 mise upgrade
-echo "🧹 Pruning old versions…"
+echo "  🧹 Pruning old versions..."
 mise prune -q -y
 echo "✅ mise toolchains updated."
 {{- else }}
-echo "🔄 Installing mise toolchains…"
+echo "🔄 Installing mise toolchains..."
+echo "  ↳ Ensuring all required tools are present."
 mise install
 echo "✅ mise toolchains installed."
 {{- end }}

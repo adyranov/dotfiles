@@ -1,0 +1,40 @@
+{{- includeTemplate "common/headers/after" . -}}
+
+{{- $compDir:= joinPath .host.home ".config/zsh/completions" -}}
+
+echo "🐚 Generating Zsh completions..."
+echo "📂 Ensuring completion directory exists: {{ $compDir }}"
+mkdir -p "{{ $compDir }}"
+
+
+if [ "$(command -v k3d)" ]; then
+  # Hash: {{ (output "sh" "-c" "k3d version 2>/dev/null || true") | sha256sum }}
+  echo "  ↳ k3d"
+  k3d completion zsh > "{{ $compDir }}/_k3d"
+fi
+
+if [ "$(command -v kubectl)" ]; then
+  # Hash: {{ (output "sh" "-c" "kubectl version --client 2>/dev/null || true") | sha256sum }}
+  echo "  ↳ kubectl (as _kubecolor)"
+  kubectl completion zsh | sed 's/kubectl/kubecolor/g' > "{{ $compDir }}/_kubecolor"
+fi
+
+if [ "$(command -v mise)" ]; then
+  # Hash: {{ (output "sh" "-c" "mise --version 2>/dev/null || true") | sha256sum }}
+  echo "  ↳ mise"
+  mise completion zsh > "{{ $compDir }}/_mise"
+fi
+
+if [ "$(command -v stern)" ]; then
+  # Hash: {{ (output "sh" "-c" "stern --version 2>/dev/null || true") | sha256sum }}
+  echo "  ↳ stern"
+  stern --completion zsh > "{{ $compDir }}/_stern"
+fi
+
+if [ "$(command -v yq)" ]; then
+  # Hash: {{ (output "sh" "-c" "yq --version 2>/dev/null || true") | sha256sum }}
+  echo "  ↳ yq"
+  yq shell-completion zsh > "{{ $compDir }}/_yq"
+fi
+
+echo "✅ Zsh completions generated."

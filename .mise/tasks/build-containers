@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
+#MISE description="Build and test local dev containers"
 set -euo pipefail
 
 # Configuration
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly ROOT_DIR
 readonly CONTAINERS_DIR="${ROOT_DIR}/containers"
 readonly DEFAULT_BUILDKITD_CONFIG="${HOME}/.config/docker/buildkitd/buildkitd.toml"
@@ -237,7 +238,7 @@ run_container() {
   # Secrets array
   local secret_args=()
   if [ -n "${GITHUB_TOKEN:-}" ]; then
-    secret_args+=("--secret" "id=GITHUB_TOKEN,src=/dev/stdin")
+    secret_args+=("--secret" "id=GIT_AUTH_TOKEN,src=/dev/stdin")
   fi
   if [ -n "$CA_CERTS_PATH" ]; then
     if [ ! -f "$CA_CERTS_PATH" ]; then

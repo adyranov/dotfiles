@@ -12,8 +12,12 @@
 if [ ! -f "{{ $decryptedKey }}" ]; then
     echo "🔐 Decrypting age key: {{ $encryptedKey }}"
     mkdir -p -m 700 "{{ .host.home }}/.config/age"
-    chezmoi age decrypt -p --output "{{ $decryptedKey }}" "{{ $encryptedKey }}"
-    chmod 600 "{{ $decryptedKey }}"
-    echo "✅ Wrote key to {{ $decryptedKey }} (0600)"
+    if chezmoi age decrypt -p --output "{{ $decryptedKey }}" "{{ $encryptedKey }}"; then
+        chmod 600 "{{ $decryptedKey }}"
+        echo "✅ Wrote key to {{ $decryptedKey }} (0600)"
+    else
+        echo "❌ Failed to decrypt age key." >&2
+        exit 1
+    fi
 fi
 {{- end -}}
