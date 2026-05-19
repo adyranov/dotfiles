@@ -3,14 +3,30 @@
 
 [packages.darwin.core]
 age-plugin-yubikey = {test = "age-plugin-yubikey --version"}
+atuin = {manager = "system"}
+coreutils = {test = "grealpath --version"}
+doggo = {manager = "system"}
+dust = {manager = "system"}
+eza = {manager = "system"}
+glow = {manager = "system"}
+hyperfine = {manager = "system"}
+jnv = {manager = "system"}
+lazygit = {manager = "system"}
 mas = {test = "mas version"}
+mkcert = {manager = "system"}
 openssh-client = {name = "openssh", test = "test -x $HOMEBREW_PREFIX/bin/ssh && test -x $HOMEBREW_PREFIX/bin/ssh-agent && test -x $HOMEBREW_PREFIX/bin/ssh-add"}
+ouch = {manager = "system"}
 "pinentry-mac" = {test = "pinentry-mac --version"}
-zsh = {disabled = true}
+rage = {manager = "system"}
+sd = {manager = "system"}
+topgrade = {manager = "system"}
+vivid = {manager = "system"}
+xh = {manager = "system"}
+yazi = {manager = "system"}
 
 [packages.darwin.docker]
 colima = {test = "colima version"}
-dive = {manager = "system", name = "dive"}
+dive = {manager = "system"}
 qemu = {test = "qemu-system-x86_64 --version"}
 
 [packages.darwin.extra]
@@ -20,7 +36,6 @@ pam-u2f = {test = "pamu2fcfg --version"}
 ykman = {test = "ykman --version"}
 
 [packages.darwin.iac]
-shellcheck = {manager = "system"}
 sops = {manager = "system"}
 terragrunt = {manager = "system"}
 
@@ -30,11 +45,7 @@ k3d = {manager = "system"}
 k9s = {manager = "system"}
 kubecolor = {manager = "system"}
 kubectl = {manager = "system", name = "kubernetes-cli"}
-kubectx = {manager = "system"}
-kubens = {manager = "system", name = "kubectx"}
-kubesess = {manager = "system", name = "kubesess"}
 kustomize = {manager = "system"}
 oc = {manager = "system", name = "openshift-cli"}
-popeye = {manager = "system"}
 stern = {manager = "system"}
 yq = {manager = "system"}

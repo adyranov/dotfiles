@@ -52,8 +52,6 @@ export GOPROXY="https://proxy.golang.org,direct"
 export GRADLE_USER_HOME="$XDG_DATA_HOME/gradle"
 # homebrew
 export HOMEBREW_BUNDLE_FILE="$XDG_CONFIG_HOME/brew/Brewfile"
-# httpie
-export HTTPIE_CONFIG_DIR="$XDG_CONFIG_HOME/httpie"
 # krew
 export KREW_ROOT="$XDG_DATA_HOME/krew"
 # less
@@ -66,9 +64,7 @@ export MAVEN_ARGS="$MAVEN_CONFIG" # For Maven >= 3.9.0
 # minikube
 export MINIKUBE_HOME="$XDG_DATA_HOME/minikube"
 # mise
-export MISE_NODE_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/npm/default-npm-packages"
 export MISE_NODE_COREPACK="true"
-export MISE_PYTHON_DEFAULT_PACKAGES_FILE="$XDG_CONFIG_HOME/pip/default-python-packages"
 # node
 export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
 export NODE_REPL_HISTORY="$XDG_CACHE_HOME/node_repl_history"
@@ -85,25 +81,24 @@ export TERMINFO_DIRS="${XDG_DATA_HOME}/terminfo:/usr/share/terminfo"
 # ssh
 export SSH_CONFIG_HOME="$XDG_CONFIG_HOME/ssh"
 export SSH_DATA_HOME="$XDG_DATA_HOME/ssh"
-# unison
-export UNISON="$XDG_DATA_HOME/unison"
 # wget
 export WGETRC="$XDG_CONFIG_HOME/wget/wgetrc"
-#zsh-evalcache
-export ZSH_EVALCACHE_DIR="$XDG_CACHE_HOME/zsh-evalcache"
 
 # Editor
 {{- if .host.interactive }}
+export VISUAL="code --wait"
 export EDITOR="code --wait"
 {{- end }}
 
 EXPORTS_D_DIR="$XDG_CONFIG_HOME/shell/exports.d"
 if [ -d "$EXPORTS_D_DIR" ]; then
+  set +f
   for EXPORTS_FILE in "$EXPORTS_D_DIR"/*; do
     [ -r "$EXPORTS_FILE" ] || continue
     # shellcheck source=/dev/null
     . "$EXPORTS_FILE"
   done
+  set -f
   unset EXPORTS_FILE
 fi
 unset EXPORTS_D_DIR

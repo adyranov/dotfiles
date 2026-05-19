@@ -1,7 +1,6 @@
 {{- $ca_bundle := joinPath .host.home ".config/certificates/ca-bundle.pem" -}}
 {{- if (stat $ca_bundle) -}}
-#!/usr/bin/env bash
-set -euo pipefail
+{{- includeTemplate "common/headers/after" . -}}
 
 # Hash: {{ include $ca_bundle | sha256sum }}
 
@@ -9,9 +8,19 @@ TRUSTSTORE_DIR="${XDG_DATA_HOME:=$HOME/.local/share}/java"
 TRUSTSTORE="$TRUSTSTORE_DIR/truststore.jks"
 CA_BUNDLE="$HOME/.config/certificates/ca-bundle.pem"
 
-command -v keytool >/dev/null 2>&1 || exit 0
-[ -f "$CA_BUNDLE" ] || exit 0
+echo "☕ Setting up Java Truststore..."
 
+if ! command -v keytool >/dev/null 2>&1; then
+  echo "  ⚠️  'keytool' not found, skipping truststore setup."
+  exit 0
+fi
+
+if [ ! -f "$CA_BUNDLE" ]; then
+  echo "  ⚠️  CA bundle not found at $CA_BUNDLE, skipping."
+  exit 0
+fi
+
+echo "  📂 Using truststore: $TRUSTSTORE"
 mkdir -p "$TRUSTSTORE_DIR"
 
 # Find the standard Java cacerts to use as the base truststore
@@ -74,6 +83,7 @@ echo ""
 imported=0
 skipped=0
 cert_num=0
+set +f
 for cert_file in "$tmpdir"/cert-*.pem; do
   [ -s "$cert_file" ] || continue
 
@@ -98,6 +108,7 @@ for cert_file in "$tmpdir"/cert-*.pem; do
 
   cert_num=$((cert_num + 1))
 done
+set -f
 
 echo ""
 echo "✅ Truststore: $TRUSTSTORE ($imported imported, $skipped already present)"

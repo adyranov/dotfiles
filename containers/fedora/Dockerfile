@@ -8,6 +8,7 @@ FROM fedora:44@sha256:498c452f32a739b61f0ef215bce9924ebc4866cbe44710f58157d77723
 ARG USER
 ARG UID
 
+# hadolint ignore=DL3040,DL3041
 RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=false \
     --mount=type=cache,id=dnf-cache,target=/var/cache/dnf,sharing=locked \
     --mount=type=cache,id=dnf-lib,target=/var/lib/dnf,sharing=locked \
@@ -25,6 +26,7 @@ RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=fal
         sudo \
         tar \
         unzip \
+        util-linux \
         wget \
         which \
         zsh \
@@ -57,7 +59,7 @@ ARG CACHE_BUST
 ARG USER
 ARG UID
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
     --mount=type=cache,id=dnf-cache,target=/var/cache/dnf,sharing=locked \
     --mount=type=cache,id=dnf-lib,target=/var/lib/dnf,sharing=locked \
     --mount=type=cache,id=mise,target="${HOME}/.local/share/mise",uid=${UID},gid=${UID},sharing=locked \
@@ -78,7 +80,7 @@ ARG CACHE_BUST
 ARG USER
 ARG UID
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
     --mount=type=cache,id=dnf-cache,target=/var/cache/dnf,sharing=locked \
     --mount=type=cache,id=dnf-lib,target=/var/lib/dnf,sharing=locked \
     --mount=type=tmpfs,target=/var/log \

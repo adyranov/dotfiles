@@ -3,92 +3,113 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
+        name: Check Added Large Files
       - id: check-case-conflict
+        name: Check Case Conflict
       - id: check-executables-have-shebangs
+        name: Check Executables Have Shebangs
         exclude: .*\.tmpl
       - id: check-illegal-windows-names
+        name: Check Illegal Windows Names
       - id: check-merge-conflict
+        name: Check Merge Conflict
       - id: check-shebang-scripts-are-executable
+        name: Check Shebang Scripts Are Executable
         exclude: .*\.tmpl
       - id: check-symlinks
+        name: Check Symlinks
       - id: check-toml
+        name: Check TOML
       - id: check-xml
+        name: Check XML
       - id: check-yaml
+        name: Check YAML
       - id: detect-private-key
+        name: Detect Private Key
       - id: end-of-file-fixer
+        name: Fix End of Files
       - id: fix-byte-order-marker
+        name: Fix UTF-8 BOM
       - id: mixed-line-ending
+        name: Check Mixed Line Endings
       - id: pretty-format-json
+        name: Format JSON
         args: [--autofix, --no-sort-keys]
       - id: sort-simple-yaml
+        name: Sort Simple YAML
       - id: trailing-whitespace
+        name: Trim Trailing Whitespace
         exclude: .*\.md.tmpl$
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:
       - id: actionlint
+        name: Lint GitHub Actions Workflows
   - repo: https://github.com/google/yamlfmt
     rev: v0.21.0
     hooks:
       - id: yamlfmt
+        name: Format YAML
         types: [yaml]
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.38.0
     hooks:
       - id: yamllint
+        name: Lint YAML
   - repo: https://github.com/pappasam/toml-sort
     rev: v0.24.4
     hooks:
       - id: toml-sort-fix
+        name: Sort TOML
         args: [--in-place, --all]
-  - repo: https://github.com/gruntwork-io/pre-commit
-    rev: v0.1.30
-    hooks:
-      - id: shellcheck
-        exclude: .*\.tmpl|.*\.bats
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.10.0-2
     hooks:
       - id: shfmt
+        name: Format Shell Scripts
         args: ["-w", "-s", "-i", "2"]
         exclude: .*\.tmpl|.*\.bats
-  - repo: https://github.com/sirosen/check-jsonschema
-    rev: 0.37.2
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
     hooks:
-      - id: check-dependabot
-      - id: check-github-workflows
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.2
-    hooks:
-      - id: codespell
-        name: Run codespell
-        args:
-          - --quiet-level=2
-          - --check-filenames
-          - --check-hidden
-          - --ignore-words=.codespell-ignore
+      - id: shellcheck
+        name: Lint Shell Scripts
+        exclude: .*\.tmpl|.*\.bats|dot_p10k\.zsh
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
     hooks:
       - id: gitleaks
-  - repo: https://github.com/Lucas-C/pre-commit-hooks
-    rev: v1.5.6
-    hooks:
-      - id: remove-crlf
-      - id: remove-tabs
+        name: Detect Hardcoded Secrets
   - repo: https://github.com/editorconfig-checker/editorconfig-checker
     rev: v3.6.1
     hooks:
       - id: editorconfig-checker
+        name: Check EditorConfig
         exclude: plist|tmpl|pub|age
   - repo: https://github.com/renovatebot/pre-commit-hooks
     rev: 43.150.0
     hooks:
       - id: renovate-config-validator
+        name: Validate Renovate Config
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.46.2
+    hooks:
+      - id: typos
+        name: Check Spelling
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.14.0
+    hooks:
+      - id: hadolint
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.25.2
+    hooks:
+      - id: zizmor
+        name: Lint GitHub Actions Security
+        args: ["--min-severity=high", "--min-confidence=high"]
   - repo: local
     hooks:
       - id: chezmoi-execute-template
-        name: chezmoi execute-template
+        name: Validate Chezmoi Templates
         entry: sh -c 'for f in "$@"; do chezmoi execute-template < "$f" > /dev/null; done' --
         language: system
         files: \.tmpl$

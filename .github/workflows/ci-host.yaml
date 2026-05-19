@@ -24,29 +24,36 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
-            ~/Library/Caches/Homebrew/Formula
+            ~/Library/Caches/Homebrew/api
             ~/Library/Caches/Homebrew/downloads
             ~/.local/share/mise/downloads
             ~/.local/share/helm/plugins
             ~/.local/share/krew/store
           key: chezmoi-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/**') }}
           restore-keys: chezmoi-cache-${{ runner.os }}-${{ runner.arch }}-
-      - name: Run install
+      - name: Install and test
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
           MISE_ALWAYS_KEEP_DOWNLOAD: true
           MISE_FETCH_REMOTE_VERSIONS_TIMEOUT: 60
           MISE_HTTP_TIMEOUT: 60
-        run: ./install.sh
-      - name: Run tests
-        run: ~/.local/bin/check-dotfiles
+        run: |
+          # Install core packages only
+          WITHOUT_TOOLCHAINS=true ./install.sh
+          # Validate core installation
+          zsh -lic 'check-dotfiles'
+          # Re-apply with all toolchains enabled
+          ./install.sh
+          # Validate full installation
+          zsh -lic 'check-dotfiles'
       - name: Save Cache
         if: ${{ always() }}
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
-            ~/Library/Caches/Homebrew/Formula
+            ~/Library/Caches/Homebrew/api
             ~/Library/Caches/Homebrew/downloads
             ~/.local/share/mise/downloads
             ~/.local/share/helm/plugins

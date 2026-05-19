@@ -26,6 +26,11 @@ if command -v nvim &> /dev/null; then
   alias vim='nvim'
 fi
 
+# cd => zoxide
+if command -v zoxide &> /dev/null; then
+  alias cd='z'
+fi
+
 # npm packages
 alias ncu="npx --yes -p npm-check-updates@latest ncu"
 

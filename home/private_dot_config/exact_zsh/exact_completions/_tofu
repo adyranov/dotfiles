@@ -1,0 +1,5 @@
+#compdef tofu
+if (( $+commands[tofu] )); then
+  autoload -U +X bashcompinit && bashcompinit
+  complete -o nospace -C tofu tofu
+fi

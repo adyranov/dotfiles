@@ -2,7 +2,8 @@
 
 ## General Guidelines
 
-- **CRITICAL**: Always treat these instructions as the primary source. Use search or shell commands only if you encounter details that don’t align with this guidance.
+- **CRITICAL**: Always treat these instructions as the primary source. Use search or shell commands only if you encounter details that don't align with this guidance.
+- **CRITICAL**: After any major refactoring, or changes to scripts, packages, or tools, update `README.md` and/or `AGENTS.md` to reflect the new state.
 - Do not edit `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` directly—these are symlinks to this file. Update `AGENTS.md` instead.
 - This repository contains dotfiles for different command-line tools and is managed with [chezmoi](https://www.chezmoi.io).
 - The chezmoi **user guide** is available at [https://www.chezmoi.io/user-guide/](https://www.chezmoi.io/user-guide/).
@@ -20,25 +21,29 @@
 - `home/.chezmoiscripts/` holds numbered `run_*` scripts under `before/` (decrypt, bootstrap/install dispatchers), `common/` (shared after-phase tooling), `os/<distro>/` (`.init.sh` pre-bootstrap hook; optional after-phase scripts such as macOS defaults), and `post/` (scripts that must run after `os/`, e.g. z4h bootstrap). `.chezmoiignore` limits scripts to `before/`, `common/`, `post/`, and `os/{{ .host.distro.id }}/`. Each `os/<distro>/.init.sh` is invoked via the `read-source-state` pre-hook in `home/.chezmoi.yaml.tmpl` and must only install tools needed before chezmoi can read source state (e.g. `rage`, Homebrew, COPRs). `home/.chezmoitemplates/` holds reusable partials under `common/` (headers, helpers) and `os/<distro>/` (`bootstrap`, `install` partials loaded by `before/run_onchange_before_{10,20}_*` via `common/helpers/load-os-partial`). A missing `bootstrap` or `install` partial is a no-op (`load-os-partial` checks with `stat`). Fedora `bootstrap` uses dnf5 `config-manager addrepo` (`--from-repofile` or `--set=baseurl`); `dnf5-plugins` must be present (installed in `os/fedora/.init.sh`).
 - Generated Bats specs originate from `home/private_dot_local/share/exact_dotfiles/test/*.bats.tmpl` (rendered to `~/.local/share/dotfiles/test/*.bats`).
 - `home/dot_local/exact_bin/` ships helper links via chezmoi symlink source names (e.g., `symlink_check-dotfiles`), and `home/private_dot_config/shell/` contains shell exports and functions.
-- `.github/workflows/` contains CI workflows executed by GitHub Actions
+- `.mise.toml` defines the project's task orchestration.
+- `.github/workflows/` contains CI workflows executed by GitHub Actions.
 - `.github/renovate.json5` is a Renovate Bot configuration file.
-- `containers/` houses Dockerfiles and local test tooling. Use `scripts/build-containers.sh` to build and test.
+- `containers/` houses Dockerfiles and local test tooling. Use `mise run build-containers` to build and test.
 
 ## Build, Test, and Development Commands
 
-- `chezmoi doctor` validates environment and configuration.
-- `chezmoi diff` shows a preview of changes to the home directory; review this before committing updates.
-- `chezmoi apply --dry-run` checks template rendering without modifying files.
-- `chezmoi apply` applies changes for real; only run after confirming the diff.
-- `scripts/setup-pre-commit.sh` bootstraps the repo-local virtualenv and installs the `pre-commit` hook; rerun after dependency updates.
-- `pre-commit run --all-files` runs formatting and safety validations (config: `.pre-commit-config.yaml`).
+- Unified entry point: this project uses **mise tasks** for orchestration.
+- `mise run apply`: applies changes to the home directory; review the diff before confirming.
+- `mise run test`: executes generated Bats validation suites.
+- `mise run lint`: runs formatting and safety validations (uses global `pre-commit` managed by `mise`).
+- `mise run bootstrap`: configures local Git hooks and ensures native tool versions.
+- `mise run build-containers`: builds and tests local validation containers.
+- `chezmoi doctor`: validates environment and configuration.
 
 ## CI Expectations
 
-- Host workflow (`.github/workflows/ci-host.yaml`): runs `./install.sh` on a matrix (macOS/Ubuntu and Intel/ARM) and then `~/.local/bin/check-dotfiles`.
+- Host workflow (`.github/workflows/ci-host.yaml`): runs `./install.sh` on a matrix (macOS/Ubuntu and Intel/ARM) and then `mise run test`.
 - Docker workflow (`.github/workflows/ci-docker.yaml`): builds Arch Linux, Fedora, and Ubuntu images for `amd64` and `arm64`, runs the same dotfiles checks, and can publish images from main or on demand.
-  - Manual publish: dispatch the workflow with the `publish-image` input set to `true`.
-- WSL workflow (`.github/workflows/ci-wsl.yaml`): provisions Ubuntu 24.04 inside Windows runners, restores cached package directories (APT, mise, rustup, cargo, krew, helm), runs `./install.sh`, then executes `~/.local/bin/check-dotfiles`.
+  - Manual publish: dispatch the workflow with the `publish` input set to `true`.
+  - The workflow also generates SPDX SBOM artifacts for published image tags.
+- Main CI workflow (`.github/workflows/ci.yaml`) includes a dedicated `pre-commit` job using `mise run lint`.
+- WSL workflow (`.github/workflows/ci-wsl.yaml`): provisions Ubuntu 24.04 inside Windows runners, restores cached package directories (APT, mise, rustup, cargo, krew, helm), runs `./install.sh`, then executes `mise run test`.
 - If you add new top-level paths, update the `dorny/paths-filter` filters in each workflow so CI triggers remain accurate.
 
 ## Coding Style & Naming Conventions

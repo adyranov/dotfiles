@@ -52,8 +52,16 @@
         {{- end }}
         {{- if $disabled -}} {{- continue -}} {{- end }}
 
-        {{- $pkgName := printf "%s" (index $override "name" | default (index $pkg "name" | default $id)) -}}
         {{- $pkgMgr := printf "%s" (index $override "manager" | default (index $pkg "manager" | default "system")) -}}
+        {{- /* When an override changes the manager, reset name to key (name is manager-specific). */ -}}
+        {{- $overrideMgr := index $override "manager" -}}
+        {{- $baseMgr := index $pkg "manager" | default "system" -}}
+        {{- $mgrChanged := and $overrideMgr (ne (printf "%s" $overrideMgr) (printf "%s" $baseMgr)) -}}
+        {{- $effectiveBaseName := $id -}}
+        {{- if not $mgrChanged -}}
+            {{- $effectiveBaseName = printf "%s" (index $pkg "name" | default $id) -}}
+        {{- end -}}
+        {{- $pkgName := printf "%s" (index $override "name" | default $effectiveBaseName) -}}
         {{- $pkgTest := printf "%s" (index $override "test" | default (index $pkg "test" | default "")) -}}
         {{- $pkgVersion := printf "%s" (index $override "version" | default (index $pkg "version" | default "")) -}}
         {{- $pkgPlatforms := index $override "platforms" | default (index $pkg "platforms" | default dict) -}}

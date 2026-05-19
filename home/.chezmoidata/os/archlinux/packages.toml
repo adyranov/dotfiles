@@ -1,4 +1,18 @@
 [packages.archlinux.core]
+atuin = {manager = "system"}
+doggo = {manager = "system"}
+dust = {manager = "system"}
+eza = {manager = "system"}
 gh = {name = "github-cli"}
+glow = {manager = "system"}
+hyperfine = {manager = "system"}
+jnv = {manager = "system"}
+lazygit = {manager = "system"}
+mkcert = {manager = "system"}
 openssh-client = {name = "openssh"}
-rage = {name = "rage-encryption"}
+ouch = {manager = "system"}
+rage = {manager = "system", name = "rage-encryption"}
+sd = {manager = "system"}
+vivid = {manager = "system"}
+xh = {manager = "system"}
+yazi = {manager = "system"}

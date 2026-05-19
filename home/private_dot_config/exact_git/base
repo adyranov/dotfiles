@@ -1,8 +1,13 @@
 [core]
     autocrlf = input
+    fsmonitor = true
+    untrackedCache = true
 [branch]
     autosetuprebase = always
+[column]
+    ui = auto
 [diff]
+    algorithm = histogram
     colorMoved = default
     renamelimit = 0
     mnemonicprefix = true
@@ -18,17 +23,18 @@
     renamelimit = 0
     summary = true
     stat = true
-    conflictstyle = diff3
+    conflictstyle = zdiff3
 [pack]
     threads = 0
 [pull]
     rebase = true
 [push]
     autoSetupRemote = true
-    default = upstream
+    default = simple
     followTags = true
 [rebase]
     autosquash = true
+    updateRefs = true
 [rerere]
     enabled = true
     autoupdate = true

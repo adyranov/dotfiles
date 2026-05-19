@@ -20,7 +20,7 @@ home_dir="$HOME"
 launch_agent_dir="$home_dir/Library/LaunchAgents"
 
 if [ ! -d "$launch_agent_dir" ]; then
-  echo "⚠️  LaunchAgents directory not found; skipping"
+  echo "  ⚠️  LaunchAgents directory not found; skipping."
   exit 0
 fi
 
@@ -32,31 +32,32 @@ managed_agents=(
 )
 
 if [ ${#managed_agents[@]} -eq 0 ]; then
-  echo "⚠️  No LaunchAgents managed by chezmoi; skipping"
+  echo "  ⚠️  No LaunchAgents managed by chezmoi; skipping."
   exit 0
 fi
 
+echo "  🔌 Ensuring ${#managed_agents[@]} agent(s)..."
 for relative_path in "${managed_agents[@]}"; do
   plist="$launch_agent_dir/$relative_path"
 
   if [ ! -f "$plist" ]; then
-    echo "ℹ️  Skipping $relative_path (not present in $launch_agent_dir)"
+    echo "    ℹ️  Skipping $relative_path (not present in $launch_agent_dir)"
     continue
   fi
 
   label="$(basename "$plist" .plist)"
-  echo "⏳ Reloading $label..."
+  echo "    ⏳ Reloading $label..."
   if launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1; then
-    echo "  ✅ bootout $label"
+    echo "      ✅ bootout successful"
   else
-    echo "  ℹ️  bootout $label failed or not loaded; continuing"
+    echo "      ℹ️  not currently loaded"
   fi
 
   if launchctl bootstrap "gui/$(id -u)" "$plist" >/dev/null 2>&1; then
-    echo "  ✅ bootstrap $label"
+    echo "      ✅ bootstrap successful"
   else
-    echo "  ❌ bootstrap failed for $label"
+    echo "      ❌ bootstrap failed"
   fi
 done
 
-echo "✅ Launch agent bootstrap complete"
+echo "✅ Launch agent bootstrap complete."

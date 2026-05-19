@@ -1,0 +1,6 @@
+[default.extend-words]
+ba = "ba"
+ony = "ony"
+
+[files]
+extend-exclude = ["*.age", "home/private_dot_config/exact_zsh-abbr/private_user-abbreviations"]

@@ -5,36 +5,14 @@
     type = "file"
     url = 'https://raw.githubusercontent.com/twpayne/chezmoi/master/completions/chezmoi.zsh'
     refreshPeriod = "{{ $refreshPeriod }}"
-[_eza]
-    type = "file"
-    url = 'https://raw.githubusercontent.com/eza-community/eza/main/completions/zsh/_eza'
-    refreshPeriod = "{{ $refreshPeriod }}"
 
-[_fd]
-    type = "file"
-    url = 'https://raw.githubusercontent.com/sharkdp/fd/master/contrib/completion/_fd'
-    refreshPeriod = "{{ $refreshPeriod }}"
 {{- if .toolchains.docker }}
 [_docker]
     type = "file"
     url = 'https://raw.githubusercontent.com/docker/cli/master/contrib/completion/zsh/_docker'
     refreshPeriod = "{{ $refreshPeriod }}"
 {{- end }}
-{{- if .toolchains.kubernetes }}
-[_kubectx]
-    type = "file"
-    url = 'https://raw.githubusercontent.com/ahmetb/kubectx/master/completion/_kubectx.zsh'
-    refreshPeriod = "{{ $refreshPeriod }}"
 
-[_kubens]
-    type = "file"
-    url = 'https://raw.githubusercontent.com/ahmetb/kubectx/master/completion/_kubens.zsh'
-    refreshPeriod = "{{ $refreshPeriod }}"
-{{- end }}
-[_rg]
-    type = "file"
-    url = 'https://raw.githubusercontent.com/BurntSushi/ripgrep/master/crates/core/flags/complete/rg.zsh'
-    refreshPeriod = "{{ $refreshPeriod }}"
 {{- if .toolchains.iac }}
 [_terragrunt]
     type = "file"

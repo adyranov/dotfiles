@@ -3,69 +3,66 @@ aws-cli = {manager = "mise", test = "aws --version"}
 azure-cli = {test = "az --version"}
 
 [packages.base.core]
-act = {test = "act --version"}
-bash = {test = "bash --version"}
+atuin = {manager = "mise", test = "atuin --version"}
 bat = {test = "bat --version"}
-broot = {test = "broot --version"}
 btop = {disabled = "ephemeral", test = "btop --version"}
+chezmoi = {test = "chezmoi --version"}
 coreutils = {test = "realpath --version"}
-croc = {test = "croc --version"}
 curl = {test = "curl --version"}
 direnv = {test = "direnv version"}
-duf = {test = "duf --version"}
-dust = {test = "dust --version"}
-eza = {test = "eza --version"}
+doggo = {manager = "mise", name = "github:mr-karan/doggo", test = "doggo --version"}
+dust = {manager = "mise", name = "github:bootandy/dust", test = "dust --version"}
+eza = {manager = "mise", test = "eza --version"}
 fd = {test = "fd --version"}
 fzf = {test = "fzf --version"}
 gh = {test = "gh --version"}
 git = {test = "git --version"}
 git-delta = {test = "delta --version"}
+glow = {manager = "mise", name = "github:charmbracelet/glow", test = "glow --version"}
 gnupg = {test = "gpg --version"}
-httpie = {test = "http --version"}
-hyperfine = {test = "hyperfine --version"}
+hyperfine = {manager = "mise", test = "hyperfine --version"}
+jnv = {manager = "mise", name = "github:ynqa/jnv", test = "jnv --version"}
 jq = {test = "jq --version"}
-lazygit = {test = "lazygit --version"}
+lazygit = {manager = "mise", test = "lazygit --version"}
 mise = {test = "mise --version"}
-mkcert = {test = "mkcert -version"}
+mkcert = {manager = "mise", test = "mkcert -version"}
 neovim = {test = "nvim --version"}
 openssh-client = {test = "command -v ssh && command -v ssh-agent && command -v ssh-add"}
-procs = {test = "procs --version"}
-rage = {test = "rage --version"}
+ouch = {manager = "mise", name = "github:ouch-org/ouch", test = "ouch --version"}
+rage = {manager = "mise", name = "github:str4d/rage", test = "rage --version"}
 rclone = {test = "rclone --version"}
 ripgrep = {test = "rg --version"}
-sd = {test = "sd --version"}
+sd = {manager = "mise", test = "sd --version"}
 tealdeer = {test = "tldr --version"}
 tmux = {test = "tmux -V"}
-tokei = {test = "tokei --version"}
-vivid = {test = "vivid --version"}
+topgrade = {manager = "mise", name = "github:topgrade-rs/topgrade", test = "topgrade --version"}
+vivid = {manager = "mise", test = "vivid --version"}
 wget = {test = "wget --version"}
+xh = {manager = "mise", name = "github:ducaale/xh", test = "xh --version"}
+yazi = {manager = "mise", name = "github:sxyazi/yazi", test = "yazi --version"}
 zoxide = {test = "zoxide --version"}
-zsh = {test = "zsh --version"}
 
 [packages.base.docker]
 dive = {manager = "mise", name = "github:wagoodman/dive", test = "dive --version"}
 docker = {test = "docker -v"}
 docker-buildx = {test = "docker buildx version"}
 docker-compose = {test = "docker compose version"}
+lazydocker = {manager = "mise", name = "aqua:jesseduffield/lazydocker", test = "lazydocker --version"}
 
 [packages.base.extra]
 gocryptfs = {disabled = "headless,restricted", test = "gocryptfs -version"}
 qrencode = {test = "qrencode --version"}
-unison = {test = "unison -version"}
-zbar = {test = "zbarimg --version"}
 
 [packages.base.golang]
 go = {manager = "mise", test = "go version"}
 
 [packages.base.iac]
-shellcheck = {manager = "mise", test = "shellcheck --version"}
+opentofu = {manager = "mise", name = "aqua:opentofu/opentofu", test = "tofu version"}
 sops = {manager = "mise", test = "sops --version"}
-terraform = {manager = "mise", test = "terraform version"}
 terragrunt = {manager = "mise", test = "terragrunt --version"}
 tflint = {manager = "mise", test = "tflint --version"}
 
 [packages.base.java]
-ant = {manager = "mise", test = "ant -version"}
 java = {manager = "mise", test = "java -version", version = "lts"}
 maven = {manager = "mise", test = "mvn -v"}
 
@@ -77,24 +74,14 @@ k9s = {manager = "mise", test = "k9s version"}
 kubecolor = {manager = "mise", test = "kubecolor help"}
 kubectl = {manager = "mise", test = "kubectl version --client"}
 kubectl-access-matrix = {manager = "krew", name = "access-matrix", test = "kubectl access-matrix --help"}
-kubectl-cost = {manager = "krew", name = "cost", test = "kubectl cost --help"}
 kubectl-get-all = {manager = "krew", name = "get-all", test = "kubectl get-all --help"}
-kubectl-images = {manager = "krew", name = "images", test = "kubectl images --help"}
-kubectl-konfig = {manager = "krew", name = "konfig", test = "kubectl konfig --help"}
-kubectl-kubescape = {manager = "krew", name = "kubescape", test = "kubectl kubescape --help"}
-kubectl-kyverno = {manager = "krew", name = "kyverno", test = "kubectl kyverno --help"}
 kubectl-neat = {manager = "krew", name = "neat", test = "kubectl neat --help"}
 kubectl-node-shell = {manager = "krew", name = "node-shell", test = "kubectl node-shell --version"}
 kubectl-rbac-tool = {manager = "krew", name = "rbac-tool", test = "kubectl rbac-tool --help"}
-kubectl-resource-capacity = {manager = "krew", name = "resource-capacity", test = "kubectl resource-capacity --help"}
-kubectl-score = {manager = "krew", name = "score", test = "kubectl score --help"}
 kubectl-tree = {manager = "krew", name = "tree", test = "kubectl tree --help"}
-kubectl-who-can = {manager = "krew", name = "who-can", test = "kubectl who-can --help"}
-kubectx = {manager = "mise", test = "kubectx --help"}
-kubens = {manager = "mise", test = "kubens --help"}
+kubescape = {manager = "mise", name = "aqua:kubescape/kubescape", test = "kubescape version"}
 kustomize = {manager = "mise", test = "kustomize version"}
 oc = {manager = "mise", test = "oc version --client"}
-popeye = {manager = "mise", test = "popeye version"}
 stern = {manager = "mise", test = "stern --version"}
 yq = {manager = "mise", test = "yq --version"}
 
@@ -113,7 +100,7 @@ macos-x64 = {bin_path = "target/x86_64-apple-darwin/release"}
 node = {manager = "mise", test = "node --version && npm --version && yarn --version && pnpm --version", version = "lts"}
 
 [packages.base.python]
-python = {manager = "mise", test = "python3 --version && pip --version && pre-commit --version"}
+python = {manager = "mise", test = "python3 --version"}
 uv = {manager = "mise", name = "uv", test = "uv --version"}
 
 [packages.base.rust]

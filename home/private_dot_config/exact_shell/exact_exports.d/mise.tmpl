@@ -11,11 +11,9 @@ if [ -z "${CURRENT_SHELL}" ] && command -v ps >/dev/null 2>&1; then
   CURRENT_SHELL="$(ps -p $$ -o comm= | awk -F/ '{print $NF}' | sed 's/^-//')"
 fi
 
-case "${CURRENT_SHELL}" in
-  zsh) {{ output "mise" "activate" "zsh" }} ;;
-  bash) {{ output "mise" "activate" "bash" }} ;;
-  *)
-    echo "Warning: Could not detect supported shell (bash or zsh), skipping mise activation"
-    ;;
-esac
+if [ -n "${CURRENT_SHELL}" ]; then
+  eval "$(mise activate "$CURRENT_SHELL")"
+fi
+
+unset CURRENT_SHELL
 {{- end -}}

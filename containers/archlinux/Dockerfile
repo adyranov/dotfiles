@@ -15,7 +15,7 @@ RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=fal
     set -eux \
     && if [ -s /run/secrets/custom_ca.pem ]; then install -m 0644 /run/secrets/custom_ca.pem /etc/ca-certificates/trust-source/anchors/custom-ca.pem && trust extract-compat; fi \
     && groupadd --gid "$UID" "$USER" \
-    && useradd -s /bin/bash -u "$UID" --gid "$USER" -m "$USER" \
+    && useradd -l -s /bin/bash -u "$UID" --gid "$USER" -m "$USER" \
     && mkdir -p /etc/sudoers.d \
     && echo "$USER ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/$USER" \
     && chmod 0440 "/etc/sudoers.d/$USER" \
@@ -46,7 +46,7 @@ ARG CACHE_BUST
 ARG USER
 ARG UID
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
     --mount=type=cache,id=pacman-pkg,target=/var/cache/pacman/pkg,sharing=locked \
     --mount=type=cache,id=mise,target="${HOME}/.local/share/mise",uid=${UID},gid=${UID},sharing=locked \
     --mount=type=cache,id=rustup,target="${HOME}/.local/share/rustup",uid=${UID},gid=${UID},sharing=locked \
@@ -66,7 +66,7 @@ ARG CACHE_BUST
 ARG USER
 ARG UID
 
-RUN --mount=type=secret,id=GITHUB_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
     --mount=type=cache,id=pacman-pkg,target=/var/cache/pacman/pkg,sharing=locked \
     --mount=type=tmpfs,target=/var/log \
     --mount=type=tmpfs,target=/tmp \
