@@ -25,9 +25,7 @@ xh = {manager = "system"}
 yazi = {manager = "system"}
 
 [packages.darwin.docker]
-colima = {test = "colima version"}
 dive = {manager = "system"}
-qemu = {test = "qemu-system-x86_64 --version"}
 
 [packages.darwin.extra]
 gocryptfs = {name = "gromgit/fuse/gocryptfs-mac"}

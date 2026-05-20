@@ -61,7 +61,7 @@ repos:
     hooks:
       - id: toml-sort-fix
         name: Sort TOML
-        args: [--in-place, --all]
+        args: [--in-place]
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.10.0-2
     hooks:
@@ -96,6 +96,11 @@ repos:
     hooks:
       - id: typos
         name: Check Spelling
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.17.2
+    hooks:
+      - id: markdownlint-cli2
+        name: Lint Markdown
   - repo: https://github.com/hadolint/hadolint
     rev: v2.14.0
     hooks:
@@ -108,6 +113,11 @@ repos:
         args: ["--min-severity=high", "--min-confidence=high"]
   - repo: local
     hooks:
+      - id: taplo-lint
+        name: Validate TOML (taplo)
+        entry: mise x taplo -- taplo lint
+        language: system
+        types: [toml]
       - id: chezmoi-execute-template
         name: Validate Chezmoi Templates
         entry: sh -c 'for f in "$@"; do chezmoi execute-template < "$f" > /dev/null; done' --

@@ -48,6 +48,10 @@ Prebuilt images are also published to GHCR and Docker Hub:
 - Mac and Linux behave the same; `$XDG_RUNTIME_DIR` is set per host type (macOS uses `$TMPDIR`).
 - Preview removals after migrating: `chezmoi --remove --dry-run apply` shows legacy dotfiles ready to prune.
 
+### Catppuccin Mocha theming
+
+A unified **Catppuccin Mocha** color scheme is applied across all terminal tools. Theme assets are fetched automatically via per-tool `.chezmoiexternal.toml.tmpl` files with a weekly refresh period. Themed tools include: bat, btop, delta (git), fzf, ghostty, k9s, lazygit, LS_COLORS (vivid), tmux, yazi, zsh-syntax-highlighting, and atuin.
+
 ### macOS Launch Agents
 
 - Managed agents live under `home/private_Library/LaunchAgents` (rendered to `~/Library/LaunchAgents`).
@@ -187,8 +191,6 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 
 | Tool                                                   | Description              | Install                                 | macOS | Ubuntu | Fedora | Arch |
 | ------------------------------------------------------ | ------------------------ | --------------------------------------- | ----- | ------ | ------ | ---- |
-| [QEMU](https://www.qemu.org/)                          | Virtualization backend   | `system`                                | ✅    | ❌     | ❌     | ❌   |
-| [Colima](https://github.com/abiosoft/colima)           | Docker on macOS          | `system`                                | ✅    | ❌     | ❌     | ❌   |
 | [Docker Engine](https://www.docker.com/)               | Container runtime        | `system` (`docker-ce` on Ubuntu/Fedora) | ✅    | ✅     | ✅     | ✅   |
 | [Docker Compose](https://docs.docker.com/compose/)     | Compose v2 plugin        | `system` (`docker-compose-plugin`)      | ✅    | ✅     | ✅     | ✅   |
 | [Docker Buildx](https://docs.docker.com/build/buildx/) | Extended docker build    | `system` (`docker-buildx-plugin`)       | ✅    | ✅     | ✅     | ✅   |
@@ -218,7 +220,6 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 | [OpenTofu](https://opentofu.org/)                        | Open source Terraform fork     | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 | [Terragrunt](https://github.com/gruntwork-io/terragrunt) | Terraform wrapper              | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 | [sops](https://github.com/getsops/sops)                  | Secrets encryption             | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
-| [TFLint](https://github.com/terraform-linters/tflint)    | Terraform linting              | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 
 ### ☕️ Java Stack
 
@@ -300,6 +301,7 @@ These desktop apps are installed on macOS via Homebrew casks or the App Store (m
 | [macFUSE](https://github.com/macfuse/macfuse)                          | Filesystem in userspace support |
 | [OnyX](https://www.titanium-software.fr/en/onyx.html)                  | macOS maintenance utility       |
 | [Pearcleaner](https://github.com/alienator88/Pearcleaner)              | Remove app leftovers            |
+| [Rancher Desktop](https://rancherdesktop.io/)                          | Container management and Kubernetes |
 | [RustDesk](https://rustdesk.com/)                                      | Open-source remote desktop      |
 | [Signal](https://signal.org/)                                          | Private messenger               |
 | [Spotify](https://www.spotify.com/)                                    | Music streaming client          |

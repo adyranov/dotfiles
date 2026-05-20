@@ -16,9 +16,17 @@ declare -A HELM_PLUGINS=(
 echo "☸️  Ensuring Helm plugins..."
 for name in "${!HELM_PLUGINS[@]}"; do
     url=${HELM_PLUGINS[$name]}
-    if ! helm plugin list | awk '{print $1}' | grep -qx "$name"; then
+    if ! helm plugin list | awk 'NR>1 {print $1}' | grep -qx "$name"; then
         echo "  ↳ Installing: $name"
-        helm plugin install "$url" --verify=false
+        if ! helm plugin install "$url" --verify=false 2>&1; then
+            # Handle race: directory exists but plugin list didn't show it
+            if helm plugin list | awk 'NR>1 {print $1}' | grep -qx "$name"; then
+                echo "  ✅ Already installed: $name (recovered)"
+            else
+                echo "  ❌ Failed to install: $name" >&2
+                exit 1
+            fi
+        fi
     else
         echo "  ✅ Already installed: $name"
     fi

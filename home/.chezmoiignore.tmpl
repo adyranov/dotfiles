@@ -6,6 +6,9 @@ install.sh
 !.chezmoiscripts/common/**
 !.chezmoiscripts/os/{{ .host.distro.id }}/**
 !.chezmoiscripts/post/**
+{{- if .toolchains.java }}
+!.chezmoiscripts/toolchains/java/**
+{{- end }}
 {{- if ne .host.distro.family "darwin" }}
 home/private_Library
 {{- end }}
