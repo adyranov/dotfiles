@@ -1,11 +1,12 @@
+# zsh4humans
 # You can manually run `z4h update` to update everything.
 zstyle ':z4h:' auto-update      'yes'
 zstyle ':z4h:' auto-update-days '7'
-
-# Move prompt to the bottom when zsh starts and on Ctrl+L.
 zstyle ':z4h:' prompt-at-bottom 'yes'
+zstyle ':z4h:' propagate-cwd          'yes'
+zstyle ':z4h:' start-tmux             'no'
+zstyle ':z4h:' term-shell-integration yes
 
-# Keyboard type: 'mac' or 'pc'.
 {{- if (eq .host.distro.family "darwin") }}
 zstyle ':z4h:bindkey' keyboard  'mac'
 zstyle ':z4h:' iterm2-integration yes
@@ -13,44 +14,32 @@ zstyle ':z4h:' iterm2-integration yes
 zstyle ':z4h:bindkey' keyboard  'pc'
 {{- end }}
 
-zstyle ':z4h:' start-tmux no
-zstyle ':z4h:' term-shell-integration yes
-zstyle ':z4h:' propagate-cwd          yes
-
-# Right-arrow key accepts one character ('partial-accept') from
-# command autosuggestions or the whole thing ('accept')?
 zstyle ':z4h:autosuggestions' forward-char 'accept'
-
-# Recursively traverse directories when TAB-completing files.
 zstyle ':z4h:fzf-complete' recurse-dirs 'no'
-
-# Enable direnv to automatically source .envrc files.
 zstyle ':z4h:direnv'         enable 'yes'
-# Show "loading" and "unloading" notifications from direnv.
 zstyle ':z4h:direnv:success' notify 'no'
-
-# Start ssh-agent if it's not running yet.
 zstyle ':z4h:ssh-agent:' start 'no'
-
-# Customize FZF
 zstyle ':z4h:*' fzf-flags --prompt='» ' --pointer='▶' --marker='✓ ' \
-    '--color=bg+:#313244,bg:#1e1e2e,spinner:#f5e0dc,hl:#f38ba8' \
-    '--color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc' \
-    '--color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8' \
-    '--color=border:#6c7086'
+  '--color=bg+:#313244,bg:#1e1e2e,spinner:#f5e0dc,hl:#f38ba8' \
+  '--color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc' \
+  '--color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8' \
+  '--color=border:#6c7086'
 
-# Clone additional Git repositories from GitHub.
+# Packages loaded by zsh4humans
 z4h install ohmyzsh/ohmyzsh || return
 
 function z4h-postinstall:replace-with-github-clone() {
   [[ -n $Z4H_PACKAGE_DIR && -n $Z4H_PACKAGE_NAME ]] && 'command' -v git 1>/dev/null || return 1
-
-  'command' 'rm' -rf $Z4H_PACKAGE_DIR
-
-  'command' 'git' clone --recurse-submodules --single-branch --depth 1 https://github.com/$Z4H_PACKAGE_NAME $Z4H_PACKAGE_DIR
+  'command' 'rm' -rf "$Z4H_PACKAGE_DIR"
+  'command' 'git' clone --recurse-submodules --single-branch --depth 1 "https://github.com/$Z4H_PACKAGE_NAME" "$Z4H_PACKAGE_DIR"
 }
 z4h install olets/zsh-abbr || return
 zstyle :z4h:olets/zsh-abbr postinstall z4h-postinstall:replace-with-github-clone || return
+
+fpath=("$ZDOTDIR/completions" $fpath)
+
+# Ensure z4h cache directories exist before initialization to avoid tee write errors.
+mkdir -p "$Z4H/cache/ohmyzsh/completions" 2>/dev/null || true
 
 # Install or update core components (fzf, zsh-autosuggestions, etc.) and
 # initialize Zsh. After this point console I/O is unavailable until Zsh
@@ -58,40 +47,28 @@ zstyle :z4h:olets/zsh-abbr postinstall z4h-postinstall:replace-with-github-clone
 # perform network I/O must be done above. Everything else is best done below.
 z4h init || return
 
-# Catppuccin Mocha theme for zsh-syntax-highlighting.
-z4h source $ZDOTDIR/catppuccin-mocha-zsh-syntax-highlighting.zsh
-
-# Load shell history/search from atuin when available.
-if command -v atuin >/dev/null 2>&1; then
-  eval "$(atuin init zsh)"
-fi
-
-# Deduplicate entries in PATH.
+# Environment and completions
 typeset -U PATH path
+z4h source "$HOME/.config/shell/exports.sh"
+[[ -n "${LS_COLORS-}" ]] && zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 
-# Export environment variables.
-z4h source $HOME/.config/shell/exports.sh
+# Theme and interactive integrations
+z4h source "$ZDOTDIR/catppuccin-mocha-zsh-syntax-highlighting.zsh"
 
-# Set colors from LS_COLORS
-zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+(( $+commands[atuin] )) && eval "$(atuin init zsh)"
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
 
-# Extend function path
-fpath=(
-    $ZDOTDIR/completions
-    $fpath
-)
-
-# Use additional Git repositories pulled in with `z4h install`.
+# Oh My Zsh
 z4h source ohmyzsh/ohmyzsh/lib/clipboard.zsh
 z4h source ohmyzsh/ohmyzsh/lib/directories.zsh
 z4h source ohmyzsh/ohmyzsh/lib/functions.zsh
 
 z4h load ohmyzsh/ohmyzsh/plugins/copyfile
 z4h load ohmyzsh/ohmyzsh/plugins/copypath
-z4h load ohmyzsh/ohmyzsh/plugins/docker
-z4h load ohmyzsh/ohmyzsh/plugins/docker-compose
 z4h load ohmyzsh/ohmyzsh/plugins/encode64
 z4h load ohmyzsh/ohmyzsh/plugins/extract
+z4h load ohmyzsh/ohmyzsh/plugins/git
+z4h load ohmyzsh/ohmyzsh/plugins/sudo
 
 zstyle ':omz:plugins:eza' dirs-first yes
 zstyle ':omz:plugins:eza' git-status yes
@@ -100,55 +77,36 @@ zstyle ':omz:plugins:eza' icons yes
 zstyle ':omz:plugins:eza' hyperlink yes
 z4h load ohmyzsh/ohmyzsh/plugins/eza
 
-z4h load ohmyzsh/ohmyzsh/plugins/git
+z4h load ohmyzsh/ohmyzsh/plugins/docker
+z4h load ohmyzsh/ohmyzsh/plugins/docker-compose
+
 z4h load ohmyzsh/ohmyzsh/plugins/gpg-agent
 
 zstyle :omz:plugins:ssh-agent quiet yes
 zstyle :omz:plugins:ssh-agent identities id_yk_blue id_yk_green
 z4h load ohmyzsh/ohmyzsh/plugins/ssh-agent
 
-z4h load ohmyzsh/ohmyzsh/plugins/sudo
-
 z4h load olets/zsh-abbr
 
-# Define key bindings.
+# Local shell behavior
 z4h bindkey z4h-cd-back            Shift+Left   # cd into the previous directory
 z4h bindkey z4h-cd-forward         Shift+Right  # cd into the next directory
 z4h bindkey z4h-cd-up              Shift+Up     # cd into the parent directory
 z4h bindkey z4h-fzf-dir-history    Shift+Down   # cd into a child directory
 
-# Autoload functions.
 autoload -Uz zmv
+z4h source "$HOME/.config/zsh/functions.sh"
+z4h source "$HOME/.config/zsh/aliases.sh"
 
-# Define functions and completions.
-z4h source $HOME/.config/zsh/functions.sh
+(( $+z4h_win_home )) && hash -d w="$z4h_win_home"
 
-# Define aliases.
-z4h source $HOME/.config/zsh/aliases.sh
-
-# Define named directories: ~w <=> Windows home directory on WSL.
-(( $+z4h_win_home )) && hash -d w=$z4h_win_home
-
-# Set shell options: http://zsh.sourceforge.net/Doc/Release/Options.html.
 setopt glob_dots     # no special treatment for file names with a leading dot
 setopt no_auto_menu  # require an extra TAB press to open the completion menu
 setopt complete_aliases
 
-# Remove slow command not found handler
 [[ ! -v functions[command_not_found_handler] ]] || unfunction command_not_found_handler
 
-# Load direnv
-if command -v direnv >/dev/null 2>&1; then
-  eval "$(direnv hook zsh)"
-fi
-
-# Load zoxide
-if command -v zoxide >/dev/null 2>&1; then
-  eval "$(zoxide init zsh)"
-fi
-
-# Load local configuration.
-z4h source $ZDOTDIR/.zshrc.local
+z4h source "$ZDOTDIR/.zshrc.local"
 
 # Exit immediately when bootstrapping z4h (e.g. in CI/Docker).
 [[ -n "${_CHEZMOI_Z4H_BOOTSTRAP-}" ]] && exit 0

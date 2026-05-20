@@ -70,8 +70,8 @@ See examples in `home/.chezmoidata/base/` and `home/.chezmoidata/os/<distro>/`.
 ## 🧑‍💻 Development
 
 - Unified entry point: this project uses **mise tasks** for orchestration.
-- Bootstrap development environment: `mise run bootstrap` (configures Git hooks and native tooling).
-- Run linting/validations: `mise run lint`.
+- Bootstrap development environment: `mise run bootstrap` (configures `pre-commit` and `commit-msg` Git hooks plus native tooling).
+- Run linting/validations: `mise run lint` (runs the `pre-commit` stage with `PRE_COMMIT_COLOR=never` for readable status labels; commit messages are checked by the installed `commit-msg` hook).
 - Build test containers: `mise run build-containers`.
 - Project layout follows chezmoi conventions. See `home/` for source state, `home/.chezmoidata/**` for data-driven packages, and `home/.chezmoitemplates/{common,os}/**` for reusable templates.
 - Line endings are enforced via `.gitattributes` (LF for Unix tooling, CRLF for Windows scripts). Keep new files consistent with these defaults.

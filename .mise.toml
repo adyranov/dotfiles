@@ -10,11 +10,11 @@ arg "[FLAGS]..." help="Flags to pass to chezmoi apply"
 
 [tasks.bootstrap]
 description = "Bootstrap development environment (Git hooks, etc.)"
-run = "pre-commit install --install-hooks --hook-type pre-commit"
+run = "pre-commit install --install-hooks --hook-type pre-commit --hook-type commit-msg"
 
 [tasks.lint]
 description = "Run pre-commit hooks on all files"
-run = "pre-commit run --all-files $@"
+run = "PRE_COMMIT_COLOR=never pre-commit run --all-files --hook-stage pre-commit $@"
 usage = """
 arg "[FLAGS]..." help="Flags to pass to pre-commit"
 """

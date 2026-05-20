@@ -32,8 +32,8 @@
 - Unified entry point: this project uses **mise tasks** for orchestration.
 - `mise run apply`: applies changes to the home directory; review the diff before confirming.
 - `mise run test`: executes generated Bats validation suites.
-- `mise run lint`: runs formatting and safety validations (uses global `pre-commit` managed by `mise`).
-- `mise run bootstrap`: configures local Git hooks and ensures native tool versions.
+- `mise run lint`: runs formatting and safety validations for the `pre-commit` stage with `PRE_COMMIT_COLOR=never` so status labels stay readable in the configured terminal theme (uses global `pre-commit` managed by `mise`; commit messages are checked by the installed `commit-msg` hook).
+- `mise run bootstrap`: configures local `pre-commit` and `commit-msg` Git hooks and ensures native tool versions.
 - `mise run build-containers`: builds and tests local validation containers.
 - `chezmoi doctor`: validates environment and configuration.
 
@@ -75,14 +75,16 @@
 ## Testing Guidelines
 
 - Validate locally with `chezmoi doctor`, `chezmoi diff`, `chezmoi apply --dry-run`, and `chezmoi verify`. Only surface clean diffs for review.
-- Ensure `pre-commit run --all-files` passes.
+- Ensure `mise run lint` passes.
 - Run `~/.local/bin/check-dotfiles` after applying changes with `chezmoi apply`. The runner (`home/private_dot_local/share/exact_dotfiles/test/executable_check-dotfiles.sh`, symlinked as `check-dotfiles`) executes generated Bats suites for system packages, `mise` tools, and Helm/Krew plugins, plus `test-config.bats` for shell/Git settings.
 - Run a single package test by package key (same id as in `packages.toml`): `check-dotfiles openssh-client`, or several at once: `check-dotfiles kubectl helm k9s` (package suites only; does not run `test-config.bats`). Use `check-dotfiles --list` to print available tool names grouped by suite file; `check-dotfiles --help` for usage.
 - Use `chezmoi --remove --dry-run apply` to preview removals enforced by `home/.chezmoiremove.tmpl` and avoid unintended deletions.
 
 ## Commit & Pull Request Guidelines
 
-- Use imperative, scope-aware commit subjects and squash incidental fix-ups before review.
+- Use Conventional Commits for commit subjects and squash incidental fix-ups before review.
+- Scopes are optional but encouraged when they clarify the affected area, for example `fix(zsh): restore atuin up-arrow history` or `chore(pre-commit): add conventional commit hook`.
+- Allowed commit types use the standard `conventional-pre-commit` defaults: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, and `test`.
 
 ## Security & Configuration Tips
 
