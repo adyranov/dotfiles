@@ -22,14 +22,14 @@ knd() {
 
 # Completions
 _kc_completions() {
-  COMPREPLY=($(compgen -W "$(kubesess completion-context -v "${COMP_WORDS[1]}")" -- "${COMP_WORDS[1]}"))
+  compadd -- $(kubesess completion-context -v "${words[2]}")
 }
 
 _kn_completions() {
-  COMPREPLY=($(compgen -W "$(kubesess completion-namespace -v "${COMP_WORDS[1]}")" -- "${COMP_WORDS[1]}"))
+  compadd -- $(kubesess completion-namespace -v "${words[2]}")
 }
 
-complete -F _kc_completions kc
-complete -F _kc_completions kcd
-complete -F _kn_completions kn
-complete -F _kn_completions knd
+compdef _kc_completions kc
+compdef _kc_completions kcd
+compdef _kn_completions kn
+compdef _kn_completions knd

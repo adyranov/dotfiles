@@ -60,7 +60,6 @@ go = {manager = "mise", test = "go version"}
 opentofu = {manager = "mise", name = "aqua:opentofu/opentofu", test = "tofu version"}
 sops = {manager = "mise", test = "sops --version"}
 terragrunt = {manager = "mise", test = "terragrunt --version"}
-tflint = {manager = "mise", test = "tflint --version"}
 
 [packages.base.java]
 java = {manager = "mise", test = "java -version", version = "lts"}

@@ -1,0 +1,10 @@
+{{- if .toolchains.kubernetes }}
+{{- $refreshPeriod := "168h" }}
+
+["skins"]
+    type = "archive"
+    url = "https://github.com/catppuccin/k9s/archive/main.tar.gz"
+    stripComponents = 2
+    include = ["k9s-main/dist/catppuccin-mocha*.yaml"]
+    refreshPeriod = "{{ $refreshPeriod }}"
+{{- end }}

@@ -1,6 +1,8 @@
 [core]
     autocrlf = input
+{{- if ne .host.type "ephemeral" }}
     fsmonitor = true
+{{- end }}
     untrackedCache = true
 [branch]
     autosetuprebase = always

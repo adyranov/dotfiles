@@ -2,6 +2,15 @@
 alias reload="exec ${SHELL} -l"
 command -v kubecolor &>/dev/null && alias kubectl='kubecolor'
 
+# eza
+if command -v eza &>/dev/null; then
+  alias ls='eza --icons --group-directories-first'
+  alias ll='eza -lh --icons --group-directories-first --git'
+  alias la='eza -lah --icons --group-directories-first --git'
+  alias lt='eza --tree --icons --level=2'
+  alias l='eza -lah --icons --group-directories-first --git'
+fi
+
 # cat/less/man => bat
 command -v batcat &>/dev/null && ! command -v bat &>/dev/null && alias bat=batcat
 if command -v bat &>/dev/null; then
@@ -33,12 +42,6 @@ fi
 
 # npm packages
 alias ncu="npx --yes -p npm-check-updates@latest ncu"
-
-# k8s
-if command -v colima &> /dev/null; then
-  alias k8s-start="colima start k8s --kubernetes --runtime containerd --cpu 4 --memory 8 --disk 40"
-  alias k8s-stop="colima stop k8s"
-fi
 
 # wget
 alias wget="wget --hsts-file=\"$XDG_CACHE_HOME/wget-hsts\""
