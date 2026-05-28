@@ -1,8 +1,6 @@
-
-{{- $refreshPeriod := "168h" }}
-
-["tmux.conf"]
-  type = "file"
-  url = "https://github.com/gpakosz/.tmux/raw/master/.tmux.conf"
-  refreshPeriod = "{{ $refreshPeriod }}"
-  exact = true
+{{- /* gpakosz/.tmux publishes no git tags; pin to master. */ -}}
+{{ template "common/github/raw" (dict
+    "target"   "tmux.conf"
+    "repo"     "gpakosz/.tmux@master"
+    "source"   ".tmux.conf"
+    "exact"    true) }}

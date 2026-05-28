@@ -1,0 +1,5 @@
+{{- /* eza/ls: vivid catppuccin-mocha LS_COLORS is the shared source of truth (not a
+     separate eza theme.yml) so completion list-colors and eza --icons stay aligned. */ -}}
+{{- if (lookPath "vivid") -}}
+export LS_COLORS={{ printf "%q" (trim (output "vivid" "generate" "catppuccin-mocha")) }}
+{{- end }}

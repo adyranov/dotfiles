@@ -1,0 +1,5 @@
+auth.json
+git/**
+sessions/**
+logs/
+state.json

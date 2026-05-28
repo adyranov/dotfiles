@@ -34,14 +34,25 @@ Prebuilt images are also published to GHCR and Docker Hub:
 
 ## 🧩 How It Works
 
-- Single source of truth: tools live in `.chezmoidata/base/packages.toml` (`packages.base.<toolchain>`, e.g. `packages.base.core`), merge through `.chezmoidata/os/<distro>/packages.toml`, then render via `.chezmoitemplates/common/helpers/render-packages` into the right target (system package manager, `mise`, `krew`, `helm`, and tests).
+- Single source of truth: tools live in `.chezmoidata/base/packages.toml` (`packages.base.<toolchain>`, e.g. `packages.base.core`), merge through `.chezmoidata/os/<distro>/packages.toml`, then render via `.chezmoitemplates/common/packages/render` into the right target (system package manager, `mise`, `krew`, `helm`, and tests). Additional data files: `base/ai.toml` (AI agent configs, permissions) and `base/editors.toml` (VS Code/Cursor shared settings and extensions).
 - Layered overrides: later layers win — `packages.base` (defaults) → `packages.<distro>` keyed by `host.distro.id` (sparse keys such as `name`, `manager`, `version`, `test`, `exclude_arch`). When an override changes `manager`, the `name` automatically resets to the package key (since names are manager-specific, e.g. a brew formula vs a mise backend identifier). To use a non-default name with the new manager, set both `manager` and `name` in the override.
 - Conditional disables: set `disabled` to either a boolean, or a comma/space separated string of flags. Supported flags: `headless` (non-interactive sessions), `restricted`, and host type values `desktop`, `laptop`, `wsl`, `ephemeral`. Example: `disabled = "headless,restricted"`.
 - OS pinning: set `os = "darwin" | "ubuntu" | "fedora" | "archlinux"` on a package entry to include it only on that distro.
 
+### AI agents
+
+- The `ai` toolchain is an umbrella that gates a nested agent selection (`opencode`, `pi`). Each agent gets its own boolean under `data.toolchains.<agentId>`.
+- Agent permissions, tool allow/deny lists, and path deny patterns are defined in `.chezmoidata/base/ai.toml`.
+
+### Editor extensions
+
+- VS Code and Cursor share settings/keybindings defined in `.chezmoidata/base/editors.toml` and rendered via `editors/vscode/` templates.
+- Extensions are installed by `common/run_onchange_after_36_install-editor-extensions.sh.tmpl` (re-runs when the extension or settings list changes).
+
 ### XDG-first layout
 
-- Exports file: shell environment is centralized in `~/.config/shell/exports.sh` to enforce XDG base directories across tools.
+- Exports file: shell environment is centralized in `~/.config/shell/exports.sh` (assembled from modular `exports.d/` fragments) to enforce XDG base directories across tools.
+- An XDG migration planner (`before/run_onchange_before_05_xdg-migration-plan.sh.tmpl`) prints suggested `mv` commands when legacy dotfile paths are detected — it never modifies files itself.
 - Smart completions: Zsh completions for kubectl, mise, tofu, etc., are automatically generated and synced with tool versions via `run_onchange` hashing.
 - Moved dotfiles: bash/zsh history and sessions, npm cache/prefix, cargo/rustup, gradle, krew, pass, wget, readline, less, svn, git excludes, asdf files, and more are redirected under the XDG tree.
 - Atuin is the default Zsh history backend. Legacy zsh history can be imported manually with `HISTFILE=... atuin import zsh`.
@@ -62,9 +73,13 @@ See examples in `home/.chezmoidata/base/` and `home/.chezmoidata/os/<distro>/`.
 
 ## 🧪 Validate Locally
 
-- After applying dotfiles, run `mise run test` to execute generated Bats tests for system packages, `mise` tools, Helm and Krew plugins, plus shell/Git config checks.
+- After applying dotfiles, run `mise run test` to execute generated Bats tests for system packages, `mise` tools, Helm and Krew plugins, AI agents/skills, plus shell/Git config checks.
 - Run package-only checks with `mise run test <tool>…` (e.g. `mise run test kubectl helm`).
 - The test runner lives at `~/.local/share/dotfiles/test/check-dotfiles.sh` and is symlinked to `~/.local/bin/check-dotfiles`.
+- Run specific suites: `check-dotfiles --suite config` or `check-dotfiles --suite ai,skills`.
+- Filter by tag: `check-dotfiles --tag toolchain:kubernetes`.
+- Filter by test name regex: `check-dotfiles --filter '^skill .* frontmatter'`.
+- List tests grouped by field: `check-dotfiles --list --by suite|toolchain|tag|kind`.
 - The runner fetches Bats plugins on demand and cleans them up after the run.
 
 ## 🧑‍💻 Development
@@ -84,6 +99,7 @@ See examples in `home/.chezmoidata/base/` and `home/.chezmoidata/os/<distro>/`.
   - Enable specific: `WITH_DOCKER=true WITH_KUBERNETES=true`
   - Disable specific: `WITHOUT_JAVA=true WITHOUT_NODE=true`
   - Disable all then opt-in: `WITHOUT_TOOLCHAINS=true WITH_PYTHON=true`
+  - AI agents (nested under `ai`): `WITH_OPENCODE=true`, `WITHOUT_PI=true`
 - Environment detection:
   - Ephemeral/container environments are auto-detected and tagged as `ephemeral`.
   - Non-interactive sessions set `.host.interactive = false` (treated as `headless` in package rules).

@@ -1,8 +1,5 @@
 [core]
     autocrlf = input
-{{- if ne .host.type "ephemeral" }}
-    fsmonitor = true
-{{- end }}
     untrackedCache = true
 [branch]
     autosetuprebase = always
@@ -11,9 +8,11 @@
 [diff]
     algorithm = histogram
     colorMoved = default
+    colorMovedWS = allow-indentation-change
     renamelimit = 0
     mnemonicprefix = true
     renames = copies
+    submodule = log
 [fetch]
     prune = true
 [help]

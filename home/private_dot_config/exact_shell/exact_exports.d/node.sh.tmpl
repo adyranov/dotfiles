@@ -1,0 +1,10 @@
+# Passive XDG redirections (node).
+# mise
+# Tell mise to enable Corepack when it manages Node.
+export MISE_NODE_COREPACK="true"
+# npm
+export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
+# Prefix via env (not npmrc): a `prefix=` line blocks mise's npm backend from
+# installing npm:-managed tools (pi) during `mise install`.
+export NPM_CONFIG_PREFIX="$XDG_DATA_HOME/npm"
+export NODE_REPL_HISTORY="$XDG_CACHE_HOME/node_repl_history"

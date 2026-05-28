@@ -1,9 +1,12 @@
 [packages.fedora.core]
-fd = {name = "fd-find"}
-openssh-client = {name = "openssh-clients"}
-"pcsc-lite" = {name = "pcsc-lite"}
+bubblewrap = {disabled = "ephemeral", bin = "bwrap"}
+difftastic = {manager = "system"}
+fd = {package = "fd-find"}
+openssh-client = {package = "openssh-clients"}
+"pcsc-lite" = {package = "pcsc-lite", test = "rpm -q pcsc-lite"}
+socat = {disabled = "ephemeral", version = "socat -V"}
 
 [packages.fedora.docker]
-docker = {name = "docker-ce"}
-"docker-buildx" = {name = "docker-buildx-plugin"}
-"docker-compose" = {name = "docker-compose-plugin"}
+docker = {package = "docker-ce"}
+"docker-buildx" = {package = "docker-buildx-plugin"}
+"docker-compose" = {package = "docker-compose-plugin"}

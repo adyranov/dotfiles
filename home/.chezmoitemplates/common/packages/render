@@ -1,0 +1,181 @@
+{{- /* render — Package/completion orchestrator.
+  Merges base and OS-specific packages for enabled toolchains, applies
+  disabled/os/arch filtering, then dispatches to a format subtemplate.
+
+  Args (dict):
+    root            — template data root (required)
+    mode            — "packages" (default) | "completions"
+    render          — format subtemplate path relative to common/packages/format/
+                      packages: "install" (default) | "mise" | "test"
+                      completions: "completions/external" | "completions/script" | "completions/ignore"
+    packageManager  — packages mode filter: "system" (default) | "mise" | "helm" | "krew"
+    compDir         — completions/script mode: destination directory path
+*/ -}}
+{{- $root := .root -}}
+{{- $mode := index . "mode" | default "packages" -}}
+{{- $render := index . "render" | default "install" -}}
+{{- $packageManager := index . "packageManager" | default "system" -}}
+{{- $compDir := index . "compDir" | default "" -}}
+{{- $distroId := $root.host.distro.id -}}
+{{- $arch := $root.host.arch -}}
+{{- $result := dict -}}
+
+{{- /* Build the list of toolchains enabled for this host (always include core). */ -}}
+{{- $enabledToolchains := list "core" -}}
+{{- range $toolName, $enabled := $root.toolchains }}
+    {{- if $enabled }}
+        {{- $enabledToolchains = append $enabledToolchains $toolName -}}
+    {{- end }}
+{{- end }}
+
+{{- $basePackages := index $root.packages "base" | default dict -}}
+{{- $osPackages := index $root.packages $distroId | default dict -}}
+
+{{- /* Merge base and OS-specific packages for every enabled toolchain. */ -}}
+{{- range $i, $toolName := $enabledToolchains }}
+    {{- $layerBase := index $basePackages $toolName | default dict -}}
+    {{- $overridePackages := index $osPackages $toolName | default dict -}}
+    {{- $packageIndex := dict -}}
+    {{- range $id, $_ := $layerBase }}
+        {{- $nil := set $packageIndex $id true -}}
+    {{- end }}
+    {{- range $id, $_ := $overridePackages }}
+        {{- $nil := set $packageIndex $id true -}}
+    {{- end }}
+    {{- range $j, $id := sortAlpha (keys $packageIndex) }}
+        {{- $pkg := index $layerBase $id | default dict -}}
+        {{- $override := index $overridePackages $id | default dict -}}
+
+        {{- $rawComp := "" -}}
+        {{- if hasKey $override "completion" -}}
+            {{- $rawComp = index $override "completion" -}}
+        {{- else if hasKey $pkg "completion" -}}
+            {{- $rawComp = index $pkg "completion" -}}
+        {{- end -}}
+        {{- /* In completions mode, skip packages without completion metadata. */ -}}
+        {{- if and (eq $mode "completions") (not $rawComp) -}}{{- continue -}}{{- end -}}
+
+        {{- $pkgOs := index $override "os" | default (index $pkg "os" | default "") -}}
+        {{- if and $pkgOs (ne $pkgOs $distroId) -}}{{- continue -}}{{- end -}}
+
+        {{- /* Resolve disabled state; OS layer overrides base. */ -}}
+        {{- $pkgDisabled := index $override "disabled" | default (index $pkg "disabled" | default false) -}}
+        {{- $disabled := false -}}
+        {{- if kindIs "string" $pkgDisabled -}}
+            {{- if and ($pkgDisabled | contains "headless") (not $root.host.interactive) -}}
+                {{- $disabled = true -}}
+            {{- end -}}
+            {{- if and ($pkgDisabled | contains "restricted") $root.host.restricted -}}
+                {{- $disabled = true -}}
+            {{- end -}}
+            {{- if $pkgDisabled | contains $root.host.type -}}
+                {{- $disabled = true -}}
+            {{- end -}}
+        {{- else if kindIs "bool" $pkgDisabled -}}
+            {{- $disabled = $pkgDisabled -}}
+        {{- end }}
+        {{- if $disabled -}} {{- continue -}} {{- end }}
+
+        {{- $pkgExcludeArch := index $override "exclude_arch" | default (index $pkg "exclude_arch" | default list) -}}
+        {{- $archExcluded := false -}}
+        {{- range $j, $a := $pkgExcludeArch }}
+            {{- if eq $arch $a -}}
+                {{- $archExcluded = true -}}
+            {{- end -}}
+        {{- end }}
+        {{- if $archExcluded -}} {{- continue -}} {{- end }}
+
+        {{- /* ── Collect based on mode ── */ -}}
+        {{- if eq $mode "completions" -}}
+            {{- $bin := printf "%s" (index $override "bin" | default (index $pkg "bin" | default $id)) -}}
+            {{- $versionCmd := printf "%s --version" $bin -}}
+            {{- if hasKey $override "version" -}}
+                {{- $versionCmd = printf "%s" (index $override "version") -}}
+            {{- else if hasKey $pkg "version" -}}
+                {{- $versionCmd = printf "%s" (index $pkg "version") -}}
+            {{- end -}}
+            {{- $comp := dict -}}
+            {{- if kindIs "bool" $rawComp -}}
+                {{- $comp = dict "generate" true "bin" $bin "version" $versionCmd -}}
+            {{- else -}}
+                {{- $comp = $rawComp -}}
+                {{- $_ := set $comp "bin" $bin -}}
+                {{- $_ := set $comp "version" $versionCmd -}}
+            {{- end -}}
+            {{- $_ := set $result $id $comp -}}
+        {{- else -}}
+            {{- $pkgMgr := printf "%s" (index $override "manager" | default (index $pkg "manager" | default "system")) -}}
+            {{- /* When an override changes the manager, reset package to key (package is manager-specific). */ -}}
+            {{- $overrideMgr := index $override "manager" -}}
+            {{- $baseMgr := index $pkg "manager" | default "system" -}}
+            {{- $mgrChanged := and $overrideMgr (ne (printf "%s" $overrideMgr) (printf "%s" $baseMgr)) -}}
+            {{- $effectiveBaseName := $id -}}
+            {{- if not $mgrChanged -}}
+                {{- $effectiveBaseName = printf "%s" (index $pkg "package" | default $id) -}}
+            {{- end -}}
+            {{- $pkgName := printf "%s" (index $override "package" | default $effectiveBaseName) -}}
+            {{- $pkgPin := printf "%s" (index $override "pin" | default (index $pkg "pin" | default "")) -}}
+            {{- $pkgBin := printf "%s" (index $override "bin" | default (index $pkg "bin" | default $id)) -}}
+            {{- $pkgPlatforms := index $override "platforms" | default (index $pkg "platforms" | default dict) -}}
+
+            {{- /* Krew convention: strip kubectl- prefix for package, use "kubectl <plugin>" for bin. */ -}}
+            {{- if eq $pkgMgr "krew" -}}
+                {{- if not (hasKey $override "package") -}}{{- if not (hasKey $pkg "package") -}}
+                    {{- $pkgName = trimPrefix "kubectl-" $id -}}
+                {{- end -}}{{- end -}}
+                {{- if not (hasKey $override "bin") -}}{{- if not (hasKey $pkg "bin") -}}
+                    {{- $pkgBin = printf "kubectl %s" (trimPrefix "kubectl-" $id) -}}
+                {{- end -}}{{- end -}}
+            {{- end -}}
+
+            {{- /* Derive version command: explicit > krew convention (<bin> --help) > default (<bin> --version). */ -}}
+            {{- $pkgVersion := printf "%s --version" $pkgBin -}}
+            {{- if eq $pkgMgr "krew" -}}
+                {{- $pkgVersion = printf "%s --help" $pkgBin -}}
+            {{- end -}}
+            {{- if hasKey $override "version" -}}
+                {{- $pkgVersion = printf "%s" (index $override "version") -}}
+            {{- else if hasKey $pkg "version" -}}
+                {{- $pkgVersion = printf "%s" (index $pkg "version") -}}
+            {{- end -}}
+
+            {{- /* Derive test: explicit > version command. test=false disables. */ -}}
+            {{- $pkgTest := $pkgVersion -}}
+            {{- if hasKey $override "test" -}}
+                {{- $rawTest := index $override "test" -}}
+                {{- if kindIs "bool" $rawTest -}}
+                    {{- if not $rawTest -}}{{- $pkgTest = "" -}}{{- end -}}
+                {{- else -}}
+                    {{- $pkgTest = printf "%s" $rawTest -}}
+                {{- end -}}
+            {{- else if hasKey $pkg "test" -}}
+                {{- $rawTest := index $pkg "test" -}}
+                {{- if kindIs "bool" $rawTest -}}
+                    {{- if not $rawTest -}}{{- $pkgTest = "" -}}{{- end -}}
+                {{- else -}}
+                    {{- $pkgTest = printf "%s" $rawTest -}}
+                {{- end -}}
+            {{- end -}}
+
+            {{- if eq $pkgMgr $packageManager -}}
+                {{- $_ := set $result $id (dict
+                    "id" $id
+                    "manager" $pkgMgr
+                    "package" $pkgName
+                    "pin" $pkgPin
+                    "version" $pkgVersion
+                    "test" $pkgTest
+                    "platforms" $pkgPlatforms
+                    "toolchain" $toolName
+                ) -}}
+            {{- end }}
+        {{- end -}}
+    {{- end }}
+{{- end }}
+
+{{- /* Dispatch to the requested format subtemplate. */ -}}
+{{- if eq $mode "completions" -}}
+    {{- includeTemplate (printf "common/packages/format/%s" $render) (dict "completions" $result "compDir" $compDir) -}}
+{{- else -}}
+    {{- includeTemplate (printf "common/packages/format/%s" $render) (dict "packages" $result) -}}
+{{- end -}}

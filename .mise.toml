@@ -3,10 +3,8 @@ experimental = true
 
 [tasks.apply]
 description = "Apply dotfiles changes using chezmoi"
-run = "chezmoi apply $@"
-usage = """
-arg "[FLAGS]..." help="Flags to pass to chezmoi apply"
-"""
+usage = 'arg "[FLAGS]..." var=#true help="Flags to pass to chezmoi apply"'
+run = "chezmoi apply ${usage_flags:-}"
 
 [tasks.bootstrap]
 description = "Bootstrap development environment (Git hooks, etc.)"
@@ -14,17 +12,13 @@ run = "pre-commit install --install-hooks --hook-type pre-commit --hook-type com
 
 [tasks.lint]
 description = "Run pre-commit hooks on all files"
-run = "PRE_COMMIT_COLOR=never pre-commit run --all-files --hook-stage pre-commit $@"
-usage = """
-arg "[FLAGS]..." help="Flags to pass to pre-commit"
-"""
+usage = 'arg "[FLAGS]..." var=#true help="Flags to pass to pre-commit"'
+run = "PRE_COMMIT_COLOR=never pre-commit run --all-files --hook-stage pre-commit ${usage_flags:-}"
 
 [tasks.test]
 description = "Run dotfiles validation tests"
-run = "~/.local/bin/check-dotfiles $@"
-usage = """
-arg "[TOOLS]..." help="Specific tools/suites to test"
-"""
+usage = 'arg "[TOOLS]..." var=#true help="Specific tools/suites to test"'
+run = '~/.local/bin/check-dotfiles ${usage_tools:-}'
 
 [tools]
 chezmoi = "latest"

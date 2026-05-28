@@ -2,7 +2,7 @@
 {{- includeTemplate "common/headers/after" . -}}
 
 KREW_PLUGINS=(
-{{- $packages := splitList " " (includeTemplate "common/helpers/render-packages" (dict "root" . "packageManager" "krew")) -}}
+{{- $packages := splitList " " (includeTemplate "common/packages/render" (dict "root" . "packageManager" "krew")) -}}
 {{- range $pkg := $packages -}}
 {{- if ne $pkg "" }}
   "{{ $pkg }}"

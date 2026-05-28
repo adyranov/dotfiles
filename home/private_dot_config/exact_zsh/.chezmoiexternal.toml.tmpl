@@ -1,6 +1,8 @@
-{{- $refreshPeriod := "168h" }}
-
-["catppuccin-mocha-zsh-syntax-highlighting.zsh"]
-    type = "file"
-    url = "https://raw.githubusercontent.com/catppuccin/zsh-syntax-highlighting/main/themes/catppuccin_mocha-zsh-syntax-highlighting.zsh"
-    refreshPeriod = "{{ $refreshPeriod }}"
+{{ template "common/github/raw" (dict
+    "target" "catppuccin-fzf-mocha.sh"
+    "repo"   "catppuccin/fzf@main"
+    "source" "themes/catppuccin-fzf-mocha.sh") }}
+{{ template "common/github/raw" (dict
+    "target" "catppuccin-mocha-zsh-syntax-highlighting.zsh"
+    "repo"   "catppuccin/zsh-syntax-highlighting@main"
+    "source" "themes/catppuccin_mocha-zsh-syntax-highlighting.zsh") }}

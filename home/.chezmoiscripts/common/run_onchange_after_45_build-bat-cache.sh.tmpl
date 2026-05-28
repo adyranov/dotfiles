@@ -1,0 +1,17 @@
+{{- includeTemplate "common/headers/after" . -}}
+# bat hash: {{ output "cat" (joinPath .chezmoi.sourceDir "private_dot_config/exact_bat/config") | sha256sum }}
+
+bat_bin=""
+if command -v bat >/dev/null 2>&1; then
+  bat_bin=bat
+elif command -v batcat >/dev/null 2>&1; then
+  bat_bin=batcat
+fi
+
+if [ -z "$bat_bin" ]; then
+  exit 0
+fi
+
+echo "🦇 Rebuilding bat syntax/theme cache..."
+"$bat_bin" cache --build
+echo "✅ bat cache rebuilt."

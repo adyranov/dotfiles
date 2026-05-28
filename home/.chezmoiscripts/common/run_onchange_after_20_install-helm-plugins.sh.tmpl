@@ -3,7 +3,7 @@
 
 
 declare -A HELM_PLUGINS=(
-{{- $packages := splitList " " (includeTemplate "common/helpers/render-packages" (dict "root" . "packageManager" "helm")) -}}
+{{- $packages := splitList " " (includeTemplate "common/packages/render" (dict "root" . "packageManager" "helm")) -}}
 {{- range $pkg := $packages -}}
 {{- if ne $pkg "" }}
   {{- $basename := regexReplaceAll ".*\\/([^/]+?)(\\.git)?$" $pkg "${1}" }}
@@ -14,22 +14,44 @@ declare -A HELM_PLUGINS=(
 )
 
 echo "☸️  Ensuring Helm plugins..."
+
+# Collect currently installed plugins
+installed=()
+while IFS= read -r line; do
+    [[ -n "$line" ]] && installed+=("$line")
+done < <(helm plugin list | awk 'NR>1 {print $1}')
+
+# Install declared plugins
 for name in "${!HELM_PLUGINS[@]}"; do
     url=${HELM_PLUGINS[$name]}
-    if ! helm plugin list | awk 'NR>1 {print $1}' | grep -qx "$name"; then
+    if printf '%s\n' "${installed[@]}" | grep -qx "$name"; then
+        echo "  ✅ Already installed: $name"
+    else
         echo "  ↳ Installing: $name"
-        if ! helm plugin install "$url" --verify=false 2>&1; then
-            # Handle race: directory exists but plugin list didn't show it
-            if helm plugin list | awk 'NR>1 {print $1}' | grep -qx "$name"; then
-                echo "  ✅ Already installed: $name (recovered)"
+        install_output=$(helm plugin install "$url" --verify=false 2>&1) || {
+            if echo "$install_output" | grep -qi "already exists"; then
+                echo "    ⚠️  Stale plugin directory detected, reinstalling..."
+                helm plugin uninstall "$name" 2>/dev/null || rm -rf "${HELM_PLUGINS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/helm/plugins}/$name"
+                helm plugin install "$url" --verify=false || {
+                    echo "  ❌ Failed to reinstall: $name" >&2
+                    exit 1
+                }
             else
+                echo "$install_output" >&2
                 echo "  ❌ Failed to install: $name" >&2
                 exit 1
             fi
-        fi
-    else
-        echo "  ✅ Already installed: $name"
+        }
     fi
 done
+
+# Remove undeclared plugins
+for name in "${installed[@]}"; do
+    if [[ -z "${HELM_PLUGINS[$name]+x}" ]]; then
+        echo "  🗑️ Removing undeclared plugin: $name"
+        helm plugin uninstall "$name"
+    fi
+done
+
 echo "✅ Helm plugins ensured."
 {{- end -}}

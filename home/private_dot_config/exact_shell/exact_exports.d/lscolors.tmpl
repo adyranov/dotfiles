@@ -1,3 +1,0 @@
-{{- if (lookPath "vivid") -}}
-export LS_COLORS={{ printf "%q" (trim (output "vivid" "generate" "catppuccin-mocha")) }}
-{{- end }}

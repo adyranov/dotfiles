@@ -1,0 +1,18 @@
+{{- if .toolchains.ai -}}
+{{- $tagMemo := dict -}}
+{{- /* Curated skills — one external per sub-skill; chezmoi caches archive downloads by URL */ -}}
+{{- range $alias, $skill := default (dict) .ai.skills }}
+{{-   $repo := $skill.repo }}
+{{-   $prefix := default "skills" (index $skill "prefix") }}
+{{-   range $sub := $skill.include }}
+{{ template "common/github/archive" (dict
+    "memo"   $tagMemo
+    "target" (printf "skills/%s" $sub)
+    "repo"   $repo
+    "stripComponents" 3
+    "include" (list (printf "*/%s/%s/**" $prefix $sub))
+    "exact"  true) }}
+
+{{   end }}
+{{- end }}
+{{- end -}}

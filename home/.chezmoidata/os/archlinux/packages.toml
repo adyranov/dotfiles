@@ -1,18 +1,24 @@
 [packages.archlinux.core]
 atuin = {manager = "system"}
+bubblewrap = {disabled = "ephemeral", bin = "bwrap"}
+difftastic = {manager = "system"}
 doggo = {manager = "system"}
 dust = {manager = "system"}
 eza = {manager = "system"}
-gh = {name = "github-cli"}
+gh = {package = "github-cli"}
 glow = {manager = "system"}
 hyperfine = {manager = "system"}
 jnv = {manager = "system"}
 lazygit = {manager = "system"}
 mkcert = {manager = "system"}
-openssh-client = {name = "openssh"}
+openssh-client = {package = "openssh"}
 ouch = {manager = "system"}
-rage = {manager = "system", name = "rage-encryption"}
+rage = {manager = "system", package = "rage-encryption"}
 sd = {manager = "system"}
+socat = {disabled = "ephemeral", version = "socat -V"}
 vivid = {manager = "system"}
 xh = {manager = "system"}
 yazi = {manager = "system"}
+
+[packages.archlinux.opencode]
+opencode = {manager = "system"}

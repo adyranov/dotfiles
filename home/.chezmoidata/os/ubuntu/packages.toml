@@ -1,13 +1,15 @@
 [packages.ubuntu.core]
+bubblewrap = {disabled = "ephemeral", bin = "bwrap"}
 chezmoi = {manager = "mise"}
-fd = {name = "fd-find"}
-"git-delta" = {manager = "mise", name = "delta"}
-pcscd = {name = "pcscd"}
+fd = {package = "fd-find"}
+"git-delta" = {manager = "mise", package = "delta"}
+pcscd = {package = "pcscd"}
+socat = {disabled = "ephemeral", version = "socat -V"}
 
 [packages.ubuntu.docker]
-docker = {name = "docker-ce"}
-"docker-buildx" = {name = "docker-buildx-plugin"}
-"docker-compose" = {name = "docker-compose-plugin"}
+docker = {package = "docker-ce"}
+"docker-buildx" = {package = "docker-buildx-plugin"}
+"docker-compose" = {package = "docker-compose-plugin"}
 
 [packages.ubuntu.kubernetes]
 "kubectl-access-matrix" = {exclude_arch = ["arm64"]}

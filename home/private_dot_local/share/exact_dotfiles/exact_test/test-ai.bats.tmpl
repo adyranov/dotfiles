@@ -1,0 +1,98 @@
+#!/usr/bin/env bats
+
+# bats file_tags=suite:ai
+
+load 'common-helper'
+
+setup() {
+  common_setup
+  AGENTS_MD="${HOME}/.config/agents/AGENTS.md"
+}
+
+# --- Shared agents tree ---
+
+# bats test_tags=kind:agents-tree
+@test "global AGENTS.md exists" {
+  assert_file_exists "$AGENTS_MD"
+}
+
+# bats test_tags=kind:agents-tree
+@test "~/.agents alias points at ~/.config/agents" {
+  run readlink -f "$HOME/.agents"
+  assert_success
+  assert_output "$HOME/.config/agents"
+}
+
+# bats test_tags=kind:agents-tree
+@test "~/.agents/skills directory is reachable" {
+  assert_dir_exists "$HOME/.agents/skills"
+}
+
+# --- Per-agent global context file fans out to the shared AGENTS.md ---
+
+{{- if .toolchains.opencode }}
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode AGENTS.md fans out to global AGENTS.md" {
+  run readlink -f "$HOME/.config/opencode/AGENTS.md"
+  assert_success
+  assert_output "$AGENTS_MD"
+}
+{{- end }}
+
+{{- if .toolchains.pi }}
+# bats test_tags=toolchain:pi,kind:symlink
+@test "pi AGENTS.md fans out to global AGENTS.md" {
+  run readlink -f "$HOME/.config/pi/agent/AGENTS.md"
+  assert_success
+  assert_output "$AGENTS_MD"
+}
+{{- end }}
+
+# --- Pi settings ---
+
+{{- if .toolchains.pi }}
+
+# bats test_tags=toolchain:pi,kind:permission
+@test "pi settings.json disables install telemetry" {
+  run grep -F '"enableInstallTelemetry": false' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+}
+{{- end }}
+
+# --- Per-agent permission settings (from home/.chezmoidata/base/ai.toml) ---
+
+{{- if .toolchains.opencode }}
+# bats test_tags=toolchain:opencode,kind:permission
+@test "opencode.json applies ai.toml permissions" {
+  assert_file_exists "$HOME/.config/opencode/opencode.json"
+  run grep -F '"webfetch": "ask"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+  run grep -F '"**/.env": "deny"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+  run grep -F '"~/.ssh/**": "deny"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+  run grep -F '"rm": "deny"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+  run grep -F '"mise run test": "allow"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+{{- end }}
+
+{{- if ne .host.type "ephemeral" }}
+# bats test_tags=kind:greywall
+@test "greywall and greyproxy are installed (core, non-ephemeral)" {
+  run command -v greywall
+  assert_success
+  run command -v greyproxy
+  assert_success
+}
+
+# bats test_tags=kind:greywall
+@test "greywall.json is deployed from ai permissions" {
+  assert_file_exists "$HOME/.config/greywall/greywall.json"
+  run grep -F '"defaultDenyRead": true' "$HOME/.config/greywall/greywall.json"
+  assert_success
+  run grep -F '**/.env' "$HOME/.config/greywall/greywall.json"
+  assert_success
+}
+{{- end }}

@@ -1,6 +1,7 @@
-
-{{- $refreshPeriod := "168h" }}
-
+{{- /* Exception to the "latest tag" policy: romkatv/powerlevel10k-media is a
+   media-only repo with no tags or releases. Tracking master is the upstream-
+   intended way to consume these fonts. Per-entry refreshPeriod is kept here
+   (and only here) since the URL is fixed but content can drift. */ -}}
 {{- if .host.interactive }}
 {{-   $fontDir := "" }}
 {{-   if eq .host.distro.family "darwin" }}
@@ -16,6 +17,6 @@
 ["{{ $fontDir }}/{{ . }}"]
     type = "file"
     url = "https://github.com/romkatv/powerlevel10k-media/raw/master/{{ . }}"
-    refreshPeriod = "{{ $refreshPeriod }}"
+    refreshPeriod = "168h"
 {{-   end }}
 {{- end }}

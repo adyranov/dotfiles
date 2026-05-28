@@ -1,6 +1,4 @@
-{{- $refreshPeriod := "168h" }}
-
-["themes/catppuccin-mocha.theme"]
-    type = "file"
-    url = "https://raw.githubusercontent.com/catppuccin/btop/main/themes/catppuccin_mocha.theme"
-    refreshPeriod = "{{ $refreshPeriod }}"
+{{ template "common/github/raw" (dict
+    "target" "themes/catppuccin-mocha.theme"
+    "repo"   "catppuccin/btop"
+    "source" "themes/catppuccin_mocha.theme") }}

@@ -1,3 +1,4 @@
+# Catppuccin Mocha — https://github.com/catppuccin/catppuccin
 [color]
     ui = auto
     diff = auto
@@ -5,15 +6,15 @@
     branch = auto
     interactive = auto
 [color "branch"]
-    current = yellow reverse
-    local = yellow
-    remote = green
+    current = bold #89b4fa
+    local = #f9e2af
+    remote = #a6e3a1
 [color "diff"]
-    meta = yellow bold
-    frag = magenta bold
-    old = red bold
-    new = green bold
+    meta = bold #cba6f7
+    frag = bold #f5c2e7
+    old = bold #f38ba8
+    new = bold #a6e3a1
 [color "status"]
-    added = yellow
-    changed = green
-    untracked = cyan
+    added = #a6e3a1
+    changed = #f9e2af
+    untracked = #89dceb

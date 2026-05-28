@@ -25,6 +25,8 @@ repos:
         name: Check Symlinks
       - id: check-toml
         name: Check TOML
+        # chezmoi modify_* scripts (chezmoi:modify-template); not valid TOML until rendered
+        exclude: modify_.*\.toml$
       - id: check-xml
         name: Check XML
       - id: check-yaml
@@ -40,6 +42,8 @@ repos:
       - id: pretty-format-json
         name: Format JSON
         args: [--autofix, --no-sort-keys]
+        # chezmoi templates: modify_* scripts and .chezmoitemplates are not valid JSON
+        exclude: (modify_.*\.json(\.tmpl)?|\.chezmoitemplates/.*)$
       - id: sort-simple-yaml
         name: Sort Simple YAML
       - id: trailing-whitespace
@@ -67,6 +71,7 @@ repos:
       - id: toml-sort-fix
         name: Sort TOML
         args: [--in-place]
+        exclude: modify_.*\.toml$
   - repo: https://github.com/scop/pre-commit-shfmt
     rev: v3.10.0-2
     hooks:
@@ -130,11 +135,12 @@ repos:
         entry: mise x taplo -- taplo lint
         language: system
         types: [toml]
+        exclude: modify_.*\.toml$
       - id: chezmoi-execute-template
         name: Validate Chezmoi Templates
         entry: sh -c 'for f in "$@"; do chezmoi execute-template < "$f" > /dev/null; done' --
         language: system
-        files: \.tmpl$
+        files: (\.tmpl$|modify_.*\.(json|toml)(\.tmpl)?$)
         exclude: \.chezmoi\.yaml\.tmpl$
         stages: [pre-commit]
 default_language_version:
