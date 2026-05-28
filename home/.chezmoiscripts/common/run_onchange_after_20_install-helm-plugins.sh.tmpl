@@ -30,8 +30,10 @@ for name in "${!HELM_PLUGINS[@]}"; do
         echo "  ↳ Installing: $name"
         install_output=$(helm plugin install "$url" --verify=false 2>&1) || {
             if echo "$install_output" | grep -qi "already exists"; then
-                echo "    ⚠️  Stale plugin directory detected, reinstalling..."
-                helm plugin uninstall "$name" 2>/dev/null || rm -rf "${HELM_PLUGINS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/helm/plugins}/$name"
+                echo "    ⚠️  Stale plugin directory detected, removing..."
+                plugin_dir="${HELM_PLUGINS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/helm/plugins}"
+                # Remove both possible directory names (helm-<name> and <name>)
+                rm -rf "$plugin_dir/helm-$name" "$plugin_dir/$name"
                 helm plugin install "$url" --verify=false || {
                     echo "  ❌ Failed to reinstall: $name" >&2
                     exit 1
