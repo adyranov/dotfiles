@@ -1,0 +1,78 @@
+{{- /* XDG migration planner: prints suggested mv commands only when legacy paths exist.
+     Silent when nothing to do. Re-runs when the migration spec or pending set changes.
+     Never suggests blind mv into chezmoi-managed config files — only merge-manual hints. */ -}}
+{{- $home := .chezmoi.homeDir -}}
+{{- $xdgData := printf "%s/.local/share" $home -}}
+{{- $mvPairs := list
+    (dict "legacy" ".cargo" "target" ".local/share/cargo")
+    (dict "legacy" ".rustup" "target" ".local/share/rustup")
+    (dict "legacy" ".npm" "target" ".local/share/npm")
+    (dict "legacy" ".gradle" "target" ".local/share/gradle")
+    (dict "legacy" ".m2" "target" ".local/share/maven")
+    (dict "legacy" ".krew" "target" ".local/share/krew")
+    (dict "legacy" ".colima" "target" ".config/colima")
+    (dict "legacy" ".docker" "target" ".config/docker")
+    (dict "legacy" ".gnupg" "target" ".local/share/gnupg")
+    (dict "legacy" ".wgetrc" "target" ".config/wget/wgetrc")
+    (dict "legacy" ".pi" "target" ".config/pi")
+-}}
+{{- $mergePairs := list
+    (dict "legacy" ".agents" "target" ".config/agents")
+    (dict "legacy" ".npmrc" "target" ".config/npm/npmrc")
+    (dict "legacy" ".gitconfig" "target" ".config/git/config")
+    (dict "legacy" ".tmux.conf" "target" ".config/tmux/tmux.conf")
+-}}
+{{- if eq .host.distro.family "darwin" -}}
+{{- $mergePairs = append $mergePairs (dict "legacy" "Brewfile" "target" ".config/brew/Brewfile") -}}
+{{- end -}}
+{{- $pending := list -}}
+{{- range $p := $mvPairs -}}
+{{-   $legacyPath := joinPath $home $p.legacy -}}
+{{-   $targetPath := joinPath $home $p.target -}}
+{{-   $needs := output "sh" "-c" (printf "if [ -e %q ] && [ ! -L %q ]; then echo 1; fi" $legacyPath $legacyPath) | trim -}}
+{{-   if eq $needs "1" -}}
+{{-     if stat $targetPath -}}
+{{-       $pending = append $pending (printf "conflict|%s|%s" $legacyPath $targetPath) -}}
+{{-     else -}}
+{{-       $pending = append $pending (printf "mv|%s|%s" $legacyPath $targetPath) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- range $p := $mergePairs -}}
+{{-   $legacyPath := joinPath $home $p.legacy -}}
+{{-   $targetPath := joinPath $home $p.target -}}
+{{-   $needs := output "sh" "-c" (printf "if [ -e %q ] && [ ! -L %q ]; then echo 1; fi" $legacyPath $legacyPath) | trim -}}
+{{-   if eq $needs "1" -}}
+{{-     $pending = append $pending (printf "merge|%s|%s" $legacyPath $targetPath) -}}
+{{-   end -}}
+{{- end -}}
+{{- $limaLegacy := joinPath $home ".lima" -}}
+{{- $limaTarget := joinPath $xdgData "lima" -}}
+{{- if and (stat $limaLegacy) (not (stat $limaTarget)) -}}
+{{- $pending = append $pending (printf "mv|%s|%s" $limaLegacy $limaTarget) -}}
+{{- end -}}
+{{- $planBody := printf "v1\n%s" ($pending | sortAlpha | join "\n") -}}
+#!/usr/bin/env sh
+set -eu
+# plan hash: {{ $planBody | sha256sum }}
+{{- if gt (len $pending) 0 }}
+
+echo "📋 XDG migration plan (dry-run only — nothing is changed by chezmoi):"
+echo ""
+{{- range $entry := $pending }}
+{{- $parts := splitList "|" $entry }}
+{{- if eq (index $parts 0) "mv" }}
+{{- $legacyPath := index $parts 1 }}
+{{- $targetPath := index $parts 2 }}
+{{- $parent := output "dirname" $targetPath | trim }}
+printf '%s\n' '# mkdir -p {{ $parent }}'
+printf 'mv %s %s\n' '{{ $legacyPath }}' '{{ $targetPath }}'
+{{- else if eq (index $parts 0) "conflict" }}
+printf '%s\n' '# CONFLICT: {{ index $parts 1 }} exists and {{ index $parts 2 }} already present — merge manually'
+{{- else if eq (index $parts 0) "merge" }}
+printf '%s\n' '# MERGE (chezmoi-managed): move or merge {{ index $parts 1 }} into {{ index $parts 2 }} yourself — do not blind mv'
+{{- end }}
+{{- end }}
+echo ""
+echo "ℹ️  Review commands above, then run them in a shell if appropriate."
+{{- end }}

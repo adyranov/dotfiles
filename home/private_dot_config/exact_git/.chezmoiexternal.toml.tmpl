@@ -1,6 +1,4 @@
-{{- $refreshPeriod := "168h" }}
-
-["catppuccin.gitconfig"]
-    type = "file"
-    url = "https://raw.githubusercontent.com/catppuccin/delta/main/catppuccin.gitconfig"
-    refreshPeriod = "{{ $refreshPeriod }}"
+{{ template "common/github/raw" (dict
+    "target" "catppuccin.gitconfig"
+    "repo"   "catppuccin/delta@main"
+    "source" "catppuccin.gitconfig") }}

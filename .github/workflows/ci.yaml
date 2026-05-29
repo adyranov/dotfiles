@@ -59,6 +59,7 @@ jobs:
               - 'home/.chezmoiscripts/before/**'
               - 'home/.chezmoiscripts/common/**'
               - 'home/.chezmoiscripts/post/**'
+              - 'home/.chezmoiscripts/toolchains/**'
               - 'home/.chezmoitemplates/common/**'
               - 'home/*dot_*'
               - 'home/*dot_*/**'

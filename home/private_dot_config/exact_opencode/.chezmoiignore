@@ -1,0 +1,8 @@
+.gitignore
+auth.json
+cache/
+data/
+node_modules/
+package-lock.json
+package.json
+storage/

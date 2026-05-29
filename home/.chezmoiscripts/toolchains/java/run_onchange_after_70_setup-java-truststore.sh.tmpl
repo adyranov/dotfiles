@@ -83,7 +83,6 @@ echo ""
 imported=0
 skipped=0
 cert_num=0
-set +f
 for cert_file in "$tmpdir"/cert-*.pem; do
   [ -s "$cert_file" ] || continue
 
@@ -108,7 +107,6 @@ for cert_file in "$tmpdir"/cert-*.pem; do
 
   cert_num=$((cert_num + 1))
 done
-set -f
 
 echo ""
 echo "✅ Truststore: $TRUSTSTORE ($imported imported, $skipped already present)"

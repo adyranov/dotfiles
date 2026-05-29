@@ -1,0 +1,239 @@
+{{- includeTemplate "common/headers/after" . }}
+# extensions hash: {{ .editors.vscode.extensions | toJson | sha256sum }}
+# settings hash: {{ .editors.vscode.settings | toJson | sha256sum }}
+
+install_extensions() {
+    local binary="$1"
+    shift
+    local failed=0
+
+    for ext in "$@"; do
+        if ! "$binary" --install-extension "$ext" --force 2>/dev/null; then
+            echo "  [warn] failed to install: $ext" >&2
+            failed=$((failed + 1))
+        fi
+    done
+
+    if [ "$failed" -gt 0 ]; then
+        echo "  $failed extension(s) failed for $binary" >&2
+    fi
+}
+
+{{- if ne .chezmoi.os "darwin" }}
+
+merge_editor_settings() {
+    local settings_file="$1"
+    python3 - "$settings_file" <<'PY'
+import json, re, sys
+
+def strip_jsonc(text):
+    result = []
+    in_string = False
+    escape = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if escape:
+            result.append(ch)
+            escape = False
+            i += 1
+            continue
+        if ch == '\\' and in_string:
+            result.append(ch)
+            escape = True
+            i += 1
+            continue
+        if ch == '"' and not in_string:
+            in_string = True
+            result.append(ch)
+            i += 1
+            continue
+        if ch == '"' and in_string:
+            in_string = False
+            result.append(ch)
+            i += 1
+            continue
+        if not in_string and ch == '/' and i + 1 < len(text):
+            if text[i + 1] == '/':
+                while i < len(text) and text[i] != '\n':
+                    i += 1
+                continue
+            if text[i + 1] == '*':
+                i += 2
+                while i + 1 < len(text) and not (text[i] == '*' and text[i + 1] == '/'):
+                    i += 1
+                i += 2
+                continue
+        result.append(ch)
+        i += 1
+    text = ''.join(result)
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+    text = re.sub(r'(true|false|null|\d+|"[^"]*"|\}|\])\s*\n(\s*")', r'\1,\n\2', text)
+    return text
+
+path = sys.argv[1]
+current = {}
+if __import__('os').path.isfile(path):
+    with open(path, encoding='utf-8') as f:
+        raw = f.read().strip()
+    if raw:
+        try:
+            current = json.loads(strip_jsonc(raw))
+        except json.JSONDecodeError:
+            current = {}
+
+managed = json.loads(r'''
+{{- $s := .editors.vscode.settings }}
+{{- $font := $s.fontFamily }}
+{{- $os := .chezmoi.os }}
+{{- $managed := dict
+  "workbench.colorTheme" $s.theme
+  "workbench.iconTheme" $s.iconTheme
+  "editor.fontFamily" (printf "%s, Menlo, Monaco, 'Courier New', monospace" $font)
+  "editor.fontSize" $s.fontSize
+  "editor.tabSize" $s.tabSize
+  "editor.formatOnSave" $s.formatOnSave
+  "editor.minimap.enabled" false
+  "editor.renderWhitespace" "boundary"
+  "editor.bracketPairColorization.enabled" true
+  "editor.guides.bracketPairs" "active"
+  "editor.linkedEditing" true
+  "editor.stickyScroll.enabled" true
+  "files.autoSave" "onFocusChange"
+  "files.trimTrailingWhitespace" true
+  "files.insertFinalNewline" true
+  "files.trimFinalNewlines" true
+  "terminal.integrated.fontFamily" $font
+  "telemetry.telemetryLevel" "off"
+  "extensions.autoUpdate" true
+  "extensions.ignoreRecommendations" false
+  "git.autofetch" true
+  "git.confirmSync" false
+  "git.enableSmartCommit" true
+-}}
+{{- if eq $os "darwin" -}}
+{{-   $_ := set $managed "terminal.integrated.defaultProfile.osx" "zsh" -}}
+{{- else -}}
+{{-   $_ := set $managed "terminal.integrated.defaultProfile.linux" "zsh" -}}
+{{- end }}
+{{ $managed | toJson }}
+''')
+
+current.update(managed)
+with open(path, 'w', encoding='utf-8') as f:
+    json.dump(current, f, indent=2)
+    f.write('\n')
+PY
+}
+
+merge_editor_keybindings() {
+    local keybindings_file="$1"
+    python3 - "$keybindings_file" <<'PY'
+import json, re, sys
+
+def strip_jsonc(text):
+    result = []
+    in_string = False
+    escape = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if escape:
+            result.append(ch)
+            escape = False
+            i += 1
+            continue
+        if ch == '\\' and in_string:
+            result.append(ch)
+            escape = True
+            i += 1
+            continue
+        if ch == '"' and not in_string:
+            in_string = True
+            result.append(ch)
+            i += 1
+            continue
+        if ch == '"' and in_string:
+            in_string = False
+            result.append(ch)
+            i += 1
+            continue
+        if not in_string and ch == '/' and i + 1 < len(text):
+            if text[i + 1] == '/':
+                while i < len(text) and text[i] != '\n':
+                    i += 1
+                continue
+            if text[i + 1] == '*':
+                i += 2
+                while i + 1 < len(text) and not (text[i] == '*' and text[i + 1] == '/'):
+                    i += 1
+                i += 2
+                continue
+        result.append(ch)
+        i += 1
+    text = ''.join(result)
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+    return text
+
+path = sys.argv[1]
+current = []
+if __import__('os').path.isfile(path):
+    with open(path, encoding='utf-8') as f:
+        raw = f.read().strip()
+    if raw:
+        try:
+            current = json.loads(strip_jsonc(raw))
+        except json.JSONDecodeError:
+            current = []
+
+managed = [
+{{- if eq .chezmoi.os "darwin" }}
+    {"key": "cmd+shift+p", "command": "workbench.action.showCommands"},
+{{- else }}
+    {"key": "ctrl+shift+p", "command": "workbench.action.showCommands"},
+{{- end }}
+]
+
+existing = {(b.get("key"), b.get("command")) for b in current}
+for binding in managed:
+    if (binding["key"], binding["command"]) not in existing:
+        current.append(binding)
+
+with open(path, 'w', encoding='utf-8') as f:
+    json.dump(current, f, indent=2)
+    f.write('\n')
+PY
+}
+
+deploy_settings() {
+    local config_dir="$1"
+    local user_dir="$config_dir/User"
+    mkdir -p "$user_dir"
+    merge_editor_settings "$user_dir/settings.json"
+    merge_editor_keybindings "$user_dir/keybindings.json"
+    echo "  Settings merged into $user_dir"
+}
+{{- end }}
+
+{{ range $name, $variant := .editors.vscode.variants -}}
+if command -v {{ $name }} &>/dev/null; then
+    echo "Installing extensions for {{ $name }}..."
+    install_extensions "{{ $name }}" \
+{{- range $.editors.vscode.extensions.common }}
+        "{{ . }}" \
+{{- end }}
+{{- with index $.editors.vscode.extensions $name }}
+{{- range . }}
+        "{{ . }}" \
+{{- end }}
+{{- end }}
+        # end
+{{- if ne $.chezmoi.os "darwin" }}
+    echo "Deploying settings for {{ $name }}..."
+    deploy_settings "${XDG_CONFIG_HOME:-$HOME/.config}/{{ $variant.path }}"
+{{- end }}
+else
+    echo "Skipping {{ $name }}: not found on PATH"
+fi
+
+{{ end -}}

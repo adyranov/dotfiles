@@ -1,0 +1,26 @@
+# Always-on exports (core toolchain): passive XDG redirections and small env vars.
+# gnupg
+export GNUPGHOME="$XDG_DATA_HOME/gnupg"
+{{- if eq .host.distro.family "darwin" }}
+# homebrew
+export HOMEBREW_BUNDLE_FILE="$XDG_CONFIG_HOME/brew/Brewfile"
+{{- end }}
+# difftastic (Catppuccin Mocha terminals)
+export DFT_BACKGROUND=dark
+# lazygit
+export LG_CONFIG_FILE="$XDG_CONFIG_HOME/lazygit/config.yml,$XDG_CONFIG_HOME/lazygit/catppuccin-mocha-blue.yml"
+# less
+export LESSKEY="$XDG_CONFIG_HOME/less/lesskey"
+export LESSHISTFILE="$XDG_STATE_HOME/less/history"
+# pass
+export PASSWORD_STORE_DIR="$XDG_DATA_HOME/pass"
+# pre-commit
+export PRE_COMMIT_COLOR=never
+# ssh
+export SSH_CONFIG_HOME="$XDG_CONFIG_HOME/ssh"
+export SSH_DATA_HOME="$XDG_DATA_HOME/ssh"
+# terminfo
+export TERMINFO="$XDG_DATA_HOME/terminfo"
+export TERMINFO_DIRS="${XDG_DATA_HOME}/terminfo:/usr/share/terminfo"
+# wget
+export WGETRC="$XDG_CONFIG_HOME/wget/wgetrc"

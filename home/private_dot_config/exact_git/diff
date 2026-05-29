@@ -4,7 +4,14 @@
     path = ~/.config/git/catppuccin.gitconfig
 [interactive]
     diffFilter = delta --color-only --features=interactive
+[pager]
+    difftool = false
 [delta]
     features = catppuccin-mocha side-by-side line-numbers
+    navigate = true
+    hyperlinks = true
+    hyperlinks-file-link-format = "vscode://file/{path}:{line}"
+    relative-paths = true
+    wrap-max-lines = 2
 [delta "interactive"]
     keep-plus-minus-markers = false

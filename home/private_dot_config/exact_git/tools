@@ -1,0 +1,24 @@
+[diff]
+    tool = nvimdiff
+    guitool = vscode
+[diff "difftastic"]
+    command = difft --color=always --display=inline --background=dark
+[difftool]
+    prompt = false
+    trustExitCode = true
+[difftool "vscode"]
+    cmd = code --wait --diff $LOCAL $REMOTE
+[difftool "cursor"]
+    cmd = cursor --wait --diff $LOCAL $REMOTE
+[difftool "difft"]
+    cmd = difft "$LOCAL" "$REMOTE"
+[merge]
+    tool = nvimdiff
+    guitool = vscode
+[mergetool]
+    prompt = false
+    keepBackup = false
+[mergetool "vscode"]
+    cmd = code --wait --merge $REMOTE $LOCAL $BASE $MERGED
+[mergetool "cursor"]
+    cmd = cursor --wait --merge $REMOTE $LOCAL $BASE $MERGED

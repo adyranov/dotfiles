@@ -19,11 +19,8 @@ zstyle ':z4h:fzf-complete' recurse-dirs 'no'
 zstyle ':z4h:direnv'         enable 'yes'
 zstyle ':z4h:direnv:success' notify 'no'
 zstyle ':z4h:ssh-agent:' start 'no'
-zstyle ':z4h:*' fzf-flags --prompt='» ' --pointer='▶' --marker='✓ ' \
-  '--color=bg+:#313244,bg:#1e1e2e,spinner:#f5e0dc,hl:#f38ba8' \
-  '--color=fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc' \
-  '--color=marker:#b4befe,fg+:#cdd6f4,prompt:#cba6f7,hl+:#f38ba8' \
-  '--color=border:#6c7086'
+[[ -f "$ZDOTDIR/catppuccin-fzf-mocha.sh" ]] && . "$ZDOTDIR/catppuccin-fzf-mocha.sh"
+zstyle ':z4h:*' fzf-flags --prompt='» ' --pointer='▶' --marker='✓ '
 
 # Packages loaded by zsh4humans
 z4h install ohmyzsh/ohmyzsh || return

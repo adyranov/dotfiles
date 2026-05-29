@@ -1,0 +1,27 @@
+# editors.vscode — shared config for all VS Code-family editors
+# All variants share settings.json format, keybindings.json, and extension CLI
+
+[editors.vscode.extensions]
+common = [
+  "catppuccin.catppuccin-vsc",
+  "catppuccin.catppuccin-vsc-icons",
+  "editorconfig.editorconfig",
+  "esbenp.prettier-vscode",
+  "GitHub.copilot",
+  "GitHub.copilot-chat",
+  "streetsidesoftware.code-spell-checker"
+]
+code = []
+cursor = []
+
+[editors.vscode.settings]
+theme = "Catppuccin Mocha"
+iconTheme = "catppuccin-mocha"
+fontFamily = "MesloLGS Nerd Font Mono"
+fontSize = 14
+tabSize = 2
+formatOnSave = true
+
+[editors.vscode.variants]
+code = {path = "Code"}
+cursor = {path = "Cursor"}

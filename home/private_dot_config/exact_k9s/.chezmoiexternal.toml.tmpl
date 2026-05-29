@@ -1,10 +1,7 @@
 {{- if .toolchains.kubernetes }}
-{{- $refreshPeriod := "168h" }}
-
-["skins"]
-    type = "archive"
-    url = "https://github.com/catppuccin/k9s/archive/main.tar.gz"
-    stripComponents = 2
-    include = ["k9s-main/dist/catppuccin-mocha*.yaml"]
-    refreshPeriod = "{{ $refreshPeriod }}"
+{{ template "common/github/archive" (dict
+    "target"          "skins"
+    "repo"            "catppuccin/k9s@main"
+    "stripComponents" 2
+    "include"         (list "k9s-*/dist/catppuccin-mocha*.yaml")) }}
 {{- end }}

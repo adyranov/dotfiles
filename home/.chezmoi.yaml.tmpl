@@ -6,7 +6,8 @@
 {{- $work := false -}}
 {{- $gpg := dict "sign" "" "encrypt" "" -}}
 {{- $secrets := dict "age" stdinIsATTY "bitwarden" false -}}
-{{- $toolchains := list "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" -}}
+{{- $toolchains := list "ai" "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" -}}
+{{- $agents := list "opencode" "pi" -}}
 
 {{- $data := . -}}
 {{- range $k := list "personal" "gpg" "host" "toolchains" -}}
@@ -140,6 +141,7 @@
   {{- $personalEmail = promptStringOnce $data.personal "email" "📧 Personal Git Email" $personalEmail -}}
 
   {{- $toolchainIcons := dict
+      "ai"          "🤖"
       "cloud"       "☁️"
       "docker"      "🐳"
       "golang"      "🐹"
@@ -187,6 +189,64 @@
   {{- writeToStdout "🤖 Running in a non-interactive environment.\n" -}}
 {{- end -}}
 
+{{- /* -------------------- AI agent toolchains (nested under ai) -------------------- */ -}}
+{{- $agentIcons := dict
+    "opencode" "🔷"
+    "pi"       "🥧"
+-}}
+{{- $agentsSelected := list -}}
+{{- if stdinIsATTY -}}
+  {{- if get $toolchainsEnabled "ai" -}}
+    {{- $agentsDisplay := list -}}
+    {{- range $a := $agents -}}
+      {{- $agentsDisplay = append $agentsDisplay (printf "%s %s" (get $agentIcons $a) $a) -}}
+    {{- end -}}
+    {{- $agentsSelected = promptMultichoiceOnce
+        $data
+        "agentsSelected"
+        "🤖 Select AI agents to enable"
+        $agentsDisplay
+    -}}
+    {{- range $a := $agents -}}
+      {{- $_ := set $toolchainsEnabled $a false -}}
+    {{- end -}}
+    {{- range $s := $agentsSelected -}}
+      {{- range $a := $agents -}}
+        {{- if eq $s (printf "%s %s" (get $agentIcons $a) $a) -}}
+          {{- $_ := set $toolchainsEnabled $a true -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- else -}}
+    {{- range $a := $agents -}}
+      {{- $_ := set $toolchainsEnabled $a false -}}
+    {{- end -}}
+  {{- end -}}
+{{- else -}}
+  {{- range $a := $agents -}}
+    {{- $with := (or (eq (env (printf "WITH_%s" (upper $a)) | lower) "1")
+                     (eq (env (printf "WITH_%s" (upper $a)) | lower) "true")) -}}
+    {{- $without := (or (eq (env (printf "WITHOUT_%s" (upper $a)) | lower) "1")
+                        (eq (env (printf "WITHOUT_%s" (upper $a)) | lower) "true")) -}}
+    {{- $aiOn := get $toolchainsEnabled "ai" -}}
+    {{- $_ := set $toolchainsEnabled $a (or $with (and $aiOn (not $without))) -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $anyAgentOn := false -}}
+{{- range $a := $agents -}}{{- if get $toolchainsEnabled $a -}}{{- $anyAgentOn = true -}}{{- end -}}{{- end -}}
+{{- if and $anyAgentOn (not (get $toolchainsEnabled "ai")) -}}
+  {{- $_ := set $toolchainsEnabled "ai" true -}}
+  {{- writeToStdout "🤖 Enabled ai umbrella (required by an enabled agent).\n" -}}
+{{- end -}}
+
+{{- if get $toolchainsEnabled "pi" -}}
+  {{- if not (get $toolchainsEnabled "node") -}}
+    {{- $_ := set $toolchainsEnabled "node" true -}}
+    {{- writeToStdout "🟢 Enabled Node.js for pi (npm install).\n" -}}
+  {{- end -}}
+{{- end -}}
+
 hooks:
   read-source-state:
     pre:
@@ -205,8 +265,8 @@ age:
   identity: "{{ $.chezmoi.homeDir }}/.config/age/chezmoi.txt"
   recipient: "age16kxd4ljclq9ksnxvl2ee7a5xnj744kwyv04p04ka0n3rzxdpl5nsq52svl" # pragma: allowlist secret
 {{- end }}
-diff:
-  pager: "delta"
+gitHub:
+  refreshPeriod: "168h"
 status:
   exclude: ["always"]
 data:
@@ -239,4 +299,8 @@ data:
   toolchainsSelected:
   {{- range $i, $t := $toolchainsSelected }}
     - "{{ $t }}"
+  {{- end }}
+  agentsSelected:
+  {{- range $i, $a := $agentsSelected }}
+    - "{{ $a }}"
   {{- end }}

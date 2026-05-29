@@ -1,6 +1,7 @@
 {{- includeTemplate "common/headers/after" . -}}
 
-# config hash: {{ includeTemplate "common/helpers/render-packages" (dict "root" . "packageManager" "mise" "render" "mise") | sha256sum }}
+# config hash: {{ includeTemplate "common/packages/render" (dict "root" . "packageManager" "mise" "render" "mise") | sha256sum }}
 echo "📦 Ensuring mise packages are installed and up to date..."
-mise install
+# exports.sh sets NPM_CONFIG_PREFIX for user `npm -g`; mise npm backend needs its own prefix.
+NPM_CONFIG_PREFIX= mise install
 echo "✅ mise packages ensured."

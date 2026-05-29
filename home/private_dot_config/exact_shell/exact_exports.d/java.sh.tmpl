@@ -1,0 +1,7 @@
+# Passive XDG redirections (java).
+# gradle
+export GRADLE_USER_HOME="$XDG_DATA_HOME/gradle"
+# maven
+export MAVEN_USER_HOME="$XDG_DATA_HOME/maven" # For maven-wrapper
+export MAVEN_CONFIG="-gs $XDG_CONFIG_HOME/maven/settings.xml" # For maven-wrapper
+export MAVEN_ARGS="$MAVEN_CONFIG" # For Maven >= 3.9.0

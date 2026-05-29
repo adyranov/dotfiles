@@ -1,93 +1,96 @@
 [packages.base.cloud]
-aws-cli = {manager = "mise", test = "aws --version"}
-azure-cli = {test = "az --version"}
+aws = {manager = "mise", package = "aws-cli"}
+azure-cli = {bin = "az"}
 
 [packages.base.core]
-atuin = {manager = "mise", test = "atuin --version"}
-bat = {test = "bat --version"}
-btop = {disabled = "ephemeral", test = "btop --version"}
-chezmoi = {test = "chezmoi --version"}
-coreutils = {test = "realpath --version"}
-curl = {test = "curl --version"}
-direnv = {test = "direnv version"}
-doggo = {manager = "mise", name = "github:mr-karan/doggo", test = "doggo --version"}
-dust = {manager = "mise", name = "github:bootandy/dust", test = "dust --version"}
-eza = {manager = "mise", test = "eza --version"}
-fd = {test = "fd --version"}
-fzf = {test = "fzf --version"}
-gh = {test = "gh --version"}
-git = {test = "git --version"}
-git-delta = {test = "delta --version"}
-glow = {manager = "mise", name = "github:charmbracelet/glow", test = "glow --version"}
-gnupg = {test = "gpg --version"}
-hyperfine = {manager = "mise", test = "hyperfine --version"}
-jnv = {manager = "mise", name = "github:ynqa/jnv", test = "jnv --version"}
-jq = {test = "jq --version"}
-lazygit = {manager = "mise", test = "lazygit --version"}
-mise = {test = "mise --version"}
-mkcert = {manager = "mise", test = "mkcert -version"}
-neovim = {test = "nvim --version"}
-openssh-client = {test = "command -v ssh && command -v ssh-agent && command -v ssh-add"}
-ouch = {manager = "mise", name = "github:ouch-org/ouch", test = "ouch --version"}
-rage = {manager = "mise", name = "github:str4d/rage", test = "rage --version"}
-rclone = {test = "rclone --version"}
-ripgrep = {test = "rg --version"}
-sd = {manager = "mise", test = "sd --version"}
-tealdeer = {test = "tldr --version"}
-tmux = {test = "tmux -V"}
-topgrade = {manager = "mise", name = "github:topgrade-rs/topgrade", test = "topgrade --version"}
-vivid = {manager = "mise", test = "vivid --version"}
-wget = {test = "wget --version"}
-xh = {manager = "mise", name = "github:ducaale/xh", test = "xh --version"}
-yazi = {manager = "mise", name = "github:sxyazi/yazi", test = "yazi --version"}
-zoxide = {test = "zoxide --version"}
+atuin = {manager = "mise"}
+bat = {}
+btop = {disabled = "ephemeral"}
+chezmoi = {completion = true}
+coreutils = {version = "realpath --version"}
+curl = {}
+direnv = {version = "direnv version"}
+difftastic = {manager = "mise", bin = "difft"}
+doggo = {manager = "mise", package = "github:mr-karan/doggo"}
+dust = {manager = "mise", package = "github:bootandy/dust"}
+eza = {manager = "mise"}
+fd = {}
+fzf = {}
+gh = {}
+git = {}
+git-delta = {bin = "delta"}
+glow = {manager = "mise", package = "github:charmbracelet/glow"}
+gnupg = {bin = "gpg"}
+greyproxy = {disabled = "ephemeral", manager = "mise", package = "github:GreyhavenHQ/greyproxy"}
+greywall = {disabled = "ephemeral", manager = "mise", package = "github:GreyhavenHQ/greywall", completion = true}
+hyperfine = {manager = "mise"}
+jnv = {manager = "mise", package = "github:ynqa/jnv"}
+jq = {}
+lazygit = {manager = "mise"}
+mise = {completion = true}
+mkcert = {manager = "mise"}
+neovim = {bin = "nvim"}
+openssh-client = {bin = "ssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add"}
+ouch = {manager = "mise", package = "github:ouch-org/ouch"}
+rage = {manager = "mise", package = "github:str4d/rage"}
+rclone = {}
+ripgrep = {bin = "rg"}
+sd = {manager = "mise"}
+tealdeer = {bin = "tldr"}
+tmux = {version = "tmux -V"}
+topgrade = {manager = "mise", package = "github:topgrade-rs/topgrade"}
+vivid = {manager = "mise"}
+wget = {}
+xh = {manager = "mise", package = "github:ducaale/xh"}
+yazi = {manager = "mise", package = "github:sxyazi/yazi"}
+zoxide = {}
 
 [packages.base.docker]
-dive = {manager = "mise", name = "github:wagoodman/dive", test = "dive --version"}
-docker = {test = "docker -v"}
-docker-buildx = {test = "docker buildx version"}
-docker-compose = {test = "docker compose version"}
-lazydocker = {manager = "mise", name = "aqua:jesseduffield/lazydocker", test = "lazydocker --version"}
+dive = {manager = "mise", package = "github:wagoodman/dive"}
+docker = {completion = true}
+docker-buildx = {version = "docker buildx version"}
+docker-compose = {version = "docker compose version"}
+lazydocker = {manager = "mise", package = "aqua:jesseduffield/lazydocker"}
 
 [packages.base.extra]
-gocryptfs = {disabled = "headless,restricted", test = "gocryptfs -version"}
-qrencode = {test = "qrencode --version"}
+gocryptfs = {disabled = "headless,restricted", version = "gocryptfs -version"}
+qrencode = {}
 
 [packages.base.golang]
-go = {manager = "mise", test = "go version"}
+go = {manager = "mise", version = "go version"}
 
 [packages.base.iac]
-opentofu = {manager = "mise", name = "aqua:opentofu/opentofu", test = "tofu version"}
-sops = {manager = "mise", test = "sops --version"}
-terragrunt = {manager = "mise", test = "terragrunt --version"}
+opentofu = {manager = "mise", package = "aqua:opentofu/opentofu", bin = "tofu", version = "tofu version"}
+sops = {manager = "mise"}
+terragrunt = {manager = "mise", completion = {repo = "thuandt/zsh-terraform@master", path = "_terragrunt"}}
 
 [packages.base.java]
-java = {manager = "mise", test = "java -version", version = "lts"}
-maven = {manager = "mise", test = "mvn -v"}
+java = {manager = "mise", version = "java -version", pin = "lts"}
+maven = {manager = "mise", bin = "mvn", version = "mvn -v"}
 
 [packages.base.kubernetes]
-helm = {manager = "mise", test = "helm version"}
-helm-diff = {manager = "helm", name = "https://github.com/databus23/helm-diff", test = "helm diff --help"}
-k3d = {manager = "mise", test = "k3d version"}
-k9s = {manager = "mise", test = "k9s version"}
-kubecolor = {manager = "mise", test = "kubecolor help"}
-kubectl = {manager = "mise", test = "kubectl version --client"}
-kubectl-access-matrix = {manager = "krew", name = "access-matrix", test = "kubectl access-matrix --help"}
-kubectl-get-all = {manager = "krew", name = "get-all", test = "kubectl get-all --help"}
-kubectl-neat = {manager = "krew", name = "neat", test = "kubectl neat --help"}
-kubectl-node-shell = {manager = "krew", name = "node-shell", test = "kubectl node-shell --version"}
-kubectl-rbac-tool = {manager = "krew", name = "rbac-tool", test = "kubectl rbac-tool --help"}
-kubectl-tree = {manager = "krew", name = "tree", test = "kubectl tree --help"}
-kubescape = {manager = "mise", name = "aqua:kubescape/kubescape", test = "kubescape version"}
-kustomize = {manager = "mise", test = "kustomize version"}
-oc = {manager = "mise", test = "oc version --client"}
-stern = {manager = "mise", test = "stern --version"}
-yq = {manager = "mise", test = "yq --version"}
+helm = {manager = "mise", version = "helm version"}
+helm-diff = {manager = "helm", package = "https://github.com/databus23/helm-diff", version = "helm diff --help"}
+k3d = {manager = "mise", version = "k3d version", completion = {generate = "k3d completion zsh"}}
+k9s = {manager = "mise", version = "k9s version"}
+kubecolor = {manager = "mise", version = "kubecolor help", completion = {generate = "kubectl completion zsh", refresh = "kubectl version --client", sed = "s/kubectl/kubecolor/g"}}
+kubectl = {manager = "mise", version = "kubectl version --client"}
+kubectl-access-matrix = {manager = "krew"}
+kubectl-get-all = {manager = "krew"}
+kubectl-neat = {manager = "krew"}
+kubectl-node-shell = {manager = "krew", version = "kubectl node-shell --version"}
+kubectl-rbac-tool = {manager = "krew"}
+kubectl-tree = {manager = "krew"}
+kubescape = {manager = "mise", package = "aqua:kubescape/kubescape", version = "kubescape help"}
+kustomize = {manager = "mise", version = "kustomize version"}
+oc = {manager = "mise", version = "oc version --client"}
+stern = {manager = "mise", completion = {generate = "stern --completion zsh"}}
+yq = {manager = "mise", completion = {generate = "yq shell-completion zsh"}}
 
 [packages.base.kubernetes.kubesess]
 manager = "mise"
-name = "github:Ramilito/kubesess"
-test = "kubesess --help"
+package = "github:Ramilito/kubesess"
+version = "kubesess --help"
 
 [packages.base.kubernetes.kubesess.platforms]
 linux-arm64 = {bin_path = "target/aarch64-unknown-linux-gnu/release"}
@@ -96,11 +99,17 @@ macos-arm64 = {bin_path = "target/aarch64-apple-darwin/release"}
 macos-x64 = {bin_path = "target/x86_64-apple-darwin/release"}
 
 [packages.base.node]
-node = {manager = "mise", test = "node --version && npm --version && yarn --version && pnpm --version", version = "lts"}
+node = {manager = "mise", pin = "lts", test = "node --version && npm --version && yarn --version && pnpm --version"}
+
+[packages.base.opencode]
+opencode = {manager = "mise"}
+
+[packages.base.pi]
+pi = {manager = "mise", package = "npm:@earendil-works/pi-coding-agent"}
 
 [packages.base.python]
-python = {manager = "mise", test = "python3 --version"}
-uv = {manager = "mise", name = "uv", test = "uv --version"}
+python = {manager = "mise", bin = "python3"}
+uv = {manager = "mise"}
 
 [packages.base.rust]
-rust = {manager = "mise", test = "rustc --version"}
+rust = {manager = "mise", bin = "rustc"}

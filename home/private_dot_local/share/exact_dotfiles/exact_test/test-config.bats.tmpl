@@ -1,0 +1,122 @@
+#!/usr/bin/env bats
+
+# bats file_tags=suite:config
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+# --- Shell environment ---
+
+# bats test_tags=kind:shell
+@test "XDG_CONFIG_HOME is set" {
+  assert [ -n "$XDG_CONFIG_HOME" ]
+}
+
+# bats test_tags=kind:shell
+@test "XDG_DATA_HOME is set" {
+  assert [ -n "$XDG_DATA_HOME" ]
+}
+
+# bats test_tags=kind:shell
+@test "XDG_CACHE_HOME is set" {
+  assert [ -n "$XDG_CACHE_HOME" ]
+}
+
+# bats test_tags=kind:shell
+@test "XDG_STATE_HOME is set" {
+  assert [ -n "$XDG_STATE_HOME" ]
+}
+
+# bats test_tags=kind:shell
+@test "LANG is en_US.UTF-8" {
+  assert_equal "$LANG" "en_US.UTF-8"
+}
+
+# bats test_tags=kind:shell
+@test "~/.local/bin is in PATH" {
+  run bash -c 'echo "$PATH" | tr ":" "\n" | grep -qx "$HOME/.local/bin"'
+  assert_success
+}
+
+# --- Git ---
+
+# bats test_tags=kind:git
+@test "git config user.name is set" {
+  run git config --global --includes user.name
+  assert_success
+  refute_output ""
+}
+
+# bats test_tags=kind:git
+@test "git config user.email is set" {
+  run git config --global --includes user.email
+  assert_success
+  refute_output ""
+}
+
+# bats test_tags=kind:git
+@test "git config core.autocrlf is input" {
+  run git config --global --includes core.autocrlf
+  assert_output "input"
+}
+
+# bats test_tags=kind:git
+@test "git config pull.rebase is true" {
+  run git config --global --includes pull.rebase
+  assert_output "true"
+}
+
+# --- Zsh ---
+
+# bats test_tags=kind:zsh
+@test "zsh is available" {
+  run command -v zsh
+  assert_success
+}
+
+# --- Catppuccin Mocha ---
+
+# bats test_tags=kind:theme
+@test "git delta uses catppuccin-mocha features" {
+  run git config --global --includes delta.features
+  assert_success
+  assert_output --partial 'catppuccin-mocha'
+}
+
+# bats test_tags=kind:theme
+@test "bat Catppuccin Mocha theme is available" {
+  if command -v bat >/dev/null 2>&1; then
+    bat_bin=bat
+  elif command -v batcat >/dev/null 2>&1; then
+    bat_bin=batcat
+  else
+    skip 'bat not installed'
+  fi
+  run "$bat_bin" --list-themes
+  assert_success
+  assert_output --partial 'Catppuccin Mocha'
+}
+
+# bats test_tags=kind:theme
+@test "nvim init configures catppuccin" {
+  assert_file_exists "$XDG_CONFIG_HOME/nvim/init.lua"
+  run grep -q 'catppuccin-mocha' "$XDG_CONFIG_HOME/nvim/init.lua"
+  assert_success
+}
+
+# bats test_tags=kind:theme
+@test "nvim init applies cafetiere mocha icon colors" {
+  assert_file_exists "$XDG_CONFIG_HOME/nvim/init.lua"
+  run grep -q 'cafetiere' "$XDG_CONFIG_HOME/nvim/init.lua"
+  assert_success
+}
+
+# bats test_tags=kind:theme
+@test "fzf Catppuccin Mocha colors are exported" {
+  assert [ -f "$HOME/.config/zsh/catppuccin-fzf-mocha.sh" ]
+  run grep -q 'FZF_DEFAULT_OPTS' "$HOME/.config/zsh/catppuccin-fzf-mocha.sh"
+  assert_success
+}

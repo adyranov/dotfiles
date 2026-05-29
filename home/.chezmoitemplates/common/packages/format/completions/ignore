@@ -1,0 +1,10 @@
+{{- /* format/completions/ignore — Outputs .chezmoiignore patterns for generated completions.
+  Args (dict): completions — dict of id → completion info.
+  Emits patterns for entries with generate key (bool true or command string). */ -}}
+{{- $completions := .completions -}}
+{{- range $id := sortAlpha (keys $completions) }}
+    {{- $comp := index $completions $id }}
+    {{- if index $comp "generate" }}
+_{{ $id }}
+    {{- end }}
+{{- end }}

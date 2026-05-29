@@ -1,16 +1,31 @@
 #!/usr/bin/env sh
+# Shell environment orchestrator.
+#
+# Order owned by this file:
+#   1. XDG base dirs
+#   2. Locale
+#   3. Tool dirs consumed by PATH composition or mise activate
+#   4. Homebrew shell environment (defines HOMEBREW_PREFIX)
+#   5. Drop-in fragments from exports.d/ (order-independent)
+#   6. PATH composition (consumes HOMEBREW_PREFIX and the dirs above)
+#   7. mise activate (must be last; prepends shims to PATH)
+#
+# Per-tool XDG redirections (passive: declared in exports.d/, read by external
+# tools, never consumed by the orchestrator itself). Drop-ins under exports.d/
+# MUST be order-independent
+# and MUST NOT mutate PATH.
+
 # https://wiki.archlinux.org/index.php/XDG_Base_Directory
 export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_CACHE_HOME="$HOME/.cache"
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_STATE_HOME="$HOME/.local/state"
-export XDG_RUNTIME_DIR=
 {{- if eq .host.distro.family "darwin" -}}
-  "$TMPDIR"
+export XDG_RUNTIME_DIR="$TMPDIR"
 {{- else if .host.interactive -}}
-  "/run/user/$(id -u)"
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 {{- else -}}
-  "/tmp"
+export XDG_RUNTIME_DIR="/tmp"
 {{- end }}
 {{- if .host.interactive }}
 export XDG_MUSIC_DIR="$HOME/Music"
@@ -27,80 +42,68 @@ export XDG_PUBLICSHARE_DIR="$HOME/Public"
 export LANG="en_US.UTF-8"
 export LC_ALL="en_US.UTF-8"
 
-# Change default folders
-
-# android
-export ANDROID_HOME="$XDG_DATA_HOME/android"
-# azure
-export AZURE_CONFIG_DIR="$XDG_DATA_HOME/azure"
-# cargo
+# Tool dirs consumed by PATH composition / mise activate below.
+# cargo (and let mise reuse this CARGO_HOME for its rust backend)
 export CARGO_HOME="$XDG_DATA_HOME/cargo"
 export MISE_CARGO_HOME="$CARGO_HOME"
-# colima
-export COLIMA_HOME="$XDG_CONFIG_HOME/colima"
-export LIMA_HOME="$XDG_DATA_HOME/lima"
-# docker
-export DOCKER_CONFIG="$XDG_CONFIG_HOME/docker"
-export DOCKER_BUILDKIT=1
-# gnupg
-export GNUPGHOME="$XDG_DATA_HOME/gnupg"
 # go
 export GOPATH="$XDG_DATA_HOME/go"
 export GOBIN="$GOPATH/bin"
 export GOPROXY="https://proxy.golang.org,direct"
-# gradle
-export GRADLE_USER_HOME="$XDG_DATA_HOME/gradle"
-# homebrew
-export HOMEBREW_BUNDLE_FILE="$XDG_CONFIG_HOME/brew/Brewfile"
 # krew
 export KREW_ROOT="$XDG_DATA_HOME/krew"
-# lazygit
-export LG_CONFIG_FILE="$XDG_CONFIG_HOME/lazygit/config.yml,$XDG_CONFIG_HOME/lazygit/catppuccin-mocha-blue.yml"
-# less
-export LESSKEY="$XDG_CONFIG_HOME/less/lesskey"
-export LESSHISTFILE="$XDG_STATE_HOME/less/history"
-# maven
-export MAVEN_USER_HOME="$XDG_DATA_HOME/maven" # For maven-wrapper
-export MAVEN_CONFIG="-gs $XDG_CONFIG_HOME/maven/settings.xml" # For maven-wrapper
-export MAVEN_ARGS="$MAVEN_CONFIG" # For Maven >= 3.9.0
-# minikube
-export MINIKUBE_HOME="$XDG_DATA_HOME/minikube"
-# mise
-export MISE_NODE_COREPACK="true"
-# node
-export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
-export NODE_REPL_HISTORY="$XDG_CACHE_HOME/node_repl_history"
-# pass
-export PASSWORD_STORE_DIR="$XDG_DATA_HOME/pass"
-# python
-export PYTHON_HISTORY="${XDG_STATE_HOME}/python/history"
-# rustup
+# rustup (and let mise reuse this RUSTUP_HOME for its rust backend)
 export RUSTUP_HOME="$XDG_DATA_HOME/rustup"
 export MISE_RUSTUP_HOME="$RUSTUP_HOME"
-# terminfo
-export TERMINFO="$XDG_DATA_HOME/terminfo"
-export TERMINFO_DIRS="${XDG_DATA_HOME}/terminfo:/usr/share/terminfo"
-# ssh
-export SSH_CONFIG_HOME="$XDG_CONFIG_HOME/ssh"
-export SSH_DATA_HOME="$XDG_DATA_HOME/ssh"
-# wget
-export WGETRC="$XDG_CONFIG_HOME/wget/wgetrc"
 
-# Editor
-{{- if .host.interactive }}
-export VISUAL="code --wait"
-export EDITOR="code --wait"
+# Homebrew shell environment (defines HOMEBREW_PREFIX; consumed by PATH below).
+{{- if and (eq .host.distro.family "darwin") (stat .brew.path) }}
+{{ output .brew.path "shellenv" -}}
+{{- if .host.restricted }}
+export HOMEBREW_CASK_OPTS="--appdir=~/Applications"
+{{- end }}
 {{- end }}
 
+# Order-independent drop-ins.
 EXPORTS_D_DIR="$XDG_CONFIG_HOME/shell/exports.d"
 if [ -d "$EXPORTS_D_DIR" ]; then
-  set +f
   for EXPORTS_FILE in "$EXPORTS_D_DIR"/*; do
     [ -r "$EXPORTS_FILE" ] || continue
     # shellcheck source=/dev/null
     . "$EXPORTS_FILE"
   done
-  set -f
   unset EXPORTS_FILE
 fi
 unset EXPORTS_D_DIR
+
+# PATH composition (depends on HOMEBREW_PREFIX, CARGO_HOME, GOBIN, KREW_ROOT).
+add_to_path() {
+  case ":$PATH:" in
+    *:"$1":*) ;;
+    *) export PATH="$1:$PATH" ;;
+  esac
+}
+
+{{- if eq .host.distro.family "darwin" }}
+add_to_path "$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin"
+{{- end }}
+add_to_path "$XDG_DATA_HOME/npm/bin"
+add_to_path "$KREW_ROOT/bin"
+add_to_path "$GOBIN"
+add_to_path "$CARGO_HOME/bin"
+add_to_path "$HOME/.local/bin"
+
+unset -f add_to_path
+
+# mise activate (final step; prepends shims to PATH).
+{{- if (lookPath "mise") }}
+if [ -n "${ZSH_VERSION:-}" ]; then
+  eval "$(mise activate zsh)"
+elif [ -n "${BASH_VERSION:-}" ]; then
+  eval "$(mise activate bash)"
+elif command -v ps >/dev/null 2>&1; then
+  _shell=$(ps -p $$ -o comm= | awk -F/ '{print $NF}' | sed 's/^-//')
+  [ -n "$_shell" ] && eval "$(mise activate "$_shell")"
+  unset _shell
+fi
+{{- end }}

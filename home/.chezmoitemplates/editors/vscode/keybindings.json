@@ -1,0 +1,13 @@
+[
+{{- if eq .chezmoi.os "darwin" }}
+  {
+    "key": "cmd+shift+p",
+    "command": "workbench.action.showCommands"
+  }
+{{- else }}
+  {
+    "key": "ctrl+shift+p",
+    "command": "workbench.action.showCommands"
+  }
+{{- end }}
+]

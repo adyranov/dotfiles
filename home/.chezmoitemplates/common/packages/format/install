@@ -1,0 +1,15 @@
+{{- /* format/install — Outputs sorted, space-separated package names (with optional @pin).
+  Args (dict): packages — dict of id → package info. */ -}}
+{{- $packages := .packages -}}
+{{- $names := list -}}
+{{- range $id := sortAlpha (keys $packages) }}
+    {{- $pkg := index $packages $id -}}
+    {{- $name := index $pkg "package" -}}
+    {{- $version := index $pkg "pin" -}}
+    {{- if $version }}
+        {{- $names = append $names (printf "%s@%s" $name $version) -}}
+    {{- else }}
+        {{- $names = append $names $name -}}
+    {{- end }}
+{{- end }}
+{{- $names | sortAlpha | uniq | join " " -}}

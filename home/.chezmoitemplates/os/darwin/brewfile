@@ -2,7 +2,7 @@
 {{- $host := .host -}}
 
 {{- $taps := list -}}
-{{- $brews := splitList " " (includeTemplate "common/helpers/render-packages" (dict "root" .)) }}
+{{- $brews := splitList " " (includeTemplate "common/packages/render" (dict "root" .)) }}
 {{- $casks := list -}}
 {{- $mas := list -}}
 

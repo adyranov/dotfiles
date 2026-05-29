@@ -1,10 +1,11 @@
 [packages.darwin.cloud]
-"aws-cli" = {disabled = "headless", manager = "system", name = "awscli"}
+aws = {disabled = "headless", manager = "system", package = "awscli"}
 
 [packages.darwin.core]
-age-plugin-yubikey = {test = "age-plugin-yubikey --version"}
+age-plugin-yubikey = {}
 atuin = {manager = "system"}
-coreutils = {test = "grealpath --version"}
+coreutils = {version = "grealpath --version"}
+difftastic = {manager = "system"}
 doggo = {manager = "system"}
 dust = {manager = "system"}
 eza = {manager = "system"}
@@ -12,11 +13,11 @@ glow = {manager = "system"}
 hyperfine = {manager = "system"}
 jnv = {manager = "system"}
 lazygit = {manager = "system"}
-mas = {test = "mas version"}
+mas = {version = "mas version"}
 mkcert = {manager = "system"}
-openssh-client = {name = "openssh", test = "test -x $HOMEBREW_PREFIX/bin/ssh && test -x $HOMEBREW_PREFIX/bin/ssh-agent && test -x $HOMEBREW_PREFIX/bin/ssh-add"}
+openssh-client = {package = "openssh", test = "test -x $HOMEBREW_PREFIX/bin/ssh && test -x $HOMEBREW_PREFIX/bin/ssh-agent && test -x $HOMEBREW_PREFIX/bin/ssh-add"}
 ouch = {manager = "system"}
-"pinentry-mac" = {test = "pinentry-mac --version"}
+"pinentry-mac" = {}
 rage = {manager = "system"}
 sd = {manager = "system"}
 topgrade = {manager = "system"}
@@ -28,10 +29,10 @@ yazi = {manager = "system"}
 dive = {manager = "system"}
 
 [packages.darwin.extra]
-gocryptfs = {name = "gromgit/fuse/gocryptfs-mac"}
-opensc = {test = "opensc-tool --version"}
-pam-u2f = {test = "pamu2fcfg --version"}
-ykman = {test = "ykman --version"}
+gocryptfs = {package = "gromgit/fuse/gocryptfs-mac"}
+opensc = {bin = "opensc-tool"}
+pam-u2f = {bin = "pamu2fcfg"}
+ykman = {}
 
 [packages.darwin.iac]
 sops = {manager = "system"}
@@ -42,8 +43,8 @@ helm = {manager = "system"}
 k3d = {manager = "system"}
 k9s = {manager = "system"}
 kubecolor = {manager = "system"}
-kubectl = {manager = "system", name = "kubernetes-cli"}
+kubectl = {manager = "system", package = "kubernetes-cli"}
 kustomize = {manager = "system"}
-oc = {manager = "system", name = "openshift-cli"}
+oc = {manager = "system", package = "openshift-cli"}
 stern = {manager = "system"}
 yq = {manager = "system"}

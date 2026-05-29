@@ -2,3 +2,4 @@ config:
   MD013: false # line length
   MD033: false # inline HTML (tables use HTML-like syntax)
   MD041: false # first line heading (files may start with emoji heading)
+  MD060: false # table column alignment (wide content in tool tables)
