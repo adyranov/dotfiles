@@ -41,7 +41,7 @@ Prebuilt images are also published to GHCR and Docker Hub:
 
 ### AI agents
 
-- The `ai` toolchain is an umbrella that gates a nested agent selection (`opencode`, `pi`). Each agent gets its own boolean under `data.toolchains.<agentId>`.
+- The `ai` toolchain is an umbrella that gates a nested agent selection (`pi`). Each agent gets its own boolean under `data.toolchains.<agentId>`.
 - Agent permissions, tool allow/deny lists, and path deny patterns are defined in `.chezmoidata/base/ai.toml`.
 
 ### Editor extensions

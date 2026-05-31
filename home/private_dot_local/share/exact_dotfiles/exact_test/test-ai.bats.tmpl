@@ -30,15 +30,6 @@ setup() {
 
 # --- Per-agent global context file fans out to the shared AGENTS.md ---
 
-{{- if .toolchains.opencode }}
-# bats test_tags=toolchain:opencode,kind:symlink
-@test "opencode AGENTS.md fans out to global AGENTS.md" {
-  run readlink -f "$HOME/.config/opencode/AGENTS.md"
-  assert_success
-  assert_output "$AGENTS_MD"
-}
-{{- end }}
-
 {{- if .toolchains.pi }}
 # bats test_tags=toolchain:pi,kind:symlink
 @test "pi AGENTS.md fans out to global AGENTS.md" {
@@ -57,26 +48,39 @@ setup() {
   run grep -F '"enableInstallTelemetry": false' "$HOME/.config/pi/agent/settings.json"
   assert_success
 }
+
+# bats test_tags=toolchain:pi,kind:packages
+@test "pi settings.json contains managed npm packages" {
+{{- range $name, $_ := .ai.pi.packages }}
+  run grep -F '"npm:{{ $name }}"' "$HOME/.config/pi/agent/settings.json"
+  assert_success
 {{- end }}
+}
 
-# --- Per-agent permission settings (from home/.chezmoidata/base/ai.toml) ---
+# bats test_tags=toolchain:pi,kind:mcp
+@test "pi mcp.json declares context-mode server" {
+  assert_file_exists "$HOME/.config/pi/agent/mcp.json"
+  run grep -F '"context-mode"' "$HOME/.config/pi/agent/mcp.json"
+  assert_success
+}
 
-{{- if .toolchains.opencode }}
-# bats test_tags=toolchain:opencode,kind:permission
-@test "opencode.json applies ai.toml permissions" {
-  assert_file_exists "$HOME/.config/opencode/opencode.json"
-  run grep -F '"webfetch": "ask"' "$HOME/.config/opencode/opencode.json"
+# bats test_tags=toolchain:pi,kind:config
+@test "pi hermes-memory-config.json is deployed" {
+  assert_file_exists "$HOME/.config/pi/agent/hermes-memory-config.json"
+  run grep -F '"memoryMode": "policy-only"' "$HOME/.config/pi/agent/hermes-memory-config.json"
   assert_success
-  run grep -F '"**/.env": "deny"' "$HOME/.config/opencode/opencode.json"
+  run grep -F '"flushOnCompact": true' "$HOME/.config/pi/agent/hermes-memory-config.json"
   assert_success
-  run grep -F '"~/.ssh/**": "deny"' "$HOME/.config/opencode/opencode.json"
-  assert_success
-  run grep -F '"rm": "deny"' "$HOME/.config/opencode/opencode.json"
-  assert_success
-  run grep -F '"mise run test": "allow"' "$HOME/.config/opencode/opencode.json"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi settings.json has observational-memory config" {
+  run grep -F '"observational-memory"' "$HOME/.config/pi/agent/settings.json"
   assert_success
 }
 {{- end }}
+
+# --- Per-agent permission settings (from home/.chezmoidata/base/ai.toml) ---
 
 {{- if ne .host.type "ephemeral" }}
 # bats test_tags=kind:greywall

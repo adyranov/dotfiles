@@ -1,0 +1,18 @@
+{
+  "memoryMode": "policy-only",
+  "memoryPolicyStyle": "compact",
+  "memoryCharLimit": 5000,
+  "userCharLimit": 5000,
+  "projectCharLimit": 5000,
+  "nudgeInterval": 10,
+  "nudgeToolCalls": 15,
+  "reviewEnabled": true,
+  "memoryOverflowStrategy": "auto-consolidate",
+  "correctionDetection": true,
+  "failureInjectionEnabled": true,
+  "failureInjectionMaxAgeDays": 7,
+  "failureInjectionMaxEntries": 5,
+  "flushOnCompact": true,
+  "flushOnShutdown": true,
+  "flushMinTurns": 6
+}

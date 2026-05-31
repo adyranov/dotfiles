@@ -1,5 +1,15 @@
 auth.json
+agents/.rpiv*
+cursor-sdk-model-list.json
+extensions/
 git/**
-sessions/**
+intercom/
 logs/
+lastChangelogVersion
+mcp-cache.json
+npm/
+observational-memory/
+pi-hermes-memory/
+projects-memory/
+sessions/**
 state.json

@@ -1,0 +1,15 @@
+{{- $env := "home" -}}
+{{- if .host.work -}}
+{{-   $env = "work" -}}
+{{- end -}}
+{{- $route := index .ai.pi.routing $env "heavy" -}}
+{{- /* rpiv-advisor uses "provider:modelId" format (with colon separator) */ -}}
+{{- $modelKey := printf "%s:%s" $route.provider $route.model -}}
+{{- $effort := $route.thinking -}}
+{
+  "modelKey": "{{ $modelKey }}",
+  "effort": "{{ $effort }}",
+  "disabledForModels": [
+    "{{ $modelKey }}"
+  ]
+}
