@@ -1,5 +1,4 @@
 [ai.agents]
-opencode = {}
 pi = {}
 
 [ai.permissions.paths]
@@ -12,19 +11,20 @@ deny = [
   "~/.ssh/**"
 ]
 
-[ai.permissions.tools.cloud]
-allow = [
+[ai.permissions.tools]
+cloud = {allow = [
   "aws ec2 describe-",
   "aws iam get-",
   "aws s3 ls",
   "aws sts get-caller-identity",
   "az account show",
   "az group list"
-]
-deny = ["aws iam delete", "aws s3 rm", "aws s3 sync"]
-
-[ai.permissions.tools.core]
-allow = [
+], deny = [
+  "aws iam delete",
+  "aws s3 rm",
+  "aws s3 sync"
+]}
+core = {allow = [
   "bat",
   "cat",
   "check-dotfiles",
@@ -85,8 +85,7 @@ allow = [
   "tree",
   "wc",
   "yq"
-]
-deny = [
+], deny = [
   "chezmoi --remove",
   "chezmoi apply",
   "curl | bash",
@@ -101,10 +100,8 @@ deny = [
   "sudo",
   "wget | bash",
   "wget | sh"
-]
-
-[ai.permissions.tools.docker]
-allow = [
+]}
+docker = {allow = [
   "dive",
   "docker compose logs",
   "docker compose ps",
@@ -114,30 +111,43 @@ allow = [
   "docker logs",
   "docker ps",
   "docker version"
-]
-deny = ["docker rm", "docker rmi", "docker system prune", "docker volume rm"]
-
-[ai.permissions.tools.golang]
-allow = ["go build", "go env", "go fmt", "go test", "go vet", "go version", "gofmt"]
-deny = []
-
-[ai.permissions.tools.iac]
-allow = [
+], deny = [
+  "docker rm",
+  "docker rmi",
+  "docker system prune",
+  "docker volume rm"
+]}
+golang = {allow = [
+  "go build",
+  "go env",
+  "go fmt",
+  "go test",
+  "go vet",
+  "go version",
+  "gofmt"
+], deny = [
+]}
+iac = {allow = [
   "terragrunt plan",
   "terragrunt validate",
   "tofu fmt",
   "tofu plan",
   "tofu show",
   "tofu validate"
-]
-deny = ["terragrunt apply", "terragrunt destroy", "tofu apply", "tofu destroy"]
-
-[ai.permissions.tools.java]
-allow = ["java -version", "mvn -v", "mvn test", "mvn verify"]
-deny = []
-
-[ai.permissions.tools.kubernetes]
-allow = [
+], deny = [
+  "terragrunt apply",
+  "terragrunt destroy",
+  "tofu apply",
+  "tofu destroy"
+]}
+java = {allow = [
+  "java -version",
+  "mvn -v",
+  "mvn test",
+  "mvn verify"
+], deny = [
+]}
+kubernetes = {allow = [
   "helm history",
   "helm list",
   "helm status",
@@ -149,8 +159,7 @@ allow = [
   "kubectl top",
   "kubectl version",
   "stern"
-]
-deny = [
+], deny = [
   "helm install",
   "helm rollback",
   "helm uninstall",
@@ -160,10 +169,8 @@ deny = [
   "kubectl delete",
   "kubectl drain",
   "kubectl edit"
-]
-
-[ai.permissions.tools.node]
-allow = [
+]}
+node = {allow = [
   "node --version",
   "npm --version",
   "npm run build",
@@ -173,11 +180,12 @@ allow = [
   "pnpm run test",
   "pnpm test",
   "yarn test"
-]
-deny = ["npm publish", "pnpm publish", "yarn publish"]
-
-[ai.permissions.tools.python]
-allow = [
+], deny = [
+  "npm publish",
+  "pnpm publish",
+  "yarn publish"
+]}
+python = {allow = [
   "mypy",
   "pytest",
   "python -m pytest",
@@ -185,11 +193,9 @@ allow = [
   "ruff",
   "uv --version",
   "uv run pytest"
-]
-deny = []
-
-[ai.permissions.tools.rust]
-allow = [
+], deny = [
+]}
+rust = {allow = [
   "cargo build",
   "cargo check",
   "cargo clippy",
@@ -197,8 +203,9 @@ allow = [
   "cargo test",
   "cargo --version",
   "rustc --version"
-]
-deny = ["cargo publish"]
+], deny = [
+  "cargo publish"
+]}
 
 [ai.permissions.websites]
 allow = [
@@ -222,15 +229,114 @@ allow = [
   "opentofu.org",
   "pkg.go.dev",
   "pypi.org",
+  "pi.dev",
   "raw.githubusercontent.com",
   "registry.terraform.io",
   "www.npmjs.com"
 ]
 
+[ai.pi.packages]
+"@juicesharp/rpiv-advisor" = {}
+"@juicesharp/rpiv-args" = {}
+"@juicesharp/rpiv-ask-user-question" = {}
+"@juicesharp/rpiv-btw" = {}
+"@juicesharp/rpiv-i18n" = {}
+"@juicesharp/rpiv-pi" = {}
+"@juicesharp/rpiv-todo" = {}
+"@juicesharp/rpiv-voice" = {}
+"@juicesharp/rpiv-web-tools" = {}
+"@juicesharp/rpiv-workflow" = {}
+"@tintinweb/pi-subagents" = {}
+context-mode = {}
+pi-caveman = {}
+pi-cursor-sdk = {}
+pi-hermes-memory = {}
+pi-intercom = {}
+pi-lens = {}
+pi-mcp-adapter = {}
+pi-observational-memory = {}
+pi-simplify = {}
+
+[ai.pi.profiles.home.default]
+model = "deepseek-v4-flash"
+provider = "opencode-go"
+thinkingLevel = "high"
+enabledModels = ["gpt-5*", "deepseek-*"]
+
+[ai.pi.profiles.work.default]
+model = "claude-sonnet-4.6"
+provider = "github-copilot"
+thinkingLevel = "medium"
+enabledModels = ["claude-*", "gemini-3*", "gpt-5*"]
+
+[ai.pi.routing.home]
+light = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "off"}
+standard = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "high"}
+heavy = {model = "gpt-5.5", provider = "openai-codex", thinking = "high"}
+
+[ai.pi.routing.work]
+light = {model = "gpt-5-mini", provider = "github-copilot", thinking = "low"}
+standard = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "medium"}
+heavy = {model = "claude-opus-4.6", provider = "github-copilot", thinking = "high"}
+
+[ai.pi.settings]
+theme = "dark"
+
+[ai.pi.subagents]
+light = [
+  "artifacts-locator",
+  "codebase-locator",
+  "integration-scanner",
+  "precedent-locator",
+  "web-search-researcher"
+]
+standard = [
+  "artifacts-analyzer",
+  "codebase-analyzer",
+  "codebase-pattern-finder",
+  "peer-comparator",
+  "scope-tracer"
+]
+heavy = [
+  "artifact-code-reviewer",
+  "artifact-coverage-reviewer",
+  "claim-verifier",
+  "diff-auditor",
+  "slice-verifier"
+]
+
 [ai.skills]
-addyosmani = {repo = "addyosmani/agent-skills", include = ["api-and-interface-design", "git-workflow-and-versioning", "performance-optimization", "security-and-hardening"]}
-anthropics = {repo = "anthropics/skills@main", include = ["mcp-builder", "skill-creator", "webapp-testing"]}
-next = {repo = "vercel-labs/next-skills@main", include = ["next-best-practices"]}
-supabase = {repo = "supabase/agent-skills", include = ["supabase-postgres-best-practices"]}
-vercel = {repo = "vercel-labs/agent-skills@main", include = ["composition-patterns", "react-best-practices", "web-design-guidelines"]}
-vuejs = {repo = "vuejs-ai/skills@main", include = ["vue-best-practices", "vue-pinia-best-practices", "vue-router-best-practices", "vue-testing-best-practices"]}
+addyosmani = {repo = "addyosmani/agent-skills", include = [
+  "api-and-interface-design",
+  "ci-cd-and-automation",
+  "code-review-and-quality",
+  "debugging-and-error-recovery",
+  "documentation-and-adrs",
+  "git-workflow-and-versioning",
+  "incremental-implementation",
+  "performance-optimization",
+  "planning-and-task-breakdown",
+  "security-and-hardening"
+]}
+anthropics = {repo = "anthropics/skills@main", include = [
+  "mcp-builder",
+  "skill-creator",
+  "webapp-testing"
+]}
+next = {repo = "vercel-labs/next-skills@main", include = [
+  "next-best-practices"
+]}
+supabase = {repo = "supabase/agent-skills", include = [
+  "supabase-postgres-best-practices"
+]}
+vercel = {repo = "vercel-labs/agent-skills@main", include = [
+  "composition-patterns",
+  "react-best-practices",
+  "web-design-guidelines"
+]}
+vuejs = {repo = "vuejs-ai/skills@main", include = [
+  "vue-best-practices",
+  "vue-pinia-best-practices",
+  "vue-router-best-practices",
+  "vue-testing-best-practices"
+]}

@@ -1,0 +1,6 @@
+{{- $binDir := joinPath .chezmoi.homeDir ".config/pi/agent/npm/node_modules/.bin" -}}
+{{- dict
+  "mcpServers" (dict
+    "context-mode" (dict "command" (joinPath $binDir "context-mode"))
+  )
+| toPrettyJson -}}

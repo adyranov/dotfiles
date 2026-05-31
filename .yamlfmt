@@ -1,0 +1,9 @@
+formatter:
+  type: basic
+  indent: 2
+  line_ending: lf
+  retain_line_breaks: false
+  retain_line_breaks_single: false
+  max_line_length: 0
+  include_document_start: false
+  pad_line_comments: 1

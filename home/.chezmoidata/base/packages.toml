@@ -99,10 +99,8 @@ macos-arm64 = {bin_path = "target/aarch64-apple-darwin/release"}
 macos-x64 = {bin_path = "target/x86_64-apple-darwin/release"}
 
 [packages.base.node]
+bun = {manager = "mise"}
 node = {manager = "mise", pin = "lts", test = "node --version && npm --version && yarn --version && pnpm --version"}
-
-[packages.base.opencode]
-opencode = {manager = "mise"}
 
 [packages.base.pi]
 pi = {manager = "mise", package = "npm:@earendil-works/pi-coding-agent"}

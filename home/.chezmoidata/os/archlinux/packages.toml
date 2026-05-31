@@ -19,6 +19,3 @@ socat = {disabled = "ephemeral", version = "socat -V"}
 vivid = {manager = "system"}
 xh = {manager = "system"}
 yazi = {manager = "system"}
-
-[packages.archlinux.opencode]
-opencode = {manager = "system"}

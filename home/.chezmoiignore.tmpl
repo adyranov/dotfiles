@@ -24,9 +24,6 @@ Library
 .local/share/dotfiles/test/test-ai.bats
 {{- end }}
 {{- /* Per-agent toolchains: stop managing (and --remove can prune) the whole agent tree. */ -}}
-{{- if not .toolchains.opencode }}
-.config/opencode/**
-{{- end }}
 {{- if not .toolchains.pi }}
 .config/pi/**
 {{- end }}
