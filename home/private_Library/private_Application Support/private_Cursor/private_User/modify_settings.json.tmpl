@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-{{- $s := .editors.vscode.settings }}
+{{- $vscode := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "editors.vscode" "required" true) | mustFromJson }}
+{{- $s := $vscode.settings }}
 """Merge chezmoi-managed Cursor settings into the current settings.json (JSONC-safe)."""
 import json, re, sys
 

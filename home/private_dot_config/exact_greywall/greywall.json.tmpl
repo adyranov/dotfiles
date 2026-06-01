@@ -1,8 +1,9 @@
 {{- /* Greywall kernel sandbox config — derived from ai.permissions in ai.toml.
   defaultDenyRead: true; allowRead permits only the current working directory. */ -}}
-{{- $denyRead := .ai.permissions.paths.deny -}}
+{{- $permissions := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.permissions" "required" true) | mustFromJson -}}
+{{- $denyRead := $permissions.paths.deny -}}
 {{- $cmdDeny := list -}}
-{{- range $tc, $perm := .ai.permissions.tools -}}
+{{- range $tc, $perm := $permissions.tools -}}
 {{-   if or (eq $tc "core") (index $.toolchains $tc) -}}
 {{-     range $verb := $perm.deny -}}
 {{-       $cmdDeny = append $cmdDeny $verb -}}

@@ -1,4 +1,4 @@
-{{- if .host.work -}}
+{{- if eq .host.profile "work" -}}
 {{- includeTemplate "common/headers/after" . -}}
 
 {{ $ca_work := joinPath .host.home ".config/certificates/ca-work.pem" -}}

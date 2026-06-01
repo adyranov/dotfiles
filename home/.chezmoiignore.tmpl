@@ -5,6 +5,7 @@ install.sh
 !.chezmoiscripts/before/**
 !.chezmoiscripts/common/**
 !.chezmoiscripts/os/{{ .host.distro.id }}/**
+!.chezmoiscripts/profile/{{ .host.profile }}/**
 !.chezmoiscripts/post/**
 {{- if .toolchains.ai }}
 !.chezmoiscripts/toolchains/ai/**

@@ -1,4 +1,4 @@
-{{- $repos := .repositories.fedora | default dict -}}
+{{- $repos := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "repositories") | mustFromJson -}}
 
 dnf_repo_configured() {
   local repo_id="$1"

@@ -1,5 +1,6 @@
 {
-{{- $s := .editors.vscode.settings }}
+{{- $vscode := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "editors.vscode" "required" true) | mustFromJson }}
+{{- $s := $vscode.settings }}
   // --- Appearance ---
   "workbench.colorTheme": "{{ $s.theme }}",
   "workbench.iconTheme": "{{ $s.iconTheme }}",

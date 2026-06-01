@@ -1,7 +1,7 @@
-[repositories.fedora.cloud.microsoft-azure-cli]
+[repositories.os.fedora.cloud.microsoft-azure-cli]
 baseurl = "https://packages.microsoft.com/yumrepos/azure-cli"
 gpgkey = "https://packages.microsoft.com/keys/microsoft.asc"
 repo_id = "azure-cli"
 
-[repositories.fedora.docker.docker-ce]
+[repositories.os.fedora.docker.docker-ce]
 repo_url = "https://download.docker.com/linux/fedora/docker-ce.repo"

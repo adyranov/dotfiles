@@ -1,5 +1,5 @@
 {{- /* render — Package/completion orchestrator.
-  Merges base and OS-specific packages for enabled toolchains, applies
+  Merges layered packages for enabled toolchains, applies
   disabled/os/arch filtering, then dispatches to a format subtemplate.
 
   Args (dict):
@@ -28,38 +28,34 @@
     {{- end }}
 {{- end }}
 
+{{- $osPackageLayers := index $root.packages "os" | default dict -}}
+{{- $osPackages := index $osPackageLayers $distroId | default dict -}}
+{{- $profileKey := "" -}}{{- if hasKey $root.host "profile" -}}{{- $profileKey = $root.host.profile -}}{{- end -}}
+{{- $profilePackageLayers := index $root.packages "profile" | default dict -}}
+{{- $profilePackages := index $profilePackageLayers $profileKey | default dict -}}
 {{- $basePackages := index $root.packages "base" | default dict -}}
-{{- $osPackages := index $root.packages $distroId | default dict -}}
 
-{{- /* Merge base and OS-specific packages for every enabled toolchain. */ -}}
+{{- /* Render base, OS-specific, and profile packages for every enabled toolchain. */ -}}
 {{- range $i, $toolName := $enabledToolchains }}
-    {{- $layerBase := index $basePackages $toolName | default dict -}}
-    {{- $overridePackages := index $osPackages $toolName | default dict -}}
-    {{- $packageIndex := dict -}}
-    {{- range $id, $_ := $layerBase }}
-        {{- $nil := set $packageIndex $id true -}}
-    {{- end }}
-    {{- range $id, $_ := $overridePackages }}
-        {{- $nil := set $packageIndex $id true -}}
-    {{- end }}
-    {{- range $j, $id := sortAlpha (keys $packageIndex) }}
-        {{- $pkg := index $layerBase $id | default dict -}}
-        {{- $override := index $overridePackages $id | default dict -}}
+    {{- $packages := includeTemplate "common/helpers/load-layered-section" (dict "root" $root "section" (printf "packages.%s" $toolName)) | mustFromJson -}}
+    {{- $baseLayer := index $basePackages $toolName | default dict -}}
+    {{- $osLayer := index $osPackages $toolName | default dict -}}
+    {{- $profileLayer := index $profilePackages $toolName | default dict -}}
+    {{- range $j, $id := sortAlpha (keys $packages) }}
+        {{- $pkg := index $packages $id | default dict -}}
+        {{- $basePkg := index $baseLayer $id | default dict -}}
+        {{- $osPkg := index $osLayer $id | default dict -}}
+        {{- $profilePkg := index $profileLayer $id | default dict -}}
+        {{- $override := $osPkg | merge $profilePkg -}}
 
-        {{- $rawComp := "" -}}
-        {{- if hasKey $override "completion" -}}
-            {{- $rawComp = index $override "completion" -}}
-        {{- else if hasKey $pkg "completion" -}}
-            {{- $rawComp = index $pkg "completion" -}}
-        {{- end -}}
+        {{- $rawComp := index $pkg "completion" | default "" -}}
         {{- /* In completions mode, skip packages without completion metadata. */ -}}
         {{- if and (eq $mode "completions") (not $rawComp) -}}{{- continue -}}{{- end -}}
 
-        {{- $pkgOs := index $override "os" | default (index $pkg "os" | default "") -}}
+        {{- $pkgOs := index $pkg "os" | default "" -}}
         {{- if and $pkgOs (ne $pkgOs $distroId) -}}{{- continue -}}{{- end -}}
 
-        {{- /* Resolve disabled state; OS layer overrides base. */ -}}
-        {{- $pkgDisabled := index $override "disabled" | default (index $pkg "disabled" | default false) -}}
+        {{- $pkgDisabled := index $pkg "disabled" | default false -}}
         {{- $disabled := false -}}
         {{- if kindIs "string" $pkgDisabled -}}
             {{- if and ($pkgDisabled | contains "headless") (not $root.host.interactive) -}}
@@ -76,7 +72,7 @@
         {{- end }}
         {{- if $disabled -}} {{- continue -}} {{- end }}
 
-        {{- $pkgExcludeArch := index $override "exclude_arch" | default (index $pkg "exclude_arch" | default list) -}}
+        {{- $pkgExcludeArch := index $pkg "exclude_arch" | default list -}}
         {{- $archExcluded := false -}}
         {{- range $j, $a := $pkgExcludeArch }}
             {{- if eq $arch $a -}}
@@ -87,11 +83,9 @@
 
         {{- /* ── Collect based on mode ── */ -}}
         {{- if eq $mode "completions" -}}
-            {{- $bin := printf "%s" (index $override "bin" | default (index $pkg "bin" | default $id)) -}}
+            {{- $bin := printf "%s" (index $pkg "bin" | default $id) -}}
             {{- $versionCmd := printf "%s --version" $bin -}}
-            {{- if hasKey $override "version" -}}
-                {{- $versionCmd = printf "%s" (index $override "version") -}}
-            {{- else if hasKey $pkg "version" -}}
+            {{- if hasKey $pkg "version" -}}
                 {{- $versionCmd = printf "%s" (index $pkg "version") -}}
             {{- end -}}
             {{- $comp := dict -}}
@@ -104,28 +98,27 @@
             {{- end -}}
             {{- $_ := set $result $id $comp -}}
         {{- else -}}
-            {{- $pkgMgr := printf "%s" (index $override "manager" | default (index $pkg "manager" | default "system")) -}}
+            {{- $pkgMgr := printf "%s" (index $pkg "manager" | default "system") -}}
             {{- /* When an override changes the manager, reset package to key (package is manager-specific). */ -}}
             {{- $overrideMgr := index $override "manager" -}}
-            {{- $baseMgr := index $pkg "manager" | default "system" -}}
+            {{- $baseMgr := index $basePkg "manager" | default "system" -}}
             {{- $mgrChanged := and $overrideMgr (ne (printf "%s" $overrideMgr) (printf "%s" $baseMgr)) -}}
-            {{- $effectiveBaseName := $id -}}
-            {{- if not $mgrChanged -}}
-                {{- $effectiveBaseName = printf "%s" (index $pkg "package" | default $id) -}}
+            {{- $pkgName := printf "%s" (index $pkg "package" | default $id) -}}
+            {{- if and $mgrChanged (not (hasKey $override "package")) -}}
+                {{- $pkgName = $id -}}
             {{- end -}}
-            {{- $pkgName := printf "%s" (index $override "package" | default $effectiveBaseName) -}}
-            {{- $pkgPin := printf "%s" (index $override "pin" | default (index $pkg "pin" | default "")) -}}
-            {{- $pkgBin := printf "%s" (index $override "bin" | default (index $pkg "bin" | default $id)) -}}
-            {{- $pkgPlatforms := index $override "platforms" | default (index $pkg "platforms" | default dict) -}}
+            {{- $pkgPin := printf "%s" (index $pkg "pin" | default "") -}}
+            {{- $pkgBin := printf "%s" (index $pkg "bin" | default $id) -}}
+            {{- $pkgPlatforms := index $pkg "platforms" | default dict -}}
 
             {{- /* Krew convention: strip kubectl- prefix for package, use "kubectl <plugin>" for bin. */ -}}
             {{- if eq $pkgMgr "krew" -}}
-                {{- if not (hasKey $override "package") -}}{{- if not (hasKey $pkg "package") -}}
+                {{- if not (hasKey $pkg "package") -}}
                     {{- $pkgName = trimPrefix "kubectl-" $id -}}
-                {{- end -}}{{- end -}}
-                {{- if not (hasKey $override "bin") -}}{{- if not (hasKey $pkg "bin") -}}
+                {{- end -}}
+                {{- if not (hasKey $pkg "bin") -}}
                     {{- $pkgBin = printf "kubectl %s" (trimPrefix "kubectl-" $id) -}}
-                {{- end -}}{{- end -}}
+                {{- end -}}
             {{- end -}}
 
             {{- /* Derive version command: explicit > krew convention (<bin> --help) > default (<bin> --version). */ -}}
@@ -133,22 +126,13 @@
             {{- if eq $pkgMgr "krew" -}}
                 {{- $pkgVersion = printf "%s --help" $pkgBin -}}
             {{- end -}}
-            {{- if hasKey $override "version" -}}
-                {{- $pkgVersion = printf "%s" (index $override "version") -}}
-            {{- else if hasKey $pkg "version" -}}
+            {{- if hasKey $pkg "version" -}}
                 {{- $pkgVersion = printf "%s" (index $pkg "version") -}}
             {{- end -}}
 
             {{- /* Derive test: explicit > version command. test=false disables. */ -}}
             {{- $pkgTest := $pkgVersion -}}
-            {{- if hasKey $override "test" -}}
-                {{- $rawTest := index $override "test" -}}
-                {{- if kindIs "bool" $rawTest -}}
-                    {{- if not $rawTest -}}{{- $pkgTest = "" -}}{{- end -}}
-                {{- else -}}
-                    {{- $pkgTest = printf "%s" $rawTest -}}
-                {{- end -}}
-            {{- else if hasKey $pkg "test" -}}
+            {{- if hasKey $pkg "test" -}}
                 {{- $rawTest := index $pkg "test" -}}
                 {{- if kindIs "bool" $rawTest -}}
                     {{- if not $rawTest -}}{{- $pkgTest = "" -}}{{- end -}}

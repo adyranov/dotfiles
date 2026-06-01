@@ -1,7 +1,8 @@
 {{- if .toolchains.ai -}}
+{{- $skills := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.skills" "required" true) | mustFromJson -}}
 {{- $tagMemo := dict -}}
 {{- /* Curated skills — one external per sub-skill; chezmoi caches archive downloads by URL */ -}}
-{{- range $alias, $skill := default (dict) .ai.skills }}
+{{- range $alias, $skill := default (dict) $skills }}
 {{-   $repo := $skill.repo }}
 {{-   $prefix := default "skills" (index $skill "prefix") }}
 {{-   range $sub := $skill.include }}

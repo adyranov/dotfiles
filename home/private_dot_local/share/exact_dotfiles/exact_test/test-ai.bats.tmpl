@@ -51,7 +51,8 @@ setup() {
 
 # bats test_tags=toolchain:pi,kind:packages
 @test "pi settings.json contains managed npm packages" {
-{{- range $name, $_ := .ai.pi.packages }}
+{{- $piPackages := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.pi.packages" "required" true) | mustFromJson -}}
+{{- range $name, $_ := $piPackages }}
   run grep -F '"npm:{{ $name }}"' "$HOME/.config/pi/agent/settings.json"
   assert_success
 {{- end }}

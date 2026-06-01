@@ -1,6 +1,7 @@
 {{- includeTemplate "common/headers/after" . }}
-# extensions hash: {{ .editors.vscode.extensions | toJson | sha256sum }}
-# settings hash: {{ .editors.vscode.settings | toJson | sha256sum }}
+{{- $vscode := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "editors.vscode" "required" true) | mustFromJson -}}
+# extensions hash: {{ $vscode.extensions | toJson | sha256sum }}
+# settings hash: {{ $vscode.settings | toJson | sha256sum }}
 
 install_extensions() {
     local binary="$1"
@@ -83,7 +84,7 @@ if __import__('os').path.isfile(path):
             current = {}
 
 managed = json.loads(r'''
-{{- $s := .editors.vscode.settings }}
+{{- $s := $vscode.settings }}
 {{- $font := $s.fontFamily }}
 {{- $os := .chezmoi.os }}
 {{- $managed := dict
@@ -215,14 +216,14 @@ deploy_settings() {
 }
 {{- end }}
 
-{{ range $name, $variant := .editors.vscode.variants -}}
+{{ range $name, $variant := $vscode.variants -}}
 if command -v {{ $name }} &>/dev/null; then
     echo "Installing extensions for {{ $name }}..."
     install_extensions "{{ $name }}" \
-{{- range $.editors.vscode.extensions.common }}
+{{- range $vscode.extensions.common }}
         "{{ . }}" \
 {{- end }}
-{{- with index $.editors.vscode.extensions $name }}
+{{- with index $vscode.extensions $name }}
 {{- range . }}
         "{{ . }}" \
 {{- end }}

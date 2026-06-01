@@ -1,6 +1,4 @@
-[brew.darwin.common]
-
-[brew.darwin.personal]
+[brew.profile.personal]
 casks = [
   "anydesk",
   "brave-browser",
@@ -49,5 +47,3 @@ mas = [
   {id = 497799835, name = "Xcode"},
   {id = 803453959, name = "Slack"}
 ]
-
-[brew.darwin.work]
