@@ -1,7 +1,7 @@
-[packages.darwin.cloud]
+[packages.os.darwin.cloud]
 aws = {disabled = "headless", manager = "system", package = "awscli"}
 
-[packages.darwin.core]
+[packages.os.darwin.core]
 age-plugin-yubikey = {}
 atuin = {manager = "system"}
 coreutils = {version = "grealpath --version"}
@@ -25,20 +25,20 @@ vivid = {manager = "system"}
 xh = {manager = "system"}
 yazi = {manager = "system"}
 
-[packages.darwin.docker]
+[packages.os.darwin.docker]
 dive = {manager = "system"}
 
-[packages.darwin.extra]
+[packages.os.darwin.extra]
 gocryptfs = {package = "gromgit/fuse/gocryptfs-mac"}
 opensc = {bin = "opensc-tool"}
 pam-u2f = {bin = "pamu2fcfg"}
 ykman = {}
 
-[packages.darwin.iac]
+[packages.os.darwin.iac]
 sops = {manager = "system"}
 terragrunt = {manager = "system"}
 
-[packages.darwin.kubernetes]
+[packages.os.darwin.kubernetes]
 helm = {manager = "system"}
 k3d = {manager = "system"}
 k9s = {manager = "system"}

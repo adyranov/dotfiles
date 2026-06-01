@@ -1,4 +1,4 @@
-[packages.archlinux.core]
+[packages.os.archlinux.core]
 atuin = {manager = "system"}
 bubblewrap = {disabled = "ephemeral", bin = "bwrap"}
 difftastic = {manager = "system"}

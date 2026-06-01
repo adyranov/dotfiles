@@ -1,7 +1,8 @@
 {{- if .toolchains.pi -}}
 {{- includeTemplate "common/headers/after" . -}}
+{{- $piPackages := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.pi.packages" "required" true) | mustFromJson -}}
 
-# Hash: {{ keys .ai.pi.packages | sortAlpha | join "," | sha256sum }}
+# Hash: {{ keys $piPackages | sortAlpha | join "," | sha256sum }}
 
 PI_NPM="${HOME}/.config/pi/agent/npm"
 
@@ -18,7 +19,7 @@ cat > "$PI_NPM/package.json" <<'EOF'
   "name": "pi-agent-packages",
   "private": true,
   "dependencies": {
-{{- $pkgs := keys .ai.pi.packages | sortAlpha -}}
+{{- $pkgs := keys $piPackages | sortAlpha -}}
 {{- range $i, $name := $pkgs }}
     "{{ $name }}": "*"{{ if ne $i (sub (len $pkgs) 1) }},{{ end }}
 {{- end }}

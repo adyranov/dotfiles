@@ -2,8 +2,8 @@
 {{- $personalUsername := "change_me" -}}
 {{- $personalName := "Change Me" -}}
 {{- $personalEmail := "change.me@example.com" -}}
+{{- $profile := "personal" -}}
 {{- $restricted := false -}}
-{{- $work := false -}}
 {{- $gpg := dict "sign" "" "encrypt" "" -}}
 {{- $secrets := dict "age" stdinIsATTY "bitwarden" false -}}
 {{- $toolchains := list "ai" "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" -}}
@@ -12,6 +12,12 @@
 {{- $data := . -}}
 {{- range $k := list "personal" "gpg" "host" "toolchains" -}}
   {{- $_ := set $data $k (default (dict) (get $data $k)) -}}
+{{- end -}}
+{{- if hasKey $data.host "profile" -}}
+  {{- $profile = index $data.host "profile" -}}
+{{- end -}}
+{{- if hasKey $data.host "restricted" -}}
+  {{- $restricted = index $data.host "restricted" -}}
 {{- end -}}
 
 {{- /* -------------------- OS / Distro -------------------- */ -}}
@@ -124,14 +130,14 @@
 {{- /* -------------------- Interactive Prompts -------------------- */ -}}
 {{- $interactive := true -}}
 {{- if stdinIsATTY -}}
-  {{- $work = promptBoolOnce $data.host "work" "🏢 Work Environment" $work -}}
+  {{- $profile = promptChoiceOnce $data.host "profile" "🏢 Environment Profile" (list "personal" "work") $profile -}}
   {{- $restricted = promptBoolOnce $data.host "restricted" "🔒 Restricted Environment" $restricted -}}
   {{- $personalUsername = promptStringOnce $data.personal "username" "👤 Personal Git Username" $personalUsername -}}
 
   {{- if eq $personalUsername "adyranov" -}}
     {{- $personalName = "Artem Dyranov" -}}
     {{- $personalEmail = "1038141+adyranov@users.noreply.github.com" -}}
-    {{- if not $work -}}
+    {{- if eq $profile "personal" -}}
       {{- $_ := set $gpg "sign" "0xAE12214C66692D96" -}}
       {{- $_ := set $gpg "encrypt" "0xE770F55D35040481" -}}
     {{- end -}}
@@ -286,7 +292,7 @@ data:
     home: "{{ .chezmoi.homeDir }}"
     source: "{{ .chezmoi.sourceDir }}"
     type: "{{ $chassisType }}"
-    work: {{ $work }}
+    profile: "{{ $profile }}"
     interactive: {{ $interactive }}
     restricted: {{ $restricted }}
   secrets:

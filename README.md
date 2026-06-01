@@ -34,15 +34,15 @@ Prebuilt images are also published to GHCR and Docker Hub:
 
 ## 🧩 How It Works
 
-- Single source of truth: tools live in `.chezmoidata/base/packages.toml` (`packages.base.<toolchain>`, e.g. `packages.base.core`), merge through `.chezmoidata/os/<distro>/packages.toml`, then render via `.chezmoitemplates/common/packages/render` into the right target (system package manager, `mise`, `krew`, `helm`, and tests). Additional data files: `base/ai.toml` (AI agent configs, permissions) and `base/editors.toml` (VS Code/Cursor shared settings and extensions).
-- Layered overrides: later layers win — `packages.base` (defaults) → `packages.<distro>` keyed by `host.distro.id` (sparse keys such as `name`, `manager`, `version`, `test`, `exclude_arch`). When an override changes `manager`, the `name` automatically resets to the package key (since names are manager-specific, e.g. a brew formula vs a mise backend identifier). To use a non-default name with the new manager, set both `manager` and `name` in the override.
-- Conditional disables: set `disabled` to either a boolean, or a comma/space separated string of flags. Supported flags: `headless` (non-interactive sessions), `restricted`, and host type values `desktop`, `laptop`, `wsl`, `ephemeral`. Example: `disabled = "headless,restricted"`.
+- Single source of truth: tools live in `.chezmoidata/base/packages.toml` (`packages.base.<toolchain>`, e.g. `packages.base.core`), merge through `.chezmoidata/os/<distro>/packages.toml` (`packages.os.<distro>`) and `.chezmoidata/profile/<profile>/packages.toml` (`packages.profile.<profile>`), then render via `.chezmoitemplates/common/packages/render` into the right target (system package manager, `mise`, `krew`, `helm`, and tests). Additional data files: `base/ai.toml` (`ai.base` shared agent packages, permissions, settings, and skills), `profile/<profile>/ai.toml` (`ai.profile.<profile>` model and routing choices), `base/editors.toml` (`editors.base` VS Code/Cursor shared settings and extensions, with optional `editors.os.<distro>` / `editors.profile.<profile>` overrides), and optional `profile/<profile>/brew.toml` (`brew.profile.<profile>`).
+- Layered overrides: later layers win — `packages.base` (defaults) → `packages.os.<distro>` keyed by `host.distro.id` → `packages.profile.<profile>` keyed by `host.profile` (sparse keys such as `name`, `manager`, `version`, `test`, `exclude_arch`). When an override changes `manager`, the `name` automatically resets to the package key (since names are manager-specific, e.g. a brew formula vs a mise backend identifier). To use a non-default name with the new manager, set both `manager` and `name` in the override.
+- Conditional disables: set `disabled` to either a boolean, or a comma/space separated string of flags. Supported flags: `headless` (non-interactive sessions), `restricted`, and host type values `desktop`, `laptop`, `wsl`, `ephemeral`. Example: `disabled = "headless,restricted"`. For profile-specific package changes, add sparse overrides under `packages.profile.<profile>.<toolchain>` such as `some-package = {disabled = true}`.
 - OS pinning: set `os = "darwin" | "ubuntu" | "fedora" | "archlinux"` on a package entry to include it only on that distro.
 
 ### AI agents
 
 - The `ai` toolchain is an umbrella that gates a nested agent selection (`pi`). Each agent gets its own boolean under `data.toolchains.<agentId>`.
-- Agent permissions, tool allow/deny lists, and path deny patterns are defined in `.chezmoidata/base/ai.toml`.
+- Agent packages, permissions, shared settings, subagent groups, skills, and path/tool allow/deny lists are defined in `.chezmoidata/base/ai.toml` under `ai.base`; personal/work model defaults and routes live in `.chezmoidata/profile/<profile>/ai.toml` under `ai.profile.<profile>.pi`.
 
 ### Editor extensions
 
@@ -69,7 +69,7 @@ A unified **Catppuccin Mocha** color scheme is applied across all terminal tools
 - Launch agents are reloaded by `home/.chezmoiscripts/os/darwin/run_onchange_after_20_bootstrap-launch-agents.tmpl` (after macOS defaults in `run_onchange_after_10_configure-darwin.tmpl`).
 - Non-macOS hosts ignore `home/private_Library/**` via template guards so Linux/WSL environments stay clean.
 
-See examples in `home/.chezmoidata/base/` and `home/.chezmoidata/os/<distro>/`.
+See examples in `home/.chezmoidata/base/`, `home/.chezmoidata/os/<distro>/`, and `home/.chezmoidata/profile/<profile>/`.
 
 ## 🧪 Validate Locally
 
@@ -94,7 +94,7 @@ See examples in `home/.chezmoidata/base/` and `home/.chezmoidata/os/<distro>/`.
 
 ## 🛠 Init & Customization
 
-- First run is interactive: you’ll be prompted for Git identity, whether it’s a work or restricted environment, and which toolchains to enable.
+- First run is interactive: you’ll be prompted for Git identity, environment profile, restricted-mode behavior, and which toolchains to enable.
 - Non-interactive/headless: control toolchains via env vars before running `chezmoi init`/`apply`:
   - Enable specific: `WITH_DOCKER=true WITH_KUBERNETES=true`
   - Disable specific: `WITHOUT_JAVA=true WITHOUT_NODE=true`

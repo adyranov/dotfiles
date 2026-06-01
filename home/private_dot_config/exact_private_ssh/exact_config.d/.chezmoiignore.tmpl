@@ -1,4 +1,4 @@
-{{ if .host.work -}}
+{{ if eq .host.profile "work" -}}
 encrypted_personal.conf.age
 {{- else -}}
 encrypted_work.conf.age

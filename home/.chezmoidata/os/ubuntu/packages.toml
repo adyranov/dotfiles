@@ -1,4 +1,4 @@
-[packages.ubuntu.core]
+[packages.os.ubuntu.core]
 bubblewrap = {disabled = "ephemeral", bin = "bwrap"}
 chezmoi = {manager = "mise"}
 fd = {package = "fd-find"}
@@ -6,12 +6,12 @@ fd = {package = "fd-find"}
 pcscd = {package = "pcscd"}
 socat = {disabled = "ephemeral", version = "socat -V"}
 
-[packages.ubuntu.docker]
+[packages.os.ubuntu.docker]
 docker = {package = "docker-ce"}
 "docker-buildx" = {package = "docker-buildx-plugin"}
 "docker-compose" = {package = "docker-compose-plugin"}
 
-[packages.ubuntu.kubernetes]
+[packages.os.ubuntu.kubernetes]
 "kubectl-access-matrix" = {exclude_arch = ["arm64"]}
 "kubectl-tree" = {exclude_arch = ["arm64"]}
 oc = {exclude_arch = ["arm64"]}

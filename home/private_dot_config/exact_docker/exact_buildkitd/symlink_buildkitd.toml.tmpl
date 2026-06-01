@@ -1,4 +1,4 @@
-{{ if .host.work -}}
+{{ if eq .host.profile "work" -}}
 ./buildkitd.work.toml
 {{- else -}}
 ./buildkitd.personal.toml

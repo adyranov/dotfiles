@@ -1,23 +1,21 @@
-{{- $env := "home" -}}
-{{- if .host.work -}}
-{{-   $env = "work" -}}
-{{- end -}}
-{{- $profile := index (index .ai.pi.profiles $env) "default" -}}
-{{- $routing := index .ai.pi.routing $env -}}
+{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.pi" "required" true) | mustFromJson -}}
+{{- $skillsData := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.skills" "required" true) | mustFromJson -}}
+{{- $defaults := $pi.defaults -}}
+{{- $routes := $pi.routes -}}
 {{- $packages := list -}}
 {{- $skills := list -}}
-{{- range $_, $skill := .ai.skills -}}
+{{- range $_, $skill := $skillsData -}}
 {{-   range $sub := $skill.include -}}
 {{-     $skills = append $skills (printf "../../agents/skills/%s" $sub) -}}
 {{-   end -}}
 {{- end -}}
-{{- range $name := keys .ai.pi.packages | sortAlpha -}}
+{{- range $name := keys $pi.packages | sortAlpha -}}
 {{-   $packages = append $packages (printf "npm:%s" $name) -}}
 {{- end -}}
 {{- /* Build agentOverrides: map each subagent to its routing category's model */ -}}
 {{- $agentOverrides := dict -}}
-{{- range $category, $agents := .ai.pi.subagents -}}
-{{-   $route := index $routing $category -}}
+{{- range $category, $agents := $pi.subagents -}}
+{{-   $route := index $routes $category -}}
 {{-   $model := $route.model -}}
 {{-   if hasKey $route "provider" -}}
 {{-     $model = printf "%s/%s" $route.provider $route.model -}}
@@ -30,11 +28,11 @@
 {{- $piVersion := output "mise" "current" "npm:@earendil-works/pi-coding-agent" | trim -}}
 {{- dict
   "compaction" (dict "enabled" true "keepRecentTokens" 20000 "reserveTokens" 16384)
-  "defaultModel" $profile.model
-  "defaultProvider" $profile.provider
-  "defaultThinkingLevel" $profile.thinkingLevel
+  "defaultModel" $defaults.model
+  "defaultProvider" $defaults.provider
+  "defaultThinkingLevel" $defaults.thinking_level
   "enableInstallTelemetry" false
-  "enabledModels" $profile.enabledModels
+  "enabledModels" $defaults.enabled_models
   "lastChangelogVersion" $piVersion
   "npmCommand" (list "mise" "exec" "node@lts" "--" "npm")
   "observational-memory" (dict "observeAfterTokens" 10000 "reflectAfterTokens" 20000 "compactAfterTokens" 81000 "observationsPoolMaxTokens" 20000 "observationsPoolTargetTokens" 10000 "agentMaxTurns" 16)
@@ -43,6 +41,6 @@
   "retry" (dict "baseDelayMs" 2000 "enabled" true "maxRetries" 3)
   "skills" $skills
   "subagents" (dict "agentOverrides" $agentOverrides)
-  "theme" .ai.pi.settings.theme
+  "theme" $pi.settings.theme
   "warnings" (dict "anthropicExtraUsage" true)
 | toPrettyJson -}}

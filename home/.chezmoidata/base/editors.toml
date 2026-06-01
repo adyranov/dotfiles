@@ -1,7 +1,7 @@
-# editors.vscode — shared config for all VS Code-family editors
+# editors.base.vscode — shared config for all VS Code-family editors
 # All variants share settings.json format, keybindings.json, and extension CLI
 
-[editors.vscode.extensions]
+[editors.base.vscode.extensions]
 common = [
   "catppuccin.catppuccin-vsc",
   "catppuccin.catppuccin-vsc-icons",
@@ -14,7 +14,7 @@ common = [
 code = []
 cursor = []
 
-[editors.vscode.settings]
+[editors.base.vscode.settings]
 theme = "Catppuccin Mocha"
 iconTheme = "catppuccin-mocha"
 fontFamily = "MesloLGS Nerd Font Mono"
@@ -22,6 +22,6 @@ fontSize = 14
 tabSize = 2
 formatOnSave = true
 
-[editors.vscode.variants]
+[editors.base.vscode.variants]
 code = {path = "Code"}
 cursor = {path = "Cursor"}

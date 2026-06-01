@@ -1,7 +1,7 @@
-[ai.agents]
+[ai.base.agents]
 pi = {}
 
-[ai.permissions.paths]
+[ai.base.permissions.paths]
 deny = [
   "**/.env",
   "**/.env.*",
@@ -11,7 +11,7 @@ deny = [
   "~/.ssh/**"
 ]
 
-[ai.permissions.tools]
+[ai.base.permissions.tools]
 cloud = {allow = [
   "aws ec2 describe-",
   "aws iam get-",
@@ -207,7 +207,7 @@ rust = {allow = [
   "cargo publish"
 ]}
 
-[ai.permissions.websites]
+[ai.base.permissions.websites]
 allow = [
   "cloud.google.com",
   "code.claude.com",
@@ -235,7 +235,7 @@ allow = [
   "www.npmjs.com"
 ]
 
-[ai.pi.packages]
+[ai.base.pi.packages]
 "@juicesharp/rpiv-advisor" = {}
 "@juicesharp/rpiv-args" = {}
 "@juicesharp/rpiv-ask-user-question" = {}
@@ -257,32 +257,10 @@ pi-mcp-adapter = {}
 pi-observational-memory = {}
 pi-simplify = {}
 
-[ai.pi.profiles.home.default]
-model = "deepseek-v4-flash"
-provider = "opencode-go"
-thinkingLevel = "high"
-enabledModels = ["gpt-5*", "deepseek-*"]
-
-[ai.pi.profiles.work.default]
-model = "claude-sonnet-4.6"
-provider = "github-copilot"
-thinkingLevel = "medium"
-enabledModels = ["claude-*", "gemini-3*", "gpt-5*"]
-
-[ai.pi.routing.home]
-light = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "off"}
-standard = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "high"}
-heavy = {model = "gpt-5.5", provider = "openai-codex", thinking = "high"}
-
-[ai.pi.routing.work]
-light = {model = "gpt-5-mini", provider = "github-copilot", thinking = "low"}
-standard = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "medium"}
-heavy = {model = "claude-opus-4.6", provider = "github-copilot", thinking = "high"}
-
-[ai.pi.settings]
+[ai.base.pi.settings]
 theme = "dark"
 
-[ai.pi.subagents]
+[ai.base.pi.subagents]
 light = [
   "artifacts-locator",
   "codebase-locator",
@@ -305,7 +283,7 @@ heavy = [
   "slice-verifier"
 ]
 
-[ai.skills]
+[ai.base.skills]
 addyosmani = {repo = "addyosmani/agent-skills", include = [
   "api-and-interface-design",
   "ci-cd-and-automation",

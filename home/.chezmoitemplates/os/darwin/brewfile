@@ -1,26 +1,9 @@
-{{- $brew := index .brew .host.distro.id | default dict -}}
-{{- $host := .host -}}
+{{- $brew := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "brew") | mustFromJson -}}
 
-{{- $taps := list -}}
-{{- $brews := splitList " " (includeTemplate "common/packages/render" (dict "root" .)) }}
-{{- $casks := list -}}
-{{- $mas := list -}}
-
-{{- $profiles := list "common" -}}
-{{- if $host.work -}}
-  {{- $profiles = append $profiles "work" -}}
-{{- else -}}
-  {{- $profiles = append $profiles "personal" -}}
-{{- end }}
-
-{{- range $profile := $profiles }}
-  {{- with index $brew $profile }}
-    {{- $taps = concat $taps (index . "taps" | default list) -}}
-    {{- $brews = concat $brews (index . "brews" | default list) -}}
-    {{- $casks = concat $casks (index . "casks" | default list) -}}
-    {{- $mas = concat $mas (index . "mas" | default list) -}}
-  {{- end }}
-{{- end }}
+{{- $taps := index $brew "taps" | default list -}}
+{{- $brews := concat (splitList " " (includeTemplate "common/packages/render" (dict "root" .))) (index $brew "brews" | default list) -}}
+{{- $casks := index $brew "casks" | default list -}}
+{{- $mas := index $brew "mas" | default list -}}
 
 {{- range ($taps | sortAlpha | uniq) }}
 tap "{{ . }}"
@@ -33,6 +16,6 @@ brew "{{ . }}"
 cask "{{ . }}"
 {{- end }}
 {{ range ($mas | uniq) }}
-mas "{{ .name }}", id: {{ .id }}
+mas "{{ .name }}", id: {{ printf "%.0f" .id }}
 {{- end }}
 {{- end }}
