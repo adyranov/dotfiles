@@ -1,0 +1,6 @@
+[ai.base.models]
+enabled = ["gpt-5.4-mini", "claude-sonnet-4.6", "claude-opus-4.6"]
+architect = {model = "claude-opus-4.6", provider = "github-copilot", thinking = "high", fallback_models = ["github-copilot/claude-sonnet-4.6"]}
+coder = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "medium"}
+default = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "medium"}
+utility = {model = "gpt-5.4-mini", provider = "github-copilot", thinking = "low"}

@@ -1,0 +1,191 @@
+[packages.base.core]
+atuin = {manager = "mise", policy = {ask = ["atuin *"]}}
+bat = {policy = {allow = ["bat *"]}}
+btop = {disabled = "ephemeral"}
+curl = {policy = {ask = ["curl *"]}}
+direnv = {version = "direnv version", policy = {ask = ["direnv *"]}}
+difftastic = {manager = "mise", bin = "difft", policy = {allow = [
+  "difft *"
+]}}
+doggo = {manager = "mise", package = "github:mr-karan/doggo", policy = {allow = [
+  "doggo *"
+]}}
+dust = {manager = "mise", package = "github:bootandy/dust", policy = {allow = [
+  "dust *"
+]}}
+eza = {manager = "mise", policy = {allow = ["eza *"]}}
+fd = {policy = {allow = ["fd *"]}}
+fzf = {policy = {allow = ["fzf *"]}}
+git-delta = {bin = "delta", policy = {allow = ["delta *"]}}
+glow = {manager = "mise", package = "github:charmbracelet/glow", policy = {allow = [
+  "glow *"
+]}}
+gnupg = {bin = "gpg", policy = {ask = ["gpg *"]}}
+greyproxy = {disabled = "ephemeral", manager = "mise", package = "github:GreyhavenHQ/greyproxy"}
+greywall = {disabled = "ephemeral", manager = "mise", package = "github:GreyhavenHQ/greywall", completion = true}
+hyperfine = {manager = "mise", policy = {ask = ["hyperfine *"]}}
+jnv = {manager = "mise", package = "github:ynqa/jnv", policy = {allow = [
+  "jnv *"
+]}}
+jq = {policy = {allow = ["jq *"]}}
+lazygit = {manager = "mise", policy = {ask = ["lazygit *"]}}
+mkcert = {manager = "mise", policy = {deny = ["mkcert *"]}}
+neovim = {bin = "nvim", policy = {ask = ["nvim *"]}}
+openssh-client = {bin = "ssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add", policy = {ask = [
+  "ssh *"
+]}}
+ouch = {manager = "mise", package = "github:ouch-org/ouch", policy = {ask = [
+  "ouch *"
+]}}
+rage = {manager = "mise", package = "github:str4d/rage", policy = {ask = [
+  "rage *"
+]}}
+ripgrep = {bin = "rg", policy = {allow = ["rg *"]}}
+sd = {manager = "mise", policy = {ask = ["sd *"]}}
+tealdeer = {bin = "tldr", policy = {allow = ["tldr *"]}}
+tmux = {version = "tmux -V", policy = {ask = ["tmux *"]}}
+topgrade = {manager = "mise", package = "github:topgrade-rs/topgrade", policy = {deny = [
+  "topgrade *"
+]}}
+vivid = {manager = "mise", policy = {allow = ["vivid *"]}}
+wget = {policy = {ask = ["wget *"]}}
+xh = {manager = "mise", package = "github:ducaale/xh", policy = {ask = [
+  "xh *"
+]}}
+yazi = {manager = "mise", package = "github:sxyazi/yazi", policy = {ask = [
+  "yazi *"
+]}}
+zoxide = {policy = {allow = ["zoxide *"]}}
+
+[packages.base.core.chezmoi]
+completion = true
+
+[packages.base.core.chezmoi.policy]
+allow = [
+  "chezmoi execute-template *",
+  "chezmoi data *",
+  "chezmoi diff *",
+  "chezmoi doctor *",
+  "chezmoi managed *",
+  "chezmoi status *",
+  "chezmoi verify *"
+]
+ask = ["check-dotfiles *", "chezmoi *"]
+deny = ["chezmoi --remove *", "chezmoi apply *"]
+
+[packages.base.core.coreutils]
+version = "realpath --version"
+
+[packages.base.core.coreutils.policy]
+allow = [
+  "basename *",
+  "cat *",
+  "comm *",
+  "cp *",
+  "cut *",
+  "date *",
+  "df *",
+  "diff *",
+  "dirname *",
+  "du *",
+  "echo *",
+  "env *",
+  "file *",
+  "find *",
+  "grep *",
+  "head *",
+  "id *",
+  "ls *",
+  "md5sum *",
+  "mkdir *",
+  "mktemp *",
+  "mv *",
+  "paste *",
+  "printf *",
+  "pwd *",
+  "readlink *",
+  "realpath *",
+  "seq *",
+  "sha256sum *",
+  "sort *",
+  "stat *",
+  "tail *",
+  "tee *",
+  "touch *",
+  "tr *",
+  "uname *",
+  "uniq *",
+  "wc *",
+  "which *",
+  "xargs *"
+]
+ask = ["rm *", "rmdir *"]
+deny = ["rm -rf /*", "rm -rf ~/*", "sudo *"]
+
+[packages.base.core.gh]
+
+[packages.base.core.gh.policy]
+allow = [
+  "gh auth status *",
+  "gh issue list *",
+  "gh issue view *",
+  "gh pr diff *",
+  "gh pr list *",
+  "gh pr status *",
+  "gh pr view *",
+  "gh repo view *"
+]
+ask = ["gh *"]
+deny = ["gh * delete*", "gh auth token *"]
+
+[packages.base.core.git]
+
+[packages.base.core.git.policy]
+allow = [
+  "git branch *",
+  "git diff *",
+  "git grep *",
+  "git log *",
+  "git ls-files *",
+  "git remote -v *",
+  "git rev-parse *",
+  "git show *",
+  "git status *"
+]
+ask = [
+  "git add *",
+  "git checkout *",
+  "git clone *",
+  "git commit *",
+  "git fetch *",
+  "git merge *",
+  "git pull *",
+  "git push *",
+  "git rebase *",
+  "git restore *",
+  "git switch *"
+]
+deny = [
+  "git * clean *",
+  "git * push --force*",
+  "git * push -f *",
+  "git * reset --hard *",
+  "git clean *",
+  "git push --force*",
+  "git push -f *",
+  "git reset --hard *"
+]
+
+[packages.base.core.mise]
+completion = true
+
+[packages.base.core.mise.policy]
+allow = ["mise current *", "mise list *", "mise ls *", "mise version *"]
+ask = ["mise *"]
+deny = ["mise run apply *"]
+
+[packages.base.core.rclone]
+
+[packages.base.core.rclone.policy]
+allow = ["rclone * ls *", "rclone * lsd *", "rclone version *"]
+ask = ["rclone *"]

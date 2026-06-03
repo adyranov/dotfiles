@@ -1,0 +1,49 @@
+{{- /*
+  Loads package-local bash command policy for enabled packages.
+
+  Package entries may define:
+    policy = {
+      allow = ["tool status *"],
+      ask = ["tool *"],
+      deny = ["tool destroy *"],
+    }
+
+  Policy is always loaded regardless of disabled/arch state because security
+  rules should apply even when a tool is not installed via chezmoi — it may
+  still be reachable via PATH.
+*/ -}}
+{{- $root := .root -}}
+{{- $distroId := $root.host.distro.id -}}
+{{- $allow := list -}}
+{{- $ask := list -}}
+{{- $deny := list -}}
+
+{{- $enabledToolchains := list "core" -}}
+{{- range $toolName, $enabled := $root.toolchains -}}
+  {{- if $enabled -}}
+    {{- $enabledToolchains = append $enabledToolchains $toolName -}}
+  {{- end -}}
+{{- end -}}
+
+{{- range $toolName := $enabledToolchains -}}
+  {{- $packages := includeTemplate "common/helpers/load-layered-section" (dict "root" $root "section" (printf "packages.%s" $toolName)) | mustFromJson -}}
+  {{- range $id := sortAlpha (keys $packages) -}}
+    {{- $pkg := index $packages $id | default dict -}}
+
+    {{- $pkgOs := index $pkg "os" | default "" -}}
+    {{- if and $pkgOs (ne $pkgOs $distroId) -}}{{- continue -}}{{- end -}}
+
+    {{- $policy := index $pkg "policy" | default (index $pkg "bash_policy" | default dict) -}}
+    {{- range $pattern := index $policy "allow" | default list -}}
+      {{- $allow = append $allow $pattern -}}
+    {{- end -}}
+    {{- range $pattern := index $policy "ask" | default list -}}
+      {{- $ask = append $ask $pattern -}}
+    {{- end -}}
+    {{- range $pattern := index $policy "deny" | default list -}}
+      {{- $deny = append $deny $pattern -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- dict "allow" ($allow | uniq | sortAlpha) "ask" ($ask | uniq | sortAlpha) "deny" ($deny | uniq | sortAlpha) | toJson -}}

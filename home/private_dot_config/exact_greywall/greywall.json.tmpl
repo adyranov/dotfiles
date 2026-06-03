@@ -1,18 +1,26 @@
-{{- /* Greywall kernel sandbox config — derived from ai.permissions in ai.toml.
-  defaultDenyRead: true; allowRead permits only the current working directory. */ -}}
-{{- $permissions := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.permissions" "required" true) | mustFromJson -}}
-{{- $denyRead := $permissions.paths.deny -}}
-{{- $cmdDeny := list -}}
-{{- range $tc, $perm := $permissions.tools -}}
-{{-   if or (eq $tc "core") (index $.toolchains $tc) -}}
-{{-     range $verb := $perm.deny -}}
-{{-       $cmdDeny = append $cmdDeny $verb -}}
-{{-     end -}}
-{{-   end -}}
-{{- end -}}
-{{- $allowRead := list "." -}}
-{{- $allowWrite := list "." -}}
+{{- /* Greywall kernel sandbox config — derived from shared AI path policy and package command policy.
+  Reads are project-scoped by default; sensitive paths are denied explicitly. */ -}}
+{{- $commandPermissions := includeTemplate "common/helpers/load-package-permissions" (dict "root" .) | mustFromJson -}}
+{{- $pathPermissions := includeTemplate "common/helpers/load-ai-path-permissions" (dict "root" .) | mustFromJson -}}
+{{- $denyPaths := $pathPermissions.deny -}}
+{{- $cmdDeny := $commandPermissions.deny -}}
+{{- $allowRead := concat (list ".") $pathPermissions.allow_read | uniq | sortAlpha -}}
+{{- $allowWrite := concat (list ".") $pathPermissions.allow_write | uniq | sortAlpha -}}
+{{- $network := dict
+  "proxyUrl" "socks5://localhost:43052"
+  "httpProxyUrl" "http://localhost:43051"
+  "dnsAddr" "localhost:43053"
+  "rules" list
+-}}
+{{- $ssh := dict
+  "allowedHosts" (list "github.com")
+  "allowedCommands" (list "git-upload-pack")
+  "deniedCommands" (list "git-receive-pack" "git-upload-archive" "scp" "sftp" "rsync" "sh" "bash" "zsh" "sudo" "curl" "wget" "nc" "ncat")
+  "inheritDeny" true
+-}}
 {{- dict
-  "filesystem" (dict "defaultDenyRead" true "denyRead" $denyRead "allowRead" $allowRead "allowWrite" $allowWrite)
+  "network" $network
+  "filesystem" (dict "defaultDenyRead" true "denyRead" $denyPaths "denyWrite" $denyPaths "allowRead" $allowRead "allowWrite" $allowWrite)
   "command" (dict "deny" $cmdDeny "useDefaults" true)
+  "ssh" $ssh
 | toPrettyJson }}

@@ -1,1 +1,2 @@
-learned/
+learned/*
+!learned/pi.json

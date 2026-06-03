@@ -1,0 +1,27 @@
+[packages.base.cloud]
+
+[packages.base.cloud.aws]
+manager = "mise"
+package = "aws-cli"
+
+[packages.base.cloud.aws.policy]
+allow = ["aws configure list *", "aws sts get-caller-identity *"]
+ask = ["aws *"]
+deny = [
+  "aws * delete*",
+  "aws * destroy*",
+  "aws * remove*",
+  "aws * terminate*",
+  "aws * s3 rm *",
+  "aws * s3 sync *",
+  "aws s3 rm *",
+  "aws s3 sync *"
+]
+
+[packages.base.cloud.azure-cli]
+bin = "az"
+
+[packages.base.cloud.azure-cli.policy]
+allow = ["az account list *", "az account show *", "az version *"]
+ask = ["az *"]
+deny = ["az * delete*", "az * remove*"]

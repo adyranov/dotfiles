@@ -8,3 +8,5 @@ export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
 # installing npm:-managed tools (pi) during `mise install`.
 export NPM_CONFIG_PREFIX="$XDG_DATA_HOME/npm"
 export NODE_REPL_HISTORY="$XDG_CACHE_HOME/node_repl_history"
+# Enable Node's built-in proxy env var support (HTTP_PROXY/HTTPS_PROXY) for greyproxy.
+export NODE_USE_ENV_PROXY="1"

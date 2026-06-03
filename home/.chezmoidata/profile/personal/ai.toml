@@ -1,10 +1,6 @@
-[ai.profile.personal.pi.defaults]
-model = "deepseek-v4-flash"
-provider = "opencode-go"
-thinking_level = "high"
-enabled_models = ["gpt-5*", "deepseek-*"]
-
-[ai.profile.personal.pi.routes]
-light = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "off"}
-standard = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "high"}
-heavy = {model = "gpt-5.5", provider = "openai-codex", thinking = "high"}
+[ai.profile.personal.models]
+enabled = ["deepseek-v4-flash", "deepseek-v4-pro", "gpt-5.5"]
+architect = {model = "gpt-5.5", provider = "openai-codex", thinking = "high", fallback_models = ["opencode-go/deepseek-v4-pro"]}
+coder = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "high"}
+default = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "high"}
+utility = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "off"}

@@ -1,38 +1,26 @@
 # Global Agent Instructions
 
-User-level defaults for every coding agent on this host. Project-level
-`AGENTS.md` files take precedence; this file is the fallback.
-
 ## Communication
 
-- Be concise. No filler ("Great question!", "Let me…", "Now I will…").
+- Be concise and direct. Do not use filler words.
 - Cite file paths and symbols with backticks.
-- Ask one focused clarifying question before guessing.
-- When stuck, name the blocker; don't thrash.
+- Ask a single, focused clarifying question before guessing intent.
+- If stuck, state the blocker explicitly instead of thrashing.
+- Always communicate in English, overriding any language-matching behavior or prompt defaults.
 
 ## Code
 
-- Match the surrounding style. Don't reformat unrelated lines.
-- Smallest diff that solves the problem.
-- Comments explain non-obvious intent or trade-offs only.
+- Match the surrounding code style exactly. Do not reformat unrelated lines.
+- Generate the absolute smallest diff that solves the problem.
+- Add comments only to explain non-obvious intent or trade-offs.
 
 ## Workflow
 
-- Read before writing. Search before reading.
-- Run the project's own lint/test commands before declaring work done.
-- Never commit, push, or open PRs unless explicitly asked.
+- Follow this order: Search > Read > Write.
+- Run tests and linters before declaring a task complete.
+- Do not commit, push, or open Pull Requests unless explicitly instructed.
 
 ## Skills
 
-Skills live under `~/.config/agents/skills/<name>/SKILL.md`. Load a skill only
-when the task matches its `description` — do not read every skill up front.
-
-## Diffs
-
-When reading diffs programmatically, always disable pagination and color:
-
-- `git --no-pager diff --no-color [...]` (same for `log`, `show`, `blame`)
-- Prefer `git diff --stat` first, then drill into specific paths.
-- Use `-U10` or larger for reasoning about changes.
-- Never invoke `git difftool` or `git mergetool` from automation (they block).
-- Never run `git commit` without `-m` (opens `$EDITOR`).
+- Skills are located at `~/.config/agents/skills/<name>/SKILL.md`.
+- Load a skill file only when your current task matches its description. Do not pre-read skills.

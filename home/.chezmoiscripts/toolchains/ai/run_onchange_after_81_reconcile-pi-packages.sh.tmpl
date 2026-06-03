@@ -1,6 +1,6 @@
 {{- if .toolchains.pi -}}
 {{- includeTemplate "common/headers/after" . -}}
-{{- $piPackages := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.pi.packages" "required" true) | mustFromJson -}}
+{{- $piPackages := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi.packages" "required" true) | mustFromJson -}}
 
 # Hash: {{ keys $piPackages | sortAlpha | join "," | sha256sum }}
 

@@ -11,22 +11,10 @@ setup() {
 # --- Shell environment ---
 
 # bats test_tags=kind:shell
-@test "XDG_CONFIG_HOME is set" {
+@test "XDG base directories are set" {
   assert [ -n "$XDG_CONFIG_HOME" ]
-}
-
-# bats test_tags=kind:shell
-@test "XDG_DATA_HOME is set" {
   assert [ -n "$XDG_DATA_HOME" ]
-}
-
-# bats test_tags=kind:shell
-@test "XDG_CACHE_HOME is set" {
   assert [ -n "$XDG_CACHE_HOME" ]
-}
-
-# bats test_tags=kind:shell
-@test "XDG_STATE_HOME is set" {
   assert [ -n "$XDG_STATE_HOME" ]
 }
 
@@ -35,6 +23,15 @@ setup() {
   assert_equal "$LANG" "en_US.UTF-8"
 }
 
+{{- if eq .host.distro.family "darwin" }}
+# bats test_tags=kind:certificates
+@test "macOS CA bundle is generated" {
+  assert_file_exists "$HOME/.config/certificates/ca-bundle.pem"
+  run grep -q -- '-----BEGIN CERTIFICATE-----' "$HOME/.config/certificates/ca-bundle.pem"
+  assert_success
+}
+
+{{- end }}
 # bats test_tags=kind:shell
 @test "~/.local/bin is in PATH" {
   run bash -c 'echo "$PATH" | tr ":" "\n" | grep -qx "$HOME/.local/bin"'
@@ -69,14 +66,6 @@ setup() {
   assert_output "true"
 }
 
-# --- Zsh ---
-
-# bats test_tags=kind:zsh
-@test "zsh is available" {
-  run command -v zsh
-  assert_success
-}
-
 # --- Catppuccin Mocha ---
 
 # bats test_tags=kind:theme
@@ -101,15 +90,10 @@ setup() {
 }
 
 # bats test_tags=kind:theme
-@test "nvim init configures catppuccin" {
+@test "nvim init configures catppuccin mocha" {
   assert_file_exists "$XDG_CONFIG_HOME/nvim/init.lua"
   run grep -q 'catppuccin-mocha' "$XDG_CONFIG_HOME/nvim/init.lua"
   assert_success
-}
-
-# bats test_tags=kind:theme
-@test "nvim init applies cafetiere mocha icon colors" {
-  assert_file_exists "$XDG_CONFIG_HOME/nvim/init.lua"
   run grep -q 'cafetiere' "$XDG_CONFIG_HOME/nvim/init.lua"
   assert_success
 }

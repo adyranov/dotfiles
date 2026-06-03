@@ -1,6 +1,19 @@
+{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
 {{- $binDir := joinPath .chezmoi.homeDir ".config/pi/agent/npm/node_modules/.bin" -}}
+{{- range $name, $config := $pi.mcp_servers -}}
+{{-   if hasKey $config "command_path" -}}
+{{-     $_ := set $config "command" (joinPath $binDir $config.command_path) -}}
+{{-     $_ := unset $config "command_path" -}}
+{{-   end -}}
+{{- end -}}
 {{- dict
-  "mcpServers" (dict
-    "context-mode" (dict "command" (joinPath $binDir "context-mode"))
+  "mcpServers" $pi.mcp_servers
+  "settings" (dict
+    "autoAuth" false
+    "directTools" false
+    "disableProxyTool" false
+    "idleTimeout" 10
+    "sampling" false
+    "toolPrefix" "server"
   )
 | toPrettyJson -}}

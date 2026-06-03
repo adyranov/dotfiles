@@ -1,7 +1,8 @@
-{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.pi" "required" true) | mustFromJson -}}
+{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
+{{- $models := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson -}}
 {{- $skillsData := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.skills" "required" true) | mustFromJson -}}
-{{- $defaults := $pi.defaults -}}
-{{- $routes := $pi.routes -}}
+{{- $defaults := $models.default -}}
+{{- $settings := $pi.settings -}}
 {{- $packages := list -}}
 {{- $skills := list -}}
 {{- range $_, $skill := $skillsData -}}
@@ -12,35 +13,35 @@
 {{- range $name := keys $pi.packages | sortAlpha -}}
 {{-   $packages = append $packages (printf "npm:%s" $name) -}}
 {{- end -}}
-{{- /* Build agentOverrides: map each subagent to its routing category's model */ -}}
-{{- $agentOverrides := dict -}}
-{{- range $category, $agents := $pi.subagents -}}
-{{-   $route := index $routes $category -}}
-{{-   $model := $route.model -}}
-{{-   if hasKey $route "provider" -}}
-{{-     $model = printf "%s/%s" $route.provider $route.model -}}
-{{-   end -}}
-{{-   $override := dict "model" $model "thinking" $route.thinking -}}
-{{-   range $agent := $agents -}}
-{{-     $agentOverrides = merge $agentOverrides (dict $agent $override) -}}
-{{-   end -}}
-{{- end -}}
+{{- $agentOverrides := includeTemplate "common/helpers/render-subagent-models" (dict "root" .) | mustFromJson -}}
 {{- $piVersion := output "mise" "current" "npm:@earendil-works/pi-coding-agent" | trim -}}
 {{- dict
+  "bashMode" (dict
+    "toggleShortcut" $settings.bash_mode.toggle_shortcut
+    "transcriptMaxBytes" $settings.bash_mode.transcript_max_bytes
+    "transcriptMaxLines" $settings.bash_mode.transcript_max_lines
+  )
   "compaction" (dict "enabled" true "keepRecentTokens" 20000 "reserveTokens" 16384)
+  "followUpMode" "all"
+  "steeringMode" "all"
+  "treeFilterMode" "no-tools"
   "defaultModel" $defaults.model
   "defaultProvider" $defaults.provider
-  "defaultThinkingLevel" $defaults.thinking_level
+  "defaultThinkingLevel" $defaults.thinking
   "enableInstallTelemetry" false
-  "enabledModels" $defaults.enabled_models
+  "enabledModels" $models.enabled
   "lastChangelogVersion" $piVersion
   "npmCommand" (list "mise" "exec" "node@lts" "--" "npm")
-  "observational-memory" (dict "observeAfterTokens" 10000 "reflectAfterTokens" 20000 "compactAfterTokens" 81000 "observationsPoolMaxTokens" 20000 "observationsPoolTargetTokens" 10000 "agentMaxTurns" 16)
   "packages" $packages
+  "powerline" (dict
+    "fixedEditor" $settings.powerline.fixed_editor
+    "mouseScroll" $settings.powerline.mouse_scroll
+    "preset" $settings.powerline.preset
+  )
   "quietStartup" true
   "retry" (dict "baseDelayMs" 2000 "enabled" true "maxRetries" 3)
   "skills" $skills
   "subagents" (dict "agentOverrides" $agentOverrides)
-  "theme" $pi.settings.theme
+  "theme" $settings.theme
   "warnings" (dict "anthropicExtraUsage" true)
 | toPrettyJson -}}

@@ -1,0 +1,7 @@
+schema: "openspec/openspec@1"
+project: dotfiles
+strict_tdd: true
+test_commands:
+  - mise run test
+  - mise run lint
+artifact_store: openspec

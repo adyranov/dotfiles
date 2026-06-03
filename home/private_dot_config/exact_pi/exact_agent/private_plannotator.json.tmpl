@@ -1,0 +1,30 @@
+{{- $models := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $defaults := $models.default -}}
+
+{{- $designRoute := index $models "architect" | default dict -}}
+{{- $implementRoute := index $models "coder" | default dict -}}
+
+{{- $designModel := $designRoute.model | default $defaults.model -}}
+{{- $designProvider := $designRoute.provider | default $defaults.provider -}}
+{{- $designThinking := $designRoute.thinking | default $defaults.thinking -}}
+
+{{- $implementModel := $implementRoute.model | default $defaults.model -}}
+{{- $implementProvider := $implementRoute.provider | default $defaults.provider -}}
+{{- $implementThinking := $implementRoute.thinking | default $defaults.thinking -}}
+
+{{- dict
+  "defaults" (dict
+    "model" (dict "provider" $defaults.provider "id" $defaults.model)
+    "thinking" $defaults.thinking
+  )
+  "phases" (dict
+    "planning" (dict
+      "model" (dict "provider" $designProvider "id" $designModel)
+      "thinking" $designThinking
+    )
+    "executing" (dict
+      "model" (dict "provider" $implementProvider "id" $implementModel)
+      "thinking" $implementThinking
+    )
+  )
+| toPrettyJson -}}

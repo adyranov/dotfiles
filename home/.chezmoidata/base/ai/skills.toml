@@ -1,0 +1,19 @@
+[ai.base.skills]
+addyosmani = {repo = "addyosmani/agent-skills", include = [
+  "api-and-interface-design",
+  "ci-cd-and-automation",
+  "code-review-and-quality",
+  "debugging-and-error-recovery",
+  "documentation-and-adrs",
+  "git-workflow-and-versioning",
+  "incremental-implementation",
+  "performance-optimization",
+  "planning-and-task-breakdown",
+  "security-and-hardening"
+]}
+karpathy = {repo = "multica-ai/andrej-karpathy-skills@main", include = [
+  "karpathy-guidelines"
+]}
+hoodini = {repo = "hoodini/ai-agents-skills", include = [
+  "owasp-security-best-practices"
+]}

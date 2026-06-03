@@ -1,0 +1,7 @@
+[packages.base.ai]
+engram = {manager = "mise", package = "github:Gentleman-Programming/engram", version = "engram version", policy = {ask = [
+  "engram *"
+]}}
+rtk = {manager = "mise", package = "github:rtk-ai/rtk", policy = {ask = [
+  "rtk *"
+]}}

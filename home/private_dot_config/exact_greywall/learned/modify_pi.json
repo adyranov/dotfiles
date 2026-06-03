@@ -1,0 +1,24 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $rawStdin := get .chezmoi "stdin" | default "" | trim -}}
+{{- $baseSource := `{"schemaVersion": 1, "filesystem": {"allowWrite": []}, "network": {"rules": []}}` -}}
+{{- if ne $rawStdin "" -}}
+{{-   $baseSource = $rawStdin -}}
+{{- end -}}
+{{- $base := $baseSource | fromJsonc -}}
+{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
+{{- $sandbox := $pi.sandbox | default dict -}}
+{{- $sandboxPaths := $sandbox.paths | default dict -}}
+{{- $allowWriteAdditions := index $sandboxPaths "allow_write" | default list -}}
+{{- $networkRuleAdditions := list -}}
+{{- range $rule := dig "network" "allow" (list) $sandbox -}}
+{{-   $networkRuleAdditions = append $networkRuleAdditions (dict
+        "destination" $rule.host
+        "port" ($rule.port | toString)
+        "action" "allow"
+      ) -}}
+{{- end -}}
+{{- $base
+  | setValueAtPath "filesystem.allowWrite" (concat (dig "filesystem" "allowWrite" (list) $base) $allowWriteAdditions | uniq)
+  | setValueAtPath "network.rules" (concat (dig "network" "rules" (list) $base) $networkRuleAdditions | uniq)
+  | toPrettyJson
+-}}
