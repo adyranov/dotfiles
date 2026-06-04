@@ -1,0 +1,59 @@
+{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
+{{- $commandPermissions := includeTemplate "common/helpers/load-package-permissions" (dict "root" .) | mustFromJson -}}
+{{- $pathPermissions := includeTemplate "common/helpers/load-ai-path-permissions" (dict "root" .) | mustFromJson -}}
+{{- $sandboxTools := $pi.sandbox.tools -}}
+{{- $piInfrastructureReadPaths := index $pi.sandbox.paths "infrastructure_read" | default list -}}
+{{- $piAgentDenyPaths := index $pi.sandbox.paths "infrastructure_deny" | default list -}}
+{{- $denyPaths := concat $pathPermissions.deny $piAgentDenyPaths | uniq -}}
+{{- $path := dict "*" "allow" -}}
+{{- range $pattern := $denyPaths -}}
+{{-   $_ := set $path $pattern "deny" -}}
+{{- end -}}
+{{- $bash := dict "*" "ask" -}}
+{{- range $pattern := $commandPermissions.allow -}}
+{{-   $_ := set $bash $pattern "allow" -}}
+{{- end -}}
+{{- range $pattern := $commandPermissions.ask -}}
+{{-   $_ := set $bash $pattern "ask" -}}
+{{- end -}}
+{{- range $pattern := $commandPermissions.deny -}}
+{{-   $_ := set $bash $pattern "deny" -}}
+{{- end -}}
+{{- $permission := dict "*" (index $sandboxTools "default" | default "ask") -}}
+{{- range $tool := index $sandboxTools "allow" | default list -}}
+{{-   $_ := set $permission $tool "allow" -}}
+{{- end -}}
+{{- range $tool := index $sandboxTools "ask" | default list -}}
+{{-   $_ := set $permission $tool "ask" -}}
+{{- end -}}
+{{- range $tool := index $sandboxTools "deny" | default list -}}
+{{-   $_ := set $permission $tool "deny" -}}
+{{- end -}}
+{{- $reserved := list "default" "allow" "ask" "deny" -}}
+{{- range $name, $config := $sandboxTools -}}
+{{-   if not (has $name $reserved) -}}
+{{-     $sub := dict "*" (index $config "default" | default "ask") -}}
+{{-     range $t := index $config "allow" | default list -}}
+{{-       $_ := set $sub $t "allow" -}}
+{{-     end -}}
+{{-     range $t := index $config "ask" | default list -}}
+{{-       $_ := set $sub $t "ask" -}}
+{{-     end -}}
+{{-     range $t := index $config "deny" | default list -}}
+{{-       $_ := set $sub $t "deny" -}}
+{{-     end -}}
+{{-     $_ := set $permission $name $sub -}}
+{{-   end -}}
+{{- end -}}
+{{- $_ := set $permission "bash" $bash -}}
+{{- $_ := set $permission "path" $path -}}
+{{- dict
+  "$schema" "https://raw.githubusercontent.com/gotgenes/pi-permission-system/main/schemas/permissions.schema.json"
+  "debugLog" false
+  "permissionReviewLog" true
+  "piInfrastructureReadPaths" $piInfrastructureReadPaths
+  "permission" $permission
+  "toolInputPreviewMaxLength" 400
+  "toolTextSummaryMaxLength" 120
+  "yoloMode" false
+| toPrettyJson -}}

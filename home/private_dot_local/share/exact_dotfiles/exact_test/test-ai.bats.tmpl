@@ -42,6 +42,10 @@ setup() {
 # --- Pi settings ---
 
 {{- if .toolchains.pi }}
+{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
+{{- $models := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson }}
+{{- $pathPermissions := includeTemplate "common/helpers/load-ai-path-permissions" (dict "root" .) | mustFromJson }}
+{{- $denyPaths := $pathPermissions.deny }}
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi settings.json disables install telemetry" {
@@ -49,55 +53,317 @@ setup() {
   assert_success
 }
 
+# bats test_tags=toolchain:pi,kind:model
+@test "pi settings.json renders profile model policy" {
+  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+  run jq -e '
+    .defaultProvider == "{{ $models.default.provider }}" and
+    .defaultModel == "{{ $models.default.model }}" and
+    .defaultThinkingLevel == "{{ $models.default.thinking }}" and
+    .enabledModels == {{ $models.enabled | toJson }}
+  ' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "pi settings.json renders subagent route policy" {
+  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+{{- range $category, $agents := $pi.subagents }}
+{{-   $route := index $models $category }}
+{{-   $model := printf "%s/%s" $route.provider $route.model }}
+{{-   range $agent := $agents }}
+  run jq -e '.subagents.agentOverrides["{{ $agent }}"].model == "{{ $model }}" and .subagents.agentOverrides["{{ $agent }}"].thinking == "{{ $route.thinking }}"' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+{{-   end }}
+{{- end }}
+}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "gentle-pi models.json renders subagent route policy" {
+  assert_file_exists "$HOME/.config/pi/gentle-ai/models.json"
+{{- range $category, $agents := $pi.subagents }}
+{{-   $route := index $models $category }}
+{{-   $model := printf "%s/%s" $route.provider $route.model }}
+{{-   range $agent := $agents }}
+  run jq -e '.["{{ $agent }}"].model == "{{ $model }}" and .["{{ $agent }}"].thinking == "{{ $route.thinking }}"' "$HOME/.config/pi/gentle-ai/models.json"
+  assert_success
+{{-   end }}
+{{- end }}
+}
+
 # bats test_tags=toolchain:pi,kind:packages
 @test "pi settings.json contains managed npm packages" {
-{{- $piPackages := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.pi.packages" "required" true) | mustFromJson -}}
+{{- $piPackages := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi.packages" "required" true) | mustFromJson -}}
 {{- range $name, $_ := $piPackages }}
   run grep -F '"npm:{{ $name }}"' "$HOME/.config/pi/agent/settings.json"
   assert_success
 {{- end }}
 }
 
+# bats test_tags=toolchain:pi,kind:config
+@test "pi settings.json renders powerline footer config" {
+  run jq -e '
+    .powerline.preset == "{{ $pi.settings.powerline.preset }}" and
+    .powerline.fixedEditor == {{ $pi.settings.powerline.fixed_editor }} and
+    .powerline.mouseScroll == {{ $pi.settings.powerline.mouse_scroll }} and
+    .bashMode.toggleShortcut == "{{ $pi.settings.bash_mode.toggle_shortcut }}" and
+    .bashMode.transcriptMaxLines == {{ $pi.settings.bash_mode.transcript_max_lines }} and
+    .bashMode.transcriptMaxBytes == {{ $pi.settings.bash_mode.transcript_max_bytes }}
+  ' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+}
+
+{{- if eq .host.profile "personal" }}
+# bats test_tags=toolchain:pi,kind:packages
+@test "pi personal settings.json does not load Cursor SDK" {
+  run grep -F '"npm:pi-cursor-sdk"' "$HOME/.config/pi/agent/settings.json"
+  assert_failure
+}
+{{- end }}
+
 # bats test_tags=toolchain:pi,kind:mcp
-@test "pi mcp.json declares context-mode server" {
+@test "pi mcp.json declares managed MCP servers" {
   assert_file_exists "$HOME/.config/pi/agent/mcp.json"
-  run grep -F '"context-mode"' "$HOME/.config/pi/agent/mcp.json"
+  run jq -e '
+    (.mcpServers | keys == ["context-mode", "engram"]) and
+    (.mcpServers."context-mode".command | endswith("/context-mode")) and
+    .mcpServers.engram.command == "engram" and
+    .mcpServers.engram.args == ["mcp", "--tools=agent"]
+  ' "$HOME/.config/pi/agent/mcp.json"
   assert_success
 }
 
-# bats test_tags=toolchain:pi,kind:config
-@test "pi hermes-memory-config.json is deployed" {
-  assert_file_exists "$HOME/.config/pi/agent/hermes-memory-config.json"
-  run grep -F '"memoryMode": "policy-only"' "$HOME/.config/pi/agent/hermes-memory-config.json"
-  assert_success
-  run grep -F '"flushOnCompact": true' "$HOME/.config/pi/agent/hermes-memory-config.json"
+# bats test_tags=toolchain:pi,kind:mcp
+@test "pi mcp.json keeps adapter proxy-only defaults" {
+  run jq -e '
+    .settings.autoAuth == false and
+    .settings.directTools == false and
+    .settings.disableProxyTool == false and
+    .settings.idleTimeout == 10 and
+    .settings.sampling == false and
+    .settings.toolPrefix == "server"
+  ' "$HOME/.config/pi/agent/mcp.json"
   assert_success
 }
 
-# bats test_tags=toolchain:pi,kind:config
-@test "pi settings.json has observational-memory config" {
-  run grep -F '"observational-memory"' "$HOME/.config/pi/agent/settings.json"
+# bats test_tags=toolchain:pi,kind:permission
+@test "pi permission-system config renders secure runtime defaults" {
+  assert_file_exists "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  run jq -e '
+    .debugLog == false and
+    .permissionReviewLog == true and
+    .yoloMode == false and
+    .toolInputPreviewMaxLength == 400 and
+    .toolTextSummaryMaxLength == 120 and
+    (.piInfrastructureReadPaths | length) > 0 and
+    (.piInfrastructureReadPaths | index("~/.config/pi/**") != null) and
+    (.piInfrastructureReadPaths | index("~/.config/agents/**") != null) and
+    (.piInfrastructureReadPaths | index("~/.config/greywall/**") != null) and
+    (.piInfrastructureReadPaths | index("~/.local/share/engram/**") != null) and
+    (.piInfrastructureReadPaths | index("**/node_modules/@earendil-works/pi-coding-agent/**") != null) and
+    .permission["*"] == "ask" and
+    .permission.external_directory == "allow" and
+    .permission.write == "allow" and
+    .permission.edit == "allow" and
+    .permission.task == "allow"
+  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:permission
+@test "pi permission-system config protects sensitive paths" {
+  run jq -e '.permission.path["*"] == "allow"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+{{- range $pattern := $denyPaths }}
+  run jq -e '.permission.path[{{ $pattern | toJson }}] == "deny"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+{{- end }}
+{{- $piAgentDenyPaths := index $pi.sandbox.paths "infrastructure_deny" | default list }}
+{{- range $pattern := $piAgentDenyPaths }}
+  run jq -e '.permission.path[{{ $pattern | toJson }}] == "deny"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:pi,kind:permission
+@test "pi permission-system config renders bash allow and deny rules" {
+  local cfg="$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+
+  # Helper: check a single bash permission rule
+  assert_bash_rule() {
+    local pattern=$1 expected=$2
+    run jq -r --arg p "$pattern" '.permission.bash[$p] // "null"' "$cfg"
+    if [ "$output" != "$expected" ]; then
+      fail "Rule '$pattern': expected '$expected', got '$output'"
+    fi
+  }
+
+  # Helper: check a single bash permission negative rule
+  assert_bash_rule_not() {
+    local pattern=$1 forbidden=$2
+    run jq -r --arg p "$pattern" '.permission.bash[$p] // "null"' "$cfg"
+    if [ "$output" = "$forbidden" ]; then
+      fail "Rule '$pattern': must not be '$forbidden'"
+    fi
+  }
+
+  # Core rules (always present via packages.base.core)
+  assert_bash_rule '*' 'ask'
+  assert_bash_rule_not 'git *' 'allow'
+  assert_bash_rule_not 'docker *' 'allow'
+  assert_bash_rule_not 'kubectl *' 'allow'
+  assert_bash_rule_not 'aws *' 'allow'
+  assert_bash_rule_not 'npm *' 'allow'
+  assert_bash_rule_not 'curl *' 'allow'
+  assert_bash_rule 'git status *' 'allow'
+  assert_bash_rule 'git diff *' 'allow'
+  assert_bash_rule 'chezmoi diff *' 'allow'
+  assert_bash_rule 'git commit *' 'ask'
+  assert_bash_rule 'git push *' 'ask'
+  assert_bash_rule 'mise *' 'ask'
+  assert_bash_rule 'curl *' 'ask'
+  assert_bash_rule 'wget *' 'ask'
+  assert_bash_rule 'git * reset --hard *' 'deny'
+  assert_bash_rule 'git * push --force*' 'deny'
+  assert_bash_rule 'rm *' 'ask'
+  assert_bash_rule 'rm -rf /*' 'deny'
+  assert_bash_rule 'sudo *' 'deny'
+{{- if .toolchains.cloud }}
+  # Cloud toolchain rules
+  assert_bash_rule 'aws sts get-caller-identity *' 'allow'
+  assert_bash_rule 'aws * s3 rm *' 'deny'
+{{- end }}
+{{- if .toolchains.docker }}
+  # Docker toolchain rules
+  assert_bash_rule 'docker ps *' 'allow'
+  assert_bash_rule 'docker images *' 'allow'
+  assert_bash_rule 'docker run *' 'ask'
+  assert_bash_rule 'docker * system prune *' 'deny'
+  assert_bash_rule 'docker * run * --privileged *' 'deny'
+{{- end }}
+{{- if .toolchains.iac }}
+  # IAC toolchain rules
+  assert_bash_rule 'tofu plan *' 'allow'
+  assert_bash_rule 'tofu *' 'ask'
+  assert_bash_rule 'tofu * destroy *' 'deny'
+{{- end }}
+{{- if .toolchains.kubernetes }}
+  # Kubernetes toolchain rules
+  assert_bash_rule 'kubectl * get *' 'allow'
+  assert_bash_rule 'kubectl * describe *' 'allow'
+  assert_bash_rule 'helm list *' 'allow'
+  assert_bash_rule 'kubectl apply *' 'ask'
+  assert_bash_rule 'kubectl * delete *' 'deny'
+  assert_bash_rule 'helm * upgrade *' 'deny'
+{{- end }}
+{{- if .toolchains.node }}
+  # Node toolchain rules
+  assert_bash_rule 'npm *' 'ask'
+  assert_bash_rule 'pnpm *' 'ask'
+  assert_bash_rule 'yarn *' 'ask'
+  assert_bash_rule 'bun *' 'ask'
+{{- end }}
+{{- if .toolchains.python }}
+  # Python toolchain rules
+  assert_bash_rule 'python *' 'ask'
+  assert_bash_rule 'uv *' 'ask'
+{{- end }}
+}
+
+# bats test_tags=toolchain:pi,kind:permission
+@test "pi permission-system config gates MCP and skills by default" {
+  run jq -e '
+    .permission.skill["*"] == "allow" and
+    .permission.mcp["*"] == "ask" and
+    .permission.mcp.mcp_status == "allow" and
+    .permission.mcp.mcp_list == "allow" and
+    .permission.mcp.mcp_search == "allow" and
+    .permission.mcp.mcp_describe == "allow"
+  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
 {{- end }}
 
-# --- Per-agent permission settings (from home/.chezmoidata/base/ai.toml) ---
+# --- Per-agent permission settings (from ai path data and package policy) ---
 
 {{- if ne .host.type "ephemeral" }}
+{{- $pathPermissions := includeTemplate "common/helpers/load-ai-path-permissions" (dict "root" .) | mustFromJson }}
+{{- $denyPaths := $pathPermissions.deny }}
+{{- $greywallDir := "$HOME/.config/greywall" }}
+{{- if eq .host.distro.family "darwin" }}
+{{- $greywallDir = "$HOME/Library/Application Support/greywall" }}
+{{- end }}
+{{- if eq .host.distro.family "darwin" }}
 # bats test_tags=kind:greywall
-@test "greywall and greyproxy are installed (core, non-ephemeral)" {
-  run command -v greywall
+@test "greywall macOS config path points at managed config" {
+  run readlink "$HOME/Library/Application Support/greywall"
   assert_success
-  run command -v greyproxy
+  assert_output "$HOME/.config/greywall"
+}
+
+{{- end }}
+# bats test_tags=kind:greywall
+@test "greywall.json is deployed from ai permissions" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '
+    .filesystem.defaultDenyRead == true and
+    .filesystem.allowRead == [".", "~/.config/certificates/ca-bundle.pem", "~/.local/share/engram/**"] and
+    .filesystem.allowWrite == [".", "~/.local/share/engram/**"] and
+    (.filesystem.denyRead | index("**/.env") != null) and
+    (.filesystem.denyRead | index("~/.ssh/**") != null) and
+    (.filesystem.denyWrite | index("**/.env") != null) and
+    (.filesystem.denyWrite | index("~/.ssh/**") != null) and
+    (.command.allow | not) and
+    (.command.deny | index("git * reset --hard *") != null) and
+    (.command.deny | index("docker * system prune *") != null) and
+    .network.proxyUrl == "socks5://localhost:43052" and
+    .network.httpProxyUrl == "http://localhost:43051" and
+    .network.dnsAddr == "localhost:43053" and
+    (.network.rules // []) == [] and
+    .ssh.allowedHosts == ["github.com"] and
+    .ssh.allowedCommands == ["git-upload-pack"] and
+    (.ssh.deniedCommands | index("git-receive-pack") != null) and
+    (.ssh.deniedCommands | index("scp") != null) and
+    .ssh.inheritDeny == true
+  ' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
 
 # bats test_tags=kind:greywall
-@test "greywall.json is deployed from ai permissions" {
-  assert_file_exists "$HOME/.config/greywall/greywall.json"
-  run grep -F '"defaultDenyRead": true' "$HOME/.config/greywall/greywall.json"
+@test "greywall global policy has no broad network allow" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '((.network.rules // []) | all(.action != "allow" or .destination != "*"))' "{{ $greywallDir }}/greywall.json"
   assert_success
-  run grep -F '**/.env' "$HOME/.config/greywall/greywall.json"
+}
+
+# bats test_tags=kind:greywall
+@test "greywall global policy leaves pi runtime paths to the pi profile" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '
+    (.filesystem.denyRead | index("~/.config/pi/agent/sessions/**") | not) and
+    (.filesystem.denyRead | index("**/.config/pi/agent/sessions/**") | not) and
+    (.filesystem.denyRead | index("~/.config/pi/agent/state.json") | not) and
+    (.filesystem.denyRead | index("**/.config/pi/agent/state.json") | not) and
+    (.filesystem.denyWrite | index("~/.config/pi/agent/sessions/**") | not) and
+    (.filesystem.denyWrite | index("**/.config/pi/agent/sessions/**") | not) and
+    (.filesystem.denyWrite | index("~/.config/pi/agent/state.json") | not) and
+    (.filesystem.denyWrite | index("**/.config/pi/agent/state.json") | not)
+  ' "{{ $greywallDir }}/greywall.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall
+@test "greywall pi profile allows managed additions" {
+  assert_file_exists "{{ $greywallDir }}/learned/pi.json"
+  run jq -e '
+    .schemaVersion == 1 and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/sessions") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/sessions/**") != null) and
+    (.filesystem.allowWrite | index("~/.pi-lens") != null) and
+    (.network.rules[] | select(.destination == "*.npmjs.org" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "opencode.ai" and (.port | tostring) == "443" and .action == "allow"))
+  ' "{{ $greywallDir }}/learned/pi.json"
   assert_success
 }
 {{- end }}

@@ -1,0 +1,29 @@
+[packages.base.node]
+
+[packages.base.node.bun]
+manager = "mise"
+
+[packages.base.node.bun.policy]
+allow = ["bun --version", "bun run *"]
+ask = ["bun *"]
+deny = ["bun publish *"]
+
+[packages.base.node.node]
+manager = "mise"
+pin = "lts"
+test = "node --version && npm --version && yarn --version && pnpm --version"
+
+[packages.base.node.node.policy]
+allow = [
+  "node --version",
+  "npm --version",
+  "npm list *",
+  "npm outdated *",
+  "npm view *",
+  "pnpm --version",
+  "pnpm list *",
+  "yarn --version",
+  "yarn list *"
+]
+ask = ["node *", "npm *", "pnpm *", "yarn *"]
+deny = ["npm publish *", "pnpm publish *", "yarn publish *"]

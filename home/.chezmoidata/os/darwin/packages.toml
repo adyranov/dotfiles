@@ -1,3 +1,6 @@
+[packages.os.darwin.ai]
+rtk = {manager = "system"}
+
 [packages.os.darwin.cloud]
 aws = {disabled = "headless", manager = "system", package = "awscli"}
 

@@ -1,10 +1,2 @@
-[ai.profile.work.pi.defaults]
-model = "claude-sonnet-4.6"
-provider = "github-copilot"
-thinking_level = "medium"
-enabled_models = ["claude-*", "gemini-3*", "gpt-5*"]
-
-[ai.profile.work.pi.routes]
-light = {model = "gpt-5-mini", provider = "github-copilot", thinking = "low"}
-standard = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "medium"}
-heavy = {model = "claude-opus-4.6", provider = "github-copilot", thinking = "high"}
+[ai.profile.work.agents.pi]
+packages = {pi-cursor-sdk = {}}

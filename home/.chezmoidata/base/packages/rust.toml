@@ -1,0 +1,17 @@
+[packages.base.rust]
+
+[packages.base.rust.rust]
+manager = "mise"
+bin = "rustc"
+
+[packages.base.rust.rust.policy]
+allow = [
+  "cargo --version",
+  "cargo check *",
+  "cargo clippy *",
+  "cargo doc *",
+  "cargo test *",
+  "rustc *"
+]
+ask = ["cargo *"]
+deny = ["cargo publish *", "cargo yank *"]

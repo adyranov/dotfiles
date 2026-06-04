@@ -85,6 +85,6 @@ ehthumbs.db
 *.swp
 *.swo
 *~
-
-# Working documents
-.rpiv
+# Local Pi runtime state
+.atl/
+.pi/

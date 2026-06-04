@@ -1,0 +1,23 @@
+[packages.base.python]
+uv = {manager = "mise", policy = {allow = [
+  "uv --version"
+], ask = [
+  "uv *"
+]}}
+
+[packages.base.python.python]
+manager = "mise"
+bin = "python3"
+
+[packages.base.python.python.policy]
+allow = [
+  "mypy *",
+  "pytest --collect-only *",
+  "python --version",
+  "python3 --version",
+  "python3 -c *",
+  "ruff --version",
+  "ruff check *",
+  "ruff format --check *"
+]
+ask = ["pytest *", "python *", "python3 *", "ruff *"]

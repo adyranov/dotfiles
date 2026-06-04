@@ -17,7 +17,7 @@ run = "PRE_COMMIT_COLOR=never pre-commit run --all-files --hook-stage pre-commit
 
 [tasks.test]
 description = "Run dotfiles validation tests"
-usage = 'arg "[TOOLS]..." var=#true help="Specific tools/suites to test"'
+usage = 'arg "[TOOLS]..." var=#true help="Package keys, --suite NAME, --tag TAG, --filter REGEX, --list"'
 run = '~/.local/bin/check-dotfiles ${usage_tools:-}'
 
 [tools]

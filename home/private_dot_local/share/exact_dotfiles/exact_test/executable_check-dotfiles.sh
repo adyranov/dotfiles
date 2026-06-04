@@ -15,151 +15,78 @@ if [ ! -x "$BATS_BIN" ]; then
   exit 1
 fi
 
-PACKAGE_SUITES=(
-  test-system-packages.bats
-  test-mise-packages.bats
-  test-helm-plugins.bats
-  test-krew-plugins.bats
-)
+# ----- Constants & defaults ---------------------------------------------------
 
-ALL_SUITES=(
-  test-system-packages.bats
-  test-mise-packages.bats
-  test-helm-plugins.bats
-  test-krew-plugins.bats
-  test-config.bats
-  test-ai.bats
-)
+PACKAGE_SUITES=(test-system-packages.bats test-mise-packages.bats test-helm-plugins.bats test-krew-plugins.bats)
+ALL_SUITES=("${PACKAGE_SUITES[@]}" test-config.bats test-ai.bats)
 
-usage() {
-  cat <<'EOF'
-Usage: check-dotfiles [OPTIONS] [TOOL...]
-
-Run Bats validation suites for installed dotfile packages and configuration.
-
-With no arguments runs every available suite. Pass any combination of the
-selectors below to narrow down what runs.
-
-Selectors:
-  TOOL...                 Package key(s) from packages.toml (e.g. kubectl).
-                          Restricts to package suites when --suite is not
-                          given. Matches the `pkg:<key>` tag.
-  --suite NAME[,NAME...]  One or more suite names. Recognized:
-                          packages, system-packages, mise-packages,
-                          helm-plugins, krew-plugins, config, ai, skills,
-                          all
-  --tag EXPR[,EXPR...]    Pass-through to bats `--filter-tags` (AND within
-                          one expression, OR across repeated --tag flags).
-                          Examples: --tag toolchain:kubernetes,
-                                    --tag suite:ai,kind:permission
-  --filter REGEX          Pass-through to bats `-f` to match @test names.
-
-Options:
-  -l, --list              List tests and exit (use with --by).
-      --by FIELD          Grouping for --list: suite (default), toolchain,
-                          tag, kind.
-      --no-summary        Skip per-suite section headers and summary table.
-                          Implicit when stdout is not a TTY (CI mode).
-      --summary           Force per-suite headers + summary even on non-TTY.
-  -h, --help              Show this help.
-
-Examples:
-  check-dotfiles
-  check-dotfiles kubectl helm k9s
-  check-dotfiles --suite config
-  check-dotfiles --suite ai,skills
-  check-dotfiles --tag toolchain:kubernetes
-  check-dotfiles --tag suite:ai,kind:permission
-  check-dotfiles --filter '^skill .* frontmatter'
-  check-dotfiles --list --by toolchain
-EOF
+detectJobs() {
+  if command -v nproc >/dev/null 2>&1; then
+    nproc
+  elif command -v sysctl >/dev/null 2>&1; then
+    sysctl -n hw.logicalcpu
+  else echo 1; fi
 }
 
-# ----- ANSI helpers -----------------------------------------------------------
+# ----- Colors -----------------------------------------------------------------
 
-setupColors() {
-  if [ -t 1 ] && [ "${NO_COLOR:-}" != "1" ]; then
-    C_BOLD=$'\033[1m'
-    C_DIM=$'\033[2m'
-    C_RED=$'\033[31m'
-    C_GREEN=$'\033[32m'
-    C_YELLOW=$'\033[33m'
-    C_BLUE=$'\033[34m'
-    C_GRAY=$'\033[90m'
-    C_RESET=$'\033[0m'
-  else
-    C_BOLD=
-    C_DIM=
-    C_RED=
-    C_GREEN=
-    C_YELLOW=
-    C_BLUE=
-    C_GRAY=
-    C_RESET=
-  fi
-}
+if [ -t 1 ] && [ "${NO_COLOR:-}" != "1" ]; then
+  C_BOLD=$'\033[1m' C_DIM=$'\033[2m' C_RED=$'\033[31m'
+  C_GREEN=$'\033[32m' C_YELLOW=$'\033[33m' C_BLUE=$'\033[34m'
+  C_GRAY=$'\033[90m' C_RESET=$'\033[0m'
+else
+  C_BOLD='' C_DIM='' C_RED='' C_GREEN='' C_YELLOW='' C_BLUE='' C_GRAY='' C_RESET=''
+fi
 
-# ----- Suite resolution -------------------------------------------------------
+# ----- Helpers ----------------------------------------------------------------
+
+suiteDisplayName() { basename "$1" .bats | sed 's/^test-//'; }
 
 suiteAlias() {
   case $1 in
-  packages)
-    printf '%s\n' "${PACKAGE_SUITES[@]}"
-    ;;
-  system-packages | system)
-    printf '%s\n' test-system-packages.bats
-    ;;
-  mise-packages | mise)
-    printf '%s\n' test-mise-packages.bats
-    ;;
-  helm-plugins | helm)
-    printf '%s\n' test-helm-plugins.bats
-    ;;
-  krew-plugins | krew)
-    printf '%s\n' test-krew-plugins.bats
-    ;;
-  config)
-    printf '%s\n' test-config.bats
-    ;;
-  ai)
-    printf '%s\n' test-ai.bats
-    ;;
-  all)
-    printf '%s\n' "${ALL_SUITES[@]}"
-    ;;
-  *)
-    return 1
-    ;;
+  packages) printf '%s\n' "${PACKAGE_SUITES[@]}" ;;
+  system-packages | system) echo test-system-packages.bats ;;
+  mise-packages | mise) echo test-mise-packages.bats ;;
+  helm-plugins | helm) echo test-helm-plugins.bats ;;
+  krew-plugins | krew) echo test-krew-plugins.bats ;;
+  config) echo test-config.bats ;;
+  ai) echo test-ai.bats ;;
+  all) printf '%s\n' "${ALL_SUITES[@]}" ;;
+  *) return 1 ;;
   esac
 }
 
 resolveSuites() {
-  local raw=$1 name files=()
-  local IFS_BACKUP=$IFS
-  IFS=','
-  read -r -a parts <<<"$raw"
-  IFS=$IFS_BACKUP
+  local IFS=','
+  read -r -a parts <<<"$1"
+  local name resolved
   for name in "${parts[@]}"; do
     [ -n "$name" ] || continue
-    local resolved
     if ! resolved=$(suiteAlias "$name"); then
       printf 'check-dotfiles: unknown suite: %s\n' "$name" >&2
       return 1
     fi
-    while IFS= read -r f; do
-      [ -n "$f" ] && files+=("$f")
-    done <<<"$resolved"
+    printf '%s\n' "$resolved"
+  done | awk '!seen[$0]++'
+}
+
+buildToolFilterRegex() {
+  local parts=() tool
+  for tool in "$@"; do
+    parts+=("$(printf '%s' "$tool" | sed 's/[][(){}.^$*+?|\\]/\\&/g')")
   done
-  printf '%s\n' "${files[@]}" | awk '!seen[$0]++'
+  printf '^(%s)($| )' "$(
+    IFS='|'
+    printf '%s' "${parts[*]}"
+  )"
 }
 
-suiteDisplayName() {
-  basename "$1" .bats | sed 's/^test-//'
+junitAttr() {
+  sed -nE "s/.*<testsuite[^>]* ${2}=\"([^\"]+)\".*/\1/p" "$1" | head -n 1
 }
 
-# ----- Test discovery (for --list and validation) -----------------------------
+# ----- Listing ----------------------------------------------------------------
 
-# Parses each .bats file in $DIR and emits TSV: suite \t test_name \t tags
 discoverTests() {
   local f file_tags line prev_tags name all_tags
   for f in "${ALL_SUITES[@]}"; do
@@ -173,13 +100,7 @@ discoverTests() {
       elif [[ $line =~ ^@test[[:space:]]\"([^\"]+)\" ]]; then
         name="${BASH_REMATCH[1]}"
         all_tags="$file_tags"
-        if [ -n "$prev_tags" ]; then
-          if [ -n "$all_tags" ]; then
-            all_tags="${all_tags},${prev_tags}"
-          else
-            all_tags="$prev_tags"
-          fi
-        fi
+        [ -n "$prev_tags" ] && all_tags="${all_tags:+${all_tags},}${prev_tags}"
         printf '%s\t%s\t%s\n' "$(suiteDisplayName "$f")" "$name" "$all_tags"
         prev_tags=""
       fi
@@ -187,35 +108,7 @@ discoverTests() {
   done
 }
 
-# Extract the package key from a test name (strips a trailing " (version)").
-packageKeyFromTestName() {
-  sed -E 's/ \([^)]*\)$//'
-}
-
-toolExists() {
-  local tool=$1 suite name _tags key
-  while IFS=$'\t' read -r suite name _tags; do
-    key=$(printf '%s' "$name" | packageKeyFromTestName)
-    if [ "$key" = "$tool" ]; then
-      return 0
-    fi
-  done < <(discoverTests)
-  return 1
-}
-
-validateTools() {
-  local tool
-  for tool in "$@"; do
-    if ! toolExists "$tool"; then
-      printf 'check-dotfiles: unknown tool: %s (see --list)\n' "$tool" >&2
-      exit 1
-    fi
-  done
-}
-
-# ----- Listing ---------------------------------------------------------------
-
-listBySuite() {
+listTests() {
   local current_suite="" suite name tags
   while IFS=$'\t' read -r suite name tags; do
     if [ "$suite" != "$current_suite" ]; then
@@ -223,172 +116,99 @@ listBySuite() {
       current_suite=$suite
     fi
     printf '  %s' "$name"
-    if [ -n "$tags" ]; then
-      printf ' %s[%s]%s' "$C_GRAY" "$tags" "$C_RESET"
-    fi
+    [ -n "$tags" ] && printf ' %s[%s]%s' "$C_GRAY" "$tags" "$C_RESET"
     printf '\n'
   done < <(discoverTests)
 }
 
-# Print one bucket of test rows (TSV "suite\tname" entries).
-printBucket() {
-  local content=$1 suite name
-  printf '%s' "$content" | LC_ALL=C sort -u | while IFS=$'\t' read -r suite name; do
-    [ -n "$suite" ] || continue
-    printf '  %s %s(%s)%s\n' "$name" "$C_GRAY" "$suite" "$C_RESET"
-  done
+# ----- Execution --------------------------------------------------------------
+
+runSuite() {
+  local suite_path=$1 out_dir=$2 parallel=${3:-true}
+  local rc=0 jobs_args=()
+  [ "$parallel" = true ] && jobs_args=("${BATS_JOBS_ARGS[@]}")
+  "$BATS_BIN" "${jobs_args[@]}" "${BATS_FILTER_ARGS[@]}" \
+    --formatter tap \
+    --report-formatter junit --output "$out_dir" \
+    "$suite_path" >"$out_dir/stdout.log" 2>&1 || rc=$?
+  printf '%d' "$rc" >"$out_dir/exit_code"
 }
 
-# Group tests by the value of a tag prefix (e.g. "toolchain" or "kind").
-listByTagPrefix() {
-  local prefix=$1 suite name tags tag value matched group
-  declare -A buckets=()
-  while IFS=$'\t' read -r suite name tags; do
-    matched=""
-    local IFS_BAK=$IFS
-    IFS=','
-    for tag in $tags; do
-      case $tag in
-      "${prefix}:"*)
-        if [ -z "$matched" ]; then
-          value=${tag#"${prefix}:"}
-          matched="$value"
-        fi
-        ;;
-      esac
-    done
-    IFS=$IFS_BAK
-    [ -n "$matched" ] || matched="(no-${prefix})"
-    buckets[$matched]+="${suite}"$'\t'"${name}"$'\n'
-  done < <(discoverTests)
-
-  while IFS= read -r group; do
-    [ -n "$group" ] || continue
-    printf '%s%s:%s\n' "$C_BOLD" "$group" "$C_RESET"
-    printBucket "${buckets[$group]-}"
-  done < <(printf '%s\n' "${!buckets[@]}" | LC_ALL=C sort)
+collectMetrics() {
+  local suite_name=$1 report="$2/report.xml"
+  [ -f "$report" ] || return 0
+  local tests fails skipped time
+  tests=$(junitAttr "$report" tests)
+  tests=${tests:-0}
+  fails=$(junitAttr "$report" failures)
+  fails=${fails:-0}
+  skipped=$(junitAttr "$report" skipped)
+  skipped=${skipped:-0}
+  time=$(junitAttr "$report" time)
+  time=${time:-0}
+  printf '%s|%d|%d|%d|%d|%s' "$suite_name" "$tests" $((tests - fails - skipped)) "$skipped" "$fails" "$time"
 }
 
-# Group by every individual tag (a test with N tags appears under N groups).
-listByTag() {
-  local suite name tags tag group
-  declare -A buckets=()
-  while IFS=$'\t' read -r suite name tags; do
-    local IFS_BAK=$IFS
-    IFS=','
-    for tag in $tags; do
-      [ -n "$tag" ] || continue
-      buckets[$tag]+="${suite}"$'\t'"${name}"$'\n'
-    done
-    IFS=$IFS_BAK
-  done < <(discoverTests)
-
-  while IFS= read -r group; do
-    [ -n "$group" ] || continue
-    printf '%s%s:%s\n' "$C_BOLD" "$group" "$C_RESET"
-    printBucket "${buckets[$group]-}"
-  done < <(printf '%s\n' "${!buckets[@]}" | LC_ALL=C sort)
-}
-
-runListing() {
-  local by=$1
-  case $by in
-  suite) listBySuite ;;
-  toolchain | kind | suite:* | mgr | manager) listByTagPrefix "${by%%:*}" ;;
-  tag) listByTag ;;
-  *)
-    printf 'check-dotfiles: unknown --by value: %s\n' "$by" >&2
-    return 1
-    ;;
-  esac
-}
-
-# ----- Filter construction ----------------------------------------------------
-
-buildToolFilterRegex() {
-  local tools=("$@") parts=() tool escaped joined
-  for tool in "${tools[@]}"; do
-    escaped=$(printf '%s' "$tool" | sed 's/[][(){}.^$*+?|\\]/\\&/g')
-    parts+=("$escaped")
-  done
-  joined=$(
-    IFS='|'
-    printf '%s' "${parts[*]}"
-  )
-  printf '^(%s)($| )' "$joined"
-}
-
-# ----- Per-suite execution + summary -----------------------------------------
-
-# Reads a value of a specific attribute from the first <testsuite> tag.
-junitAttr() {
-  local file=$1 attr=$2
-  sed -nE "s/.*<testsuite[^>]* ${attr}=\"([^\"]+)\".*/\1/p" "$file" | head -n 1
-}
-
-printAsciiRule() {
-  local width=$1
-  printf '%*s\n' "$width" '' | tr ' ' '-'
-}
-
-printSectionHeader() {
-  local suite=$1
-  printf '\n%s== suite: %s ==%s\n' "$C_BLUE$C_BOLD" "$suite" "$C_RESET"
-}
-
-runWithSummary() {
+runAll() {
   local suites=("$@")
-  local tmp_root
+  local tmp_root exit_code=0 failed_suites=0
   tmp_root=$(mktemp -d -t check-dotfiles.XXXXXX)
-
-  local total_tests=0 total_pass=0 total_skip=0 total_fail=0
-  local total_time=0
+  local total_tests=0 total_pass=0 total_skip=0 total_fail=0 total_time=0
   local rows=()
-  local exit_code=0
-  local failed_suites=0
-  local suite_path suite_name out_dir tests fails skipped time pass count
+  local wall_start
+  wall_start=$(date +%s)
 
+  # Filter to suites with matching tests.
+  local active=() suite_path count
   for suite_path in "${suites[@]}"; do
     [ -f "$suite_path" ] || continue
-    suite_name=$(suiteDisplayName "$suite_path")
-
-    # Skip suites where the active filters select zero tests so the output
-    # is uncluttered.
     count=$("$BATS_BIN" "${BATS_FILTER_ARGS[@]}" --count "$suite_path" 2>/dev/null || echo 0)
-    if [ "${count:-0}" -eq 0 ]; then
-      continue
-    fi
+    [ "${count:-0}" -gt 0 ] && active+=("$suite_path")
+  done
 
+  # Launch all suites in parallel.
+  local pids=() dirs=() names=() suite_name out_dir
+  local use_internal_parallel=true
+  [ ${#active[@]} -gt 1 ] && use_internal_parallel=false
+  for suite_path in "${active[@]}"; do
+    suite_name=$(suiteDisplayName "$suite_path")
     out_dir="$tmp_root/$suite_name"
     mkdir -p "$out_dir"
+    dirs+=("$out_dir")
+    names+=("$suite_name")
+    runSuite "$suite_path" "$out_dir" "$use_internal_parallel" &
+    pids+=($!)
+  done
 
-    printSectionHeader "$suite_name"
+  # Wait for completion.
+  local i
+  for i in "${!pids[@]}"; do wait "${pids[$i]}" 2>/dev/null || true; done
 
-    if "$BATS_BIN" "${BATS_FILTER_ARGS[@]}" \
-      --formatter pretty \
-      --report-formatter junit --output "$out_dir" \
-      "$suite_path"; then
-      :
-    else
-      local rc=$?
-      exit_code=$rc
-      failed_suites=$((failed_suites + 1))
+  # Collect results in suite order.
+  local show_summary=false
+  [ -t 1 ] && [ "${CI:-}" = "" ] && show_summary=true
+
+  for i in "${!names[@]}"; do
+    local sn="${names[$i]}" sd="${dirs[$i]}"
+    local rc
+    rc=$(cat "$sd/exit_code" 2>/dev/null || echo 1)
+
+    if [ "$show_summary" = true ] || [ "$rc" -ne 0 ]; then
+      printf '\n%s== suite: %s ==%s\n' "$C_BLUE$C_BOLD" "$sn" "$C_RESET"
+      [ -f "$sd/stdout.log" ] && cat "$sd/stdout.log"
     fi
 
-    local report="$out_dir/report.xml"
-    if [ -f "$report" ]; then
-      tests=$(junitAttr "$report" tests)
-      fails=$(junitAttr "$report" failures)
-      skipped=$(junitAttr "$report" skipped)
-      time=$(junitAttr "$report" time)
-      tests=${tests:-0}
-      fails=${fails:-0}
-      skipped=${skipped:-0}
-      time=${time:-0}
-      pass=$((tests - fails - skipped))
-      if [ "$tests" -gt 0 ] || [ "$fails" -gt 0 ]; then
-        rows+=("${suite_name}|${tests}|${pass}|${skipped}|${fails}|${time}")
-      fi
+    [ "$rc" -ne 0 ] && {
+      exit_code=$rc
+      failed_suites=$((failed_suites + 1))
+    }
+
+    local row
+    row=$(collectMetrics "$sn" "$sd")
+    if [ -n "$row" ]; then
+      rows+=("$row")
+      local tests pass skipped fails time
+      IFS='|' read -r _ tests pass skipped fails time <<<"$row"
       total_tests=$((total_tests + tests))
       total_pass=$((total_pass + pass))
       total_skip=$((total_skip + skipped))
@@ -399,92 +219,88 @@ runWithSummary() {
 
   rm -rf "$tmp_root"
 
-  printSummaryTable "$total_tests" "$total_pass" "$total_skip" "$total_fail" "$total_time" "${rows[@]}"
-  printFinalBanner "$total_tests" "$total_pass" "$total_skip" "$total_fail" "$total_time" "$failed_suites"
-
-  if [ "$total_tests" -eq 0 ]; then
-    exit_code=1
+  # Summary table.
+  if [ "$show_summary" = true ] && [ ${#rows[@]} -gt 0 ]; then
+    local name_w=14 row
+    for row in "${rows[@]}"; do
+      local n=${row%%|*}
+      [ ${#n} -gt "$name_w" ] && name_w=${#n}
+    done
+    local fmt="%-${name_w}s  %5s  %5s  %5s  %5s  %7s\n"
+    printf '\n%s== Summary ==%s\n' "$C_BLUE$C_BOLD" "$C_RESET"
+    # shellcheck disable=SC2059
+    printf "$fmt" "Suite" "Tests" "Pass" "Skip" "Fail" "Time"
+    printf '%s%*s%s\n' "$C_DIM" $((name_w + 36)) '' "$C_RESET" | tr ' ' '-'
+    local suite tests pass skipped fails time color
+    for row in "${rows[@]}"; do
+      IFS='|' read -r suite tests pass skipped fails time <<<"$row"
+      if [ "$fails" -gt 0 ]; then
+        color=$C_RED
+      elif [ "$skipped" -gt 0 ] && [ "$pass" -eq 0 ]; then
+        color=$C_YELLOW
+      else color=$C_GREEN; fi
+      # shellcheck disable=SC2059
+      printf "${color}${fmt}${C_RESET}" "$suite" "$tests" "$pass" "$skipped" "$fails" "$(printf '%.1fs' "$time")"
+    done
+    printf '%s%*s%s\n' "$C_DIM" $((name_w + 36)) '' "$C_RESET" | tr ' ' '-'
+    # shellcheck disable=SC2059
+    printf "$C_BOLD${fmt}$C_RESET" "Total" "$total_tests" "$total_pass" "$total_skip" "$total_fail" "$(printf '%ds' "$(($(date +%s) - wall_start))")"
   fi
 
-  return $exit_code
-}
+  # Final status line.
+  local wall_end wall_elapsed
+  wall_end=$(date +%s)
+  wall_elapsed=$((wall_end - wall_start))
 
-printSummaryTable() {
-  local total_tests=$1 total_pass=$2 total_skip=$3 total_fail=$4 total_time=$5
-  shift 5
-  local rows=("$@")
-
-  local name_w=14
-  local row
-  for row in "${rows[@]}"; do
-    local n=${row%%|*}
-    [ ${#n} -gt "$name_w" ] && name_w=${#n}
-  done
-
-  local fmt="%-${name_w}s  %5s  %5s  %5s  %5s  %7s\n"
-
-  printf '\n%s== Summary ==%s\n' "$C_BLUE$C_BOLD" "$C_RESET"
-  # shellcheck disable=SC2059 # fmt is constructed above and trusted
-  printf "$fmt" "Suite" "Tests" "Pass" "Skip" "Fail" "Time"
-  printf '%s' "$C_DIM"
-  printAsciiRule $((name_w + 36))
-  printf '%s' "$C_RESET"
-
-  local suite tests pass skipped fails time time_fmt color
-  for row in "${rows[@]}"; do
-    IFS='|' read -r suite tests pass skipped fails time <<<"$row"
-    time_fmt=$(printf '%.1fs' "$time")
-    if [ "$fails" -gt 0 ]; then
-      color=$C_RED
-    elif [ "$skipped" -gt 0 ] && [ "$pass" -eq 0 ]; then
-      color=$C_YELLOW
-    else
-      color=$C_GREEN
-    fi
-    # shellcheck disable=SC2059
-    printf "${color}${fmt}${C_RESET}" "$suite" "$tests" "$pass" "$skipped" "$fails" "$time_fmt"
-  done
-
-  printf '%s' "$C_DIM"
-  printAsciiRule $((name_w + 36))
-  printf '%s' "$C_RESET"
-
-  local total_time_fmt
-  total_time_fmt=$(printf '%.1fs' "$total_time")
-  # shellcheck disable=SC2059
-  printf "$C_BOLD$fmt$C_RESET" "Total" "$total_tests" "$total_pass" "$total_skip" "$total_fail" "$total_time_fmt"
-}
-
-printFinalBanner() {
-  local total_tests=$1 total_pass=$2 total_skip=$3 total_fail=$4 total_time=$5 failed_suites=$6
-  local time_fmt
-  time_fmt=$(printf '%.1fs' "$total_time")
   printf '\n'
   if [ "$total_fail" -gt 0 ]; then
-    printf '%sFAIL: %d test(s) failed in %d suite(s) (%d passed, %d skipped) in %s%s\n' \
-      "$C_RED$C_BOLD" "$total_fail" "$failed_suites" \
-      "$total_pass" "$total_skip" "$time_fmt" "$C_RESET"
+    printf '%sFAIL: %d test(s) failed in %d suite(s) (%d passed, %d skipped) in %ds%s\n' \
+      "$C_RED$C_BOLD" "$total_fail" "$failed_suites" "$total_pass" "$total_skip" "$wall_elapsed" "$C_RESET"
   elif [ "$total_tests" -eq 0 ]; then
     printf '%sWARN: no tests matched the selectors%s\n' "$C_YELLOW$C_BOLD" "$C_RESET"
+    exit_code=1
   else
     printf '%sOK: all %d test(s) passed' "$C_GREEN$C_BOLD" "$total_pass"
     [ "$total_skip" -gt 0 ] && printf ' (%d skipped)' "$total_skip"
-    printf ' in %s%s\n' "$time_fmt" "$C_RESET"
+    printf ' in %ds%s\n' "$wall_elapsed" "$C_RESET"
   fi
+
+  return "$exit_code"
 }
 
 # ----- Main -------------------------------------------------------------------
 
-main() {
-  setupColors
+usage() {
+  cat <<'EOF'
+Usage: check-dotfiles [OPTIONS] [TOOL...]
 
-  local tools=()
-  local suite_arg=""
-  local tag_filters=()
-  local filter_regex=""
-  local do_list=false
-  local list_by="suite"
-  local force_summary=""
+Run Bats validation suites for installed dotfile packages and configuration.
+By default runs all suites in parallel with auto-detected CPU count.
+
+Selectors:
+  TOOL...               Package key(s) (e.g. kubectl helm). Restricts to
+                        package suites and matches the `pkg:<key>` tag.
+  --suite NAME[,...]    Suite names: packages, system-packages, mise-packages,
+                        helm-plugins, krew-plugins, config, ai, all
+  --tag EXPR[,...]      Bats tag filter (AND within, OR across repeated flags).
+  --filter REGEX        Bats name filter regex.
+
+Options:
+  -j, --jobs N          Parallel jobs per suite (default: CPU count; 1=sequential).
+  -l, --list            List discovered tests and exit.
+  -h, --help            Show this help.
+
+Examples:
+  check-dotfiles                          # all suites, full parallel
+  check-dotfiles kubectl helm             # only these packages
+  check-dotfiles --suite config,ai        # specific suites
+  check-dotfiles --tag toolchain:kubernetes
+  check-dotfiles -j1                      # sequential (debug)
+EOF
+}
+
+main() {
+  local tools=() suite_arg="" tag_filters=() filter_regex="" parallel_jobs=""
 
   while [ $# -gt 0 ]; do
     case $1 in
@@ -493,21 +309,8 @@ main() {
       exit 0
       ;;
     -l | --list)
-      do_list=true
-      shift
-      ;;
-    --by)
-      if [ $# -lt 2 ] || [ -z "${2:-}" ] || [[ $2 == -* ]]; then
-        printf 'check-dotfiles: --by requires a value\n' >&2
-        usage >&2
-        exit 1
-      fi
-      list_by=$2
-      shift 2
-      ;;
-    --by=*)
-      list_by=${1#--by=}
-      shift
+      listTests
+      exit $?
       ;;
     --suite)
       suite_arg=$2
@@ -533,12 +336,16 @@ main() {
       filter_regex=${1#--filter=}
       shift
       ;;
-    --summary)
-      force_summary=on
+    -j | --jobs)
+      parallel_jobs=$2
+      shift 2
+      ;;
+    -j*)
+      parallel_jobs=${1#-j}
       shift
       ;;
-    --no-summary)
-      force_summary=off
+    --jobs=*)
+      parallel_jobs=${1#--jobs=}
       shift
       ;;
     --)
@@ -558,54 +365,30 @@ main() {
     esac
   done
 
-  if [ "$do_list" = true ]; then
-    if [ ${#tools[@]} -gt 0 ] || [ -n "$suite_arg" ] || [ ${#tag_filters[@]} -gt 0 ] || [ -n "$filter_regex" ]; then
-      printf 'check-dotfiles: --list does not accept selectors\n' >&2
-      usage >&2
-      exit 1
-    fi
-    runListing "$list_by"
-    exit $?
-  fi
-
-  if [ ${#tools[@]} -gt 0 ]; then
-    validateTools "${tools[@]}"
-  fi
-
-  # Resolve suite files.
+  # Resolve suites.
   local suite_files=()
   if [ -n "$suite_arg" ]; then
-    resolved_suites=""
-    if ! resolved_suites=$(resolveSuites "$suite_arg"); then
-      exit 1
-    fi
+    local resolved
+    if ! resolved=$(resolveSuites "$suite_arg"); then exit 1; fi
     while IFS= read -r f; do
       [ -n "$f" ] && suite_files+=("${DIR}/${f}")
-    done <<<"$resolved_suites"
+    done <<<"$resolved"
   elif [ ${#tools[@]} -gt 0 ]; then
-    # Backwards-compatible default: package suites only when positional tools given.
     local s
-    for s in "${PACKAGE_SUITES[@]}"; do
-      [ -f "${DIR}/${s}" ] && suite_files+=("${DIR}/${s}")
-    done
+    for s in "${PACKAGE_SUITES[@]}"; do [ -f "${DIR}/${s}" ] && suite_files+=("${DIR}/${s}"); done
   else
     local s
-    for s in "${ALL_SUITES[@]}"; do
-      [ -f "${DIR}/${s}" ] && suite_files+=("${DIR}/${s}")
-    done
+    for s in "${ALL_SUITES[@]}"; do [ -f "${DIR}/${s}" ] && suite_files+=("${DIR}/${s}"); done
   fi
-
-  if [ ${#suite_files[@]} -eq 0 ]; then
+  [ ${#suite_files[@]} -eq 0 ] && {
     printf 'check-dotfiles: no suites resolved\n' >&2
     exit 1
-  fi
+  }
 
-  # Build bats argument list.
+  # Build bats filter args.
   BATS_FILTER_ARGS=()
   local tag
-  for tag in "${tag_filters[@]}"; do
-    BATS_FILTER_ARGS+=(--filter-tags "$tag")
-  done
+  for tag in "${tag_filters[@]}"; do BATS_FILTER_ARGS+=(--filter-tags "$tag"); done
 
   local combined_regex=""
   if [ -n "$filter_regex" ] && [ ${#tools[@]} -gt 0 ]; then
@@ -615,26 +398,16 @@ main() {
   elif [ ${#tools[@]} -gt 0 ]; then
     combined_regex=$(buildToolFilterRegex "${tools[@]}")
   fi
+  [ -n "$combined_regex" ] && BATS_FILTER_ARGS+=(-f "$combined_regex")
 
-  if [ -n "$combined_regex" ]; then
-    BATS_FILTER_ARGS+=(-f "$combined_regex")
+  # Parallel config.
+  [ -z "$parallel_jobs" ] && parallel_jobs=$(detectJobs)
+  BATS_JOBS_ARGS=()
+  if [ "$parallel_jobs" -gt 1 ] 2>/dev/null; then
+    BATS_JOBS_ARGS=(--jobs "$parallel_jobs" --no-parallelize-across-files)
   fi
 
-  # Decide on summary mode.
-  local use_summary=false
-  if [ "$force_summary" = on ]; then
-    use_summary=true
-  elif [ "$force_summary" = off ]; then
-    use_summary=false
-  elif [ -t 1 ] && [ "${CI:-}" = "" ]; then
-    use_summary=true
-  fi
-
-  if [ "$use_summary" = true ]; then
-    runWithSummary "${suite_files[@]}"
-  else
-    "$BATS_BIN" "${BATS_FILTER_ARGS[@]}" "${suite_files[@]}"
-  fi
+  runAll "${suite_files[@]}"
 }
 
 main "$@"

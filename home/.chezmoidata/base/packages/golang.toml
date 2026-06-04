@@ -1,0 +1,9 @@
+[packages.base.golang]
+
+[packages.base.golang.go]
+manager = "mise"
+version = "go version"
+
+[packages.base.golang.go.policy]
+allow = ["go doc *", "go env *", "go list *", "go version *", "go vet *", "gofmt *"]
+ask = ["go *"]

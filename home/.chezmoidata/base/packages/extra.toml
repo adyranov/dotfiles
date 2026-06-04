@@ -1,0 +1,3 @@
+[packages.base.extra]
+gocryptfs = {disabled = "headless,restricted", version = "gocryptfs -version"}
+qrencode = {}
