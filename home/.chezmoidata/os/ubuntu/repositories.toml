@@ -19,10 +19,6 @@ repo_line = "deb http://ppa.launchpad.net/git-core/ppa/ubuntu $(lsb_release -cs)
 key_url = "https://cli.github.com/packages/githubcli-archive-keyring.gpg"
 repo_line = "deb https://cli.github.com/packages stable main"
 
-[repositories.os.ubuntu.core.mise]
-key_url = "https://mise.jdx.dev/gpg-key.pub"
-repo_line = "deb https://mise.jdx.dev/deb stable main"
-
 [repositories.os.ubuntu.docker.docker-ce]
 key_url = "https://download.docker.com/linux/ubuntu/gpg"
 repo_line = "deb https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"

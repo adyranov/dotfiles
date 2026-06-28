@@ -3,6 +3,7 @@
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
 echo "🔄 Upgrading mise toolchains..."
 echo "  ↳ This may install new versions of your configured tools."
+mise self-update
 mise upgrade
 echo "  🧹 Pruning old versions..."
 mise prune -q -y

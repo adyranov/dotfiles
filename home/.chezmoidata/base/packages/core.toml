@@ -177,7 +177,7 @@ deny = [
 ]
 
 [packages.base.core.mise]
-completion = true
+disabled = true
 
 [packages.base.core.mise.policy]
 allow = ["mise current *", "mise list *", "mise ls *", "mise version *"]

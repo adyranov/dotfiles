@@ -36,6 +36,14 @@ if ! command -v brew >/dev/null 2>&1; then
   echo "  ✅ Homebrew installed."
 fi
 
+export PATH="${HOME}/.local/bin:${PATH}"
+
+if ! command -v mise >/dev/null 2>&1; then
+  echo "📦 Installing mise..."
+  retry sh -c "curl -fsSL https://mise.run/ | GITHUB_TOKEN='${GITHUB_TOKEN:-}' sh"
+  echo "  ✅ mise installed."
+fi
+
 if ! command -v rage >/dev/null 2>&1; then
   echo "🔐 Installing rage (encryption tool)..."
   retry brew install rage

@@ -29,10 +29,11 @@ if ! locale -a 2>/dev/null | grep -qi 'en_US.utf8'; then
   echo "  ✅ Locale installed."
 fi
 
+export PATH="${HOME}/.local/bin:${PATH}"
+
 if ! command -v mise >/dev/null 2>&1; then
   echo "📦 Installing mise..."
-  retry sudo dnf5 copr -y enable jdxcode/mise
-  retry sudo dnf5 -y install mise
+  retry sh -c "curl -fsSL https://mise.run/ | GITHUB_TOKEN='${GITHUB_TOKEN:-}' sh"
   echo "  ✅ mise installed."
 fi
 

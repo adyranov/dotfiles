@@ -14,7 +14,8 @@
 {{-   $packages = append $packages (printf "npm:%s" $name) -}}
 {{- end -}}
 {{- $agentOverrides := includeTemplate "common/helpers/render-subagent-models" (dict "root" .) | mustFromJson -}}
-{{- $piVersion := output "mise" "current" "npm:@earendil-works/pi-coding-agent" | trim -}}
+{{- $piVersion := "" -}}
+{{- if lookPath "mise" }}{{- $piVersion = output "mise" "current" "npm:@earendil-works/pi-coding-agent" | trim -}}{{- end -}}
 {{- dict
   "bashMode" (dict
     "toggleShortcut" $settings.bash_mode.toggle_shortcut

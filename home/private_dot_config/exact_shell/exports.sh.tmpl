@@ -96,14 +96,14 @@ add_to_path "$HOME/.local/bin"
 unset -f add_to_path
 
 # mise activate (final step; prepends shims to PATH).
-{{- if (lookPath "mise") }}
-if [ -n "${ZSH_VERSION:-}" ]; then
-  eval "$(mise activate zsh)"
-elif [ -n "${BASH_VERSION:-}" ]; then
-  eval "$(mise activate bash)"
-elif command -v ps >/dev/null 2>&1; then
-  _shell=$(ps -p $$ -o comm= | awk -F/ '{print $NF}' | sed 's/^-//')
-  [ -n "$_shell" ] && eval "$(mise activate "$_shell")"
-  unset _shell
+if command -v mise >/dev/null 2>&1; then
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    eval "$(mise activate zsh)"
+  elif [ -n "${BASH_VERSION:-}" ]; then
+    eval "$(mise activate bash)"
+  elif command -v ps >/dev/null 2>&1; then
+    _shell=$(ps -p $$ -o comm= | awk -F/ '{print $NF}' | sed 's/^-//')
+    [ -n "$_shell" ] && eval "$(mise activate "$_shell")"
+    unset _shell
+  fi
 fi
-{{- end }}
