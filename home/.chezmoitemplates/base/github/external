@@ -1,0 +1,61 @@
+{{- /* base/github/external — `.chezmoiexternal.toml` block for a GitHub file or archive.
+  Args (dict):
+    type            — "archive" | "file" (required)
+    target          — destination key (required)
+    repo            — "owner/repo" or "owner/repo@ref" to pin a branch (required)
+    source          — file path inside repo (required when type = "file")
+    stripComponents — int, default 1 (archive only)
+    include         — list of glob patterns (archive only)
+    exact           — bool, emits `exact = true`
+    refreshPeriod   — string, default "168h" (only honored when @ref is set)
+    memo            — optional dict for caching gitHubTags lookups across calls
+  Without @ref, the latest git tag is used; repos with no tags will error. */ -}}
+{{- $type := .type -}}
+{{- if and (ne $type "archive") (ne $type "file") -}}
+{{-   fail (printf "base/github/external: unknown type %q (want \"archive\" or \"file\")" $type) -}}
+{{- end -}}
+{{- $repoParts := splitList "@" .repo -}}
+{{- $repoName := index $repoParts 0 -}}
+{{- $ref := "" -}}
+{{- if gt (len $repoParts) 1 -}}{{- $ref = index $repoParts 1 -}}{{- end -}}
+{{- if not $ref -}}
+{{-   $tags := list -}}
+{{-   if index . "memo" -}}
+{{-     $memo := index . "memo" -}}
+{{-     if hasKey $memo $repoName -}}
+{{-       $tags = index $memo $repoName -}}
+{{-     else -}}
+{{-       $tags = gitHubTags $repoName -}}
+{{-       $_ := set $memo $repoName $tags -}}
+{{-     end -}}
+{{-   else -}}
+{{-     $tags = gitHubTags $repoName -}}
+{{-   end -}}
+{{-   if not (gt (len $tags) 0) -}}
+{{-     fail (printf "base/github/external: %s has no git tags; pin a branch with @ref" $repoName) -}}
+{{-   end -}}
+{{-   $ref = (index $tags 0).Name -}}
+{{- end -}}
+{{- $isTag := not (gt (len $repoParts) 1) -}}
+["{{ .target }}"]
+{{- if eq $type "archive" }}
+    type = "archive"
+{{-   if $isTag }}
+    url = "https://github.com/{{ $repoName }}/archive/refs/tags/{{ $ref }}.tar.gz"
+{{-   else }}
+    url = "https://github.com/{{ $repoName }}/archive/{{ $ref }}.tar.gz"
+{{-   end }}
+    stripComponents = {{ default 1 (index . "stripComponents") }}
+{{-   if index . "include" }}
+    include = [{{ range $i, $p := index . "include" }}{{ if $i }}, {{ end }}"{{ $p }}"{{ end }}]
+{{-   end }}
+{{- else if eq $type "file" }}
+    type = "file"
+    url = "https://raw.githubusercontent.com/{{ $repoName }}/{{ $ref }}/{{ .source }}"
+{{- end }}
+{{- if not $isTag }}
+    refreshPeriod = "{{ default "168h" (index . "refreshPeriod") }}"
+{{- end }}
+{{- if index . "exact" }}
+    exact = true
+{{- end }}

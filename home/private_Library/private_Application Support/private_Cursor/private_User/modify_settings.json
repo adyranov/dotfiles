@@ -1,0 +1,39 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $vscode := includeTemplate "base/helpers/load-section" (dict "root" . "section" "editors.vscode" "required" true) | mustFromJson -}}
+{{- $s := $vscode.settings -}}
+{{- $current := dict -}}
+{{- if and (hasKey .chezmoi "stdin") (not (empty (trim .chezmoi.stdin))) -}}
+{{-   $current = fromJsonc .chezmoi.stdin -}}
+{{-   if not $current -}}{{- $current = dict -}}{{- end -}}
+{{- end -}}
+{{- $managed := dict
+    "workbench.colorTheme" $s.theme
+    "workbench.iconTheme" $s.iconTheme
+    "editor.fontFamily" (printf "%s, Menlo, Monaco, 'Courier New', monospace" $s.fontFamily)
+    "editor.fontSize" $s.fontSize
+    "editor.tabSize" $s.tabSize
+    "editor.formatOnSave" $s.formatOnSave
+    "editor.minimap.enabled" false
+    "editor.renderWhitespace" "boundary"
+    "editor.bracketPairColorization.enabled" true
+    "editor.guides.bracketPairs" "active"
+    "editor.linkedEditing" true
+    "editor.stickyScroll.enabled" true
+    "files.autoSave" "onFocusChange"
+    "files.trimTrailingWhitespace" true
+    "files.insertFinalNewline" true
+    "files.trimFinalNewlines" true
+    "terminal.integrated.fontFamily" $s.fontFamily
+    "telemetry.telemetryLevel" "off"
+    "extensions.autoUpdate" true
+    "extensions.ignoreRecommendations" false
+    "git.autofetch" true
+    "git.confirmSync" false
+    "git.enableSmartCommit" true
+-}}
+{{- if eq .chezmoi.os "darwin" -}}
+{{-   $_ := set $managed "terminal.integrated.defaultProfile.osx" "zsh" -}}
+{{- else -}}
+{{-   $_ := set $managed "terminal.integrated.defaultProfile.linux" "zsh" -}}
+{{- end -}}
+{{ mergeOverwrite $current $managed | toPrettyJson }}

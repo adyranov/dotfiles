@@ -16,14 +16,20 @@ jobs:
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         with:
           distribution: Ubuntu-24.04
-      - name: Restore Cache
-        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+      - name: Restore WSL mise Cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: restore-wsl-mise
         with:
-          path: |
-            \\wsl$\Ubuntu-24.04\root\.local\share\mise\downloads
-            \\wsl$\Ubuntu-24.04\var\cache\apt\archives
-          key: chezmoi-cache-wsl-${{ hashFiles('home/**') }}
-          restore-keys: chezmoi-cache-wsl-
+          path: \\wsl$\Ubuntu-24.04\root\.local\share\mise\downloads
+          key: wsl-mise-${{ hashFiles('.mise.toml', 'home/.chezmoidata/base/packages/**', 'home/.chezmoidata/os/ubuntu/packages.toml', 'home/.chezmoidata/profile/**', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoiscripts/common/run_onchange_after_01_update-mise.sh.tmpl', 'home/.chezmoiscripts/common/run_onchange_after_10_install-mise-packages.sh.tmpl') }}
+          restore-keys: wsl-mise-
+      - name: Restore WSL APT Cache
+        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        id: restore-wsl-apt
+        with:
+          path: \\wsl$\Ubuntu-24.04\var\cache\apt\archives
+          key: wsl-apt-${{ hashFiles('home/.chezmoidata/base/packages/*.toml', 'home/.chezmoidata/os/ubuntu/**', 'home/.chezmoitemplates/os/ubuntu/**', 'home/.chezmoiscripts/os/ubuntu/**', 'home/.chezmoiscripts/before/run_onchange_before_20_install.sh.tmpl') }}
+          restore-keys: wsl-apt-
       - name: Run install.sh
         shell: wsl-bash {0}
         run: |
@@ -41,11 +47,15 @@ jobs:
         run: |
           set -eux
           zsh -lic 'check-dotfiles'
-      - name: Save Cache
-        if: ${{ always() }}
+      - name: Save WSL mise Cache
+        if: success() && github.event_name != 'pull_request' && steps.restore-wsl-mise.outputs.cache-hit != 'true'
         uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
-          path: |
-            \\wsl$\Ubuntu-24.04\root\.local\share\mise\downloads
-            \\wsl$\Ubuntu-24.04\var\cache\apt\archives
-          key: chezmoi-cache-wsl-${{ hashFiles('home/**') }}
+          path: \\wsl$\Ubuntu-24.04\root\.local\share\mise\downloads
+          key: ${{ steps.restore-wsl-mise.outputs.cache-primary-key }}
+      - name: Save WSL APT Cache
+        if: success() && github.event_name != 'pull_request' && steps.restore-wsl-apt.outputs.cache-hit != 'true'
+        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        with:
+          path: \\wsl$\Ubuntu-24.04\var\cache\apt\archives
+          key: ${{ steps.restore-wsl-apt.outputs.cache-primary-key }}

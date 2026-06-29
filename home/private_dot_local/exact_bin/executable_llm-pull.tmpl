@@ -1,0 +1,273 @@
+{{- $profile := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.local" "required" true) | mustFromJson -}}
+{{- $resolved := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+#!/usr/bin/env sh
+# llm-pull — Download local LLM weights configured in this chezmoi profile.
+set -eu
+
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  B=$(printf '\033[1m'); D=$(printf '\033[2m'); R=$(printf '\033[0m')
+  G=$(printf '\033[32m'); Y=$(printf '\033[33m'); C=$(printf '\033[36m')
+else
+  B=''; D=''; R=''; G=''; Y=''; C=''
+fi
+
+HF_CACHE="${HF_HUB_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/huggingface/hub}"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/llm-pull.XXXXXX")"
+CONFIGURED_FILE="$WORK_DIR/configured.tsv"
+MISSING_FILE="$WORK_DIR/missing.tsv"
+STALE_FILE="$WORK_DIR/stale.tsv"
+CLEANUP_FILE="$WORK_DIR/cleanup.tsv"
+
+cleanup() {
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' HUP INT TERM
+
+ask() {
+  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    printf '%s?%s %s %s[Y/n]%s ' "$B" "$R" "$1" "$D" "$R" >/dev/tty
+    read -r reply </dev/tty || reply=''
+  else
+    printf '%s?%s %s %s[Y/n]%s ' "$B" "$R" "$1" "$D" "$R"
+    read -r reply || reply=''
+  fi
+  case "$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')" in
+    ''|y|yes) return 0 ;;
+    *)        return 1 ;;
+  esac
+}
+
+ask_no() {
+  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    printf '%s?%s %s %s[y/N]%s ' "$B" "$R" "$1" "$D" "$R" >/dev/tty
+    read -r reply </dev/tty || reply=''
+  else
+    printf '%s?%s %s %s[y/N]%s ' "$B" "$R" "$1" "$D" "$R"
+    read -r reply || reply=''
+  fi
+  case "$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')" in
+    y|yes) return 0 ;;
+    *)     return 1 ;;
+  esac
+}
+
+configured_models() {
+  cat <<'EOF'
+{{- range $id := keys $profile.models | sortAlpha }}
+{{-   $m := index $profile.models $id }}
+{{-   $mlx := index $m "mlx" | default dict }}
+{{-   if index $mlx "repo" }}
+{{ $id }}	mlx	{{ $mlx.repo }}
+{{-   end }}
+{{-   $gguf := index $m "gguf" | default dict }}
+{{-   if index $gguf "repo" }}
+{{ $id }}	gguf	{{ $gguf.repo }}	{{ index $gguf "file" | default "" }}
+{{-   end }}
+{{- end }}
+EOF
+}
+
+repo_slug() {
+  printf '%s' "$1" | sed 's|/|--|'
+}
+
+repo_from_slug() {
+  printf '%s' "$1" | sed 's/^models--//; s|--|/|'
+}
+
+repo_dir() {
+  printf '%s/models--%s' "$HF_CACHE" "$(repo_slug "$1")"
+}
+
+hf_download_cmd() {
+  repo="$1"
+  file="$2"
+  if [ -n "$file" ]; then
+    printf 'hf download %s %s' "$repo" "$file"
+  else
+    printf 'hf download %s' "$repo"
+  fi
+}
+
+# cached <repo> [file] → 0 if HF snapshot dir exists (and file present when given)
+cached() {
+  snaps="$(repo_dir "$1")/snapshots"
+  [ -d "$snaps" ] || return 1
+  if [ -n "${2:-}" ]; then
+    find "$snaps" -name "$2" \( -type f -o -type l \) 2>/dev/null | grep -q .
+  else
+    find "$snaps" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q .
+  fi
+}
+
+# cache_state <repo> [file] → cached | partial | missing
+cache_state() {
+  repo="$1"
+  file="${2:-}"
+  if cached "$repo" "$file"; then
+    printf 'cached'
+    return 0
+  fi
+  rd="$(repo_dir "$repo")"
+  if [ ! -d "$rd" ]; then
+    printf 'missing'
+    return 0
+  fi
+  if find "$rd" -name '*.incomplete' 2>/dev/null | grep -q .; then
+    printf 'partial'
+    return 0
+  fi
+  if [ -d "$rd/snapshots" ] && find "$rd/snapshots" -mindepth 1 2>/dev/null | grep -q .; then
+    printf 'partial'
+    return 0
+  fi
+  if [ -d "$rd/blobs" ] && find "$rd/blobs" -mindepth 1 2>/dev/null | grep -q .; then
+    printf 'partial'
+    return 0
+  fi
+  printf 'missing'
+}
+
+is_configured() {
+  repo="$1"
+  file="$2"
+  awk -F '\t' -v repo="$repo" -v file="$file" \
+    '$3 == repo && ($4 == file || $4 == "") { found = 1 } END { exit !found }' \
+    "$CONFIGURED_FILE"
+}
+
+repo_configured() {
+  repo="$1"
+  awk -F '\t' -v repo="$repo" '$3 == repo { found = 1 } END { exit !found }' "$CONFIGURED_FILE"
+}
+
+download_model() {
+  repo="$1"
+  file="$2"
+  if [ -n "$file" ]; then
+    hf download "$repo" "$file"
+  else
+    hf download "$repo"
+  fi
+}
+
+scan_models() {
+  : >"$MISSING_FILE"
+  while IFS="$(printf '\t')" read -r id kind repo file; do
+    [ -n "$id" ] || continue
+    state="$(cache_state "$repo" "$file")"
+    printf '%s%s%s (%s)  %s%s%s%s ... ' \
+      "$B" "$id" "$R" "$kind" "$D" "$repo" "${file:+ ($file)}" "$R"
+    case "$state" in
+      cached)
+        printf '%scached%s\n' "$G" "$R"
+        ;;
+      partial)
+        printf '%spartial%s\n' "$Y" "$R"
+        printf '    %s%s (resume)%s\n' "$D" "$(hf_download_cmd "$repo" "$file")" "$R"
+        printf '%s\t%s\t%s\t%s\n' "$id" "$kind" "$repo" "$file" >>"$MISSING_FILE"
+        ;;
+      missing)
+        printf '%smissing%s\n' "$Y" "$R"
+        printf '    %s%s%s\n' "$D" "$(hf_download_cmd "$repo" "$file")" "$R"
+        printf '%s\t%s\t%s\t%s\n' "$id" "$kind" "$repo" "$file" >>"$MISSING_FILE"
+        ;;
+    esac
+  done <"$CONFIGURED_FILE"
+}
+
+pull_missing() {
+  if [ ! -s "$MISSING_FILE" ]; then
+    printf '\n%sAll configured models are cached.%s\n' "$G" "$R"
+    return 0
+  fi
+
+  count="$(wc -l <"$MISSING_FILE" | tr -d ' ')"
+  printf '\n%sMissing or partial downloads:%s\n' "$B" "$R"
+  while IFS="$(printf '\t')" read -r id kind repo file; do
+    printf '  %s (%s)  %s\n' "$id" "$kind" "$(hf_download_cmd "$repo" "$file")"
+  done <"$MISSING_FILE"
+
+  if ask "Download or resume ${count} model(s)?"; then
+    while IFS="$(printf '\t')" read -r id kind repo file; do
+      printf '\n%s%s%s (%s)  %s%s%s%s\n' \
+        "$B" "$id" "$R" "$kind" "$D" "$repo" "${file:+ ($file)}" "$R"
+      printf '  %s%s%s\n' "$D" "$(hf_download_cmd "$repo" "$file")" "$R"
+      download_model "$repo" "$file"
+      printf '%s✓ done%s\n' "$G" "$R"
+    done <"$MISSING_FILE"
+  else
+    printf '%s↷ skipped downloads%s\n' "$Y" "$R"
+  fi
+}
+
+scan_stale() {
+  : >"$STALE_FILE"
+  [ -d "$HF_CACHE" ] || return 0
+
+  for model_dir in "$HF_CACHE"/models--*; do
+    [ -d "$model_dir" ] || continue
+    snaps="$model_dir/snapshots"
+    [ -d "$snaps" ] || continue
+    repo="$(repo_from_slug "$(basename "$model_dir")")"
+    find "$snaps" -name '*.gguf' \( -type f -o -type l \) 2>/dev/null |
+      while IFS= read -r path; do
+        file="$(basename "$path")"
+        if ! is_configured "$repo" "$file"; then
+          printf '%s\t%s\t%s\n' "$repo" "$file" "$path" >>"$STALE_FILE"
+        fi
+      done
+  done
+}
+
+cleanup_stale() {
+  [ -s "$STALE_FILE" ] || return 0
+
+  : >"$CLEANUP_FILE"
+  sort -u "$STALE_FILE" |
+    while IFS="$(printf '\t')" read -r repo file path; do
+      if repo_configured "$repo"; then
+        printf 'file\t%s\t%s\t%s\n' "$repo" "$file" "$path"
+      else
+        printf 'repo\t%s\t%s\t%s\n' "$repo" "$repo" "$(repo_dir "$repo")"
+      fi
+    done | sort -u >"$CLEANUP_FILE"
+
+  printf '\n%sCached GGUF files not configured here:%s\n' "$B" "$R"
+  while IFS="$(printf '\t')" read -r kind repo label target; do
+      if [ "$kind" = "file" ]; then
+        printf '  %s  %s%s%s\n' "$repo" "$D" "$label" "$R"
+        if ask_no "Delete this cached GGUF file"; then
+          rm -f "$target"
+          printf '    %sremoved%s %s\n' "$G" "$R" "$target"
+        else
+          printf '    %skept%s\n' "$D" "$R"
+        fi
+      else
+        printf '  %s  %s%s%s\n' "$repo" "$D" "$target" "$R"
+        if [ ! -d "$target" ]; then
+          printf '    %salready removed%s\n' "$D" "$R"
+        elif ask_no "Delete this unconfigured model cache"; then
+          rm -rf "$target"
+          printf '    %sremoved%s %s\n' "$G" "$R" "$target"
+        else
+          printf '    %skept%s\n' "$D" "$R"
+        fi
+      fi
+  done <"$CLEANUP_FILE"
+}
+
+command -v hf >/dev/null || {
+  echo "hf CLI not found (run: mise install)" >&2
+  exit 1
+}
+
+printf '%sLocal models (runtime engine: %s%s%s; all mlx/gguf backends):%s\n\n' \
+  "$B$C" "$R" "{{ $resolved.engine }}" "$B$C" "$R"
+
+configured_models >"$CONFIGURED_FILE"
+scan_models
+pull_missing
+scan_stale
+cleanup_stale

@@ -1,0 +1,291 @@
+#!/usr/bin/env sh
+# Universal launcher for sandboxed AI coding agents.
+# Invoked via symlinks: pi-agent → agent-launch, opencode-agent → agent-launch.
+# Agent identity is derived from argv[0] (basename of the symlink).
+set -eu
+
+# ── Agent identity ──
+SELF=$(basename "$0")
+case "$SELF" in
+  pi-agent)
+    AGENT_NAME="pi"
+    BINARY_NAME="pi"
+    GREYWALL_PROFILE="pi"
+    CONFIG_SUBDIR="pi"
+    ;;
+  opencode-agent)
+    AGENT_NAME="opencode"
+    BINARY_NAME="opencode"
+    GREYWALL_PROFILE="opencode"
+    CONFIG_SUBDIR="opencode"
+    ;;
+  agent-launch)
+    printf 'Error: call via a symlink (pi-agent, opencode-agent), not directly.\n' >&2
+    exit 1
+    ;;
+  *)
+    printf 'Error: unknown agent identity "%s".\n' "$SELF" >&2
+    exit 1
+    ;;
+esac
+
+# ── Common paths ──
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+GREYPROXY_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/greyproxy"
+GREYPROXY_LOG="$GREYPROXY_STATE/greyproxy.log"
+
+# ── Colors ──
+if [ -t 2 ] && [ -z "${NO_COLOR:-}" ] && command -v tput >/dev/null 2>&1; then
+  _BO=$(tput bold)    _DI=$(tput dim)
+  _RE=$(tput setaf 1) _GR=$(tput setaf 2) _YE=$(tput setaf 3)
+  _BL=$(tput setaf 4) _CY=$(tput setaf 6) _NO=$(tput sgr0)
+else
+  _BO='' _DI='' _RE='' _GR='' _YE='' _BL='' _CY='' _NO=''
+fi
+
+info()   { printf '%s  %s\n' "${_CY}•${_NO}" "$*" >&2; }
+ok()     { printf '%s  %s\n' "${_GR}✓${_NO}" "$*" >&2; }
+warn()   { printf '%s  %s\n' "${_YE}⚠${_NO}" "$*" >&2; }
+die()    { printf '%s  %s\n' "${_RE}✗${_NO}" "$*" >&2; exit 1; }
+dim()    { printf '   %s%s%s\n' "${_DI}" "$*" "${_NO}" >&2; }
+
+# ── Agent-specific: profile directory ──
+profile_dir() {
+  case "$AGENT_NAME" in
+    pi)
+      case "$1" in
+        core|default) printf '%s\n' "$CONFIG_HOME/pi/agent" ;;
+        factory)      printf '%s\n' "$CONFIG_HOME/pi/profiles/factory" ;;
+        minimal)      printf '%s\n' "$CONFIG_HOME/pi/profiles/minimal" ;;
+        *)            die "Unknown profile: $1" ;;
+      esac
+      ;;
+    opencode)
+      case "$1" in
+        core|default) printf '%s\n' "$CONFIG_HOME/opencode" ;;
+        factory)      printf '%s\n' "$CONFIG_HOME/opencode/profiles/factory" ;;
+        minimal)      printf '%s\n' "$CONFIG_HOME/opencode/profiles/minimal" ;;
+        *)            die "Unknown profile: $1" ;;
+      esac
+      ;;
+  esac
+}
+
+# ── Agent-specific: export env for profile ──
+print_env() {
+  profile="${1:-core}"
+  dir=$(profile_dir "$profile")
+  case "$AGENT_NAME" in
+    pi)
+      printf 'export PI_CODING_AGENT_DIR="%s"\n' "$dir"
+      printf 'export PI_CODING_AGENT_SESSION_DIR="%s/sessions"\n' "$dir"
+      ;;
+    opencode)
+      printf 'export OPENCODE_CONFIG="%s/opencode.json"\n' "$dir"
+      printf 'export OPENCODE_CONFIG_DIR="%s"\n' "$dir"
+      if [ "$profile" = "factory" ]; then
+        printf 'export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true\n'
+      fi
+      ;;
+  esac
+}
+
+# ── Agent-specific: preflight update ──
+preflight_update() {
+  dir="$1"
+  case "$AGENT_NAME" in
+    pi)
+      info "Extensions: updating..."
+      if pi update --extensions; then
+        ok "Extensions: updated"
+      else
+        warn "Extensions: update failed; continuing"
+      fi
+      ;;
+    opencode)
+      config_file="$dir/opencode.json"
+      [ -f "$config_file" ] || return 0
+      command -v jq >/dev/null 2>&1 || return 0
+      plugins=$(jq -r '.plugin[] | select(type == "string")' "$config_file" 2>/dev/null) || return 0
+      missing=0
+      for plugin in $plugins; do
+        cache_dir="$CACHE_HOME/opencode/packages/${plugin}@latest"
+        if [ ! -f "$cache_dir/package.json" ]; then
+          warn "Plugin cache: $plugin (not installed)"
+          missing=$((missing + 1))
+        fi
+      done
+      if [ "$missing" -gt 0 ]; then
+        warn "Dependencies: $missing plugin(s) need install — startup may be slow"
+      else
+        ok "Dependencies: cached"
+      fi
+      ;;
+  esac
+}
+
+# ── Agent-specific: set runtime env ──
+set_runtime_env() {
+  dir="$1"
+  profile="${2:-core}"
+  case "$AGENT_NAME" in
+    pi)
+      sdir="${dir}/sessions"
+      export PI_CODING_AGENT_DIR="$dir"
+      export PI_CODING_AGENT_SESSION_DIR="$sdir"
+      dim "Config dir: $dir"
+      dim "Sessions:   $sdir"
+      ;;
+    opencode)
+      export OPENCODE_CONFIG="$dir/opencode.json"
+      export OPENCODE_CONFIG_DIR="$dir"
+      if [ "$profile" = "factory" ]; then
+        export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
+        dim "Background subagents: enabled"
+      fi
+      dim "Config:  $dir"
+      ;;
+  esac
+}
+
+# ── Agent-specific: usage ──
+usage() {
+  case "$AGENT_NAME" in
+    pi)
+      cat <<'EOF'
+Usage: pi-agent [profile] [--no-greywall] [--no-update] [-- pi args...]
+       pi-agent --list
+       pi-agent --print-env [profile]
+
+Profiles:
+  core                daily driver (Pi with Plannotator, permission system, catppuccin)
+  factory             full rpiv-pi factory stack
+  minimal             stripped stack (no Plannotator, no MCP servers, no subagents)
+
+Options:
+  --no-greywall       run pi directly without greywall sandbox
+  --no-update         skip pi extension update before launch
+
+Commands:
+  --list              list available profiles
+  --print-env [prof]  print env vars for profile
+EOF
+      ;;
+    opencode)
+      cat <<'EOF'
+Usage: opencode-agent [profile] [--no-greywall] [--no-update] [-- opencode args...]
+       opencode-agent --list
+       opencode-agent --print-env [profile]
+
+Profiles:
+  core                daily driver (default OpenCode config)
+  factory             slim multi-agent with background orchestration, worktrees
+  minimal             lightweight stack (no plugins, no subagents)
+
+Options:
+  --no-greywall       run opencode directly without greywall sandbox
+  --no-update         skip dependency preflight check
+
+Commands:
+  --list              list available profiles
+  --print-env [prof]  print env vars for profile
+EOF
+      ;;
+  esac
+  exit 0
+}
+
+# ── Shared: profile list ──
+list_profiles() {
+  printf '%s\n' core factory minimal
+}
+
+# ── Shared: greyproxy ──
+greyproxy_ready() {
+  command -v nc >/dev/null 2>&1 || return 1
+  nc -z 127.0.0.1 {{ (index .ai.base.sandbox.greyproxy "socks") }} 2>/dev/null
+}
+
+ensure_greyproxy() {
+  info "Sandbox: checking greyproxy..."
+
+  if greyproxy_ready; then
+    ok "Sandbox: greyproxy ready"
+    return 0
+  fi
+
+  command -v greywall  >/dev/null 2>&1 || die "greywall not found on PATH"
+  command -v greyproxy >/dev/null 2>&1 || die "greyproxy not found on PATH"
+
+  info "Sandbox: starting greyproxy..."
+  mkdir -p "$GREYPROXY_STATE"
+  dim "Log: $GREYPROXY_LOG"
+  nohup greyproxy serve >>"$GREYPROXY_LOG" 2>&1 &
+  pid=$!
+  dim "PID: $pid"
+
+  attempts=0
+  max_attempts=15
+  while [ "$attempts" -lt "$max_attempts" ]; do
+    if greyproxy_ready; then
+      ok "Sandbox: greyproxy ready"
+      return 0
+    fi
+    sleep 1
+    attempts=$((attempts + 1))
+  done
+
+  die "greyproxy did not become ready (see $GREYPROXY_LOG)"
+}
+
+# ── Dispatch: subcommands ──
+case "${1:-}" in
+  --help|-h)
+    usage
+    ;;
+  --list)
+    list_profiles
+    exit 0
+    ;;
+  --print-env)
+    profile="${2:-}"
+    case "$profile" in ""|-*) profile="core" ;; esac
+    print_env "$profile"
+    exit 0
+    ;;
+esac
+
+# ── Dispatch: option parsing ──
+no_greywall=false
+no_update=false
+profile="core"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --) shift; break ;;
+    --no-greywall) no_greywall=true; shift ;;
+    --no-update) no_update=true; shift ;;
+    -*) die "Unknown option: $1" ;;
+    *) profile="$1"; shift ;;
+  esac
+done
+
+# ── Launch ──
+dir=$(profile_dir "$profile")
+set_runtime_env "$dir" "$profile"
+
+info "Profile: ${_BO}${profile}${_NO}"
+
+if [ "$no_update" = false ]; then
+  preflight_update "$dir"
+fi
+
+if [ "$no_greywall" = true ]; then
+  ok "Sandbox: disabled (--no-greywall)"
+  exec "$BINARY_NAME" "$@"
+else
+  dim "Launch: greywall --profile $GREYWALL_PROFILE -- $BINARY_NAME ..."
+  ensure_greyproxy
+  exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" "$@"
+fi

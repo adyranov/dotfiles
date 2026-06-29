@@ -5,5 +5,16 @@ manager = "mise"
 version = "go version"
 
 [packages.base.golang.go.policy]
-allow = ["go doc *", "go env *", "go list *", "go version *", "go vet *", "gofmt *"]
-ask = ["go *"]
+allow = [
+  "go doc *",
+  "go env *",
+  "go list *",
+  "go mod download -json *",
+  "go mod graph *",
+  "go mod verify *",
+  "go mod why *",
+  "go test -list *",
+  "go version *",
+  "go vet *",
+  "gofmt *"
+]

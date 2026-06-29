@@ -4,5 +4,5 @@ sudo apt-get update
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
 sudo apt-get upgrade -y
 {{- end }}
-sudo apt-get install -y --no-install-recommends {{ includeTemplate "common/packages/render" (dict "root" .) }}
+sudo apt-get install -y --no-install-recommends {{ includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "system" "format" "install") }}
 echo "✅ APT packages ensured."

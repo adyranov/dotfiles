@@ -1,3 +1,18 @@
+{{- $local := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.local" "required" false) | mustFromJson -}}
+{{- $resolved := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
 # AI coding agents (passive XDG redirections; no-ops when the tool is absent).
-export ENGRAM_DATA_DIR="$XDG_DATA_HOME/engram"
+# Default/core profile: ~/.config/pi/agent/
 export PI_CODING_AGENT_DIR="$XDG_CONFIG_HOME/pi/agent"
+export PI_CODING_AGENT_SESSION_DIR="$XDG_CONFIG_HOME/pi/agent/sessions"
+export PLANNOTATOR_DATA_DIR="$XDG_DATA_HOME/plannotator"
+
+export HF_HOME="$XDG_DATA_HOME/huggingface"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export LLM_SERVE_PORT="{{ index $local "port" | default 8321 }}"
+{{- if eq $resolved.engine "llamacpp" }}
+export LLAMA_CPP_MODELS_PRESET="$XDG_CONFIG_HOME/llama.cpp/models.ini"
+{{- end }}
+{{- if eq $resolved.engine "omlx" }}
+export OMLX_CACHE_DIR="$XDG_CACHE_HOME/omlx"
+export OMLX_MODEL_DIR="$XDG_STATE_HOME/omlx/models"
+{{- end }}

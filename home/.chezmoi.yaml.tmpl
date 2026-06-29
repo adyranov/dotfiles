@@ -7,7 +7,7 @@
 {{- $gpg := dict "sign" "" "encrypt" "" -}}
 {{- $secrets := dict "age" stdinIsATTY "bitwarden" false -}}
 {{- $toolchains := list "ai" "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" -}}
-{{- $agents := list "pi" -}}
+{{- $agents := list "pi" "opencode" -}}
 
 {{- $data := . -}}
 {{- range $k := list "personal" "gpg" "host" "toolchains" -}}
@@ -198,6 +198,7 @@
 {{- /* -------------------- AI agent toolchains (nested under ai) -------------------- */ -}}
 {{- $agentIcons := dict
     "pi"       "🥧"
+    "opencode" "🔗"
 -}}
 {{- $agentsSelected := list -}}
 {{- if stdinIsATTY -}}
@@ -249,6 +250,12 @@
   {{- if not (get $toolchainsEnabled "node") -}}
     {{- $_ := set $toolchainsEnabled "node" true -}}
     {{- writeToStdout "🟢 Enabled Node.js for pi (npm install).\n" -}}
+  {{- end -}}
+{{- end -}}
+{{- if get $toolchainsEnabled "opencode" -}}
+  {{- if not (get $toolchainsEnabled "node") -}}
+    {{- $_ := set $toolchainsEnabled "node" true -}}
+    {{- writeToStdout "🟢 Enabled Node.js for opencode (npm install).\n" -}}
   {{- end -}}
 {{- end -}}
 

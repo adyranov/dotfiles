@@ -20,11 +20,11 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_CACHE_HOME="$HOME/.cache"
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_STATE_HOME="$HOME/.local/state"
-{{- if eq .host.distro.family "darwin" -}}
+{{- if eq .host.distro.family "darwin" }}
 export XDG_RUNTIME_DIR="$TMPDIR"
-{{- else if .host.interactive -}}
+{{- else if .host.interactive }}
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-{{- else -}}
+{{- else }}
 export XDG_RUNTIME_DIR="/tmp"
 {{- end }}
 {{- if .host.interactive }}

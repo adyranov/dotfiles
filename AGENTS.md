@@ -3,9 +3,12 @@
 ## General
 
 - **CRITICAL**: Treat these instructions as the primary source. Use search/shell only if details differ.
-- **CRITICAL**: After major refactoring, update `README.md` and/or `AGENTS.md`.
-- **CRITICAL**: Do NOT modify `home/private_dot_config/exact_agents/AGENTS.md` (the global agent config) unless asked.
-- Do not edit `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md`. Update `AGENTS.md` instead.
+- **CRITICAL**: Update `README.md` only for user-facing behavior, setup, or
+  documented command changes; keep it concise with clear overview and essential
+  commands/paths, not internal details, tuning rationale, or exhaustive examples.
+- **CRITICAL**: Never modify `AGENTS.md` or `home/private_dot_config/exact_agents/AGENTS.md`
+  without first asking the user and getting explicit approval.
+- Do not edit `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md`. Propose changes to `AGENTS.md` instead (and ask before applying them).
 - All paths here are relative to the chezmoi source root. Do NOT prefix commands with `cd` or directory changes.
 
 ## Chezmoi & Project Structure
@@ -30,7 +33,6 @@
 - **Greywall**: The true host filesystem/network/process sandbox. Uses the same path data for explicit read/write denies. Config is managed at `~/.config/greywall/greywall.json`.
   - Greywall SSH is allowlist-based (`github.com`, `git-upload-pack`).
   - Learn profiles via `greywall --learning -- <command>` before committing stable network rules.
-- **Engram**: Pi memory is managed via `gentle-engram`, `pi-mcp-adapter`, and the `engram` CLI.
 
 ## Workflow, Commands & CI
 

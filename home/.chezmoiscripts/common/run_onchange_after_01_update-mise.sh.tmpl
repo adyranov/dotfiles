@@ -1,4 +1,4 @@
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
 echo "🔄 Upgrading mise toolchains..."

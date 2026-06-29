@@ -1,4 +1,4 @@
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 # bat hash: {{ output "cat" (joinPath .chezmoi.sourceDir "private_dot_config/exact_bat/config") | sha256sum }}
 
 bat_bin=""

@@ -1,0 +1,4 @@
+[ai.base.sandbox.greyproxy]
+dns = 43053
+http = 43051
+socks = 43052

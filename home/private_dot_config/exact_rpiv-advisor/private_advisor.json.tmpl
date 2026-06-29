@@ -1,0 +1,13 @@
+{{- $models := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $adv := get $models "oracle" -}}
+{{- $modelKey := get $adv "model" -}}
+{{- if get $adv "provider" -}}
+  {{- $modelKey = printf "%s:%s" (get $adv "provider") (get $adv "model") -}}
+{{- end -}}
+
+{{- dict
+  "modelKey" $modelKey
+  "effort" (default "high" (get $adv "thinking"))
+  "disabledForModels" (concat (list $modelKey) (default (list) (get $adv "exclude")) | uniq)
+  | toPrettyJson
+}}

@@ -1,5 +1,5 @@
-{{- includeTemplate "common/headers/after" . }}
-{{- $vscode := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "editors.vscode" "required" true) | mustFromJson -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) }}
+{{- $vscode := includeTemplate "base/helpers/load-section" (dict "root" . "section" "editors.vscode" "required" true) | mustFromJson -}}
 # extensions hash: {{ $vscode.extensions | toJson | sha256sum }}
 # settings hash: {{ $vscode.settings | toJson | sha256sum }}
 

@@ -1,13 +1,20 @@
-{{- $brew := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "brew") | mustFromJson -}}
+{{- $brew := includeTemplate "base/helpers/load-section" (dict "root" . "section" "brew") | mustFromJson -}}
 
 {{- $taps := index $brew "taps" | default list -}}
-{{- $brews := concat (splitList " " (includeTemplate "common/packages/render" (dict "root" .))) (index $brew "brews" | default list) -}}
+{{- $brews := concat (splitList " " (includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "system" "format" "install"))) (index $brew "brews" | default list) -}}
 {{- $casks := index $brew "casks" | default list -}}
 {{- $mas := index $brew "mas" | default list -}}
-
-{{- range ($taps | sortAlpha | uniq) }}
-tap "{{ . }}"
-{{- end }}
+{{- range $taps -}}
+{{- if kindIs "map" . -}}
+{{- if .url -}}
+{{- printf "tap \"%s\", \"%s\"\n" .name .url -}}
+{{- else -}}
+{{- printf "tap \"%s\"\n" .name -}}
+{{- end -}}
+{{- else -}}
+{{- printf "tap \"%s\"\n" . -}}
+{{- end -}}
+{{- end -}}
 {{ range ($brews | sortAlpha | uniq) }}
 brew "{{ . }}"
 {{- end }}

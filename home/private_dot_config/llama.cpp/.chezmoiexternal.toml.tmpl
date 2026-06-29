@@ -1,0 +1,9 @@
+{{- /* froggeric/Qwen-Fixed-Chat-Templates: drop-in Jinja template that fixes
+   minja/C++ rendering bugs in the official Qwen 3.5 and 3.6 chat templates.
+   Unified file covers both model families. */ -}}
+{{- if .toolchains.ai }}
+["qwen-froggeric.jinja"]
+    type = "file"
+    url = "https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates/resolve/main/chat_template.jinja"
+    refreshPeriod = "168h"
+{{- end }}

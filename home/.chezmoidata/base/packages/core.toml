@@ -1,13 +1,15 @@
 [packages.base.core]
-atuin = {manager = "mise", policy = {ask = ["atuin *"]}}
-bat = {policy = {allow = ["bat *"]}}
-btop = {disabled = "ephemeral"}
-curl = {policy = {ask = ["curl *"]}}
-direnv = {version = "direnv version", policy = {ask = ["direnv *"]}}
+atuin = {completion = {generate = "atuin gen-completions --shell zsh"}, manager = "mise"}
+bat = {completion = {generate = "bat --completion zsh"}, policy = {allow = [
+  "bat *"
+]}}
+btop = {disabled = ["ephemeral"]}
+curl = {}
+direnv = {version = "direnv version"}
 difftastic = {manager = "mise", bin = "difft", policy = {allow = [
   "difft *"
 ]}}
-doggo = {manager = "mise", package = "github:mr-karan/doggo", policy = {allow = [
+doggo = {completion = {generate = "doggo completions zsh"}, manager = "mise", package = "github:mr-karan/doggo", policy = {allow = [
   "doggo *"
 ]}}
 dust = {manager = "mise", package = "github:bootandy/dust", policy = {allow = [
@@ -16,45 +18,41 @@ dust = {manager = "mise", package = "github:bootandy/dust", policy = {allow = [
 eza = {manager = "mise", policy = {allow = ["eza *"]}}
 fd = {policy = {allow = ["fd *"]}}
 fzf = {policy = {allow = ["fzf *"]}}
-git-delta = {bin = "delta", policy = {allow = ["delta *"]}}
-glow = {manager = "mise", package = "github:charmbracelet/glow", policy = {allow = [
+git-delta = {bin = "delta", completion = {generate = "delta --generate-completion zsh"}, policy = {allow = [
+  "delta *"
+]}}
+glow = {completion = true, manager = "mise", package = "github:charmbracelet/glow", policy = {allow = [
   "glow *"
 ]}}
-gnupg = {bin = "gpg", policy = {ask = ["gpg *"]}}
-greyproxy = {disabled = "ephemeral", manager = "mise", package = "github:GreyhavenHQ/greyproxy"}
-greywall = {disabled = "ephemeral", manager = "mise", package = "github:GreyhavenHQ/greywall", completion = true}
-hyperfine = {manager = "mise", policy = {ask = ["hyperfine *"]}}
+gnupg = {bin = "gpg"}
+greyproxy = {disabled = [
+  "ephemeral"
+], manager = "mise", package = "github:GreyhavenHQ/greyproxy"}
+greywall = {disabled = [
+  "ephemeral"
+], manager = "mise", package = "github:GreyhavenHQ/greywall", completion = true}
+hyperfine = {manager = "mise"}
 jnv = {manager = "mise", package = "github:ynqa/jnv", policy = {allow = [
   "jnv *"
 ]}}
 jq = {policy = {allow = ["jq *"]}}
-lazygit = {manager = "mise", policy = {ask = ["lazygit *"]}}
+lazygit = {completion = {generate = "lazygit completion zsh"}, manager = "mise"}
 mkcert = {manager = "mise", policy = {deny = ["mkcert *"]}}
-neovim = {bin = "nvim", policy = {ask = ["nvim *"]}}
-openssh-client = {bin = "ssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add", policy = {ask = [
-  "ssh *"
-]}}
-ouch = {manager = "mise", package = "github:ouch-org/ouch", policy = {ask = [
-  "ouch *"
-]}}
-rage = {manager = "mise", package = "github:str4d/rage", policy = {ask = [
-  "rage *"
-]}}
+neovim = {bin = "nvim"}
+openssh-client = {bin = "ssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add"}
+ouch = {manager = "mise", package = "github:ouch-org/ouch"}
+rage = {manager = "mise", package = "github:str4d/rage"}
 ripgrep = {bin = "rg", policy = {allow = ["rg *"]}}
-sd = {manager = "mise", policy = {ask = ["sd *"]}}
+sd = {manager = "mise"}
 tealdeer = {bin = "tldr", policy = {allow = ["tldr *"]}}
-tmux = {version = "tmux -V", policy = {ask = ["tmux *"]}}
-topgrade = {manager = "mise", package = "github:topgrade-rs/topgrade", policy = {deny = [
+tmux = {version = "tmux -V"}
+topgrade = {completion = {generate = "topgrade --gen-completion zsh"}, manager = "mise", package = "github:topgrade-rs/topgrade", policy = {deny = [
   "topgrade *"
 ]}}
 vivid = {manager = "mise", policy = {allow = ["vivid *"]}}
-wget = {policy = {ask = ["wget *"]}}
-xh = {manager = "mise", package = "github:ducaale/xh", policy = {ask = [
-  "xh *"
-]}}
-yazi = {manager = "mise", package = "github:sxyazi/yazi", policy = {ask = [
-  "yazi *"
-]}}
+wget = {}
+xh = {completion = {generate = "xh --generate complete-zsh"}, manager = "mise", package = "github:ducaale/xh"}
+yazi = {manager = "mise", package = "github:sxyazi/yazi"}
 zoxide = {policy = {allow = ["zoxide *"]}}
 
 [packages.base.core.chezmoi]
@@ -70,7 +68,6 @@ allow = [
   "chezmoi status *",
   "chezmoi verify *"
 ]
-ask = ["check-dotfiles *", "chezmoi *"]
 deny = ["chezmoi --remove *", "chezmoi apply *"]
 
 [packages.base.core.coreutils]
@@ -78,10 +75,11 @@ version = "realpath --version"
 
 [packages.base.core.coreutils.policy]
 allow = [
+  "awk *",
   "basename *",
   "cat *",
   "comm *",
-  "cp *",
+  "command -v *",
   "cut *",
   "date *",
   "df *",
@@ -97,95 +95,137 @@ allow = [
   "id *",
   "ls *",
   "md5sum *",
-  "mkdir *",
   "mktemp *",
-  "mv *",
+  "nl *",
   "paste *",
   "printf *",
   "pwd *",
   "readlink *",
   "realpath *",
+  "sed -n *",
   "seq *",
   "sha256sum *",
   "sort *",
   "stat *",
   "tail *",
-  "tee *",
-  "touch *",
+  "tput *",
   "tr *",
   "uname *",
   "uniq *",
   "wc *",
-  "which *",
-  "xargs *"
+  "which *"
 ]
-ask = ["rm *", "rmdir *"]
-deny = ["rm -rf /*", "rm -rf ~/*", "sudo *"]
+deny = ["rm -rf /*", "rm -rf ~/*", "sudo *", "sed -i *", "sed * -i *"]
 
 [packages.base.core.gh]
+completion = {generate = "gh completion -s zsh"}
 
 [packages.base.core.gh.policy]
 allow = [
+  "gh api repos/*/compare/*",
+  "gh api repos/*/git/*",
   "gh auth status *",
+  "gh browse --no-browser *",
   "gh issue list *",
   "gh issue view *",
+  "gh label list *",
+  "gh repo list *",
   "gh pr diff *",
   "gh pr list *",
   "gh pr status *",
   "gh pr view *",
-  "gh repo view *"
+  "gh release download *",
+  "gh release list *",
+  "gh release view *",
+  "gh repo view *",
+  "gh run download *",
+  "gh run list *",
+  "gh run view *",
+  "gh search issues *",
+  "gh search prs *",
+  "gh search repos *",
+  "gh workflow list *"
 ]
-ask = ["gh *"]
-deny = ["gh * delete*", "gh auth token *"]
+deny = [
+  "gh * delete*",
+  "gh * edit *",
+  "gh * secret *",
+  "gh * variable set *",
+  "gh api repos/* -X DELETE*",
+  "gh auth login *",
+  "gh auth logout *",
+  "gh auth refresh *",
+  "gh auth setup-git *",
+  "gh auth token *"
+]
 
 [packages.base.core.git]
 
 [packages.base.core.git.policy]
 allow = [
+  "git blame *",
   "git branch *",
+  "git check-ignore *",
+  "git config --get-regexp *",
+  "git config --get *",
+  "git describe *",
   "git diff *",
+  "git for-each-ref *",
   "git grep *",
   "git log *",
   "git ls-files *",
+  "git ls-remote *",
+  "git merge-base *",
   "git remote -v *",
+  "git rev-list *",
   "git rev-parse *",
+  "git shortlog *",
   "git show *",
-  "git status *"
-]
-ask = [
-  "git add *",
-  "git checkout *",
-  "git clone *",
-  "git commit *",
-  "git fetch *",
-  "git merge *",
-  "git pull *",
-  "git push *",
-  "git rebase *",
-  "git restore *",
-  "git switch *"
+  "git stash list *",
+  "git status *",
+  "git submodule status *",
+  "git tag -l *",
+  "git tag --list *",
+  "git verify-pack *",
+  "git worktree list *"
 ]
 deny = [
   "git * clean *",
   "git * push --force*",
   "git * push -f *",
+  "git * rebase *",
   "git * reset --hard *",
+  "git * stash drop *",
+  "git * stash pop *",
+  "git * tag -d *",
+  "git * worktree remove *",
   "git clean *",
   "git push --force*",
   "git push -f *",
-  "git reset --hard *"
+  "git rebase *",
+  "git reset --hard *",
+  "git stash drop *",
+  "git stash pop *",
+  "git tag -d *",
+  "git worktree remove *"
 ]
 
 [packages.base.core.mise]
-disabled = true
+manager = "external"
+completion = true
 
 [packages.base.core.mise.policy]
-allow = ["mise current *", "mise list *", "mise ls *", "mise version *"]
-ask = ["mise *"]
-deny = ["mise run apply *"]
+allow = [
+  "mise current *",
+  "mise list *",
+  "mise ls *",
+  "mise plugins *",
+  "mise tasks *",
+  "mise version *"
+]
+deny = ["mise run apply *", "mise trust *", "mise untrust *"]
 
 [packages.base.core.rclone]
 
 [packages.base.core.rclone.policy]
 allow = ["rclone * ls *", "rclone * lsd *", "rclone version *"]
-ask = ["rclone *"]

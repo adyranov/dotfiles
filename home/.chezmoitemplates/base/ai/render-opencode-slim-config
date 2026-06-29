@@ -1,0 +1,94 @@
+{{- /* Render oh-my-opencode-slim plugin config from managed model data */ -}}
+{{- $root := .root -}}
+{{- $models := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models" "required" true) | mustFromJson -}}
+
+{{- /* Mapping: slim agent -> model category */ -}}
+{{- $agentMap := dict
+  "orchestrator" "architect"
+  "oracle" "oracle"
+  "council" "auditor"
+  "librarian" "locator"
+  "explorer" "researcher"
+  "designer" "coder"
+  "fixer" "coder"
+-}}
+
+{{- /* MCP/skills per agent */ -}}
+{{- $starMcps := list "*" "!context7" -}}
+{{- $librarianMcps := list "websearch" "context7" "gh_grep" -}}
+{{- $emptyMcps := list -}}
+{{- $orchestratorSkills := list "codemap" "clonedeps" "deepwork" "reflect" "oh-my-opencode-slim" "worktrees" -}}
+{{- $oracleSkills := list "simplify" -}}
+{{- $emptySkills := list -}}
+
+{{- /* Build managed preset */ -}}
+{{- $presetAgents := dict -}}
+{{- range $agent, $category := $agentMap -}}
+{{-   $route := index $models $category -}}
+{{-   if not $route -}}{{ continue }}{{- end -}}
+{{-   $cfg := dict -}}
+{{-   $modelId := $route.model -}}
+{{-   if hasKey $route "provider" -}}
+{{-     $modelId = printf "%s/%s" $route.provider $route.model -}}
+{{-   end -}}
+{{-   $_ := set $cfg "model" $modelId -}}
+
+{{-   if hasKey $route "thinking" -}}
+{{-     $thinking := $route.thinking -}}
+{{-     if ne $thinking "off" -}}
+{{-       $_ := set $cfg "variant" $thinking -}}
+{{-     end -}}
+{{-   end -}}
+
+{{-   if eq $agent "orchestrator" -}}
+{{-     $_ := set $cfg "mcps" $starMcps -}}
+{{-     $_ := set $cfg "skills" $orchestratorSkills -}}
+{{-   else if eq $agent "oracle" -}}
+{{-     $_ := set $cfg "mcps" $emptyMcps -}}
+{{-     $_ := set $cfg "skills" $oracleSkills -}}
+{{-   else if eq $agent "librarian" -}}
+{{-     $_ := set $cfg "mcps" $librarianMcps -}}
+{{-     $_ := set $cfg "skills" $emptySkills -}}
+{{-   else -}}
+{{-     $_ := set $cfg "mcps" $emptyMcps -}}
+{{-     $_ := set $cfg "skills" $emptySkills -}}
+{{-   end -}}
+
+{{-   $_ := set $presetAgents $agent $cfg -}}
+{{- end -}}
+
+{{- /* Build council councillors */ -}}
+{{- $councillorCats := list "architect" "auditor" "coder" -}}
+{{- $councillors := dict -}}
+{{- range $cat := $councillorCats -}}
+{{-   $route := index $models $cat -}}
+{{-   if not $route -}}{{ continue }}{{- end -}}
+{{-   $cfg := dict -}}
+{{-   $modelId := $route.model -}}
+{{-   if hasKey $route "provider" -}}
+{{-     $modelId = printf "%s/%s" $route.provider $route.model -}}
+{{-   end -}}
+{{-   $_ := set $cfg "model" $modelId -}}
+{{-   if hasKey $route "thinking" -}}
+{{-     $thinking := $route.thinking -}}
+{{-     if ne $thinking "off" -}}
+{{-       $_ := set $cfg "variant" $thinking -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $_ := set $councillors $cat $cfg -}}
+{{- end -}}
+
+{{- $councilPresets := dict "managed" $councillors -}}
+{{- $council := dict "default_preset" "managed" "presets" $councilPresets -}}
+{{- $presets := dict "managed" $presetAgents -}}
+
+{{- $result := dict
+  "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"
+  "preset" "managed"
+  "setDefaultAgent" true
+  "autoUpdate" false
+  "presets" $presets
+  "council" $council
+-}}
+
+{{- $result | toPrettyJson -}}

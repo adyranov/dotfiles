@@ -1,0 +1,50 @@
+{{- /* format/completions/script — Outputs shell commands to generate completions at runtime.
+  Args (dict): completions — dict of id → completion info, compDir — destination directory.
+  Convention: generate=true means "<bin> completion zsh". */ -}}
+{{- $completions := .completions -}}
+{{- $compDir := .compDir -}}
+COMPLETION_DIR={{ printf "%q" $compDir }}
+
+generateCompletion() {
+  set -o pipefail
+
+  local id="$1" bin="$2" generate="$3" sed_script="$4"
+  local target="${COMPLETION_DIR}/_${id}"
+  local tmp
+  local -a sed_args=(-e '/./,$!d')
+
+  [[ -n "$generate" && "$generate" != "false" ]] || return 0
+  command -v "$bin" >/dev/null 2>&1 || return 0
+  tmp="$(mktemp "${target}.tmp.XXXXXX")" || {
+    printf '  ! %s could not create temp file; skipping\n' "$id" >&2
+    return 0
+  }
+
+  [[ -z "$sed_script" ]] || sed_args=(-e "$sed_script" "${sed_args[@]}")
+  printf '  ↳ %s\n' "$id"
+
+  if case "$generate" in
+    true) "$bin" completion zsh ;;
+    *) bash -c "$generate" ;;
+  esac | sed "${sed_args[@]}" >"$tmp"; then
+    if [[ -s "$tmp" ]]; then
+      mv -f -- "$tmp" "$target"
+      return 0
+    fi
+    printf '  ! %s produced empty completion; skipping\n' "$id" >&2
+  else
+    local status=$?
+    printf '  ! %s completion generation failed with exit %s; skipping\n' "$id" "$status" >&2
+  fi
+
+  rm -f -- "$tmp" "$target"
+}
+
+{{- range $id := sortAlpha (keys $completions) }}
+    {{- $comp := index $completions $id }}
+    {{- $bin := index $comp "bin" | default $id }}
+    {{- $genValue := index $comp "generate" | default "" -}}
+    {{- $sed := index $comp "sed" | default "" }}
+
+generateCompletion {{ printf "%q" $id }} {{ printf "%q" $bin }} {{ printf "%q" (printf "%v" $genValue) }} {{ printf "%q" $sed }}
+{{- end }}

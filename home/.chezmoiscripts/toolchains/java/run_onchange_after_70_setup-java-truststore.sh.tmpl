@@ -1,6 +1,6 @@
 {{- $ca_bundle := joinPath .host.home ".config/certificates/ca-bundle.pem" -}}
 {{- if (stat $ca_bundle) -}}
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 # Hash: {{ include $ca_bundle | sha256sum }}
 

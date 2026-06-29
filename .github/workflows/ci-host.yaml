@@ -4,8 +4,25 @@ on:
     inputs:
       matrix:
         type: string
-        required: true
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-26","macos-26-intel"]'
+      mode:
+        type: string
+        default: full
   workflow_dispatch:
+    inputs:
+      matrix:
+        description: JSON runner matrix
+        required: true
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-26","macos-26-intel"]'
+        type: string
+      mode:
+        description: Host validation depth
+        required: true
+        default: full
+        type: choice
+        options:
+          - smoke
+          - full
 concurrency:
   group: ci-host-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
@@ -20,18 +37,51 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - name: Restore Cache
+      - name: Restore Homebrew Cache
+        if: runner.os == 'macOS'
         uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        id: restore-homebrew
         with:
           path: |
             ~/Library/Caches/Homebrew/api
             ~/Library/Caches/Homebrew/downloads
-            ~/.local/share/mise/downloads
-            ~/.local/share/helm/plugins
-            ~/.local/share/krew/store
-          key: chezmoi-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/**') }}
-          restore-keys: chezmoi-cache-${{ runner.os }}-${{ runner.arch }}-
-      - name: Install and test
+          key: host-homebrew-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/.chezmoidata/base/packages/*.toml', 'home/.chezmoidata/os/darwin/**', 'home/.chezmoidata/profile/**/brew.toml', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoitemplates/os/darwin/**', 'home/private_dot_config/exact_brew/**') }}
+          restore-keys: host-homebrew-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-
+      - name: Restore mise Cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: restore-mise
+        with:
+          path: ~/.local/share/mise/downloads
+          key: host-mise-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.mise.toml', 'home/.chezmoidata/base/packages/**', 'home/.chezmoidata/os/**/packages.toml', 'home/.chezmoidata/profile/**', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoiscripts/common/run_onchange_after_01_update-mise.sh.tmpl', 'home/.chezmoiscripts/common/run_onchange_after_10_install-mise-packages.sh.tmpl') }}
+          restore-keys: host-mise-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-
+      - name: Restore Helm Cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: restore-helm
+        with:
+          path: ~/.local/share/helm/plugins
+          key: host-helm-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/.chezmoidata/base/packages/kubernetes.toml', 'home/.chezmoidata/os/**/packages.toml', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoiscripts/common/run_onchange_after_20_install-helm-plugins.sh.tmpl') }}
+          restore-keys: host-helm-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-
+      - name: Restore Krew Cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: restore-krew
+        with:
+          path: ~/.local/share/krew/store
+          key: host-krew-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/.chezmoidata/base/packages/kubernetes.toml', 'home/.chezmoidata/os/**/packages.toml', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoiscripts/common/run_onchange_after_30_install-krew-plugins.sh.tmpl') }}
+          restore-keys: host-krew-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-
+      - name: Smoke install and test
+        if: inputs.mode == 'smoke'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+          MISE_ALWAYS_KEEP_DOWNLOAD: true
+          MISE_FETCH_REMOTE_VERSIONS_TIMEOUT: 60
+          MISE_HTTP_TIMEOUT: 60
+        run: |
+          WITHOUT_TOOLCHAINS=true ./install.sh --data=false
+          zsh -lic 'check-dotfiles'
+      - name: Full install and test
+        if: inputs.mode == 'full'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_NO_AUTO_UPDATE: 1
@@ -41,21 +91,36 @@ jobs:
           MISE_HTTP_TIMEOUT: 60
         run: |
           # Install core packages only
-          WITHOUT_TOOLCHAINS=true ./install.sh
+          WITHOUT_TOOLCHAINS=true ./install.sh --data=false
           # Validate core installation
           zsh -lic 'check-dotfiles'
           # Re-apply with all toolchains enabled
           ./install.sh
           # Validate full installation
           zsh -lic 'check-dotfiles'
-      - name: Save Cache
-        if: ${{ always() }}
+      - name: Save Homebrew Cache
+        if: success() && github.event_name != 'pull_request' && runner.os == 'macOS' && steps.restore-homebrew.outputs.cache-hit != 'true'
         uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: |
             ~/Library/Caches/Homebrew/api
             ~/Library/Caches/Homebrew/downloads
-            ~/.local/share/mise/downloads
-            ~/.local/share/helm/plugins
-            ~/.local/share/krew/store
-          key: chezmoi-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/**') }}
+          key: ${{ steps.restore-homebrew.outputs.cache-primary-key }}
+      - name: Save mise Cache
+        if: success() && github.event_name != 'pull_request' && steps.restore-mise.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.local/share/mise/downloads
+          key: ${{ steps.restore-mise.outputs.cache-primary-key }}
+      - name: Save Helm Cache
+        if: success() && github.event_name != 'pull_request' && steps.restore-helm.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.local/share/helm/plugins
+          key: ${{ steps.restore-helm.outputs.cache-primary-key }}
+      - name: Save Krew Cache
+        if: success() && github.event_name != 'pull_request' && steps.restore-krew.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.local/share/krew/store
+          key: ${{ steps.restore-krew.outputs.cache-primary-key }}

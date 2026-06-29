@@ -6,4 +6,4 @@ setup() {
   common_setup
 }
 
-{{ includeTemplate "common/packages/render" (dict "root" . "packageManager" "system" "render" "test") }}
+{{ includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "system" "format" "test") }}

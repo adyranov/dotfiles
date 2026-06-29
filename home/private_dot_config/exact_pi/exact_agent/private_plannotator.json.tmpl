@@ -1,16 +1,13 @@
-{{- $models := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson -}}
-{{- $defaults := $models.default -}}
+{{- $models := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
+{{- $defaults := index $models $models.default -}}
+{{- $cfg := get (index $pi.profiles "core") "plannotator" | default dict -}}
 
-{{- $designRoute := index $models "architect" | default dict -}}
-{{- $implementRoute := index $models "coder" | default dict -}}
+{{- $planningCat := get $cfg "planning" | default "architect" -}}
+{{- $executingCat := get $cfg "executing" | default "coder" -}}
 
-{{- $designModel := $designRoute.model | default $defaults.model -}}
-{{- $designProvider := $designRoute.provider | default $defaults.provider -}}
-{{- $designThinking := $designRoute.thinking | default $defaults.thinking -}}
-
-{{- $implementModel := $implementRoute.model | default $defaults.model -}}
-{{- $implementProvider := $implementRoute.provider | default $defaults.provider -}}
-{{- $implementThinking := $implementRoute.thinking | default $defaults.thinking -}}
+{{- $planningRoute := get $models $planningCat | default dict -}}
+{{- $executingRoute := get $models $executingCat | default dict -}}
 
 {{- dict
   "defaults" (dict
@@ -19,12 +16,12 @@
   )
   "phases" (dict
     "planning" (dict
-      "model" (dict "provider" $designProvider "id" $designModel)
-      "thinking" $designThinking
+      "model" (dict "provider" ($planningRoute.provider | default $defaults.provider) "id" ($planningRoute.model | default $defaults.model))
+      "thinking" ($planningRoute.thinking | default $defaults.thinking)
     )
     "executing" (dict
-      "model" (dict "provider" $implementProvider "id" $implementModel)
-      "thinking" $implementThinking
+      "model" (dict "provider" ($executingRoute.provider | default $defaults.provider) "id" ($executingRoute.model | default $defaults.model))
+      "thinking" ($executingRoute.thinking | default $defaults.thinking)
     )
   )
 | toPrettyJson -}}

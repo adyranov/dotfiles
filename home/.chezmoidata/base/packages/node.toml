@@ -1,12 +1,12 @@
 [packages.base.node]
 
 [packages.base.node.bun]
+completion = {generate = "bun completions zsh"}
 manager = "mise"
 
 [packages.base.node.bun.policy]
-allow = ["bun --version", "bun run *"]
-ask = ["bun *"]
-deny = ["bun publish *"]
+allow = ["bun --version"]
+deny = ["bun login *", "bun logout *", "bun publish *"]
 
 [packages.base.node.node]
 manager = "mise"
@@ -17,13 +17,43 @@ test = "node --version && npm --version && yarn --version && pnpm --version"
 allow = [
   "node --version",
   "npm --version",
+  "npm audit --dry-run *",
+  "npm explain *",
   "npm list *",
   "npm outdated *",
+  "npm pack --dry-run *",
+  "npm query *",
   "npm view *",
   "pnpm --version",
+  "pnpm audit *",
   "pnpm list *",
+  "pnpm outdated *",
+  "pnpm view *",
+  "pnpm why *",
   "yarn --version",
-  "yarn list *"
+  "yarn audit *",
+  "yarn info *",
+  "yarn list *",
+  "yarn outdated *",
+  "yarn why *"
 ]
-ask = ["node *", "npm *", "pnpm *", "yarn *"]
-deny = ["npm publish *", "pnpm publish *", "yarn publish *"]
+deny = [
+  "npm access *",
+  "npm adduser *",
+  "npm login *",
+  "npm logout *",
+  "npm owner *",
+  "npm publish *",
+  "npm token *",
+  "npm unpublish *",
+  "pnpm login *",
+  "pnpm logout *",
+  "pnpm publish *",
+  "pnpm unpublish *",
+  "yarn login *",
+  "yarn logout *",
+  "yarn npm login *",
+  "yarn npm logout *",
+  "yarn npm publish *",
+  "yarn publish *"
+]

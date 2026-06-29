@@ -1,0 +1,12 @@
+{{- $models := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $skills := includeTemplate "base/helpers/render-model-category-map" (dict "root" . "field" "skills") | mustFromJson -}}
+{{- $agents := includeTemplate "base/helpers/render-model-category-map" (dict "root" . "field" "agents") | mustFromJson -}}
+{{- $defaultRole := default "coder" (get $models "default") -}}
+{{- $default := get $models $defaultRole -}}
+
+{{- dict
+  "defaults" (dict "model" (printf "%s/%s" (get $default "provider") (get $default "model")) "thinking" (get $default "thinking"))
+  "agents" $agents
+  "skills" $skills
+  | toPrettyJson
+}}

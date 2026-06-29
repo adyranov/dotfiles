@@ -1,8 +1,0 @@
-{{- /* common/github/latest-tag — latest tag string only (no branch fallback).
-  Usage: {{ template "common/github/latest-tag" "owner/repo" }} */ -}}
-{{- $repo := . -}}
-{{- $tags := gitHubTags $repo -}}
-{{- if not (gt (len $tags) 0) -}}
-{{-   fail (printf "common/github/latest-tag: %s has no git tags" $repo) -}}
-{{- end -}}
-{{- (index $tags 0).Name -}}

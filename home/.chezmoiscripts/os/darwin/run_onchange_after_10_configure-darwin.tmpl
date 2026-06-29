@@ -1,4 +1,4 @@
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 echo "🍎 Configuring macOS settings..."
 
 if ls "$HOME"/Library/Safari &>/dev/null; then
@@ -440,7 +440,7 @@ set +x
 ###############################################################################
 
 # Ask for the administrator password upfront
-{{- includeTemplate "common/helpers/sudo-keep-alive" . }}
+{{- includeTemplate "base/helpers/sudo-keep-alive" . }}
 
 # Show language menu in the top right corner of the boot screen
 sudo defaults write /Library/Preferences/com.apple.loginwindow showInputMenu -bool true

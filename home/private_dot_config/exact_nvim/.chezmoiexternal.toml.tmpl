@@ -1,12 +1,15 @@
-{{ template "common/github/archive" (dict
+{{ template "base/github/external" (dict
+    "type"   "archive"
     "target" "catppuccin.nvim"
     "repo"   "catppuccin/nvim"
     "exact"  true) }}
-{{ template "common/github/archive" (dict
+{{ template "base/github/external" (dict
+    "type"   "archive"
     "target" "nvim-web-devicons"
     "repo"   "nvim-tree/nvim-web-devicons"
     "exact"  true) }}
-{{ template "common/github/archive" (dict
+{{ template "base/github/external" (dict
+    "type"   "archive"
     "target" "cafetiere.nvim"
     "repo"   "lpnh/cafetiere.nvim@main"
     "exact"  true) }}

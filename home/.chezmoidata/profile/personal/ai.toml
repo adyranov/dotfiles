@@ -1,6 +1,28 @@
+[ai.profile.personal.local]
+default_model = "qwen3-coder-30b-a3b"
+engine = "llamacpp"
+
+[ai.profile.personal.local.models."qwen3-coder-30b-a3b"]
+context_output = 8192
+context_window = 32768
+gguf = {file = "Qwen3-Coder-30B-A3B-Instruct-UD-IQ3_XXS.gguf", repo = "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF"}
+name = "Qwen3 Coder 30B-A3B"
+reasoning = false
+sampling = {min_p = 0.0, repetition_penalty = 1.05, temperature = 0.7, top_k = 20, top_p = 0.8}
+
+[ai.profile.personal.local.models."qwen3.5-9b"]
+context_output = 8192
+context_window = 65536
+gguf = {file = "Qwen3.5-9B-UD-Q6_K_XL.gguf", repo = "unsloth/Qwen3.5-9B-GGUF"}
+name = "Qwen3.5 9B"
+reasoning = true
+sampling = {min_p = 0.0, presence_penalty = 1.5, repetition_penalty = 1.0, temperature = 1.0, top_k = 20, top_p = 0.95}
+
 [ai.profile.personal.models]
-enabled = ["deepseek-v4-flash", "deepseek-v4-pro", "gpt-5.5"]
-architect = {model = "gpt-5.5", provider = "openai-codex", thinking = "high", fallback_models = ["opencode-go/deepseek-v4-pro"]}
-coder = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "high"}
-default = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "high"}
+architect = {model = "gpt-5.5", provider = "openai-codex", thinking = "high"}
+auditor = {model = "deepseek-v4-pro", provider = "opencode-go", thinking = "high"}
+coder = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "medium"}
+locator = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "off"}
+oracle = {model = "gpt-5.5", provider = "openai-codex", thinking = "xhigh"}
+researcher = {model = "deepseek-v4-pro", provider = "opencode-go", thinking = "medium"}
 utility = {model = "deepseek-v4-flash", provider = "opencode-go", thinking = "off"}

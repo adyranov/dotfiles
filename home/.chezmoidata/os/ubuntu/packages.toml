@@ -1,10 +1,10 @@
 [packages.os.ubuntu.core]
-bubblewrap = {disabled = "ephemeral", bin = "bwrap"}
+bubblewrap = {disabled = ["ephemeral"], bin = "bwrap"}
 chezmoi = {manager = "mise"}
 fd = {package = "fd-find"}
 "git-delta" = {manager = "mise", package = "delta"}
 pcscd = {package = "pcscd"}
-socat = {disabled = "ephemeral", version = "socat -V"}
+socat = {disabled = ["ephemeral"], version = "socat -V"}
 
 [packages.os.ubuntu.docker]
 docker = {package = "docker-ce"}

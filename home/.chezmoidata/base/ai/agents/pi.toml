@@ -1,74 +1,96 @@
 [ai.base.agents.pi]
 settings = {bash_mode = {toggle_shortcut = "ctrl+shift+b", transcript_max_bytes = 524288, transcript_max_lines = 2000}, powerline = {fixed_editor = true, mouse_scroll = true, preset = "full"}, theme = "catppuccin-mocha"}
-subagents = {architect = [
-  "oracle",
-  "planner",
-  "reviewer",
-  "sdd-design",
-  "sdd-proposal",
-  "sdd-spec",
-  "sdd-verify"
-], coder = [
-  "delegate",
-  "sdd-apply",
-  "sdd-onboard",
-  "worker"
-], utility = [
-  "context-builder",
-  "researcher",
-  "scout",
-  "sdd-archive",
-  "sdd-explore",
-  "sdd-init",
-  "sdd-sync",
-  "sdd-tasks"
-]}
 
 [ai.base.agents.pi.mcp_servers]
 context-mode = {command_path = "context-mode"}
-engram = {command = "engram", args = ["mcp", "--tools=agent"]}
 
-[ai.base.agents.pi.packages]
-"@ff-labs/pi-fff" = {}
-"@gotgenes/pi-permission-system" = {}
-"@juicesharp/rpiv-ask-user-question" = {}
-"@juicesharp/rpiv-todo" = {}
-"@plannotator/pi-extension" = {}
-"@sherif-fanous/pi-catppuccin" = {}
-pi-btw = {}
-context-mode = {}
-gentle-engram = {}
-gentle-pi = {}
-pi-hashline-readmap = {}
-pi-intercom = {}
-pi-lens = {}
-pi-mcp-adapter = {}
-pi-powerline-footer = {}
-pi-subagents = {}
-pi-web-access = {}
+[ai.base.agents.pi.profiles.core]
+extends = "minimal"
+compaction = {keep_recent_tokens = 8000, reserve_tokens = 8192}
+plannotator = {executing = "coder", planning = "architect"}
+packages = [
+  "@ff-labs/pi-fff",
+  "pi-lens",
+  "pi-hashline-readmap",
+  "pi-mcp-adapter",
+  "context-mode",
+  "@plannotator/pi-extension",
+  "@juicesharp/rpiv-web-tools",
+  "@juicesharp/rpiv-advisor",
+  "@juicesharp/rpiv-ask-user-question",
+  "@juicesharp/rpiv-btw",
+  "@juicesharp/rpiv-args",
+  "@juicesharp/rpiv-todo",
+  "pi-context",
+  "pi-hermes-memory"
+]
+skills = ["karpathy-guidelines"]
+
+[ai.base.agents.pi.profiles.core.package_filters]
+context-mode = {skills = []}
+
+[ai.base.agents.pi.profiles.factory]
+extends = "core"
+compaction = {keep_recent_tokens = 20000, reserve_tokens = 16384}
+packages = [
+  "@juicesharp/rpiv-i18n",
+  "@juicesharp/rpiv-workflow",
+  "@juicesharp/rpiv-pi",
+  "@tintinweb/pi-subagents",
+  "pi-observational-memory"
+]
+
+[ai.base.agents.pi.profiles.minimal]
+compaction = {keep_recent_tokens = 4000, reserve_tokens = 4096}
+packages = [
+  "@gotgenes/pi-permission-system",
+  "@sherif-fanous/pi-catppuccin",
+  "pi-powerline-footer",
+  "pi-system-prompt"
+]
+skills = []
 
 [ai.base.agents.pi.sandbox.network]
 allow = [
-  {host = "*.github.com", port = 443},
-  {host = "*.npmjs.org", port = 443},
-  {host = "opencode.ai", port = 443},
-  {host = "pi.dev", port = 443},
-  {host = "*.schemastore.org", port = 443}
+  {host = "pi.dev", port = 443}
 ]
 
 [ai.base.agents.pi.sandbox.paths]
-infrastructure_deny = ["~/.config/pi/agent/auth.json"]
+infrastructure_deny = [
+  "~/.config/pi/agent/auth.json",
+  "~/.config/pi/profiles/minimal/auth.json",
+  "~/.config/pi/profiles/factory/auth.json"
+]
 infrastructure_read = [
   "~/.config/pi/**",
   "~/.config/agents/**",
   "~/.config/greywall/**",
-  "~/.local/share/engram/**",
+  "~/.local/share/plannotator/**",
   "**/node_modules/@earendil-works/pi-coding-agent/**"
 ]
 allow_write = [
+  "~/.cache/node-gyp",
+  "~/.cache/node-gyp/**",
+  "~/.cache/npm",
+  "~/.cache/npm/**",
+  "~/.config/pi/agent/npm",
+  "~/.config/pi/agent/npm/**",
   "~/.config/pi/agent/sessions",
   "~/.config/pi/agent/sessions/**",
-  "~/.pi-lens"
+  "~/.config/pi/profiles/minimal",
+  "~/.config/pi/profiles/minimal/**",
+  "~/.config/pi/profiles/minimal/npm",
+  "~/.config/pi/profiles/minimal/npm/**",
+  "~/.config/pi/profiles/factory",
+  "~/.config/pi/profiles/factory/**",
+  "~/.config/pi/profiles/factory/npm",
+  "~/.config/pi/profiles/factory/npm/**",
+  "~/.local/state/npm",
+  "~/.local/state/npm/**",
+  "~/.pi-lens",
+  "~/Library/Caches/node-gyp",
+  "~/.local/share/plannotator/**",
+  "~/Library/Caches/node-gyp/**"
 ]
 
 [ai.base.agents.pi.sandbox.tools]
@@ -90,6 +112,7 @@ allow = [
   "lsp_navigation",
   "ast_search",
   # rpiv (structured interaction)
+  "advisor",
   "ask_user_question",
   "todo",
   # pi-intercom
@@ -104,10 +127,7 @@ allow = [
   "get_search_content",
   "web_search",
   # context-mode (sandboxed execution & indexing)
-  "ctx_batch_execute",
   "ctx_doctor",
-  "ctx_execute",
-  "ctx_execute_file",
   "ctx_fetch_and_index",
   "ctx_index",
   "ctx_insight",
@@ -115,28 +135,14 @@ allow = [
   "ctx_stats",
   # plannotator
   "plannotator_submit_plan",
-  # gentle-engram memory tools
-  "mem_capture_passive",
-  "mem_compare",
-  "mem_context",
-  "mem_current_project",
-  "mem_delete",
-  "mem_doctor",
-  "mem_get_observation",
-  "mem_judge",
-  "mem_save",
-  "mem_save_prompt",
-  "mem_search",
-  "mem_session_end",
-  "mem_session_start",
-  "mem_session_summary",
-  "mem_stats",
-  "mem_suggest_topic_key",
-  "mem_timeline",
-  "mem_update",
   "external_directory"
 ]
-ask = []
+ask = [
+  # context-mode: arbitrary execution requires approval
+  "ctx_batch_execute",
+  "ctx_execute",
+  "ctx_execute_file"
+]
 default = "ask"
 
 [ai.base.agents.pi.sandbox.tools.mcp]

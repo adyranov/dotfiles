@@ -1,0 +1,36 @@
+{{- /*
+  render-pi-modify-settings — Shared modify-template body for Pi profile settings.
+
+  Input (dict):
+    root     — chezmoi data root
+    profile  — profile name ("core", "factory", "minimal")
+    chezmoi  — the .chezmoi context (provides stdin for modify-template)
+
+  This template is the single source of truth for all Pi modify_settings.json
+  files. Each per-profile file should be a two-line wrapper calling this.
+*/ -}}
+{{- $current := dict -}}
+{{- if and (hasKey .chezmoi "stdin") (not (empty (trim .chezmoi.stdin))) -}}
+{{-   $current = fromJsonc .chezmoi.stdin -}}
+{{-   if not $current -}}{{- $current = dict -}}{{- end -}}
+{{- end -}}
+{{- $managed := includeTemplate "base/ai/render-pi-profile-settings" (dict "root" .root "profile" .profile) | fromJsonc -}}
+{{- $models := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $defaults := index $models $models.default -}}
+{{- if not (hasKey $current "defaultModel") -}}
+{{-   $_ := set $managed "defaultModel" $defaults.model -}}
+{{- end -}}
+{{- if not (hasKey $current "defaultProvider") -}}
+{{-   $_ := set $managed "defaultProvider" $defaults.provider -}}
+{{- end -}}
+{{- if not (hasKey $current "defaultThinkingLevel") -}}
+{{-   $_ := set $managed "defaultThinkingLevel" $defaults.thinking -}}
+{{- end -}}
+{{- $final := mergeOverwrite $current $managed -}}
+{{- /* Strip subagents that Managed doesn't own but $current carries over */ -}}
+{{- if not (hasKey $managed "subagents") -}}
+{{-   $_ := unset $final "subagents" -}}
+{{- else if hasKey $final.subagents "agentOverrides" -}}
+{{-   $_ := set $final.subagents "agentOverrides" (index $managed.subagents "agentOverrides" | default dict) -}}
+{{- end -}}
+{{- $final | toPrettyJson -}}

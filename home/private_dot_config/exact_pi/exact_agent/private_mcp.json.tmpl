@@ -1,4 +1,4 @@
-{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
+{{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
 {{- $binDir := joinPath .chezmoi.homeDir ".config/pi/agent/npm/node_modules/.bin" -}}
 {{- range $name, $config := $pi.mcp_servers -}}
 {{-   if hasKey $config "command_path" -}}

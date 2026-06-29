@@ -1,8 +1,8 @@
 {{- if .toolchains.kubernetes -}}
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 KREW_PLUGINS=(
-{{- $packages := splitList " " (includeTemplate "common/packages/render" (dict "root" . "packageManager" "krew")) -}}
+{{- $packages := splitList " " (includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "krew" "format" "install")) -}}
 {{- range $pkg := $packages -}}
 {{- if ne $pkg "" }}
   "{{ $pkg }}"

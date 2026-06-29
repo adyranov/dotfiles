@@ -2,7 +2,7 @@
 # Package installation is handled by os/darwin/install via brew bundle.
 
 eval $({{ .brew.path }} shellenv)
-{{- includeTemplate "common/helpers/sudo-keep-alive" . }}
+{{- includeTemplate "base/helpers/sudo-keep-alive" . }}
 echo "🍺 Updating Homebrew…"
 brew update
 {{- if or (eq .host.type "ephemeral") .host.interactive }}

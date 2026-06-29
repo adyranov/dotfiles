@@ -1,13 +1,9 @@
 [packages.base.java]
 java = {manager = "mise", version = "java -version", pin = "lts", policy = {allow = [
   "java -version"
-], ask = [
-  "java *"
 ]}}
 maven = {manager = "mise", bin = "mvn", version = "mvn -v", policy = {allow = [
   "mvn -v",
   "mvn dependency:tree *",
   "mvn help:effective-pom *"
-], ask = [
-  "mvn *"
 ]}}

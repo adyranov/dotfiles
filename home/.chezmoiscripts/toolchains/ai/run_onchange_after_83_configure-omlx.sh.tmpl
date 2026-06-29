@@ -1,0 +1,92 @@
+{{- if and .toolchains.ai (eq .host.distro.family "darwin") (eq .host.arch "arm64") -}}
+{{- /* Install wiring: always sync mlx backends, independent of runtime engine. */ -}}
+{{- $local := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.local" "required" true) | mustFromJson -}}
+{{- $omlxModels := dict -}}
+{{- $hf_dirs := list -}}
+{{- range $id, $m := index $local "models" | default dict -}}
+{{-   $mlx := index $m "mlx" | default dict -}}
+{{-   if index $mlx "repo" -}}
+{{-     $omlxModels = merge $omlxModels (dict $id (dict "backend" $mlx)) -}}
+{{-     $hf_dirs = append $hf_dirs (printf "models--%s" (replace "/" "--" $mlx.repo)) -}}
+{{-   end -}}
+{{- end -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
+
+# omlx cache hash: {{ output "sh" "-c" (printf "HF_CACHE=\"${HF_HUB_CACHE:-${XDG_DATA_HOME:-$HOME/.local/share}/huggingface/hub}\"; for d in %s; do ls \"$HF_CACHE/$d/snapshots\" 2>/dev/null; done | sort | shasum | cut -c1-16" (join " " $hf_dirs)) | trim }}
+
+HF_CACHE="${HF_HUB_CACHE:-${XDG_DATA_HOME:-$HOME/.local/share}/huggingface/hub}"
+MODEL_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omlx/models"
+mkdir -p "$MODEL_DIR"
+
+latest_snapshot() {
+  repo="$1"
+  snaps="${HF_CACHE}/models--$(printf '%s' "$repo" | sed 's|/|--|')/snapshots"
+  if [ ! -d "$snaps" ]; then
+    return 1
+  fi
+  find "$snaps" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null \
+    | xargs -0 ls -td 2>/dev/null \
+    | head -n 1
+}
+
+sync_model_link() {
+  logical_id="$1"
+  repo="$2"
+  target="$(latest_snapshot "$repo" || true)"
+  link_path="${MODEL_DIR}/${logical_id}"
+
+  if [ -z "${target:-}" ]; then
+    echo "omlx: ${logical_id} not cached (${repo}); run llm-pull" >&2
+    return 0
+  fi
+
+  ln -snf "$target" "$link_path"
+  echo "omlx: ${logical_id} -> ${target}"
+}
+
+EXPECTED=""
+{{- range $id, $m := $omlxModels }}
+sync_model_link {{ $id | quote }} {{ $m.backend.repo | quote }}
+EXPECTED="${EXPECTED} {{ $id }}"
+{{- end }}
+
+for entry in "$MODEL_DIR"/*; do
+  [ -e "$entry" ] || continue
+  name="$(basename "$entry")"
+  case " ${EXPECTED} " in
+    *" ${name} "*) ;;
+    *)
+      rm -f "$entry"
+      echo "omlx: removed stale link ${name}"
+      ;;
+  esac
+done
+
+OMLX_PREFIX="$(brew --prefix omlx 2>/dev/null || true)"
+if [ -z "$OMLX_PREFIX" ] || [ ! -d "$OMLX_PREFIX" ]; then
+  echo "omlx not installed via brew; skipping xgrammar setup."
+  exit 0
+fi
+
+OMLX_PY="$OMLX_PREFIX/libexec/bin/python3"
+if [ ! -x "$OMLX_PY" ]; then
+  OMLX_PY="$(/usr/bin/find "$OMLX_PREFIX/libexec/bin" -maxdepth 1 -name 'python3*' -type f 2>/dev/null | head -n 1)"
+fi
+if [ -z "$OMLX_PY" ] || [ ! -x "$OMLX_PY" ]; then
+  echo "omlx libexec python not found under $OMLX_PREFIX; skipping xgrammar setup." >&2
+  exit 0
+fi
+
+if "$OMLX_PY" -c 'import xgrammar' >/dev/null 2>&1; then
+  echo "xgrammar already installed in omlx venv."
+  exit 0
+fi
+
+echo "Installing xgrammar into omlx venv for structured-output support..."
+"$OMLX_PY" -m pip install --quiet xgrammar
+"$OMLX_PY" -c 'import xgrammar' >/dev/null 2>&1 || {
+  echo "xgrammar install failed; structured outputs will fall back to prompt injection." >&2
+  exit 1
+}
+echo "xgrammar installed."
+{{- end }}

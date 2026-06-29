@@ -1,0 +1,41 @@
+{{- /* base/packages/collect-completions — Render shell completions for enabled packages.
+
+  Walks layered packages via `base/packages/walk`, keeps entries with completion
+  metadata, normalizes (bin, version), keeps generated completions (run a
+  command at apply time), and dispatches to the requested format.
+
+  Args (dict):
+    root    — template data root (required)
+    format  — "completion-script" | "completion-ignore"
+    compDir — destination directory (only used by completion-script)
+*/ -}}
+{{- $root := .root -}}
+{{- $format := .format -}}
+{{- $compDir := index . "compDir" | default "" -}}
+
+{{- $entries := includeTemplate "base/packages/walk" (dict "root" $root) | mustFromJson -}}
+{{- $generated := dict -}}
+{{- range $entry := $entries -}}
+{{-   $id := $entry.id -}}
+{{-   $pkg := $entry.pkg -}}
+{{-   $rawComp := index $pkg "completion" | default "" -}}
+{{-   if not $rawComp -}}{{- continue -}}{{- end -}}
+
+{{-   $bin := printf "%s" (index $pkg "bin" | default $id) -}}
+{{-   $versionCmd := printf "%s --version" $bin -}}
+{{-   if hasKey $pkg "version" -}}{{- $versionCmd = printf "%s" (index $pkg "version") -}}{{- end -}}
+
+{{-   $comp := dict -}}
+{{-   if kindIs "bool" $rawComp -}}
+{{-     $comp = dict "generate" true "bin" $bin "version" $versionCmd -}}
+{{-   else -}}
+{{-     $comp = $rawComp -}}
+{{-     $_ := set $comp "bin" $bin -}}
+{{-     $_ := set $comp "version" $versionCmd -}}
+{{-   end -}}
+
+{{-   if hasKey $comp "generate" -}}
+{{-     $_ := set $generated $id $comp -}}
+{{-   end -}}
+{{- end -}}
+{{- includeTemplate (printf "base/packages/format/%s" $format) (dict "completions" $generated "compDir" $compDir) -}}

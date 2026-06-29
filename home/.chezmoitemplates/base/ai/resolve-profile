@@ -1,0 +1,74 @@
+{{- /*
+  resolve-profile — Resolve a profile's effective configuration by walking the
+  `extends` chain and applying array-union + subtractive override semantics.
+
+  Input (dict):
+    agentData  — the loaded ai.agents.<agent> TOML block (e.g. ai.base.agents.pi)
+    profile    — profile name string
+
+  Semantics:
+    - If the profile has an `extends` key, its parent is resolved recursively first.
+    - Scalar/struct keys from the child override the parent (mergeOverwrite).
+    - Array keys (`packages`, `skills`, `plugins`) are UNIONED:
+      parent's array + child's array, dedup'd, then any entries prefixed with `-`
+      are removed from the result. An empty child array = "inherit parent verbatim".
+    - The `extends` key is stripped from the output.
+
+  Usage: {{ includeTemplate "base/ai/resolve-profile" (dict "agentData" $pi "profile" "core") | mustFromJson }}
+*/ -}}
+{{- $agentData := .agentData -}}
+{{- $profileName := .profile -}}
+{{- $profiles := get $agentData "profiles" | default dict -}}
+{{- $profile := index $profiles $profileName | default dict -}}
+{{- if not $profile -}}
+  {{- fail (printf "resolve-profile: profile %q not found in agent" $profileName) -}}
+{{- end -}}
+
+{{- /* ── Resolve parent if extends is set ── */ -}}
+{{- $extends := get $profile "extends" | default "" -}}
+{{- $result := dict -}}
+{{- if $extends -}}
+  {{- $parentJson := includeTemplate "base/ai/resolve-profile" (dict "agentData" $agentData "profile" $extends) -}}
+  {{- $result = $parentJson | mustFromJson -}}
+{{- end -}}
+
+{{- /* ── Scalar/struct overrides — child values win (except arrays and extends) ── */ -}}
+{{- $arrayFields := list "packages" "skills" "plugins" -}}
+{{- range $k, $v := $profile -}}
+  {{- if eq $k "extends" -}}{{ continue }}{{- end -}}
+  {{- if has $k $arrayFields -}}{{ continue }}{{- end -}}
+  {{- $_ := set $result $k $v -}}
+{{- end -}}
+
+{{- /* ── Array union + subtractive override ── */ -}}
+{{- range $field := $arrayFields -}}
+  {{- $childArr := get $profile $field | default list -}}
+  {{- $parentArr := get $result $field | default list -}}
+  {{- /* If child array is empty and we have a parent, inherit parent verbatim */ -}}
+  {{- if and (eq (len $childArr) 0) $extends -}}
+    {{- /* inherit parent as-is (no-op, parentArr already in result) */ -}}
+  {{- else -}}
+    {{- $combined := concat $parentArr $childArr -}}
+    {{- /* partition into removals (entries starting with -) and additions */ -}}
+    {{- $removals := list -}}
+    {{- $additions := list -}}
+    {{- range $item := $combined -}}
+      {{- $str := toString $item -}}
+      {{- if hasPrefix "-" $str -}}
+        {{- $removals = append $removals (trimPrefix "-" $str) -}}
+      {{- else -}}
+        {{- $additions = append $additions $str -}}
+      {{- end -}}
+    {{- end -}}
+    {{- /* Build final: dedup additions, then remove any that match removals */ -}}
+    {{- $final := list -}}
+    {{- range $item := $additions -}}
+      {{- if has $item $removals -}}{{ continue }}{{- end -}}
+      {{- if has $item $final -}}{{ continue }}{{- end -}}
+      {{- $final = append $final $item -}}
+    {{- end -}}
+    {{- $_ := set $result $field ($final | sortAlpha) -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $result | toJson -}}

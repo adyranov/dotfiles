@@ -1,3 +1,23 @@
+{{- $brew := includeTemplate "base/helpers/load-section" (dict "root" . "section" "brew") | mustFromJson -}}
+{{- $taps := index $brew "taps" | default list -}}
+
+{{- if $taps }}
+if command -v brew >/dev/null 2>&1; then
+{{- range $tap := $taps }}
+{{- if kindIs "map" $tap }}
+{{-   if $tap.url }}
+  brew tap {{ $tap.name | quote }} {{ $tap.url | quote }}
+{{-   else }}
+  brew tap {{ $tap.name | quote }}
+{{-   end }}
+  if brew trust --help >/dev/null 2>&1; then brew trust {{ $tap.name | quote }}; fi
+{{- else }}
+  brew tap {{ $tap | quote }}
+  if brew trust --help >/dev/null 2>&1; then brew trust {{ $tap | quote }}; fi
+{{- end }}
+{{- end }}
+fi
+{{- end }}
 
 echo "📦 Ensuring Homebrew bundle packages…"
 brew bundle --no-upgrade --verbose --file=/dev/stdin <<EOF

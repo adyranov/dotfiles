@@ -17,3 +17,12 @@ karpathy = {repo = "multica-ai/andrej-karpathy-skills@main", include = [
 hoodini = {repo = "hoodini/ai-agents-skills", include = [
   "owasp-security-best-practices"
 ]}
+"oh-my-opencode-slim" = {repo = "alvinunreal/oh-my-opencode-slim", prefix = "src/skills", include = [
+  "simplify",
+  "codemap",
+  "clonedeps",
+  "deepwork",
+  "reflect",
+  "oh-my-opencode-slim",
+  "worktrees"
+]}

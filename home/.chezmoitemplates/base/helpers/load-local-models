@@ -1,0 +1,137 @@
+{{- /*
+  Resolves per-host local LLM engine and model backends from ai.local.
+
+  Input: .root (chezmoi data root)
+  Output: JSON dict:
+    port, default_model, engine (omlx|llamacpp), gpu_flags, gpu_layers,
+    fit_target, reasoning_format, omlx_max_concurrent_requests,
+    omlx_memory_guard_gb,
+    cache_type_k, cache_type_v,
+    parallel, batch_size, ubatch_size, threads, threads_batch,
+    llama_cpp_models_preset, omlx_model_dir, slot_dir,
+    models: { <logical-id>: { name, context_window, context_output,
+                              reasoning, sampling?, chat_template_file?,
+                              upstream_id?, backend: { repo, file } } }
+
+  Engine selection:
+    ai.local.engine (required): "omlx" | "llamacpp"
+    Models must declare the backend matching the active engine.
+
+  GPU flags (llamacpp only, best-effort static presets):
+    darwin amd64  → llama-x86-mac defaults with q8_0 KV cache; keep extra GPU flags off
+    darwin arm64  → Metal via Homebrew llama.cpp; no extra GPU flags
+    linux         → -fa (Flash Attention when CUDA/ROCm available)
+
+  Chat templates (llamacpp):
+    Qwen 3.5+ model ids auto-attach qwen-froggeric.jinja unless overridden in profile data.
+*/ -}}
+{{- $root := .root -}}
+{{- $local := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.local" "required" true) | mustFromJson -}}
+{{- $engineRaw := index $local "engine" | default "" -}}
+{{- if not $engineRaw -}}
+{{-   fail "ai.local.engine must be set in the active profile (got empty); expected \"omlx\" or \"llamacpp\"" -}}
+{{- end -}}
+{{- if not (has $engineRaw (list "omlx" "llamacpp")) -}}
+{{-   fail (printf "ai.local.engine = %q is not one of: omlx, llamacpp" $engineRaw) -}}
+{{- end -}}
+{{- $engine := $engineRaw -}}
+{{- $gpuFlags := "-fa" -}}
+{{- $gpuLayers := "auto" -}}
+{{- $fitTarget := 0 -}}
+{{- $reasoningFormat := "deepseek" -}}
+{{- $omlxMaxConcurrentRequests := 1 -}}
+{{- $omlxMemoryGuardGb := index $local "omlx_memory_guard_gb" | default 0 -}}
+{{- $cacheTypeK := "q8_0" -}}
+{{- $cacheTypeV := "q8_0" -}}
+{{- $parallel := 4 -}}
+{{- $batchSize := 2048 -}}
+{{- $ubatchSize := 512 -}}
+{{- $threads := 0 -}}
+{{- $threadsBatch := 0 -}}
+{{- if eq $engine "omlx" -}}
+{{-   $gpuFlags = "" -}}
+{{- else if eq $engine "llamacpp" -}}
+{{-   if and (eq $root.host.distro.family "darwin") (eq $root.host.arch "amd64") -}}
+{{-     $gpuFlags = "" -}}
+{{-     $fitTarget = 2048 -}}
+{{-     $parallel = 1 -}}
+{{-     $batchSize = 1024 -}}
+{{-     $ubatchSize = 256 -}}
+{{-   else if and (eq $root.host.distro.family "darwin") (eq $root.host.arch "arm64") -}}
+{{-     $gpuFlags = "" -}}
+{{-   end -}}
+{{- end -}}
+{{- $xdgCache := printf "%s/.cache" $root.host.home -}}
+{{- $xdgState := printf "%s/.local/state" $root.host.home -}}
+{{- $llamaCppConfigDir := printf "%s/.config/llama.cpp" $root.host.home -}}
+{{- $slotDir := printf "%s/llama.cpp/slots" $xdgCache -}}
+{{- $omlxModelDir := printf "%s/omlx/models" $xdgState -}}
+{{- $qwenChatTemplate := printf "%s/qwen-froggeric.jinja" $llamaCppConfigDir -}}
+{{- $models := dict -}}
+{{- range $id, $m := index $local "models" | default dict -}}
+{{-   $backendKey := "gguf" -}}
+{{-   if eq $engine "omlx" -}}
+{{-     $backendKey = "mlx" -}}
+{{-   end -}}
+{{-   $backend := index $m $backendKey | default dict -}}
+{{-   if not (index $backend "repo") -}}
+{{-     fail (printf "model %q has no %q backend entry (engine=%q)" $id $backendKey $engine) -}}
+{{-   end -}}
+{{-   $ctxWindow := $m.context_window | default 128000 -}}
+{{-   $ctxOutput := $m.context_output | default 16384 -}}
+{{-   $sampling := index $m "sampling" | default dict -}}
+{{-   if eq $engine "omlx" -}}
+{{-     if index $backend "context_window" -}}
+{{-       $ctxWindow = index $backend "context_window" -}}
+{{-     end -}}
+{{-     if index $backend "context_output" -}}
+{{-       $ctxOutput = index $backend "context_output" -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $repoParts := splitList "/" $backend.repo -}}
+{{-   $modelEntry := dict
+        "name" ($m.name | default $id)
+        "context_window" $ctxWindow
+        "context_output" $ctxOutput
+        "reasoning" ($m.reasoning | default false)
+        "sampling" $sampling
+        "backend" $backend
+      -}}
+{{-   if index $m "chat_template_file" -}}
+{{-     $modelEntry = merge $modelEntry (dict "chat_template_file" $m.chat_template_file) -}}
+{{-   else if and (eq $engine "llamacpp") (regexMatch "^qwen(3\\.[5-9]|3\\.[1-9][0-9]+|[4-9])" $id) -}}
+{{-     $modelEntry = merge $modelEntry (dict "chat_template_file" $qwenChatTemplate) -}}
+{{-   end -}}
+{{-   if eq $engine "omlx" -}}
+{{-     $modelEntry = merge $modelEntry (dict
+          "upstream_id" (printf "%s--%s" (index $repoParts 0) (join "--" (slice $repoParts 1)))
+        ) -}}
+{{-   end -}}
+{{-   $models = merge $models (dict $id $modelEntry) -}}
+{{- end -}}
+{{- $defaultModel := index $local "default_model" | default "" -}}
+{{- if not (hasKey $models $defaultModel) -}}
+{{-   $defaultModel = "" -}}
+{{- end -}}
+{{- dict
+  "default_model" $defaultModel
+  "port" ($local.port | default 8321)
+  "engine" $engine
+  "gpu_flags" $gpuFlags
+  "gpu_layers" $gpuLayers
+  "fit_target" ($fitTarget | int)
+  "reasoning_format" $reasoningFormat
+  "omlx_max_concurrent_requests" ($omlxMaxConcurrentRequests | int)
+  "omlx_memory_guard_gb" ($omlxMemoryGuardGb | int)
+  "cache_type_k" $cacheTypeK
+  "cache_type_v" $cacheTypeV
+  "parallel" ($parallel | int)
+  "batch_size" ($batchSize | int)
+  "ubatch_size" ($ubatchSize | int)
+  "threads" ($threads | int)
+  "threads_batch" ($threadsBatch | int)
+  "llama_cpp_models_preset" (printf "%s/models.ini" $llamaCppConfigDir)
+  "omlx_model_dir" $omlxModelDir
+  "slot_dir" $slotDir
+  "models" $models
+| toJson -}}

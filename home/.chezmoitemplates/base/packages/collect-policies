@@ -1,0 +1,29 @@
+{{- /* base/packages/collect-policies — Merged bash command policy for enabled packages.
+
+  Walks layered packages via `base/packages/walk`, picks the per-package
+  `policy.allow`, `policy.ask`, and `policy.deny` lists, and emits a single merged JSON
+  document for consumers like greywall and the pi permission system.
+
+  Args (dict):
+    root — template data root (required)
+
+  Output: JSON {"allow": [...], "ask": [...], "deny": [...]}, all lists sorted and uniq'd.
+*/ -}}
+{{- $root := .root -}}
+{{- $entries := includeTemplate "base/packages/walk" (dict "root" $root) | mustFromJson -}}
+{{- $allow := list -}}
+{{- $ask := list -}}
+{{- $deny := list -}}
+{{- range $entry := $entries -}}
+{{-   $policy := index $entry.pkg "policy" | default dict -}}
+{{-   range $pattern := index $policy "allow" | default list -}}
+{{-     $allow = append $allow $pattern -}}
+{{-   end -}}
+{{-   range $pattern := index $policy "ask" | default list -}}
+{{-     $ask = append $ask $pattern -}}
+{{-   end -}}
+{{-   range $pattern := index $policy "deny" | default list -}}
+{{-     $deny = append $deny $pattern -}}
+{{-   end -}}
+{{- end -}}
+{{- dict "allow" ($allow | uniq | sortAlpha) "ask" ($ask | uniq | sortAlpha) "deny" ($deny | uniq | sortAlpha) | toJson -}}

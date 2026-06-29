@@ -1,13 +1,9 @@
 [packages.base.kubernetes]
 helm-diff = {manager = "helm", package = "https://github.com/databus23/helm-diff", version = "helm diff --help"}
-k3d = {manager = "mise", version = "k3d version", completion = {generate = "k3d completion zsh"}, policy = {ask = [
-  "k3d *"
-], deny = [
+k3d = {manager = "mise", version = "k3d version", completion = {generate = "k3d completion zsh"}, policy = {deny = [
   "k3d * delete*"
 ]}}
-k9s = {manager = "mise", version = "k9s version", policy = {ask = [
-  "k9s *"
-]}}
+k9s = {completion = true, manager = "mise", version = "k9s version"}
 kubecolor = {manager = "mise", version = "kubecolor help", completion = {generate = "kubectl completion zsh", refresh = "kubectl version --client", sed = "s/kubectl/kubecolor/g"}}
 kubectl-access-matrix = {manager = "krew", policy = {allow = [
   "kubectl access-matrix *"
@@ -15,81 +11,107 @@ kubectl-access-matrix = {manager = "krew", policy = {allow = [
 kubectl-get-all = {manager = "krew", policy = {allow = [
   "kubectl get-all *"
 ]}}
-kubectl-neat = {manager = "krew", policy = {allow = [
-  "kubectl neat *"
-]}}
+kubectl-neat = {manager = "krew", policy = {allow = ["kubectl neat *"]}}
 kubectl-node-shell = {manager = "krew", version = "kubectl node-shell --version", policy = {deny = [
   "kubectl node-shell *"
 ]}}
 kubectl-rbac-tool = {manager = "krew", policy = {allow = [
   "kubectl rbac-tool *"
 ]}}
-kubectl-tree = {manager = "krew", policy = {allow = [
-  "kubectl tree *"
-]}}
-kubescape = {manager = "mise", package = "aqua:kubescape/kubescape", version = "kubescape help", policy = {allow = [
+kubectl-tree = {manager = "krew", policy = {allow = ["kubectl tree *"]}}
+kubescape = {completion = true, manager = "mise", package = "aqua:kubescape/kubescape", version = "kubescape help", policy = {allow = [
   "kubescape *"
 ]}}
-kustomize = {manager = "mise", version = "kustomize version", policy = {allow = [
-  "kustomize *"
+kustomize = {completion = true, manager = "mise", version = "kustomize version", policy = {allow = [
+  "kustomize build *",
+  "kustomize version *"
 ]}}
 stern = {manager = "mise", completion = {generate = "stern --completion zsh"}, policy = {allow = [
   "stern *"
 ]}}
 yq = {manager = "mise", completion = {generate = "yq shell-completion zsh"}, policy = {allow = [
-  "yq *"
+  "yq eval *",
+  "yq eval-all *",
+  "yq version *"
+], deny = [
+  "yq * -i *",
+  "yq -i *"
 ]}}
 
 [packages.base.kubernetes.helm]
+completion = true
 manager = "mise"
 version = "helm version"
 
 [packages.base.kubernetes.helm.policy]
 allow = [
+  "helm diff *",
   "helm get *",
   "helm history *",
+  "helm lint *",
   "helm list *",
+  "helm repo list *",
+  "helm search repo *",
+  "helm show *",
   "helm status *",
+  "helm template *",
   "helm version *"
 ]
-ask = ["helm *"]
 deny = [
   "helm * delete *",
   "helm * install *",
   "helm * rollback *",
   "helm * uninstall *",
-  "helm * upgrade *"
+  "helm * upgrade *",
+  "helm delete *",
+  "helm install *",
+  "helm rollback *",
+  "helm uninstall *",
+  "helm upgrade *"
 ]
 
 [packages.base.kubernetes.kubectl]
+completion = true
 manager = "mise"
 version = "kubectl version --client"
 
 [packages.base.kubernetes.kubectl.policy]
 allow = [
   "kubectl * describe *",
+  "kubectl * events *",
   "kubectl * get *",
   "kubectl * logs *",
+  "kubectl * top *",
   "kubectl api-resources *",
   "kubectl api-versions *",
+  "kubectl auth can-i *",
   "kubectl config current-context *",
+  "kubectl config get-contexts *",
+  "kubectl explain *",
+  "kubectl options *",
   "kubectl version *"
 ]
-ask = ["kubectl *", "kubectl apply *"]
 deny = [
+  "kubectl * annotate *",
+  "kubectl * apply *",
+  "kubectl * attach *",
   "kubectl * cordon *",
   "kubectl * cp *",
   "kubectl * create *",
+  "kubectl * debug *",
   "kubectl * delete *",
   "kubectl * drain *",
   "kubectl * edit *",
   "kubectl * exec *",
+  "kubectl * expose *",
+  "kubectl * label *",
   "kubectl * patch *",
   "kubectl * port-forward *",
   "kubectl * proxy *",
   "kubectl * replace *",
   "kubectl * rollout restart *",
   "kubectl * scale *",
+  "kubectl * set *",
   "kubectl * taint *"
 ]
 
@@ -105,16 +127,35 @@ macos-arm64 = {bin_path = "target/aarch64-apple-darwin/release"}
 macos-x64 = {bin_path = "target/x86_64-apple-darwin/release"}
 
 [packages.base.kubernetes.oc]
+completion = true
 manager = "mise"
 version = "oc version --client"
 
 [packages.base.kubernetes.oc.policy]
-allow = ["oc * describe *", "oc * get *", "oc * logs *", "oc version *"]
-ask = ["oc *"]
+allow = [
+  "oc * describe *",
+  "oc * get *",
+  "oc * logs *",
+  "oc * top *",
+  "oc api-resources *",
+  "oc api-versions *",
+  "oc auth can-i *",
+  "oc version *"
+]
 deny = [
+  "oc * annotate *",
+  "oc * apply *",
+  "oc * attach *",
   "oc * create *",
+  "oc * debug *",
   "oc * delete *",
   "oc * edit *",
+  "oc * exec *",
+  "oc * expose *",
+  "oc * label *",
   "oc * patch *",
-  "oc * replace *"
+  "oc * replace *",
+  "oc * rollout restart *",
+  "oc * scale *",
+  "oc * set *"
 ]

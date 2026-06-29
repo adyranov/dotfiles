@@ -1,0 +1,81 @@
+{{- $local := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- if eq $local.engine "llamacpp" -}}
+{{- $modelIds := keys $local.models | sortAlpha -}}
+{{- if and $local.default_model (hasKey $local.models $local.default_model) -}}
+{{-   $defaultModel := $local.default_model -}}
+{{-   $orderedIds := list $defaultModel -}}
+{{-   range $id := $modelIds -}}
+{{-     if ne $id $defaultModel -}}{{- $orderedIds = append $orderedIds $id -}}{{- end -}}
+{{-   end -}}
+{{-   $modelIds = $orderedIds -}}
+{{- end -}}
+version = 1
+
+[*]
+gpu-layers = {{ $local.gpu_layers }}
+jinja = true
+reasoning-format = {{ $local.reasoning_format }}
+slot-save-path = {{ $local.slot_dir }}
+{{- if $local.gpu_flags }}
+flash-attn = true
+{{- end }}
+{{- if gt ($local.fit_target | int) 0 }}
+fit-target = {{ $local.fit_target }}
+{{- end }}
+{{- if gt ($local.parallel | int) 0 }}
+parallel = {{ $local.parallel }}
+{{- end }}
+{{- if gt ($local.batch_size | int) 0 }}
+batch-size = {{ $local.batch_size }}
+{{- end }}
+{{- if gt ($local.ubatch_size | int) 0 }}
+ubatch-size = {{ $local.ubatch_size }}
+{{- end }}
+{{- if gt ($local.threads | int) 0 }}
+threads = {{ $local.threads }}
+{{- end }}
+{{- if gt ($local.threads_batch | int) 0 }}
+threads-batch = {{ $local.threads_batch }}
+{{- end }}
+{{- if $local.cache_type_k }}
+cache-type-k = {{ $local.cache_type_k }}
+{{- end }}
+{{- if $local.cache_type_v }}
+cache-type-v = {{ $local.cache_type_v }}
+{{- end }}
+
+{{ range $id := $modelIds -}}
+{{-   $m := index $local.models $id -}}
+{{-   $backend := $m.backend -}}
+{{-   $sampling := index $m "sampling" | default dict -}}
+[{{ $id }}]
+hf-repo = {{ $backend.repo }}
+hf-file = {{ $backend.file }}
+ctx-size = {{ $m.context_window }}
+reasoning = {{ ternary "true" "false" $m.reasoning }}
+{{-   $chatTemplateFile := index $m "chat_template_file" | default "" }}
+{{-   if $chatTemplateFile }}
+chat-template-file = {{ $chatTemplateFile }}
+{{-   end }}
+{{-   if hasKey $sampling "temperature" }}
+temp = {{ index $sampling "temperature" }}
+{{-   end }}
+{{-   if hasKey $sampling "top_p" }}
+top-p = {{ index $sampling "top_p" }}
+{{-   end }}
+{{-   if hasKey $sampling "top_k" }}
+top-k = {{ index $sampling "top_k" }}
+{{-   end }}
+{{-   if hasKey $sampling "min_p" }}
+min-p = {{ index $sampling "min_p" }}
+{{-   end }}
+{{-   if hasKey $sampling "presence_penalty" }}
+presence-penalty = {{ index $sampling "presence_penalty" }}
+{{-   end }}
+{{-   if hasKey $sampling "repetition_penalty" }}
+repeat-penalty = {{ index $sampling "repetition_penalty" }}
+{{-   end }}
+load-on-startup = {{ eq $id $local.default_model }}
+
+{{ end -}}
+{{- end -}}

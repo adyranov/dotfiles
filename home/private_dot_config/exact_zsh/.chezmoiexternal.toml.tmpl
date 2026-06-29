@@ -1,8 +1,10 @@
-{{ template "common/github/raw" (dict
+{{ template "base/github/external" (dict
+    "type"   "file"
     "target" "catppuccin-fzf-mocha.sh"
     "repo"   "catppuccin/fzf@main"
     "source" "themes/catppuccin-fzf-mocha.sh") }}
-{{ template "common/github/raw" (dict
+{{ template "base/github/external" (dict
+    "type"   "file"
     "target" "catppuccin-mocha-zsh-syntax-highlighting.zsh"
     "repo"   "catppuccin/zsh-syntax-highlighting@main"
     "source" "themes/catppuccin_mocha-zsh-syntax-highlighting.zsh") }}
