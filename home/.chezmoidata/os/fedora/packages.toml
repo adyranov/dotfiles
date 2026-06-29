@@ -1,10 +1,10 @@
 [packages.os.fedora.core]
-bubblewrap = {disabled = "ephemeral", bin = "bwrap"}
+bubblewrap = {disabled = ["ephemeral"], bin = "bwrap"}
 difftastic = {manager = "system"}
 fd = {package = "fd-find"}
 openssh-client = {package = "openssh-clients"}
 "pcsc-lite" = {package = "pcsc-lite", test = "rpm -q pcsc-lite"}
-socat = {disabled = "ephemeral", version = "socat -V"}
+socat = {disabled = ["ephemeral"], version = "socat -V"}
 
 [packages.os.fedora.docker]
 docker = {package = "docker-ce"}

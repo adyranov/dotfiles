@@ -1,0 +1,82 @@
+{{- /* base/packages/walk — Layered, filtered package iterator.
+
+  Walks every enabled toolchain (core + any flags in `.toolchains` that are true),
+  merges base → os.<distro> → profile.<profile> layers per package id, and applies
+  host filters (`os`, `disabled`, `exclude_arch`). The result is emitted as JSON so
+  callers can `mustFromJson` it.
+
+  Output shape:
+    [
+      { "id": "btop", "pkg": { ...merged TOML... }, "toolchain": "core" },
+      ...
+    ]
+
+  Args (dict):
+    root — template data root (required).
+
+  Disabled tags:
+    `disabled = true` always filters; `disabled = ["headless", "restricted",
+    "<host.type>"]` filters when the host matches any tag. Supported tags:
+    `headless` (when `!host.interactive`), `restricted` (when `host.restricted`),
+    and any host.type value (e.g. `ephemeral`).
+*/ -}}
+{{- $root := .root -}}
+{{- $distroId := $root.host.distro.id -}}
+{{- $arch := $root.host.arch -}}
+
+{{- $enabledToolchains := list "core" -}}
+{{- range $toolName, $enabled := $root.toolchains -}}
+{{-   if $enabled -}}{{- $enabledToolchains = append $enabledToolchains $toolName -}}{{- end -}}
+{{- end -}}
+
+{{- $profileKey := "" -}}{{- if hasKey $root.host "profile" -}}{{- $profileKey = $root.host.profile -}}{{- end -}}
+{{- $osLayers := index $root.packages "os" | default dict -}}
+{{- $profileLayers := index $root.packages "profile" | default dict -}}
+{{- $osPackages := index $osLayers $distroId | default dict -}}
+{{- $profilePackages := index $profileLayers $profileKey | default dict -}}
+{{- $basePackages := index $root.packages "base" | default dict -}}
+
+{{- $result := list -}}
+{{- range $toolName := $enabledToolchains -}}
+{{-   $packages := includeTemplate "base/helpers/load-section" (dict "root" $root "section" (printf "packages.%s" $toolName)) | mustFromJson -}}
+{{-   $baseLayer := index $basePackages $toolName | default dict -}}
+{{-   $osLayer := index $osPackages $toolName | default dict -}}
+{{-   $profileLayer := index $profilePackages $toolName | default dict -}}
+{{-   range $id := sortAlpha (keys $packages) -}}
+{{-     $pkg := index $packages $id | default dict -}}
+{{-     $basePkg := index $baseLayer $id | default dict -}}
+{{-     $osPkg := index $osLayer $id | default dict -}}
+{{-     $profilePkg := index $profileLayer $id | default dict -}}
+{{-     $override := $osPkg | merge $profilePkg -}}
+
+{{-     $pkgOs := index $pkg "os" | default "" -}}
+{{-     if and $pkgOs (ne $pkgOs $distroId) -}}{{- continue -}}{{- end -}}
+
+{{-     $rawDisabled := index $pkg "disabled" | default false -}}
+{{-     $disabled := false -}}
+{{-     if kindIs "bool" $rawDisabled -}}
+{{-       $disabled = $rawDisabled -}}
+{{-     else if kindIs "slice" $rawDisabled -}}
+{{-       range $tag := $rawDisabled -}}
+{{-         if eq $tag "headless" -}}
+{{-           if not $root.host.interactive -}}{{- $disabled = true -}}{{- end -}}
+{{-         else if eq $tag "restricted" -}}
+{{-           if $root.host.restricted -}}{{- $disabled = true -}}{{- end -}}
+{{-         else if eq $tag $root.host.type -}}
+{{-           $disabled = true -}}
+{{-         end -}}
+{{-       end -}}
+{{-     end -}}
+{{-     if $disabled -}}{{- continue -}}{{- end -}}
+
+{{-     $excludeArch := index $pkg "exclude_arch" | default list -}}
+{{-     $archExcluded := false -}}
+{{-     range $a := $excludeArch -}}
+{{-       if eq $arch $a -}}{{- $archExcluded = true -}}{{- end -}}
+{{-     end -}}
+{{-     if $archExcluded -}}{{- continue -}}{{- end -}}
+
+{{-     $result = append $result (dict "id" $id "pkg" $pkg "basePkg" $basePkg "override" $override "toolchain" $toolName) -}}
+{{-   end -}}
+{{- end -}}
+{{- $result | toJson -}}

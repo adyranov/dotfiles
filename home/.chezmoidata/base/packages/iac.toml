@@ -1,5 +1,5 @@
 [packages.base.iac]
-sops = {manager = "mise", policy = {ask = ["sops *"]}}
+sops = {completion = true, manager = "mise"}
 
 [packages.base.iac.opentofu]
 manager = "mise"
@@ -8,31 +8,53 @@ bin = "tofu"
 version = "tofu version"
 
 [packages.base.iac.opentofu.policy]
-allow = ["tofu output *", "tofu plan *", "tofu show *", "tofu version *"]
-ask = ["tofu *"]
+allow = [
+  "tofu fmt -check *",
+  "tofu output *",
+  "tofu plan *",
+  "tofu providers *",
+  "tofu show *",
+  "tofu validate *",
+  "tofu version *",
+  "tofu workspace list *",
+  "tofu workspace show *"
+]
 deny = [
   "tofu * apply *",
   "tofu * destroy *",
+  "tofu * force-unlock *",
   "tofu * import *",
+  "tofu * login *",
   "tofu * state rm *",
-  "tofu * workspace delete *"
+  "tofu * workspace delete *",
+  "tofu apply *",
+  "tofu destroy *",
+  "tofu force-unlock *",
+  "tofu import *",
+  "tofu login *"
 ]
 
 [packages.base.iac.terragrunt]
 manager = "mise"
-completion = {repo = "thuandt/zsh-terraform@master", path = "_terragrunt"}
 
 [packages.base.iac.terragrunt.policy]
 allow = [
   "terragrunt output *",
   "terragrunt plan *",
   "terragrunt show *",
-  "terragrunt version *"
+  "terragrunt validate *",
+  "terragrunt version *",
+  "terragrunt workspace list *",
+  "terragrunt workspace show *"
 ]
-ask = ["terragrunt *"]
 deny = [
   "terragrunt * apply *",
   "terragrunt * destroy *",
+  "terragrunt * force-unlock *",
   "terragrunt * import *",
-  "terragrunt * state rm *"
+  "terragrunt * state rm *",
+  "terragrunt apply *",
+  "terragrunt destroy *",
+  "terragrunt force-unlock *",
+  "terragrunt import *"
 ]

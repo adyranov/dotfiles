@@ -1,7 +1,45 @@
 [packages.base.ai]
-engram = {manager = "mise", package = "github:Gentleman-Programming/engram", version = "engram version", policy = {ask = [
-  "engram *"
-]}}
-rtk = {manager = "mise", package = "github:rtk-ai/rtk", policy = {ask = [
-  "rtk *"
-]}}
+
+[packages.base.ai.aiperf]
+manager = "mise"
+package = "pipx:aiperf"
+version = "aiperf --help"
+
+[packages.base.ai.aiperf.policy]
+allow = ["aiperf --help", "aiperf version *"]
+
+[packages.base.ai.hf]
+completion = {generate = "env _HF_COMPLETE=source_zsh hf"}
+manager = "mise"
+package = "pipx:huggingface_hub"
+version = "hf version"
+
+[packages.base.ai.hf.policy]
+allow = [
+  "hf download *",
+  "hf repo files *",
+  "hf repo ls-files *",
+  "hf version *"
+]
+deny = [
+  "hf auth *",
+  "hf repo create *",
+  "hf repo delete *",
+  "hf repo upload *",
+  "hf upload *"
+]
+
+[packages.base.ai.llamacpp]
+bin = "llama-server"
+manager = "mise"
+package = "github:ggml-org/llama.cpp"
+
+[packages.base.ai.llamacpp.policy]
+allow = ["llama-bench *", "llama-cli --help*", "llama-server --help*"]
+
+[packages.base.ai.rtk]
+manager = "mise"
+package = "github:rtk-ai/rtk"
+
+[packages.base.ai.rtk.policy]
+allow = ["rtk --help", "rtk version *"]

@@ -1,0 +1,297 @@
+{{- $local := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- $omlx := eq $local.engine "omlx" -}}
+#!/usr/bin/env sh
+# llm-bench — Benchmark local LLMs using native engine tools (no server required).
+#   llamacpp: llama-bench — direct GGUF, prompt-processing + text-generation t/s
+#   omlx:     mlx_lm generate --verbose — direct MLX, pp + tg t/s
+set -eu
+
+RUNS="${LLM_BENCH_RUNS:-3}"
+MAX_TOKENS="${LLM_BENCH_MAX_TOKENS:-512}"
+INPUT_TOKENS="${LLM_BENCH_INPUT_TOKENS:-512}"
+SUMMARY_FILE="$(mktemp "${TMPDIR:-/tmp}/llm-bench-summary.XXXXXX")"
+{{- if $omlx }}
+SEED="${LLM_BENCH_SEED:-12345}"
+{{- end }}
+
+cleanup() { rm -f "$SUMMARY_FILE"; }
+trap cleanup EXIT
+trap 'cleanup; exit 130' HUP INT TERM
+
+# --- Colors ---
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  B=$(printf '\033[1m'); D=$(printf '\033[2m'); R=$(printf '\033[0m')
+  G=$(printf '\033[32m'); Y=$(printf '\033[33m'); C=$(printf '\033[36m'); E=$(printf '\033[31m')
+else
+  B=''; D=''; R=''; G=''; Y=''; C=''; E=''
+fi
+
+usage() {
+  cat <<EOF
+${B}Usage:${R} llm-bench [model ...]
+
+Benchmark local LLMs using native engine tools (no server required).
+Backend: {{ if $omlx }}omlx — mlx_lm generate --verbose (via omlx libexec){{ else }}llamacpp — llama-bench{{ end }}
+Metrics: prompt-processing (pp) and text-generation (tg) tokens per second.
+
+With no model args, benchmarks every configured local model.
+
+${B}Environment:${R}
+  LLM_BENCH_RUNS         repetitions per model (default: 3)
+  LLM_BENCH_INPUT_TOKENS prompt token target (default: 512)
+  LLM_BENCH_MAX_TOKENS   output tokens (default: 512)
+{{- if $omlx }}
+  LLM_BENCH_SEED         PRNG seed for repeatable mlx_lm runs (default: 12345)
+{{- end }}
+
+${B}Examples:${R}
+  llm-bench
+  llm-bench {{ keys $local.models | sortAlpha | first }}
+EOF
+}
+
+log()  { printf '%s%s%s\n' "$B$C" "$*" "$R"; }
+info() { printf '  %s%s%s\n' "$D" "$*" "$R"; }
+warn() { printf '%s⚠ %s%s\n' "$Y" "$*" "$R" >&2; }
+die()  { printf '%s✗ %s%s\n' "$E" "$*" "$R" >&2; exit 1; }
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 not found on PATH"; }
+
+elapsed() {
+  _start="$1"
+  _end="$(date +%s)"
+  _dur=$((_end - _start))
+  if [ "$_dur" -ge 60 ]; then
+    printf '%dm%ds' $((_dur / 60)) $((_dur % 60))
+  else
+    printf '%ds' "$_dur"
+  fi
+}
+{{ if $omlx }}
+MODEL_DIR="${OMLX_MODEL_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omlx/models}"
+
+# Locate the Python bundled with the omlx brew formula (subshell to avoid var leaks).
+find_omlx_py() (
+  _prefix="$(brew --prefix omlx 2>/dev/null || true)"
+  if [ -n "$_prefix" ] && [ -d "$_prefix" ]; then
+    _py="${_prefix}/libexec/bin/python3"
+    [ -x "$_py" ] && printf '%s' "$_py" && return 0
+    _py="$(/usr/bin/find "${_prefix}/libexec/bin" -maxdepth 1 \
+            -name 'python3*' -type f 2>/dev/null | head -n 1 || true)"
+    [ -x "${_py:-}" ] && printf '%s' "$_py" && return 0
+  fi
+  for _py in python3 python; do
+    if command -v "$_py" >/dev/null 2>&1 && \
+       "$_py" -c 'import mlx_lm' >/dev/null 2>&1; then
+      printf '%s' "$_py"
+      return 0
+    fi
+  done
+  return 1
+)
+
+# Build a bench prompt of approximately ${INPUT_TOKENS} tokens. The previous
+# fixed paragraph only tokenized to ~93 tokens on Qwen, so mlx_lm's `Prompt:
+# tokens-per-sec` was dominated by fixed prefill overhead and looked
+# pathologically low on large models. Repeating a short ASCII sentence yields
+# ~13-14 tokens per repetition on Qwen/BPE tokenizers (empirically measured on
+# qwen3.5-9b: 55 reps → 780 tokens, i.e. ~14.2 tok/rep). Aim slightly above
+# INPUT_TOKENS so the prefill stays representative; the actual token count is
+# reported by --verbose and is what t/s is computed against.
+BENCH_SENTENCE="The quick brown fox jumps over the lazy dog near the riverbank. "
+BENCH_REPEATS="$(awk "BEGIN{r = int($INPUT_TOKENS / 13) + 4; print r}")"
+BENCH_PROMPT="$(awk -v s="$BENCH_SENTENCE" -v n="$BENCH_REPEATS" \
+  'BEGIN{for(i=0;i<n;i++) printf "%s", s}')"
+
+# Run mlx_lm generate. Args: model_path prompt max_tokens verbose(true|false)
+run_mlx() {
+  "$OMLX_PY" -m mlx_lm generate \
+    --model "$1" \
+    --prompt "$2" \
+    --max-tokens "$3" \
+    --temp 0 \
+    --seed "$SEED" \
+    --verbose "$4" 2>&1
+}
+
+bench_model() {
+  model="$1"
+  model_path="${MODEL_DIR}/${model}"
+  [ -e "$model_path" ] || { warn "not found: ${model_path} (run llm-pull?)"; return 1; }
+
+  log "Benchmarking ${model}"
+  info "model: ${model_path}"
+  info "output: ${MAX_TOKENS} tokens · runs: ${RUNS}"
+
+  # Warmup: fully materialize weights (incl. MoE experts) into unified memory.
+  # A short prompt + max-tokens=1 leaves most experts/layers unfaulted, so the
+  # timed run pays the load cost and pp t/s collapses. Use the real bench
+  # prompt + a few generation steps to force a steady-state forward+decode.
+  printf '  %swarming up ...%s ' "$D" "$R"
+  if ! run_mlx "$model_path" "$BENCH_PROMPT" 8 false >/dev/null 2>&1; then
+    printf '%s✗ failed — skipping%s\n' "$E" "$R"
+    return 1
+  fi
+  printf '%s✓%s\n' "$G" "$R"
+
+  pp_sum=0; pp_sq_sum=0; tg_sum=0; tg_sq_sum=0; n=0; i=0
+  while [ "$i" -lt "$RUNS" ]; do
+    i=$((i + 1))
+    if [ "$RUNS" -gt 1 ]; then
+      printf '  run %s/%s ... ' "$i" "$RUNS"
+    else
+      printf '  running ... '
+    fi
+    bench_out=""
+    bench_exit=0
+    bench_out="$(run_mlx "$model_path" "$BENCH_PROMPT" "$MAX_TOKENS" true)" || bench_exit=$?
+    if [ "$bench_exit" -ne 0 ]; then
+      printf '%s✗ exit %s%s\n' "$E" "$bench_exit" "$R"
+      printf '%s\n' "$bench_out" >&2
+      continue
+    fi
+    run_pp="$(printf '%s' "$bench_out" | awk '/^Prompt:/ && /tokens-per-sec/ {print $(NF-1); exit}')"
+    run_tg="$(printf '%s' "$bench_out" | awk '/^Generation:/ && /tokens-per-sec/ {print $(NF-1); exit}')"
+    if [ -z "$run_pp" ] || [ -z "$run_tg" ]; then
+      printf '%s✗ no metrics in output%s\n' "$E" "$R"
+      printf '%s\n' "$bench_out" >&2
+      continue
+    fi
+    printf '%s%s pp  %s tg  (t/s)%s\n' "$G" "$run_pp" "$run_tg" "$R"
+    pp_sum="$(awk "BEGIN{printf \"%.2f\", $pp_sum + $run_pp}")"
+    pp_sq_sum="$(awk "BEGIN{printf \"%.4f\", $pp_sq_sum + ($run_pp * $run_pp)}")"
+    tg_sum="$(awk "BEGIN{printf \"%.2f\", $tg_sum + $run_tg}")"
+    tg_sq_sum="$(awk "BEGIN{printf \"%.4f\", $tg_sq_sum + ($run_tg * $run_tg)}")"
+    n=$((n + 1))
+  done
+
+  if [ "$n" -eq 0 ]; then
+    warn "all runs failed for ${model}"
+    return 1
+  fi
+  pp_avg="$(awk "BEGIN{printf \"%.1f\", $pp_sum / $n}")"
+  pp_std="$(awk "BEGIN{if ($n <= 1) { printf \"%.1f\", 0; } else { mean = $pp_sum / $n; var = ($pp_sq_sum / $n) - (mean * mean); if (var < 0) var = 0; printf \"%.1f\", sqrt(var); }}")"
+  tg_avg="$(awk "BEGIN{printf \"%.1f\", $tg_sum / $n}")"
+  tg_std="$(awk "BEGIN{if ($n <= 1) { printf \"%.1f\", 0; } else { mean = $tg_sum / $n; var = ($tg_sq_sum / $n) - (mean * mean); if (var < 0) var = 0; printf \"%.1f\", sqrt(var); }}")"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$model" "$pp_avg" "$pp_std" "$tg_avg" "$tg_std" >> "$SUMMARY_FILE"
+}
+{{ else }}
+# llamacpp: resolve model id → GGUF path via hf cache
+resolve_gguf() {
+  case "$1" in
+{{- range $id := keys $local.models | sortAlpha }}
+{{-   $m := index $local.models $id }}
+    {{ $id }}) HF_HUB_OFFLINE=1 hf download --quiet "{{ $m.backend.repo }}" "{{ index $m.backend "file" | default "" }}" ;;
+{{- end }}
+    *) warn "model '${1}' not in config table"; return 1 ;;
+  esac
+}
+
+bench_model() {
+  model="$1"
+  log "Benchmarking ${model}"
+  model_path="$(resolve_gguf "$model")" || return 1
+  info "model: ${model_path}"
+  info "pp=${INPUT_TOKENS} tg=${MAX_TOKENS} reps=${RUNS}"
+
+  bench_out="$(llama-bench \
+    -m "$model_path" \
+    -p "$INPUT_TOKENS" \
+    -n "$MAX_TOKENS" \
+    -r "$RUNS" \
+    -o json 2>/dev/null)" || { warn "llama-bench failed for ${model}"; return 1; }
+
+  pp_tps="$(printf '%s' "$bench_out" | jq -r 'map(select(.n_prompt > 0)) | first | .avg_ts    // 0')"
+  pp_std="$(printf '%s' "$bench_out" | jq -r 'map(select(.n_prompt > 0)) | first | .stddev_ts // 0')"
+  tg_tps="$(printf '%s' "$bench_out" | jq -r 'map(select(.n_gen   > 0)) | first | .avg_ts    // 0')"
+  tg_std="$(printf '%s' "$bench_out" | jq -r 'map(select(.n_gen   > 0)) | first | .stddev_ts // 0')"
+
+  if [ "$(awk "BEGIN{print ($pp_tps > 0 || $tg_tps > 0)}")" = "1" ]; then
+    printf '%s\t%s\t%s\t%s\t%s\n' "$model" "$pp_tps" "$pp_std" "$tg_tps" "$tg_std" >> "$SUMMARY_FILE"
+    printf '  %spp: %s ± %s t/s  │  tg: %s ± %s t/s%s\n' \
+      "$G" "$pp_tps" "$pp_std" "$tg_tps" "$tg_std" "$R"
+  else
+    warn "llama-bench returned no metrics for ${model}"
+    return 1
+  fi
+}
+{{ end }}
+print_summary() {
+  [ -s "$SUMMARY_FILE" ] || return 0
+  printf '\n'
+  log "Summary (sorted by tg t/s)"
+  printf '%s' "$D"
+  sort -t "$(printf '\t')" -k4,4nr "$SUMMARY_FILE" |
+    awk -F '\t' '
+      BEGIN {
+{{- if $omlx }}
+  printf "  %-20s  %9s  %8s  %9s  %8s\n", "MODEL", "PP t/s", "PP +/-", "TG t/s", "TG +/-"
+  printf "  --------------------  ---------  --------  ---------  --------\n"
+{{- else }}
+        printf "  %-20s  %9s  %8s  %9s  %8s\n", "MODEL", "PP t/s", "PP +/-", "TG t/s", "TG +/-"
+        printf "  --------------------  ---------  --------  ---------  --------\n"
+{{- end }}
+      }
+      {
+{{- if $omlx }}
+  printf "  %-20s  %9.1f  %8.1f  %9.1f  %8.1f\n", $1, $2, $3, $4, $5
+{{- else }}
+        printf "  %-20s  %9.1f  %8.1f  %9.1f  %8.1f\n", $1, $2, $3, $4, $5
+{{- end }}
+      }
+    '
+  printf '%s' "$R"
+}
+
+# --- Main ---
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+esac
+{{ if $omlx }}
+OMLX_PY="$(find_omlx_py)" || die "mlx_lm not found (no omlx libexec or system Python with mlx_lm)"
+{{ else }}
+need hf
+need llama-bench
+need jq
+{{ end }}
+if [ "$#" -gt 0 ]; then
+  MODELS="$*"
+else
+  MODELS="
+{{- range $id := keys $local.models | sortAlpha }}
+{{ $id }}
+{{- end }}
+"
+fi
+
+log "Local LLM benchmark"
+{{ if $omlx -}}
+info "backend:   omlx (mlx_lm generate --verbose)"
+info "python:    ${OMLX_PY}"
+info "model-dir: ${MODEL_DIR}"
+info "seed:      ${SEED}"
+{{ else -}}
+info "backend:   llamacpp (llama-bench)"
+{{ end -}}
+info "runs:      ${RUNS}"
+info "pp tokens: ${INPUT_TOKENS}"
+info "tg tokens: ${MAX_TOKENS}"
+printf '\n'
+
+failures=0
+for model in $MODELS; do
+  [ -n "$model" ] || continue
+  t_start="$(date +%s)"
+  if bench_model "$model"; then
+    printf '  %s✓ done in %s%s\n' "$D" "$(elapsed "$t_start")" "$R"
+  else
+    failures=$((failures + 1))
+  fi
+  printf '\n'
+done
+
+print_summary
+
+if [ "$failures" -gt 0 ]; then
+  warn "${failures} model benchmark(s) failed"
+  exit 1
+fi

@@ -10,8 +10,17 @@ allow = [
   "cargo check *",
   "cargo clippy *",
   "cargo doc *",
+  "cargo fmt --check *",
+  "cargo metadata *",
+  "cargo package --list *",
   "cargo test *",
+  "cargo tree *",
   "rustc *"
 ]
-ask = ["cargo *"]
-deny = ["cargo publish *", "cargo yank *"]
+deny = [
+  "cargo login *",
+  "cargo logout *",
+  "cargo owner *",
+  "cargo publish *",
+  "cargo yank *"
+]

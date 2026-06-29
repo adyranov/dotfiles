@@ -1,0 +1,22 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $current := list -}}
+{{- if and (hasKey .chezmoi "stdin") (not (empty (trim .chezmoi.stdin))) -}}
+{{-   $parsed := fromJsonc .chezmoi.stdin -}}
+{{-   if $parsed -}}{{- $current = $parsed -}}{{- end -}}
+{{- end -}}
+{{- $managed := list
+    (dict "key" "cmd+i" "command" "composerMode.agent")
+-}}
+{{- $existing := dict -}}
+{{- range $b := $current -}}
+{{-   $k := printf "%s|%s" (index $b "key" | default "") (index $b "command" | default "") -}}
+{{-   $_ := set $existing $k true -}}
+{{- end -}}
+{{- $result := $current -}}
+{{- range $b := $managed -}}
+{{-   $k := printf "%s|%s" $b.key $b.command -}}
+{{-   if not (hasKey $existing $k) -}}
+{{-     $result = append $result $b -}}
+{{-   end -}}
+{{- end -}}
+{{ $result | toPrettyJson }}

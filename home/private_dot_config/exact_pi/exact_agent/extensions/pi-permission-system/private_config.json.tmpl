@@ -1,10 +1,10 @@
-{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
-{{- $commandPermissions := includeTemplate "common/helpers/load-package-permissions" (dict "root" .) | mustFromJson -}}
-{{- $pathPermissions := includeTemplate "common/helpers/load-ai-path-permissions" (dict "root" .) | mustFromJson -}}
+{{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
+{{- $commandPermissions := includeTemplate "base/packages/collect-policies" (dict "root" .) | mustFromJson -}}
+{{- $paths := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.paths" "required" true) | mustFromJson) -}}
 {{- $sandboxTools := $pi.sandbox.tools -}}
 {{- $piInfrastructureReadPaths := index $pi.sandbox.paths "infrastructure_read" | default list -}}
 {{- $piAgentDenyPaths := index $pi.sandbox.paths "infrastructure_deny" | default list -}}
-{{- $denyPaths := concat $pathPermissions.deny $piAgentDenyPaths | uniq -}}
+{{- $denyPaths := concat (index $paths "deny" | default list | uniq | sortAlpha) $piAgentDenyPaths | uniq -}}
 {{- $path := dict "*" "allow" -}}
 {{- range $pattern := $denyPaths -}}
 {{-   $_ := set $path $pattern "deny" -}}

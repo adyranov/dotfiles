@@ -1,0 +1,38 @@
+{{- /*
+  Renders category-mapped model routes from ai.models.
+
+  Args (dict):
+    root  — chezmoi data root (required)
+    field — category field to render, usually "agents" or "skills" (default: "agents")
+
+  Output: JSON dict of mappedName → {model, thinking, fallbackModels?},
+  where model is "provider/model" when provider is set.
+*/ -}}
+{{- $root := .root -}}
+{{- $field := index . "field" | default "agents" -}}
+{{- $models := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $result := dict -}}
+{{- range $category := keys $models | sortAlpha -}}
+{{-   $route := index $models $category -}}
+{{-   if not (kindIs "map" $route) -}}{{ continue }}{{- end -}}
+{{-   if not (hasKey $route $field) -}}{{ continue }}{{- end -}}
+{{-   if not (hasKey $route "model") -}}
+{{-     fail (printf "ai.models.%s maps %s but has no model route" $category $field) -}}
+{{-   end -}}
+{{-   if not (hasKey $route "thinking") -}}
+{{-     fail (printf "ai.models.%s maps %s but has no thinking route" $category $field) -}}
+{{-   end -}}
+{{-   $names := index $route $field | default list -}}
+{{-   range $name := $names -}}
+{{-     $model := $route.model -}}
+{{-     if hasKey $route "provider" -}}
+{{-       $model = printf "%s/%s" $route.provider $route.model -}}
+{{-     end -}}
+{{-     $config := dict "model" $model "thinking" $route.thinking -}}
+{{-     if hasKey $route "fallback" -}}
+{{-       $_ := set $config "fallbackModels" $route.fallback -}}
+{{-     end -}}
+{{-     $result = merge $result (dict $name $config) -}}
+{{-   end -}}
+{{- end -}}
+{{- $result | toJson -}}

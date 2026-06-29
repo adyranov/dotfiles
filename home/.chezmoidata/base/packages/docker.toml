@@ -4,42 +4,52 @@ dive = {manager = "mise", package = "github:wagoodman/dive", policy = {allow = [
 ]}}
 docker-buildx = {version = "docker buildx version", policy = {allow = [
   "docker buildx version *"
-], ask = [
-  "docker buildx *"
 ]}}
-lazydocker = {manager = "mise", package = "aqua:jesseduffield/lazydocker", policy = {ask = [
-  "lazydocker *"
-]}}
+lazydocker = {manager = "mise", package = "aqua:jesseduffield/lazydocker"}
 
 [packages.base.docker.docker]
 completion = true
 
 [packages.base.docker.docker.policy]
 allow = [
+  "docker container inspect *",
+  "docker context inspect *",
+  "docker context ls *",
+  "docker context show *",
+  "docker image inspect *",
   "docker images *",
   "docker info *",
+  "docker inspect *",
   "docker logs *",
+  "docker network inspect *",
+  "docker network ls *",
   "docker ps *",
-  "docker version *"
-]
-ask = [
-  "docker build *",
-  "docker compose *",
-  "docker cp *",
-  "docker exec *",
-  "docker pull *",
-  "docker run *"
+  "docker version *",
+  "docker volume inspect *",
+  "docker volume ls *"
 ]
 deny = [
+  "docker * cp *",
+  "docker * exec *",
+  "docker * kill *",
+  "docker * login *",
+  "docker * restart *",
   "docker * run * --mount type=bind,source=/*",
   "docker * run * --privileged *",
   "docker * run * --volume /:*",
   "docker * run * -v /:*",
+  "docker * stop *",
   "docker * system prune *",
+  "docker builder prune *",
   "docker compose down *",
+  "docker compose exec *",
+  "docker compose kill *",
+  "docker compose restart *",
   "docker compose rm *",
+  "docker compose stop *",
   "docker container rm *",
   "docker image rm *",
+  "docker login *",
   "docker rm *",
   "docker rmi *",
   "docker volume rm *"
@@ -52,13 +62,15 @@ version = "docker compose version"
 allow = [
   "docker compose config *",
   "docker compose logs *",
-  "docker compose ps *"
+  "docker compose ls *",
+  "docker compose ps *",
+  "docker compose top *"
 ]
-ask = [
-  "docker compose build *",
+deny = [
+  "docker compose down *",
   "docker compose exec *",
-  "docker compose pull *",
-  "docker compose run *",
-  "docker compose up *"
+  "docker compose kill *",
+  "docker compose restart *",
+  "docker compose rm *",
+  "docker compose stop *"
 ]
-deny = ["docker compose down *", "docker compose rm *"]

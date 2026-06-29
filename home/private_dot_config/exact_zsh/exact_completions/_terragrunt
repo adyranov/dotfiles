@@ -1,0 +1,5 @@
+#compdef terragrunt
+if (( $+commands[terragrunt] )); then
+  autoload -U +X bashcompinit && bashcompinit
+  complete -o nospace -C terragrunt terragrunt
+fi

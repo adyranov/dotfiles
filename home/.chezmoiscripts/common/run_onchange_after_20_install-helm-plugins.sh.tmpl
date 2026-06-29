@@ -1,9 +1,9 @@
 {{- if .toolchains.kubernetes -}}
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 
 declare -A HELM_PLUGINS=(
-{{- $packages := splitList " " (includeTemplate "common/packages/render" (dict "root" . "packageManager" "helm")) -}}
+{{- $packages := splitList " " (includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "helm" "format" "install")) -}}
 {{- range $pkg := $packages -}}
 {{- if ne $pkg "" }}
   {{- $basename := regexReplaceAll ".*\\/([^/]+?)(\\.git)?$" $pkg "${1}" }}

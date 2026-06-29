@@ -1,6 +1,61 @@
 [ai.base.models]
-enabled = ["gpt-5.4-mini", "claude-sonnet-4.6", "claude-opus-4.6"]
-architect = {model = "claude-opus-4.6", provider = "github-copilot", thinking = "high", fallback_models = ["github-copilot/claude-sonnet-4.6"]}
-coder = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "medium"}
-default = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "medium"}
-utility = {model = "gpt-5.4-mini", provider = "github-copilot", thinking = "low"}
+default = "coder"
+
+[ai.base.models.architect]
+description = "Architecture, serial synthesis, and plan/design decisions."
+skills = ["architecture-review", "blueprint", "design", "plan"]
+
+[ai.base.models.auditor]
+description = "Adversarial verification, review, and evidence checking."
+agents = [
+  "artifact-code-reviewer",
+  "artifact-coverage-reviewer",
+  "claim-verifier",
+  "diff-auditor",
+  "peer-comparator",
+  "slice-verifier"
+]
+skills = ["code-review", "pr-triage", "validate"]
+
+[ai.base.models.coder]
+description = "Patch execution and focused revision from an approved plan."
+skills = ["annotate-inline", "implement", "revise"]
+
+[ai.base.models.locator]
+description = "Cheap targeted lookup where missed hits can poison downstream work."
+agents = [
+  "artifacts-locator",
+  "codebase-locator",
+  "precedent-locator",
+  "web-search-researcher"
+]
+
+[ai.base.models.oracle]
+description = "Rare escalation and adjudication outside normal fan-out."
+
+[ai.base.models.researcher]
+description = "Repo comprehension, solution exploration, and fan-out analysis."
+agents = [
+  "artifacts-analyzer",
+  "codebase-analyzer",
+  "codebase-pattern-finder",
+  "integration-scanner",
+  "scope-tracer"
+]
+skills = [
+  "annotate-guidance",
+  "discover",
+  "explore",
+  "frontend-design",
+  "research"
+]
+
+[ai.base.models.utility]
+description = "Low-risk deterministic transforms and bookkeeping."
+skills = [
+  "changelog",
+  "commit",
+  "create-handoff",
+  "migrate-to-guidance",
+  "resume-handoff"
+]

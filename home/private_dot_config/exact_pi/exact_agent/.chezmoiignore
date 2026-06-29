@@ -1,5 +1,22 @@
 auth.json
 agents/sdd-*
+# rpiv managed agents
+agents/.rpiv-managed.json
+agents/artifact-code-reviewer.md
+agents/artifact-coverage-reviewer.md
+agents/artifacts-analyzer.md
+agents/artifacts-locator.md
+agents/claim-verifier.md
+agents/codebase-analyzer.md
+agents/codebase-locator.md
+agents/codebase-pattern-finder.md
+agents/diff-auditor.md
+agents/integration-scanner.md
+agents/peer-comparator.md
+agents/precedent-locator.md
+agents/scope-tracer.md
+agents/slice-verifier.md
+agents/web-search-researcher.md
 
 chains/
 cursor-sdk-model-list.json
@@ -13,6 +30,7 @@ logs/
 lastChangelogVersion
 mcp-cache.json
 npm/
+pi-hermes-memory/
 projects-memory/
 run-history.jsonl
 sessions/**

@@ -5,12 +5,24 @@
 {{-   $baseSource = $rawStdin -}}
 {{- end -}}
 {{- $base := $baseSource | fromJsonc -}}
-{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
+{{- /* Prune wildcard (*) destinations from existing learned rules */ -}}
+{{- $baseRules := dig "network" "rules" (list) $base -}}
+{{- $cleanRules := list -}}
+{{- range $rule := $baseRules -}}
+{{-   if not (contains "*" ($rule.destination | toString)) -}}
+{{-     $cleanRules = append $cleanRules $rule -}}
+{{-   end -}}
+{{- end -}}
+{{- $base = setValueAtPath "network.rules" $cleanRules $base -}}
+{{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
+{{- $permissions := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions" "required" false) | mustFromJson -}}
+{{- $sharedNetwork := dig "network" "allow" (list) $permissions -}}
 {{- $sandbox := $pi.sandbox | default dict -}}
 {{- $sandboxPaths := $sandbox.paths | default dict -}}
 {{- $allowWriteAdditions := index $sandboxPaths "allow_write" | default list -}}
+{{- $allowReadAdditions := index $sandboxPaths "infrastructure_read" | default list -}}
 {{- $networkRuleAdditions := list -}}
-{{- range $rule := dig "network" "allow" (list) $sandbox -}}
+{{- range $rule := concat $sharedNetwork (dig "network" "allow" (list) $sandbox) -}}
 {{-   $networkRuleAdditions = append $networkRuleAdditions (dict
         "destination" $rule.host
         "port" ($rule.port | toString)
@@ -19,6 +31,7 @@
 {{- end -}}
 {{- $base
   | setValueAtPath "filesystem.allowWrite" (concat (dig "filesystem" "allowWrite" (list) $base) $allowWriteAdditions | uniq)
+  | setValueAtPath "filesystem.allowRead" (concat (dig "filesystem" "allowRead" (list) $base) $allowReadAdditions | uniq)
   | setValueAtPath "network.rules" (concat (dig "network" "rules" (list) $base) $networkRuleAdditions | uniq)
   | toPrettyJson
 -}}

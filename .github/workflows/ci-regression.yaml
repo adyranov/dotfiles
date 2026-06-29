@@ -1,0 +1,50 @@
+name: CI Regression
+on:
+  schedule:
+    - cron: 0 4 * * 0
+  workflow_dispatch:
+concurrency:
+  group: ci-regression-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  host:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-host.yaml
+    with:
+      matrix: '["ubuntu-24.04","ubuntu-24.04-arm","macos-26","macos-26-intel"]'
+      mode: full
+    secrets: inherit
+  docker:
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/ci-docker.yaml
+    with:
+      matrix: '["archlinux","fedora","ubuntu"]'
+      publish: false
+    secrets: inherit
+  wsl:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-wsl.yaml
+    secrets: inherit
+  ci-regression-result:
+    name: CI Regression Result
+    needs: [host, docker, wsl]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check CI regression result
+        shell: bash
+        run: |
+          for result in "${{ needs.host.result }}" "${{ needs.docker.result }}" "${{ needs.wsl.result }}"; do
+            case "$result" in
+              success) ;;
+              *) echo "regression job failed or was cancelled: $result"; exit 1 ;;
+            esac
+          done
+
+          echo "CI regression passed."

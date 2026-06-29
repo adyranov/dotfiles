@@ -1,9 +1,12 @@
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 {{- $compDir := joinPath .host.home ".config/zsh/completions" -}}
 
 echo "🐚 Generating Zsh completions..."
 echo "📂 Ensuring completion directory exists: {{ $compDir }}"
 mkdir -p "{{ $compDir }}"
-{{ includeTemplate "common/packages/render" (dict "root" . "mode" "completions" "render" "completions/script" "compDir" $compDir) }}
+{{ includeTemplate "base/packages/collect-completions" (dict "root" . "format" "completion-script" "compDir" $compDir) }}
+echo "🧹 Invalidating Zsh completion cache..."
+Z4H_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/zsh4humans/v5/cache"
+rm -f "$Z4H_CACHE"/zcompdump-* "$Z4H_CACHE"/zcompdump-*.zwc "$HOME"/.config/zsh/.zcompdump "$HOME"/.config/zsh/.zcompdump.zwc
 echo "✅ Zsh completions generated."

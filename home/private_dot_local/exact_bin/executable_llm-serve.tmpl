@@ -1,0 +1,302 @@
+{{- $local := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- $omlx := eq $local.engine "omlx" -}}
+{{- $engineLabel := ternary "omlx" "llama.cpp" $omlx -}}
+{{- $omlxMemoryGuardGb := $local.omlx_memory_guard_gb | int -}}
+#!/usr/bin/env sh
+set -eu
+
+HOST="127.0.0.1"
+PORT="${LLM_SERVE_PORT:-{{ $local.port }}}"
+LISTEN="${HOST}:${PORT}"
+BASE_URL="http://${HOST}:${PORT}"
+{{- if $omlx }}
+MODEL_DIR="${OMLX_MODEL_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omlx/models}"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omlx"
+PID_FILE="$STATE_DIR/omlx.pid"
+LOG_FILE="$STATE_DIR/omlx.log"
+{{- else }}
+PRESET="${LLAMA_CPP_MODELS_PRESET:-${XDG_CONFIG_HOME:-$HOME/.config}/llama.cpp/models.ini}"
+SLOT_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/llama.cpp/slots"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/llama.cpp"
+PID_FILE="$STATE_DIR/llama-server.pid"
+LOG_FILE="$STATE_DIR/llama-server.log"
+{{- end }}
+
+usage() {
+  cat <<'EOF'
+Usage: llm-serve [command]
+
+Run with no command to start {{ $engineLabel }} in the foreground (Ctrl-C to stop).
+
+Commands:
+  start    Start {{ $engineLabel }} in the background
+  stop     Stop the background instance
+  restart  Stop then start in the background
+  status   Show server status (running models / health)
+  list     List models from /v1/models
+  logs     Tail background log output
+  help     Show this help
+
+Environment:
+  LLM_SERVE_PORT       Listen port (default: {{ $local.port }})
+{{- if $omlx }}
+  OMLX_MODEL_DIR       Flat model directory (default: ~/.local/state/omlx/models)
+{{- else }}
+  LLAMA_CPP_MODELS_PRESET  Router preset file path
+{{- end }}
+  XDG_STATE_HOME       State dir for pid/log files
+
+Examples:
+  llm-serve
+  llm-serve start
+  llm-serve status
+  llm-serve list
+EOF
+}
+
+require_engine() {
+{{- if $omlx }}
+  if ! command -v omlx >/dev/null 2>&1; then
+    printf 'llm-serve: omlx not found on PATH\n' >&2
+    exit 1
+  fi
+{{- else }}
+  if ! command -v llama-server >/dev/null 2>&1; then
+    printf 'llm-serve: llama-server not found on PATH\n' >&2
+    exit 1
+  fi
+{{- end }}
+}
+
+require_config() {
+{{- if $omlx }}
+  if [ ! -d "$MODEL_DIR" ]; then
+    printf 'llm-serve: model dir not found: %s\n' "$MODEL_DIR" >&2
+    printf 'Run chezmoi apply to sync omlx model links\n' >&2
+    exit 1
+  fi
+{{- else }}
+  if [ ! -f "$PRESET" ]; then
+    printf 'llm-serve: router preset not found: %s\n' "$PRESET" >&2
+    printf 'Run chezmoi apply to render ~/.config/llama.cpp/models.ini\n' >&2
+    exit 1
+  fi
+{{- end }}
+}
+
+prepare_state() {
+  mkdir -p "$STATE_DIR"
+{{- if not $omlx }}
+  mkdir -p "$SLOT_DIR"
+{{- end }}
+}
+
+STATUS_PATH="/v1/models"
+
+curl_get() {
+  path="$1"
+  curl -sf "${BASE_URL}${path}" 2>/dev/null
+}
+
+is_server_up() {
+  curl_get "$STATUS_PATH" >/dev/null 2>&1
+}
+
+port_listener() {
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null | awk 'NR == 2 { print $1, $2 }'
+    return 0
+  fi
+  return 1
+}
+
+ensure_port_available() {
+  if is_server_up; then
+    return 0
+  fi
+  listener=$(port_listener || true)
+  if [ -n "${listener:-}" ]; then
+    printf 'llm-serve: port %s in use by %s (not {{ $engineLabel }})\n' "$LISTEN" "$listener" >&2
+    printf 'llm-serve: stop the other process or run: llm-serve restart\n' >&2
+    exit 1
+  fi
+}
+
+cleanup_stale_pid() {
+  if [ ! -f "$PID_FILE" ]; then
+    return 0
+  fi
+  pid=$(cat "$PID_FILE" 2>/dev/null || true)
+  if [ -z "${pid:-}" ] || ! kill -0 "$pid" 2>/dev/null; then
+    rm -f "$PID_FILE"
+  fi
+}
+
+wait_for_ready() {
+  pid="$1"
+  attempts=0
+  max_attempts={{ ternary 60 30 $omlx }}
+  while ! is_server_up; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      printf 'llm-serve: process exited before ready (see %s)\n' "$LOG_FILE" >&2
+      rm -f "$PID_FILE"
+      exit 1
+    fi
+    attempts=$((attempts + 1))
+    if [ "$attempts" -ge "$max_attempts" ]; then
+      printf 'llm-serve: failed to start within %ss (see %s)\n' "$max_attempts" "$LOG_FILE" >&2
+      rm -f "$PID_FILE"
+      exit 1
+    fi
+    sleep 1
+  done
+}
+
+cmd_foreground() {
+  require_engine
+  require_config
+  prepare_state
+
+  if is_server_up; then
+    printf 'llm-serve: already running on %s\n' "$LISTEN"
+    return 0
+  fi
+
+  ensure_port_available
+  printf 'llm-serve: starting {{ $engineLabel }} on %s\n' "$LISTEN"
+{{- if $omlx }}
+  exec omlx serve --model-dir "$MODEL_DIR" --host "$HOST" --port "$PORT" --max-concurrent-requests {{ $local.omlx_max_concurrent_requests }}{{ if gt $omlxMemoryGuardGb 0 }} --memory-guard-gb {{ $omlxMemoryGuardGb }}{{ end }} --paged-ssd-cache-dir "$STATE_DIR/cache"
+{{- else }}
+  exec llama-server --slot-save-path "$SLOT_DIR" --models-preset "$PRESET" --models-max 1 --models-autoload --host "$HOST" --port "$PORT"
+{{- end }}
+}
+
+cmd_start() {
+  require_engine
+  require_config
+  prepare_state
+  cleanup_stale_pid
+
+  if is_server_up; then
+    printf 'llm-serve: already running on %s\n' "$LISTEN"
+    return 0
+  fi
+
+  ensure_port_available
+  printf 'llm-serve: starting {{ $engineLabel }} in background on %s\n' "$LISTEN"
+{{- if $omlx }}
+  nohup omlx serve --model-dir "$MODEL_DIR" --host "$HOST" --port "$PORT" --max-concurrent-requests {{ $local.omlx_max_concurrent_requests }}{{ if gt $omlxMemoryGuardGb 0 }} --memory-guard-gb {{ $omlxMemoryGuardGb }}{{ end }} --paged-ssd-cache-dir "$STATE_DIR/cache" >>"$LOG_FILE" 2>&1 &
+{{- else }}
+  nohup llama-server --slot-save-path "$SLOT_DIR" --models-preset "$PRESET" --models-max 1 --models-autoload --host "$HOST" --port "$PORT" >>"$LOG_FILE" 2>&1 &
+{{- end }}
+  pid=$!
+  echo "$pid" >"$PID_FILE"
+  wait_for_ready "$pid"
+  printf 'llm-serve: ready at %s/v1\n' "$BASE_URL"
+}
+
+stop_pid() {
+  pid="$1"
+  kill "$pid" 2>/dev/null || true
+  attempts=0
+  while kill -0 "$pid" 2>/dev/null; do
+    attempts=$((attempts + 1))
+    if [ "$attempts" -ge 10 ]; then
+      kill -9 "$pid" 2>/dev/null || true
+      break
+    fi
+    sleep 1
+  done
+}
+
+pkill_engine() {
+  command -v pkill >/dev/null 2>&1 || return 0
+{{- if $omlx }}
+  pkill -f "omlx serve --model-dir ${MODEL_DIR}" 2>/dev/null || true
+  pkill -f "omlx serve.*--port ${PORT}" 2>/dev/null || true
+{{- else }}
+  pkill -f "llama-server --models-preset ${PRESET}.*--port ${PORT}" 2>/dev/null || true
+  pkill -f "llama-server.*--port ${PORT}" 2>/dev/null || true
+{{- end }}
+}
+
+cmd_stop() {
+  stopped=false
+
+  if [ -f "$PID_FILE" ]; then
+    pid=$(cat "$PID_FILE" 2>/dev/null || true)
+    if [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null; then
+      stop_pid "$pid"
+      stopped=true
+    fi
+    rm -f "$PID_FILE"
+  fi
+
+  if is_server_up; then
+    pkill_engine
+    attempts=0
+    while is_server_up; do
+      attempts=$((attempts + 1))
+      if [ "$attempts" -ge 10 ]; then
+        printf 'llm-serve: {{ $engineLabel }} still responding on %s\n' "$LISTEN" >&2
+        exit 1
+      fi
+      sleep 1
+    done
+    stopped=true
+  fi
+
+  if [ "$stopped" = true ]; then
+    printf 'llm-serve: stopped\n'
+  else
+    printf 'llm-serve: not running\n'
+  fi
+}
+
+cmd_restart() {
+  cmd_stop
+  cmd_start
+}
+
+cmd_status() {
+  response=$(curl_get "$STATUS_PATH") || {
+    printf 'llm-serve: not running (%s)\n' "$LISTEN"
+    exit 1
+  }
+  printf '%s\n' "$response"
+}
+
+cmd_list() {
+  response=$(curl_get "/v1/models") || {
+    printf 'llm-serve: not running (%s)\n' "$LISTEN" >&2
+    exit 1
+  }
+  printf '%s\n' "$response"
+}
+
+cmd_logs() {
+  mkdir -p "$STATE_DIR"
+  if [ ! -f "$LOG_FILE" ]; then
+    printf 'llm-serve: no log file at %s\n' "$LOG_FILE" >&2
+    exit 1
+  fi
+  tail -f "$LOG_FILE"
+}
+
+CMD="${1:-}"
+shift 2>/dev/null || true
+
+case "$CMD" in
+"") cmd_foreground ;;
+start) cmd_start ;;
+stop) cmd_stop ;;
+restart) cmd_restart ;;
+status) cmd_status ;;
+list) cmd_list ;;
+logs) cmd_logs ;;
+help | -h | --help) usage ;;
+*)
+  printf 'llm-serve: unknown command %s (try help)\n' "$CMD" >&2
+  exit 2
+  ;;
+esac

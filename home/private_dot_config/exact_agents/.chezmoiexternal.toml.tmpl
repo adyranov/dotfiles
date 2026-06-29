@@ -1,16 +1,17 @@
 {{- if .toolchains.ai -}}
-{{- $skills := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.skills" "required" true) | mustFromJson -}}
+{{- $skills := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.skills" "required" true) | mustFromJson -}}
 {{- $tagMemo := dict -}}
 {{- /* Curated skills — one external per sub-skill; chezmoi caches archive downloads by URL */ -}}
 {{- range $alias, $skill := default (dict) $skills }}
 {{-   $repo := $skill.repo }}
 {{-   $prefix := default "skills" (index $skill "prefix") }}
 {{-   range $sub := $skill.include }}
-{{ template "common/github/archive" (dict
+{{ template "base/github/external" (dict
+    "type"   "archive"
     "memo"   $tagMemo
-    "target" (printf "skills/%s" $sub)
+    "target" (printf "libraries/skills/%s/%s" $alias $sub)
     "repo"   $repo
-    "stripComponents" 3
+    "stripComponents" (add (len (splitList "/" (default "skills" (index $skill "prefix")))) 2)
     "include" (list (printf "*/%s/%s/**" $prefix $sub))
     "exact"  true) }}
 

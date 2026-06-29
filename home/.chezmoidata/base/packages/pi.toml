@@ -1,2 +1,5 @@
 [packages.base.pi]
-pi = {manager = "mise", package = "npm:@earendil-works/pi-coding-agent"}
+pi = {manager = "mise", package = "npm:@earendil-works/pi-coding-agent", policy = {allow = [
+  "pi --help*",
+  "pi --version*"
+]}}

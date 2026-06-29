@@ -1,6 +1,6 @@
 [packages.os.archlinux.core]
 atuin = {manager = "system"}
-bubblewrap = {disabled = "ephemeral", bin = "bwrap"}
+bubblewrap = {disabled = ["ephemeral"], bin = "bwrap"}
 difftastic = {manager = "system"}
 doggo = {manager = "system"}
 dust = {manager = "system"}
@@ -15,7 +15,7 @@ openssh-client = {package = "openssh"}
 ouch = {manager = "system"}
 rage = {manager = "system", package = "rage-encryption"}
 sd = {manager = "system"}
-socat = {disabled = "ephemeral", version = "socat -V"}
+socat = {disabled = ["ephemeral"], version = "socat -V"}
 vivid = {manager = "system"}
 xh = {manager = "system"}
 yazi = {manager = "system"}

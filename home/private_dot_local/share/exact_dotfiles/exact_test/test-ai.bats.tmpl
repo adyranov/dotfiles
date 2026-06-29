@@ -42,10 +42,13 @@ setup() {
 # --- Pi settings ---
 
 {{- if .toolchains.pi }}
-{{- $pi := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
-{{- $models := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson }}
-{{- $pathPermissions := includeTemplate "common/helpers/load-ai-path-permissions" (dict "root" .) | mustFromJson }}
-{{- $denyPaths := $pathPermissions.deny }}
+{{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
+{{- $models := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson }}
+{{- $agentRoutes := includeTemplate "base/helpers/render-model-category-map" (dict "root" . "field" "agents") | mustFromJson }}
+{{- $defaults := index $models $models.default }}
+{{- $plannotatorCfg := get (index $pi.profiles "core") "plannotator" | default dict }}
+{{- $paths := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.paths" "required" true) | mustFromJson) }}
+{{- $denyPaths := index $paths "deny" | default list | uniq | sortAlpha }}
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi settings.json disables install telemetry" {
@@ -54,50 +57,22 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:model
-@test "pi settings.json renders profile model policy" {
+@test "pi settings.json has no subagent overrides in default core profile" {
   assert_file_exists "$HOME/.config/pi/agent/settings.json"
-  run jq -e '
-    .defaultProvider == "{{ $models.default.provider }}" and
-    .defaultModel == "{{ $models.default.model }}" and
-    .defaultThinkingLevel == "{{ $models.default.thinking }}" and
-    .enabledModels == {{ $models.enabled | toJson }}
-  ' "$HOME/.config/pi/agent/settings.json"
+  run jq -e '.subagents.agentOverrides | length == 0' "$HOME/.config/pi/agent/settings.json"
   assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:model
-@test "pi settings.json renders subagent route policy" {
-  assert_file_exists "$HOME/.config/pi/agent/settings.json"
-{{- range $category, $agents := $pi.subagents }}
-{{-   $route := index $models $category }}
-{{-   $model := printf "%s/%s" $route.provider $route.model }}
-{{-   range $agent := $agents }}
-  run jq -e '.subagents.agentOverrides["{{ $agent }}"].model == "{{ $model }}" and .subagents.agentOverrides["{{ $agent }}"].thinking == "{{ $route.thinking }}"' "$HOME/.config/pi/agent/settings.json"
-  assert_success
-{{-   end }}
-{{- end }}
-}
-
-# bats test_tags=toolchain:pi,kind:model
-@test "gentle-pi models.json renders subagent route policy" {
-  assert_file_exists "$HOME/.config/pi/gentle-ai/models.json"
-{{- range $category, $agents := $pi.subagents }}
-{{-   $route := index $models $category }}
-{{-   $model := printf "%s/%s" $route.provider $route.model }}
-{{-   range $agent := $agents }}
-  run jq -e '.["{{ $agent }}"].model == "{{ $model }}" and .["{{ $agent }}"].thinking == "{{ $route.thinking }}"' "$HOME/.config/pi/gentle-ai/models.json"
-  assert_success
-{{-   end }}
-{{- end }}
 }
 
 # bats test_tags=toolchain:pi,kind:packages
-@test "pi settings.json contains managed npm packages" {
-{{- $piPackages := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "ai.agents.pi.packages" "required" true) | mustFromJson -}}
-{{- range $name, $_ := $piPackages }}
+@test "pi settings.json contains core packages only" {
+  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+{{- $core := index $pi.profiles "core" }}
+{{- range $name := $core.packages }}
   run grep -F '"npm:{{ $name }}"' "$HOME/.config/pi/agent/settings.json"
   assert_success
 {{- end }}
+  run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/agent/settings.json"
+  assert_failure
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -113,6 +88,23 @@ setup() {
   assert_success
 }
 
+# bats test_tags=toolchain:pi,kind:config
+@test "pi settings.json uses lightweight compaction for core" {
+  run jq -e '
+    .compaction.keepRecentTokens == 8000 and
+    .compaction.reserveTokens == 8192
+  ' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi settings.json loads only core skills" {
+  run jq -e '.skills | length == 1' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+  run jq -e '.skills | index("../../agents/skills/karpathy-guidelines") != null' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+}
+
 {{- if eq .host.profile "personal" }}
 # bats test_tags=toolchain:pi,kind:packages
 @test "pi personal settings.json does not load Cursor SDK" {
@@ -121,14 +113,199 @@ setup() {
 }
 {{- end }}
 
+# bats test_tags=toolchain:pi,kind:packages
+@test "pi factory settings.json contains rpiv-pi" {
+  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
+  run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:packages
+@test "pi factory settings.json renders category-mapped agent routes" {
+  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
+  run jq -e --argjson expected '{{ keys $agentRoutes | sortAlpha | toJson }}' '.subagents.agentOverrides | keys | sort == $expected' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+{{- range $agent := keys $agentRoutes | sortAlpha }}
+{{-   $route := index $agentRoutes $agent }}
+  run jq -e '.subagents.agentOverrides["{{ $agent }}"].model == "{{ $route.model }}" and .subagents.agentOverrides["{{ $agent }}"].thinking == "{{ $route.thinking }}"' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi core plannotator.json exists" {
+  assert_file_exists "$HOME/.config/pi/agent/plannotator.json"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi factory settings.json exists" {
+  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
+}
+
+{{- $planPlanningCat := get $plannotatorCfg "planning" | default "architect" }}
+{{- $planExecutingCat := get $plannotatorCfg "executing" | default "coder" }}
+{{- $planPlanningRoute := get $models $planPlanningCat | default dict }}
+{{- $planExecutingRoute := get $models $planExecutingCat | default dict }}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi plannotator.json defaults match ai.models.default" {
+  run jq -e '
+    .defaults.model.provider == "{{ $defaults.provider }}" and
+    .defaults.model.id == "{{ $defaults.model }}" and
+    .defaults.thinking == "{{ $defaults.thinking }}"
+  ' "$HOME/.config/pi/agent/plannotator.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi plannotator.json planning phase uses {{ $planPlanningCat }}" {
+  run jq -e '
+    .phases.planning.model.provider == "{{ $planPlanningRoute.provider | default $defaults.provider }}" and
+    .phases.planning.model.id == "{{ $planPlanningRoute.model | default $defaults.model }}" and
+    .phases.planning.thinking == "{{ $planPlanningRoute.thinking | default $defaults.thinking }}"
+  ' "$HOME/.config/pi/agent/plannotator.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi plannotator.json executing phase uses {{ $planExecutingCat }}" {
+  run jq -e '
+    .phases.executing.model.provider == "{{ $planExecutingRoute.provider | default $defaults.provider }}" and
+    .phases.executing.model.id == "{{ $planExecutingRoute.model | default $defaults.model }}" and
+    .phases.executing.thinking == "{{ $planExecutingRoute.thinking | default $defaults.thinking }}"
+  ' "$HOME/.config/pi/agent/plannotator.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi factory profile symlinks resolve to agent config" {
+  local profile="factory"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/AGENTS.md"
+  assert_success
+  assert_output "$HOME/.config/agents/AGENTS.md"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/auth.json"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/auth.json"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/models.json"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/models.json"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/mcp.json"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/mcp.json"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/extensions/pi-permission-system/config.json"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/plannotator.json"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/plannotator.json"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi factory has plannotator symlink" {
+  run readlink -f "$HOME/.config/pi/profiles/factory/plannotator.json"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/plannotator.json"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi factory npm directory is independent" {
+  run readlink -f "$HOME/.config/pi/profiles/factory/npm"
+  assert_success
+  assert_output "$HOME/.config/pi/profiles/factory/npm"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi-agent is executable" {
+  assert_file_executable "$HOME/.local/bin/pi-agent"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi-agent --list outputs profiles" {
+  run "$HOME/.local/bin/pi-agent" --list
+  assert_success
+  assert_output --partial "core"
+  assert_output --partial "factory"
+  assert_output --partial "minimal"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi-agent --help mentions --no-greywall and --no-update" {
+  run "$HOME/.local/bin/pi-agent" --help
+  assert_success
+  assert_output --partial "--no-greywall"
+  assert_output --partial "--no-update"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "agent-launch script uses port check for greyproxy readiness" {
+  run grep -F 'nc -z 127.0.0.1 43052' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "agent-launch script contains greyproxy serve" {
+  run grep -F 'greyproxy serve' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "agent-launch script updates pi extensions on start" {
+  run grep -F 'pi update --extensions' "$HOME/.local/bin/agent-launch"
+  assert_success
+  run grep -F -- '--no-update' "$HOME/.local/bin/agent-launch"
+  assert_success
+  run grep -F 'no_update=true' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "agent-launch script has both greywall and direct exec paths" {
+  run grep -F 'exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME"' "$HOME/.local/bin/agent-launch"
+  assert_success
+  run grep -F 'exec "$BINARY_NAME" "$@"' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "agent-launch script maps pi-agent identity" {
+  run grep -F 'pi-agent)' "$HOME/.local/bin/agent-launch"
+  assert_success
+  run grep -F 'BINARY_NAME="pi"' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi-agent rejects removed plan profile" {
+  run "$HOME/.local/bin/pi-agent" --print-env plan
+  assert_failure
+  assert_output --partial "Unknown profile"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi-agent --print-env minimal" {
+  run "$HOME/.local/bin/pi-agent" --print-env minimal
+  assert_success
+  assert_output --partial "PI_CODING_AGENT_DIR"
+  assert_output --partial "pi/profiles/minimal"
+  assert_output --partial "PI_CODING_AGENT_SESSION_DIR"
+  assert_output --partial "pi/profiles/minimal/sessions"
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "rpiv-advisor reads oracle model route from ai.models" {
+  assert_file_exists "$HOME/.config/rpiv-advisor/advisor.json"
+{{- $oracle := get $models "oracle" }}
+{{- $oracleKey := printf "%s:%s" $oracle.provider $oracle.model }}
+  run jq -e '.modelKey == "{{ $oracleKey }}"' "$HOME/.config/rpiv-advisor/advisor.json"
+  assert_success
+}
+
 # bats test_tags=toolchain:pi,kind:mcp
 @test "pi mcp.json declares managed MCP servers" {
   assert_file_exists "$HOME/.config/pi/agent/mcp.json"
   run jq -e '
-    (.mcpServers | keys == ["context-mode", "engram"]) and
-    (.mcpServers."context-mode".command | endswith("/context-mode")) and
-    .mcpServers.engram.command == "engram" and
-    .mcpServers.engram.args == ["mcp", "--tools=agent"]
+    (.mcpServers | keys == ["context-mode"]) and
+    (.mcpServers."context-mode".command | endswith("/context-mode"))
   ' "$HOME/.config/pi/agent/mcp.json"
   assert_success
 }
@@ -159,7 +336,6 @@ setup() {
     (.piInfrastructureReadPaths | index("~/.config/pi/**") != null) and
     (.piInfrastructureReadPaths | index("~/.config/agents/**") != null) and
     (.piInfrastructureReadPaths | index("~/.config/greywall/**") != null) and
-    (.piInfrastructureReadPaths | index("~/.local/share/engram/**") != null) and
     (.piInfrastructureReadPaths | index("**/node_modules/@earendil-works/pi-coding-agent/**") != null) and
     .permission["*"] == "ask" and
     .permission.external_directory == "allow" and
@@ -186,89 +362,69 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system config renders bash allow and deny rules" {
-  local cfg="$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-
-  # Helper: check a single bash permission rule
-  assert_bash_rule() {
-    local pattern=$1 expected=$2
-    run jq -r --arg p "$pattern" '.permission.bash[$p] // "null"' "$cfg"
-    if [ "$output" != "$expected" ]; then
-      fail "Rule '$pattern': expected '$expected', got '$output'"
-    fi
-  }
-
-  # Helper: check a single bash permission negative rule
-  assert_bash_rule_not() {
-    local pattern=$1 forbidden=$2
-    run jq -r --arg p "$pattern" '.permission.bash[$p] // "null"' "$cfg"
-    if [ "$output" = "$forbidden" ]; then
-      fail "Rule '$pattern': must not be '$forbidden'"
-    fi
-  }
-
-  # Core rules (always present via packages.base.core)
-  assert_bash_rule '*' 'ask'
-  assert_bash_rule_not 'git *' 'allow'
-  assert_bash_rule_not 'docker *' 'allow'
-  assert_bash_rule_not 'kubectl *' 'allow'
-  assert_bash_rule_not 'aws *' 'allow'
-  assert_bash_rule_not 'npm *' 'allow'
-  assert_bash_rule_not 'curl *' 'allow'
-  assert_bash_rule 'git status *' 'allow'
-  assert_bash_rule 'git diff *' 'allow'
-  assert_bash_rule 'chezmoi diff *' 'allow'
-  assert_bash_rule 'git commit *' 'ask'
-  assert_bash_rule 'git push *' 'ask'
-  assert_bash_rule 'mise *' 'ask'
-  assert_bash_rule 'curl *' 'ask'
-  assert_bash_rule 'wget *' 'ask'
-  assert_bash_rule 'git * reset --hard *' 'deny'
-  assert_bash_rule 'git * push --force*' 'deny'
-  assert_bash_rule 'rm *' 'ask'
-  assert_bash_rule 'rm -rf /*' 'deny'
-  assert_bash_rule 'sudo *' 'deny'
-{{- if .toolchains.cloud }}
-  # Cloud toolchain rules
-  assert_bash_rule 'aws sts get-caller-identity *' 'allow'
-  assert_bash_rule 'aws * s3 rm *' 'deny'
-{{- end }}
-{{- if .toolchains.docker }}
-  # Docker toolchain rules
-  assert_bash_rule 'docker ps *' 'allow'
-  assert_bash_rule 'docker images *' 'allow'
-  assert_bash_rule 'docker run *' 'ask'
-  assert_bash_rule 'docker * system prune *' 'deny'
-  assert_bash_rule 'docker * run * --privileged *' 'deny'
-{{- end }}
-{{- if .toolchains.iac }}
-  # IAC toolchain rules
-  assert_bash_rule 'tofu plan *' 'allow'
-  assert_bash_rule 'tofu *' 'ask'
-  assert_bash_rule 'tofu * destroy *' 'deny'
-{{- end }}
-{{- if .toolchains.kubernetes }}
-  # Kubernetes toolchain rules
-  assert_bash_rule 'kubectl * get *' 'allow'
-  assert_bash_rule 'kubectl * describe *' 'allow'
-  assert_bash_rule 'helm list *' 'allow'
-  assert_bash_rule 'kubectl apply *' 'ask'
-  assert_bash_rule 'kubectl * delete *' 'deny'
-  assert_bash_rule 'helm * upgrade *' 'deny'
-{{- end }}
-{{- if .toolchains.node }}
-  # Node toolchain rules
-  assert_bash_rule 'npm *' 'ask'
-  assert_bash_rule 'pnpm *' 'ask'
-  assert_bash_rule 'yarn *' 'ask'
-  assert_bash_rule 'bun *' 'ask'
-{{- end }}
-{{- if .toolchains.python }}
-  # Python toolchain rules
-  assert_bash_rule 'python *' 'ask'
-  assert_bash_rule 'uv *' 'ask'
-{{- end }}
+@test "pi permission-system: default wildcard is ask" {
+  run jq -e '.permission.bash["*"] == "ask"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
 }
+
+# bats test_tags=toolchain:pi,kind:permission
+@test "pi permission-system: context-mode execution tools are ask-gated" {
+  run jq -e '
+    .permission.ctx_batch_execute == "ask" and
+    .permission.ctx_execute == "ask" and
+    .permission.ctx_execute_file == "ask"
+  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+}
+
+{{- if .toolchains.cloud }}
+# bats test_tags=toolchain:pi,kind:permission,toolchain:cloud
+@test "pi permission-system: cloud toolchain rules" {
+  run jq -e '
+    .permission.bash["aws sts get-caller-identity *"] == "allow" and
+    .permission.bash["aws * s3 rm *"] == "deny"
+  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+}
+{{- end }}
+
+{{- if .toolchains.docker }}
+# bats test_tags=toolchain:pi,kind:permission,toolchain:docker
+@test "pi permission-system: docker toolchain rules" {
+  run jq -e '
+    .permission.bash["docker ps *"] == "allow" and
+    .permission.bash["docker images *"] == "allow" and
+    .permission.bash["docker * system prune *"] == "deny" and
+    .permission.bash["docker * run * --privileged *"] == "deny"
+  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+}
+{{- end }}
+
+{{- if .toolchains.iac }}
+# bats test_tags=toolchain:pi,kind:permission,toolchain:iac
+@test "pi permission-system: iac toolchain rules" {
+  run jq -e '
+    .permission.bash["tofu plan *"] == "allow" and
+    .permission.bash["tofu * destroy *"] == "deny"
+  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+}
+{{- end }}
+
+{{- if .toolchains.kubernetes }}
+# bats test_tags=toolchain:pi,kind:permission,toolchain:kubernetes
+@test "pi permission-system: kubernetes toolchain rules" {
+  run jq -e '
+    .permission.bash["kubectl * get *"] == "allow" and
+    .permission.bash["kubectl * describe *"] == "allow" and
+    .permission.bash["helm list *"] == "allow" and
+    .permission.bash["kubectl * delete *"] == "deny" and
+    .permission.bash["helm * upgrade *"] == "deny"
+  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+}
+{{- end }}
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi permission-system config gates MCP and skills by default" {
@@ -282,13 +438,970 @@ setup() {
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
+
+{{- if .toolchains.ai }}
+# bats test_tags=toolchain:pi,kind:permission,toolchain:ai
+@test "pi permission-system: AI package rules" {
+  run jq -e '
+    .permission.bash["hf download *"] == "allow" and
+    .permission.bash["hf repo ls-files *"] == "allow" and
+    .permission.bash["hf auth *"] == "deny" and
+    .permission.bash["hf repo delete *"] == "deny" and
+    .permission.bash["hf upload *"] == "deny" and
+    .permission.bash["llama-server --help*"] == "allow" and
+    .permission.bash["llama-server *"] != "allow"
+  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+  assert_success
+}
+{{- end }}
+{{- end }}
+
+# --- opencode ---
+
+{{- if .toolchains.opencode }}
+{{- $ocModels := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson }}
+{{- $ocDefaults := index $ocModels $ocModels.default }}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode AGENTS.md fans out to global AGENTS.md" {
+  run readlink -f "$HOME/.config/opencode/AGENTS.md"
+  assert_success
+  assert_output "$AGENTS_MD"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json exists with schema" {
+  assert_file_exists "$HOME/.config/opencode/opencode.json"
+  run jq -e '."$schema" == "https://opencode.ai/config.json"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json shares is disabled" {
+  run jq -e '.share == "disabled"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json uses model from ai.models" {
+  assert_file_exists "$HOME/.config/opencode/opencode.json"
+  run jq -e '.model | length > 0' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json contains skills path" {
+  run jq -e '.skills.paths | index("~/.config/agents/skills") != null' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json includes instructions" {
+  run jq -e '.instructions | index("AGENTS.md") != null' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent is executable" {
+  assert_file_executable "$HOME/.local/bin/opencode-agent"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent --help mentions --no-greywall" {
+  run "$HOME/.local/bin/opencode-agent" --help
+  assert_success
+  assert_output --partial "--no-greywall"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent --help mentions --no-update" {
+  run "$HOME/.local/bin/opencode-agent" --help
+  assert_success
+  assert_output --partial "--no-update"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "agent-launch script maps opencode-agent identity" {
+  run grep -F 'opencode-agent)' "$HOME/.local/bin/agent-launch"
+  assert_success
+  run grep -F 'BINARY_NAME="opencode"' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "agent-launch script has preflight_update function" {
+  run grep -F 'preflight_update' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "agent-launch script checks plugin cache with package.json" {
+  run grep -F 'package.json' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "agent-launch script exports OPENCODE_CONFIG for core runtime" {
+  run grep -F 'core|default)' "$HOME/.local/bin/agent-launch"
+  assert_success
+  run grep -F 'export OPENCODE_CONFIG' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json snapshot is enabled" {
+  run jq -e '.snapshot == true' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json has watcher ignore list" {
+  run jq -e '.watcher.ignore | length > 0' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json has attachment limits" {
+  run jq -e '.attachment.image.auto_resize == true' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:permission
+@test "opencode.json permission defaults" {
+  run jq -e '
+    .permission["*"] == "ask" and
+    .permission.doom_loop == "deny" and
+    .permission.external_directory == "allow" and
+    .permission.task == "allow" and
+    .permission.edit != null
+  ' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:permission
+@test "opencode.json bash defaults to ask" {
+  run jq -e '.permission.bash["*"] == "ask"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:permission
+@test "opencode.json path permissions block repo-local secrets" {
+  run jq -e '
+    .permission.read["**/.npmrc"] == "deny" and
+    .permission.read["**/.pypirc"] == "deny" and
+    .permission.read["**/.yarnrc.yml"] == "deny" and
+    .permission.read["**/.aws/**"] == "deny" and
+    .permission.read["**/.azure/**"] == "deny" and
+    .permission.edit["**/.npmrc"] == "deny" and
+    .permission.edit["**/.aws/**"] == "deny"
+  ' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:permission
+@test "opencode.json path permissions block sensitive patterns" {
+  run jq -e '
+    .permission.read["**/.env"] == "deny" and
+    .permission.read["**/.env.*"] == "deny"
+  ' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:permission
+@test "opencode.json edit denies infra config" {
+  run jq -e '
+    .permission.edit["~/.ssh/**"] == "deny" and
+    .permission.edit["**/.env"] == "deny"
+  ' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json core profile includes plugins" {
+  run jq -e '.plugin | index("@tarquinen/opencode-dcp") != null' "$HOME/.config/opencode/opencode.json"
+  assert_success
+  run jq -e '.plugin | index("opencode-notify") != null' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json core profile includes plannotator but not slim" {
+  run jq -e '.plugin | index("@plannotator/opencode") != null' "$HOME/.config/opencode/opencode.json"
+  assert_success
+  run jq -e '.plugin | index("oh-my-opencode-slim") | not' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory profile config exists" {
+  assert_file_exists "$HOME/.config/opencode/profiles/factory/opencode.json"
+  run jq -e '."$schema" == "https://opencode.ai/config.json"' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory profile includes all plugins" {
+  run jq -e '.plugin | index("@tarquinen/opencode-dcp") != null' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+  run jq -e '.plugin | index("opencode-notify") != null' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+  run jq -e '.plugin | index("oh-my-opencode-slim") != null' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+  run jq -e '.plugin | index("@plannotator/opencode") != null' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory profile does not include opencode-worktree as plugin" {
+  run jq -e '.plugin | index("opencode-worktree") | not' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory slim config exists" {
+  assert_file_exists "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e '."$schema" == "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory slim config uses managed preset" {
+  run jq -e '.preset == "managed"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.presets.managed.orchestrator | length > 0' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.presets.managed.oracle | length > 0' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory slim librarian has websearch, context7, gh_grep MCPs" {
+  run jq -e '.presets.managed.librarian.mcps | index("websearch") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.presets.managed.librarian.mcps | index("context7") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.presets.managed.librarian.mcps | index("gh_grep") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory slim config has council section" {
+  run jq -e '.council.default_preset == "managed"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.council.presets.managed.architect | length > 0' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory disables built-in explore agent" {
+  run jq -e '.agent.explore.disable == true' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory disables built-in general agent" {
+  run jq -e '.agent.general.disable == true' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory core profile does not disable explore" {
+  run jq -e '.agent.explore.disable == true' "$HOME/.config/opencode/opencode.json"
+  assert_failure
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode slim orchestrator has explicit skill list" {
+  run jq -e '.presets.managed.orchestrator.skills | index("codemap") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.presets.managed.orchestrator.skills | index("worktrees") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.presets.managed.orchestrator.skills | index("deepwork") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode slim oracle has simplify skill" {
+  run jq -e '.presets.managed.oracle.skills | index("simplify") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode slim librarian has no skills" {
+  run jq -e '.presets.managed.librarian.skills | length == 0' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode slim explorer has no skills" {
+  run jq -e '.presets.managed.explorer.skills | length == 0' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode oh-my-opencode-slim skill library files exist for all bundled skills" {
+  for skill in simplify codemap clonedeps deepwork reflect oh-my-opencode-slim worktrees; do
+    assert_dir_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/$skill"
+    assert_file_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/$skill/SKILL.md"
+  done
+}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode factory profile skill symlinks resolve for all oh-my-opencode-slim skills" {
+  for skill in simplify codemap clonedeps deepwork reflect oh-my-opencode-slim worktrees; do
+    link="$HOME/.config/opencode/profiles/factory/skills/$skill"
+    assert_symlink_to "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/$skill" "$link"
+  done
+}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode global karpathy-guidelines skill symlink resolves" {
+  link="$HOME/.config/agents/skills/karpathy-guidelines"
+  target="$HOME/.config/agents/libraries/skills/karpathy/karpathy-guidelines"
+  assert_symlink_to "$target" "$link"
+}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode factory AGENTS.md fans out to global AGENTS.md" {
+  run readlink -f "$HOME/.config/opencode/profiles/factory/AGENTS.md"
+  assert_success
+  assert_output "$AGENTS_MD"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent --list outputs profiles" {
+  run "$HOME/.local/bin/opencode-agent" --list
+  assert_success
+  assert_output --partial "core"
+  assert_output --partial "factory"
+  assert_output --partial "minimal"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent --print-env factory" {
+  run "$HOME/.local/bin/opencode-agent" --print-env factory
+  assert_success
+  assert_output --partial "OPENCODE_CONFIG"
+  assert_output --partial "opencode/profiles/factory/opencode.json"
+  assert_output --partial "OPENCODE_CONFIG_DIR"
+  assert_output --partial "opencode/profiles/factory"
+  assert_output --partial "OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent --print-env core" {
+  run "$HOME/.local/bin/opencode-agent" --print-env core
+  assert_success
+  assert_output --partial "OPENCODE_CONFIG"
+  assert_output --partial "opencode/opencode.json"
+  assert_output --partial "OPENCODE_CONFIG_DIR"
+  refute_output --partial "OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent --print-env minimal" {
+  run "$HOME/.local/bin/opencode-agent" --print-env minimal
+  assert_success
+  assert_output --partial "OPENCODE_CONFIG"
+  assert_output --partial "opencode/profiles/minimal/opencode.json"
+  assert_output --partial "OPENCODE_CONFIG_DIR"
+  assert_output --partial "opencode/profiles/minimal"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent help mentions profiles" {
+  run "$HOME/.local/bin/opencode-agent" --help
+  assert_success
+  assert_output --partial "core"
+  assert_output --partial "factory"
+}
+{{- end }}
+
+# --- Shared bash permission tests (generated for all enabled agents) ---
+
+{{- $permAgents := list -}}
+{{- if .toolchains.pi -}}
+{{-   $permAgents = append $permAgents (dict "name" "pi" "config" "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json" "tag" "toolchain:pi") -}}
+{{- end -}}
+{{- if .toolchains.opencode -}}
+{{-   $permAgents = append $permAgents (dict "name" "opencode" "config" "$HOME/.config/opencode/opencode.json" "tag" "toolchain:opencode") -}}
+{{- end -}}
+
+{{- range $agent := $permAgents }}
+
+# bats test_tags={{ $agent.tag }},kind:permission
+@test "{{ $agent.name }} bash: core allow rules" {
+  run jq -e '
+    .permission.bash["git status *"] == "allow" and
+    .permission.bash["git diff *"] == "allow" and
+    .permission.bash["git blame *"] == "allow" and
+    .permission.bash["git config --get *"] == "allow" and
+    .permission.bash["git tag --list *"] == "allow" and
+    .permission.bash["git describe *"] == "allow" and
+    .permission.bash["git ls-remote *"] == "allow" and
+    .permission.bash["git merge-base *"] == "allow" and
+    .permission.bash["git worktree list *"] == "allow" and
+    .permission.bash["chezmoi diff *"] == "allow" and
+    .permission.bash["gh run list *"] == "allow" and
+    .permission.bash["gh release list *"] == "allow" and
+    .permission.bash["gh search repos *"] == "allow"
+  ' "{{ $agent.config }}"
+  assert_success
+}
+
+# bats test_tags={{ $agent.tag }},kind:permission
+@test "{{ $agent.name }} bash: node and AI metadata allow" {
+  run jq -e '
+    .permission.bash["npm view *"] == "allow" and
+    .permission.bash["npm list *"] == "allow" and
+    .permission.bash["npm explain *"] == "allow" and
+    .permission.bash["hf download *"] == "allow"
+  ' "{{ $agent.config }}"
+  assert_success
+}
+
+{{- if $.toolchains.rust }}
+# bats test_tags={{ $agent.tag }},kind:permission,toolchain:rust
+@test "{{ $agent.name }} bash: rust metadata allow" {
+  run jq -e '
+    .permission.bash["cargo metadata *"] == "allow" and
+    .permission.bash["cargo tree *"] == "allow"
+  ' "{{ $agent.config }}"
+  assert_success
+}
+{{- end }}
+
+{{- if $.toolchains.golang }}
+# bats test_tags={{ $agent.tag }},kind:permission,toolchain:golang
+@test "{{ $agent.name }} bash: golang metadata allow" {
+  run jq -e '
+    .permission.bash["go mod graph *"] == "allow" and
+    .permission.bash["go mod why *"] == "allow"
+  ' "{{ $agent.config }}"
+  assert_success
+}
+{{- end }}
+
+{{- if $.toolchains.kubernetes }}
+# bats test_tags={{ $agent.tag }},kind:permission,toolchain:kubernetes
+@test "{{ $agent.name }} bash: helm metadata allow" {
+  run jq -e '
+    .permission.bash["helm show *"] == "allow" and
+    .permission.bash["helm template *"] == "allow"
+  ' "{{ $agent.config }}"
+  assert_success
+}
+{{- end }}
+
+# bats test_tags={{ $agent.tag }},kind:permission
+@test "{{ $agent.name }} bash: core deny rules" {
+  run jq -e '
+    .permission.bash["git * push --force*"] == "deny" and
+    .permission.bash["rm -rf /*"] == "deny" and
+    .permission.bash["rm -rf ~/*"] == "deny" and
+    .permission.bash["sudo *"] == "deny" and
+    .permission.bash["sed -i *"] == "deny" and
+    .permission.bash["sed * -i *"] == "deny"
+  ' "{{ $agent.config }}"
+  assert_success
+}
+
+# bats test_tags={{ $agent.tag }},kind:permission
+@test "{{ $agent.name }} bash: broad patterns not over-allowed" {
+  run jq -e '
+    .permission.bash["docker *"] != "allow" and
+    .permission.bash["kubectl *"] != "allow" and
+    .permission.bash["npm *"] != "allow"
+  ' "{{ $agent.config }}"
+  assert_success
+}
+{{- end }}
+
+# --- Local LLM ---
+
+{{- if .toolchains.ai }}
+{{- $local := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.local" "required" true) | mustFromJson }}
+{{- $resolved := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson }}
+{{- $swapConfig := "$HOME/.config/llama-swap/config.yaml" }}
+{{- $llamaCppPreset := "$HOME/.config/llama.cpp/models.ini" }}
+{{- $modelsJson := "$HOME/.config/pi/agent/models.json" }}
+{{- $port := $local.port | default 8321 }}
+{{- $omlxModelDir := "$HOME/.local/state/omlx/models" }}
+{{- $llmBench := "$HOME/.local/bin/llm-bench" }}
+{{- $llmPull := "$HOME/.local/bin/llm-pull" }}
+{{- $llmServe := "$HOME/.local/bin/llm-serve" }}
+
+{{- if eq .host.distro.family "darwin" }}
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "macOS installs adyranov tap native AI tools" {
+  assert_file_exists "$HOMEBREW_BUNDLE_FILE"
+  run grep -F 'tap "adyranov/tap", "https://github.com/adyranov/homebrew-tap"' "$HOMEBREW_BUNDLE_FILE"
+  assert_success
+  run grep -F 'brew "adyranov/tap/llama-cpp"' "$HOMEBREW_BUNDLE_FILE"
+  assert_success
+  run grep -F 'brew "adyranov/tap/stable-diffusion-cpp"' "$HOMEBREW_BUNDLE_FILE"
+  assert_success
+  run grep -F 'brew "adyranov/tap/whisper-cpp"' "$HOMEBREW_BUNDLE_FILE"
+  assert_success
+  run grep -F 'brew "llama.cpp"' "$HOMEBREW_BUNDLE_FILE"
+  assert_failure
+  run command -v llama-bench
+  assert_success
+  run command -v llama-server
+  assert_success
+  run command -v llama-cli
+  assert_success
+  run command -v whisper-cli
+  assert_success
+  run command -v sd-cli
+  assert_success
+  run test -d "$HOME/.local/state/llama-x86-mac"
+  assert_failure
+}
+{{- end }}
+
+{{- if and (eq .host.distro.family "darwin") (eq .host.arch "arm64") }}
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "Apple Silicon installs omlx alongside adyranov tap llama.cpp" {
+  run brew --prefix omlx
+  assert_success
+  run command -v llama-server
+  assert_success
+}
+{{- end }}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "shell exports use Hugging Face hub cache for local model downloads" {
+  assert_file_exists "$HOME/.config/shell/exports.d/ai-agents.sh"
+  run grep -F 'export HF_HOME="$XDG_DATA_HOME/huggingface"' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_success
+  run grep -F 'export HF_HUB_CACHE="$HF_HOME/hub"' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_success
+  run grep -F 'LLAMA_CACHE' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_failure
+  run grep -F 'GGUF_DIR' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llm-pull downloads missing models and interactively cleans stale GGUF caches" {
+  assert_file_exists "{{ $llmPull }}"
+  run grep -F 'Download or resume ${count} model(s)?' "{{ $llmPull }}"
+  assert_success
+  run grep -F 'hf_download_cmd' "{{ $llmPull }}"
+  assert_success
+  run grep -F 'scan_stale' "{{ $llmPull }}"
+  assert_success
+  run grep -F '[y/N]' "{{ $llmPull }}"
+  assert_success
+  run grep -F 'rm -rf "$target"' "{{ $llmPull }}"
+  assert_success
+}
+
+{{- if eq $resolved.engine "llamacpp" }}
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "shell exports configure llama.cpp router on llamacpp hosts" {
+  assert_file_exists "$HOME/.config/shell/exports.d/ai-agents.sh"
+  run grep -F 'export LLAMA_CPP_MODELS_PRESET="$XDG_CONFIG_HOME/llama.cpp/models.ini"' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_success
+  run grep -F 'LLAMA_SWAP_CONFIG' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llama.cpp models.ini exists" {
+  assert_file_exists "{{ $llamaCppPreset }}"
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llama.cpp models.ini declares every local model" {
+  assert_file_exists "{{ $llamaCppPreset }}"
+{{- range $id, $_ := $resolved.models }}
+  run grep -F '[{{ $id }}]' "{{ $llamaCppPreset }}"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llama.cpp models.ini autoloads the default model only" {
+  assert_file_exists "{{ $llamaCppPreset }}"
+{{- if $resolved.default_model }}
+  run awk 'BEGIN{in_section=0} $0=="[{{ $resolved.default_model }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="load-on-startup = true"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- end }}
+{{- range $id, $_ := $resolved.models }}
+{{-   if ne $id $resolved.default_model }}
+  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="load-on-startup = false"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{-   end }}
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llama.cpp models.ini uses native router presets" {
+  assert_file_exists "{{ $llamaCppPreset }}"
+  run grep -F 'version = 1' "{{ $llamaCppPreset }}"
+  assert_success
+  run grep -F '[*]' "{{ $llamaCppPreset }}"
+  assert_success
+  run grep -F 'llama-server' "{{ $llamaCppPreset }}"
+  assert_failure
+  run grep -F 'llama-swap' "{{ $llamaCppPreset }}"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llama.cpp models.ini uses compatible KV cache types" {
+  assert_file_exists "{{ $llamaCppPreset }}"
+{{- if $resolved.cache_type_k }}
+  run grep -F -- 'cache-type-k = {{ $resolved.cache_type_k }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- else }}
+  run grep -F -- 'cache-type-k' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- end }}
+{{- if $resolved.cache_type_v }}
+  run grep -F -- 'cache-type-v = {{ $resolved.cache_type_v }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- else }}
+  run grep -F -- 'cache-type-v' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llama.cpp models.ini renders model sampling parameters" {
+  assert_file_exists "{{ $llamaCppPreset }}"
+{{- range $id, $m := $resolved.models }}
+{{-   $sampling := index $m "sampling" | default dict }}
+{{-   if hasKey $sampling "temperature" }}
+  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="temp = {{ index $sampling "temperature" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{-   end }}
+{{-   if hasKey $sampling "top_p" }}
+  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="top-p = {{ index $sampling "top_p" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{-   end }}
+{{-   if hasKey $sampling "top_k" }}
+  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="top-k = {{ index $sampling "top_k" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{-   end }}
+{{-   if hasKey $sampling "min_p" }}
+  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="min-p = {{ index $sampling "min_p" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{-   end }}
+{{-   if hasKey $sampling "presence_penalty" }}
+  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="presence-penalty = {{ index $sampling "presence_penalty" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{-   end }}
+{{-   if hasKey $sampling "repetition_penalty" }}
+  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="repeat-penalty = {{ index $sampling "repetition_penalty" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{-   end }}
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llama.cpp models.ini uses HF hub cache for GGUF models" {
+  assert_file_exists "{{ $llamaCppPreset }}"
+{{- range $id, $m := $resolved.models }}
+  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="hf-repo = {{ $m.backend.repo }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="hf-file = {{ $m.backend.file }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llama.cpp models.ini renders host performance flags" {
+  assert_file_exists "{{ $llamaCppPreset }}"
+  run grep -F -- 'jinja = true' "{{ $llamaCppPreset }}"
+  assert_success
+  run grep -F -- 'reasoning-format = {{ $resolved.reasoning_format }}' "{{ $llamaCppPreset }}"
+  assert_success
+  run grep -F -- 'chat-template =' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- $hasChatTemplateFile := false }}
+{{- range $id, $m := $resolved.models }}
+{{-   $chatTemplateFile := index $m "chat_template_file" | default "" }}
+{{-   if $chatTemplateFile }}
+{{-     $hasChatTemplateFile = true }}
+  run grep -F -- 'chat-template-file = {{ $chatTemplateFile }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{-   end }}
+{{- end }}
+{{- if not $hasChatTemplateFile }}
+  run grep -F -- 'chat-template-file' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- end }}
+  run grep -F -- 'gpu-layers = {{ $resolved.gpu_layers }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- if gt ($resolved.fit_target | int) 0 }}
+  run grep -F -- 'fit-target = {{ $resolved.fit_target }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- else }}
+  run grep -F -- 'fit-target' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- end }}
+{{- if gt ($resolved.parallel | int) 0 }}
+  run grep -F -- 'parallel = {{ $resolved.parallel }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- else }}
+  run grep -F -- 'parallel =' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- end }}
+{{- if gt ($resolved.batch_size | int) 0 }}
+  run grep -F -- 'batch-size = {{ $resolved.batch_size }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- else }}
+  run grep -F -- 'batch-size' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- end }}
+{{- if gt ($resolved.ubatch_size | int) 0 }}
+  run grep -F -- 'ubatch-size = {{ $resolved.ubatch_size }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- else }}
+  run grep -F -- 'ubatch-size' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- end }}
+{{- if gt ($resolved.threads | int) 0 }}
+  run grep -F -- 'threads = {{ $resolved.threads }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- end }}
+{{- if gt ($resolved.threads_batch | int) 0 }}
+  run grep -F -- 'threads-batch = {{ $resolved.threads_batch }}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- end }}
+{{- if and (eq .host.distro.family "darwin") (eq .host.arch "amd64") }}
+  run grep -F -- 'flash-attn = true' "{{ $llamaCppPreset }}"
+  assert_failure
+  run grep -F -- 'split-mode = none' "{{ $llamaCppPreset }}"
+  assert_failure
+  run grep -F -- 'main-gpu = 0' "{{ $llamaCppPreset }}"
+  assert_failure
+  run grep -F -- 'kv-device = MTL0' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "Qwen 3.5+ models auto-attach froggeric chat template" {
+  assert_file_exists "{{ $llamaCppPreset }}"
+{{- if index $resolved.models "qwen3.5-9b" }}
+  run awk 'BEGIN{in_section=0} $0=="[qwen3.5-9b]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="chat-template-file = '"$HOME"'/.config/llama.cpp/qwen-froggeric.jinja"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- end }}
+{{- if index $resolved.models "qwen3.6-27b" }}
+  run awk 'BEGIN{in_section=0} $0=="[qwen3.6-27b]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="chat-template-file = '"$HOME"'/.config/llama.cpp/qwen-froggeric.jinja"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_success
+{{- end }}
+{{- if index $resolved.models "qwen3-coder-30b-a3b" }}
+  run awk 'BEGIN{in_section=0} $0=="[qwen3-coder-30b-a3b]"{in_section=1; next} /^\[/{in_section=0} in_section && /^chat-template-file = /{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  assert_failure
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llm-serve manages native llama.cpp router on llamacpp hosts" {
+  assert_file_exists "{{ $llmServe }}"
+  run grep -F 'llama-server' "{{ $llmServe }}"
+  assert_success
+  run grep -F 'llama-server --slot-save-path "$SLOT_DIR" --models-preset "$PRESET" --models-max 1 --models-autoload --host "$HOST" --port "$PORT"' "{{ $llmServe }}"
+  assert_success
+  run grep -F 'LLAMA_CPP_MODELS_PRESET' "{{ $llmServe }}"
+  assert_success
+  run grep -F '/v1/models' "{{ $llmServe }}"
+  assert_success
+  run grep -F 'llama-swap' "{{ $llmServe }}"
+  assert_failure
+  run grep -F 'LLAMA_SWAP_CONFIG' "{{ $llmServe }}"
+  assert_failure
+  run grep -F 'omlx serve' "{{ $llmServe }}"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llm-bench benchmarks llama.cpp models directly" {
+  assert_file_exists "{{ $llmBench }}"
+  run grep -F 'llama-bench \' "{{ $llmBench }}"
+  assert_success
+  run grep -F -- '-m "$model_path"' "{{ $llmBench }}"
+  assert_success
+  run grep -F -- '-p "$INPUT_TOKENS"' "{{ $llmBench }}"
+  assert_success
+  run grep -F -- '-n "$MAX_TOKENS"' "{{ $llmBench }}"
+  assert_success
+  run grep -F -- '-r "$RUNS"' "{{ $llmBench }}"
+  assert_success
+  run grep -F -- '-o json' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'resolve_gguf' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'need hf' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'need llama-bench' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'need jq' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'trap cleanup EXIT' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'print_summary' "{{ $llmBench }}"
+  assert_success
+}
+
+{{- end }}
+
+{{- if eq $resolved.engine "omlx" }}
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "shell exports configure omlx flat model dir on Apple Silicon" {
+  assert_file_exists "$HOME/.config/shell/exports.d/ai-agents.sh"
+  run grep -F 'export OMLX_MODEL_DIR="$XDG_STATE_HOME/omlx/models"' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_success
+  run grep -F 'LLAMA_SWAP_CONFIG' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_failure
+  run grep -F 'LLAMA_CPP_MODELS_PRESET' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llamacpp router config is not deployed on omlx hosts" {
+  run test -f "{{ $swapConfig }}"
+  assert_failure
+  run test -f "{{ $llamaCppPreset }}"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llama.cpp runtime is unused when engine is omlx" {
+  run grep -F 'omlx serve' "{{ $llmServe }}"
+  assert_success
+  run grep -F 'llama-swap' "{{ $llmServe }}"
+  assert_failure
+  run grep -F 'llama-server' "{{ $llmServe }}"
+  assert_failure
+{{- if eq .host.distro.family "darwin" }}
+  run command -v llama-bench
+  assert_success
+  run command -v llama-server
+  assert_success
+{{- else }}
+  run command -v llama-server
+  assert_failure
+  run command -v llama-bench
+  assert_failure
+{{- end }}
+  run test -x "$HOME/.local/bin/llama-server"
+  assert_failure
+  run test -x "$HOME/.local/bin/llama-cli"
+  assert_failure
+  run test -x "$HOME/.local/bin/llama-bench"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "custom llama.cpp source build tree is absent on omlx hosts" {
+  run test -d "$HOME/.local/state/llama-x86-mac"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llm-bench benchmarks mlx models directly on omlx hosts" {
+  assert_file_exists "{{ $llmBench }}"
+  run grep -F 'mlx_lm generate' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'BENCH_SENTENCE=' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'llama-bench' "{{ $llmBench }}"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "llm-serve starts omlx directly on Apple Silicon" {
+  assert_file_exists "{{ $llmServe }}"
+  run grep -F 'omlx serve' "{{ $llmServe }}"
+  assert_success
+  run grep -F -- '--max-concurrent-requests {{ $resolved.omlx_max_concurrent_requests }}' "{{ $llmServe }}"
+  assert_success
+{{- if gt ($resolved.omlx_memory_guard_gb | int) 0 }}
+  run grep -F -- '--memory-guard-gb {{ $resolved.omlx_memory_guard_gb }}' "{{ $llmServe }}"
+  assert_success
+{{- end }}
+  run grep -F -- '--paged-ssd-cache-dir "$STATE_DIR/cache"' "{{ $llmServe }}"
+  assert_success
+  run grep -F 'llama-swap' "{{ $llmServe }}"
+  assert_failure
+  run grep -F 'llama-server' "{{ $llmServe }}"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "omlx flat model dir exists with logical-id symlinks" {
+  assert_dir_exists "{{ $omlxModelDir }}"
+{{- range $id, $m := $resolved.models }}
+{{-   $cacheSlug := replace "/" "--" $m.backend.repo }}
+  if [ -d "${HF_HUB_CACHE}/models--{{ $cacheSlug }}/snapshots" ]; then
+    run test -L "{{ $omlxModelDir }}/{{ $id }}"
+    assert_success
+    run readlink "{{ $omlxModelDir }}/{{ $id }}"
+    assert_success
+    assert_output --partial "models--{{ $cacheSlug }}"
+  else
+    run test -e "{{ $omlxModelDir }}/{{ $id }}"
+    assert_failure
+  fi
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm,toolchain:pi,kind:model
+@test "pi models.json uses host-resolved local context limits" {
+  assert_file_exists "{{ $modelsJson }}"
+{{- range $id, $m := $resolved.models }}
+  run jq -e '.providers.local.models[] | select(.id == "{{ $id }}") | .contextWindow == {{ $m.context_window }} and .maxTokens == {{ $m.context_output }}' "{{ $modelsJson }}"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm,toolchain:pi,kind:model
+@test "pi settings.json uses standard compaction defaults" {
+  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+  run jq -e '.compaction.keepRecentTokens == 20000 and .compaction.reserveTokens == 16384' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+}
+{{- end }}
+
+{{- if .toolchains.pi }}
+# bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
+@test "pi models.json points local provider at llm-serve" {
+  assert_file_exists "{{ $modelsJson }}"
+  run jq -e '.providers.local.baseUrl == "http://127.0.0.1:{{ $port }}/v1"' "{{ $modelsJson }}"
+  assert_success
+}
+
+# bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
+@test "pi models.json uses logical local model ids" {
+  assert_file_exists "{{ $modelsJson }}"
+{{- range $id, $m := $resolved.models }}
+  run jq -e '.providers.local.models[] | select(.id == "{{ $id }}") | .name == "{{ $m.name }}"' "{{ $modelsJson }}"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
+@test "pi settings.json enables logical local model ids" {
+  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+{{- range $id, $_ := $resolved.models }}
+  run jq -e '.enabledModels | index("{{ $id }}") != null' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+{{- end }}
+}
+{{- end }}
 {{- end }}
 
 # --- Per-agent permission settings (from ai path data and package policy) ---
 
 {{- if ne .host.type "ephemeral" }}
-{{- $pathPermissions := includeTemplate "common/helpers/load-ai-path-permissions" (dict "root" .) | mustFromJson }}
-{{- $denyPaths := $pathPermissions.deny }}
+{{- $paths := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.paths" "required" true) | mustFromJson) }}
+{{- $denyPaths := index $paths "deny" | default list | uniq | sortAlpha }}
 {{- $greywallDir := "$HOME/.config/greywall" }}
 {{- if eq .host.distro.family "darwin" }}
 {{- $greywallDir = "$HOME/Library/Application Support/greywall" }}
@@ -307,8 +1420,8 @@ setup() {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
   run jq -e '
     .filesystem.defaultDenyRead == true and
-    .filesystem.allowRead == [".", "~/.config/certificates/ca-bundle.pem", "~/.local/share/engram/**"] and
-    .filesystem.allowWrite == [".", "~/.local/share/engram/**"] and
+    .filesystem.allowRead == [".", "~/.config/certificates/ca-bundle.pem", "~/.config/npm/npmrc"] and
+    .filesystem.allowWrite == ["."] and
     (.filesystem.denyRead | index("**/.env") != null) and
     (.filesystem.denyRead | index("~/.ssh/**") != null) and
     (.filesystem.denyWrite | index("**/.env") != null) and
@@ -316,6 +1429,8 @@ setup() {
     (.command.allow | not) and
     (.command.deny | index("git * reset --hard *") != null) and
     (.command.deny | index("docker * system prune *") != null) and
+    (.filesystem.denyRead | index("~/.config/pi/**/auth.json") | not) and
+    (.filesystem.denyRead | index("~/.config/opencode/**/auth.json") | not) and
     .network.proxyUrl == "socks5://localhost:43052" and
     .network.httpProxyUrl == "http://localhost:43051" and
     .network.dnsAddr == "localhost:43053" and
@@ -332,7 +1447,7 @@ setup() {
 # bats test_tags=kind:greywall
 @test "greywall global policy has no broad network allow" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e '((.network.rules // []) | all(.action != "allow" or .destination != "*"))' "{{ $greywallDir }}/greywall.json"
+  run jq -e '((.network.rules // []) | all(.action != "allow" or (.destination | contains("*") | not)))' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
 
@@ -352,18 +1467,101 @@ setup() {
   assert_success
 }
 
+{{- if .toolchains.ai }}
+# bats test_tags=kind:greywall,toolchain:ai
+@test "greywall command policy includes AI package denies" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '
+    (.command.allow | not) and
+    (.command.deny | index("hf auth *") != null) and
+    (.command.deny | index("hf repo delete *") != null) and
+    (.command.deny | index("hf upload *") != null)
+  ' "{{ $greywallDir }}/greywall.json"
+  assert_success
+}
+{{- end }}
+
 # bats test_tags=kind:greywall
 @test "greywall pi profile allows managed additions" {
   assert_file_exists "{{ $greywallDir }}/learned/pi.json"
   run jq -e '
     .schemaVersion == 1 and
+    (.filesystem.allowWrite | index("~/.cache/node-gyp") != null) and
+    (.filesystem.allowWrite | index("~/.cache/node-gyp/**") != null) and
+    (.filesystem.allowWrite | index("~/.cache/npm") != null) and
+    (.filesystem.allowWrite | index("~/.cache/npm/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/npm") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/npm/**") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/npm") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/npm/**") != null) and
+    (.filesystem.allowWrite | index("~/.local/state/npm") != null) and
+    (.filesystem.allowWrite | index("~/.local/state/npm/**") != null) and
     (.filesystem.allowWrite | index("~/.pi-lens") != null) and
-    (.network.rules[] | select(.destination == "*.npmjs.org" and (.port | tostring) == "443" and .action == "allow")) and
+    (.filesystem.allowWrite | index("~/Library/Caches/node-gyp") != null) and
+    (.filesystem.allowWrite | index("~/Library/Caches/node-gyp/**") != null) and
+    (.network.rules // [] | map(.destination) | index("*.npmjs.org") | not) and
+    (.network.rules[] | select(.destination == "opencode.ai" and (.port | tostring) == "443" and .action == "allow")) and
     (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "opencode.ai" and (.port | tostring) == "443" and .action == "allow"))
+    (.network.rules[] | select(.destination == "registry.npmjs.org" and (.port | tostring) == "443" and .action == "allow"))
   ' "{{ $greywallDir }}/learned/pi.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall
+@test "greywall opencode profile allows shared and sandbox paths" {
+  assert_file_exists "{{ $greywallDir }}/learned/opencode.json"
+  run jq -e '
+    .schemaVersion == 1 and
+    (.filesystem.allowWrite | index("~/.cache/opencode") != null) and
+    (.filesystem.allowWrite | index("~/.local/share/opencode") != null) and
+    (.filesystem.allowWrite | index("~/.local/state/opencode") != null) and
+    (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
+    (.network.rules[] | select(.destination == "opencode.ai" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "github.com" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "registry.npmjs.org" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "huggingface.co" and (.port | tostring) == "443" and .action == "allow"))
+  ' "{{ $greywallDir }}/learned/opencode.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall
+@test "greywall opencode profile has no wildcard network allow" {
+  assert_file_exists "{{ $greywallDir }}/learned/opencode.json"
+  run jq -e '(.network.rules // []) | all(.action != "allow" or (.destination | contains("*") | not))' "{{ $greywallDir }}/learned/opencode.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall
+@test "greywall opencode profile excludes pi-specific hosts" {
+  assert_file_exists "{{ $greywallDir }}/learned/opencode.json"
+  run jq -e '
+    (.network.rules // [] | map(.destination) | index("pi.dev") | not)
+  ' "{{ $greywallDir }}/learned/opencode.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall
+@test "greywall pi profile includes shared network hosts" {
+  assert_file_exists "{{ $greywallDir }}/learned/pi.json"
+  run jq -e '
+    (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "github.com" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "raw.githubusercontent.com" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "pypi.org" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "huggingface.co" and (.port | tostring) == "443" and .action == "allow"))
+  ' "{{ $greywallDir }}/learned/pi.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall
+@test "greywall pi profile has no wildcard network allow" {
+  assert_file_exists "{{ $greywallDir }}/learned/pi.json"
+  run jq -e '(.network.rules // []) | all(.action != "allow" or (.destination | contains("*") | not))' "{{ $greywallDir }}/learned/pi.json"
   assert_success
 }
 {{- end }}

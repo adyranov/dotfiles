@@ -34,36 +34,62 @@ Prebuilt images are also published to GHCR and Docker Hub:
 
 ## 🧩 How It Works
 
-- **Single source of truth**: OS-agnostic tools live in split `.chezmoidata/base/packages/<toolchain>.toml` files.
-  - They merge through `.chezmoidata/os/<distro>/packages.toml` and `.chezmoidata/profile/<profile>/packages.toml`.
-  - Rendered via `.chezmoitemplates/common/packages/render` to targets (package manager, `mise`, `krew`, `helm`, tests).
-- **Agent Command Policy**: Package-local `policy = {allow = [...], ask = [...], deny = [...]}` entries.
-  - Safe read/status commands are allowed.
-  - Mutating/build/network commands ask.
-  - Destructive commands are denied.
-- **Additional Data Files**:
-  - `base/ai/`: Directory holding agent configurations (`agents/`), path permissions (`permissions.toml`), skills, and models.
-  - `profile/<profile>/ai.toml`: Model and routing choices.
-  - `base/editors.toml`: VS Code/Cursor shared settings and extensions.
-  - `profile/<profile>/brew.toml`: Optional brew configurations.
-- Layered overrides: later layers win — `packages.base` (defaults) → `packages.os.<distro>` keyed by `host.distro.id` → `packages.profile.<profile>` keyed by `host.profile` (sparse keys such as `name`, `manager`, `version`, `test`, `exclude_arch`). When an override changes `manager`, the `name` automatically resets to the package key (since names are manager-specific, e.g. a brew formula vs a mise backend identifier). To use a non-default name with the new manager, set both `manager` and `name` in the override.
-- Conditional disables: set `disabled` to either a boolean, or a comma/space separated string of flags. Supported flags: `headless` (non-interactive sessions), `restricted`, and host type values `desktop`, `laptop`, `wsl`, `ephemeral`. Example: `disabled = "headless,restricted"`. For profile-specific package changes, add sparse overrides under `packages.profile.<profile>.<toolchain>` such as `some-package = {disabled = true}`.
-- OS pinning: set `os = "darwin" | "ubuntu" | "fedora" | "archlinux"` on a package entry to include it only on that distro.
+- **Layered data**: base defaults merge with OS and profile overrides under
+  `home/.chezmoidata/`.
+- **Packages and toolchains**: package TOML renders native packages, `mise`
+  tools, Helm/Krew plugins, tests, completions, and agent command policy.
+- **Profiles**: personal/work data controls model routing, brew extras, and host
+  sizing without duplicating base definitions.
+- **Generated tests**: Bats specs render from the same data so package and config
+  checks stay aligned with what chezmoi applies.
 
 ### AI agents
 
-- The `ai` toolchain is an umbrella that gates a nested agent selection (`pi`). Each agent gets its own boolean under `data.toolchains.<agentId>`.
-- **Data Layout**:
-  - Defined across files in `.chezmoidata/base/ai/` (e.g., `permissions.toml`, `skills.toml`, `models.toml`).
-  - Pi settings and sandbox exceptions live in `.chezmoidata/base/ai/agents/pi.toml` under `ai.base.agents.pi`.
-  - Personal/work model defaults and routes live in `.chezmoidata/profile/<profile>/ai.toml`.
-- **Permissions & Sandboxing**:
-  - `ai.base.permissions.paths.deny` contains exact sensitive globs. `allow_read` contains narrow read-only exceptions.
-  - **Pi Permission System**: Evaluates chained commands and applies path denies. It is a prompt/deny layer, not a host sandbox.
-  - **Greywall**: The true host filesystem/network/process sandbox. Uses the same path data for read/write denies. Config is managed at `~/.config/greywall/greywall.json`.
-  - **Greywall SSH Policy**: Allowlist-based (`github.com`, `git-upload-pack`).
-  - **Greywall Profiles**: Greywall owns the standard Pi learned profile patched from `ai.base.agents.pi.sandbox`. Learn with `greywall --learning -- <command>`.
-- **Engram**: Pi memory is managed through `gentle-engram`, `pi-mcp-adapter`, and the `engram` CLI.
+- The `ai` toolchain gates nested agents such as Pi, plus model routing, skills,
+  permissions, and sandbox configuration.
+- Pi command policy defaults to ask, allows safe read/status operations, and
+  denies destructive patterns.
+- Greywall provides the host filesystem/network/process sandbox; Pi permission
+  prompts are a higher-level agent guard.
+- Pi uses runtime profiles: `pi-agent` or `pi-agent core` (daily driver with Plannotator, permission system, catppuccin), `pi-agent minimal`
+  (stripped: no Plannotator, no MCP servers, no subagents), and `pi-agent factory` for the full rpiv-pi stack. Sessions are isolated per profile.
+- Opencode is managed as a first-class agent: `opencode-agent` launches
+  opencode inside a Greywall sandbox (or `--no-greywall` for direct use,
+  `--no-update` to skip the dependency cache preflight).
+  Runtime profiles: `opencode-agent` or `opencode-agent core` for the daily driver
+  with context pruning and notification plugins, `opencode-agent minimal` for a
+  lightweight stack (no plugins, no subagents), and `opencode-agent factory` for
+  slim multi-agent orchestration with background subagents, worktrees, and planning.
+  Core uses the default OpenCode config location; factory uses a profile overlay
+  (`~/.config/opencode/profiles/factory/`).
+
+### Local LLM serving
+
+**`llm-serve`** is the local OpenAI-compatible gateway on
+`http://127.0.0.1:8321/v1`. Model data lives in
+`home/.chezmoidata/base/ai/local.toml`; profile overrides live in
+`home/.chezmoidata/profile/<profile>/ai.toml`.
+
+- `llm-serve` — start in the foreground (Ctrl-C to stop)
+- `llm-serve start` — start in the background
+- `llm-serve stop` / `restart` / `status` / `list` / `logs`
+- `llm-pull` — download missing local model weights and report stale GGUF caches
+- `llm-bench [model ...]` — warm and benchmark local models with AIPerf
+
+| Host | Default engine | Notes |
+| --- | --- | --- |
+| darwin / arm64 | profile (`engine` in `ai.toml`) | Installs both oMLX and `adyranov/tap/llama-cpp`; runtime picks `omlx` or `llamacpp` |
+| darwin / amd64 | `llamacpp` | `adyranov/tap/llama-cpp`; native llama.cpp router mode |
+| Linux / WSL2 | `llamacpp` | mise `llama.cpp` native router mode |
+
+Set `engine = "omlx"` or `engine = "llamacpp"` under `[ai.profile.<profile>.local]`.
+Each model must declare the matching backend (`mlx` or `gguf`). Qwen 3.5+ GGUF models
+auto-attach the froggeric chat template. Use `llm-pull` to download weights, then
+`chezmoi apply` to sync model symlinks and llama.cpp router presets.
+
+Local model defaults are profile-specific and sized for each host class with
+practical context windows rather than maximum possible limits. Use `llm-bench` to
+evaluate alternatives for the current machine.
 
 ### Editor extensions
 
@@ -146,7 +172,9 @@ Notes:
 
 ## 🤖 CI
 
-- Host workflow (`.github/workflows/ci-host.yaml`) runs a two-phase test on macOS and Ubuntu (Intel/ARM): Phase 1 installs core packages (`WITHOUT_TOOLCHAINS=true ./install.sh`) and validates, Phase 2 applies all toolchains (`chezmoi apply`) and validates again.
+- PR/main CI (`.github/workflows/ci.yaml`) is the fast gate: it runs path-filtered Docker validation, plus smoke host installs on Ubuntu amd64 and Apple Silicon macOS (`WITHOUT_TOOLCHAINS=true ./install.sh --data=false` followed by `check-dotfiles`).
+- Full regression (`.github/workflows/ci-regression.yaml`) runs weekly and on demand. It covers the full host matrix, including Ubuntu ARM, Intel macOS, WSL, Docker, and the full toolchain install path.
+- Host workflow (`.github/workflows/ci-host.yaml`) supports `smoke` and `full` modes. Full mode runs the two-phase core install/check and full toolchain install/check.
 - Docker workflow (`.github/workflows/ci-docker.yaml`) builds Arch Linux, Fedora, and Ubuntu images for `amd64` and `arm64`, runs the same checks, and can optionally publish images.
   - To publish images manually, trigger the workflow with `workflow_dispatch` and set `publish` to `true`.
 
@@ -329,7 +357,8 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 
 | Tool                                                               | Description                   | Install                        | macOS | Ubuntu | Fedora | Arch |
 | ------------------------------------------------------------------ | ----------------------------- | ------------------------------ | ----- | ------ | ------ | ---- |
-| [engram](https://github.com/Gentleman-Programming/engram)          | Agent memory system           | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
+| [AIPerf](https://github.com/ai-dynamo/aiperf)                      | LLM endpoint benchmarking     | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
+| [opencode](https://opencode.ai)                                   | AI coding agent (terminal)    | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
 | [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) | Coding agent                  | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
 | [rtk](https://github.com/rtk-ai/rtk)                              | AI agent toolkit              | `mise ✅` (macOS: `system`)   | ✅    | ✅     | ✅     | ✅   |
 
@@ -346,20 +375,25 @@ These desktop apps are installed on macOS via Homebrew casks or the App Store (m
 | [Calibre](https://calibre-ebook.com/)                                  | E-book manager                  |
 | [Cryptomator](https://cryptomator.org/)                                | Cloud storage encryption        |
 | [Cursor](https://www.cursor.com/)                                      | AI-powered code editor          |
+| [draw.io Desktop](https://www.diagrams.net/)                           | Diagram editor                  |
 | [Ghostty](https://ghostty.org/)                                        | GPU-accelerated terminal        |
 | [Google Drive](https://www.google.com/drive/download/)                 | Cloud storage desktop client    |
 | [HandBrake](https://handbrake.fr/)                                     | Video transcoder                |
 | [IINA](https://iina.io/)                                               | Modern media player             |
 | [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/)            | Manage JetBrains IDEs           |
+| [Ice](https://icemenubar.app/)                                         | Menu bar manager                |
 | [KeePassXC](https://keepassxc.org/)                                    | Password manager                |
 | [Keka](https://www.keka.io/)                                           | File archiver                   |
 | [Kindle Previewer](https://kdp.amazon.com/en_US/help/topic/G202131170) | E-book preview tool             |
 | [LocalSend](https://localsend.org/)                                    | Local network file transfer     |
+| [LuLu](https://objective-see.org/products/lulu.html)                   | Outbound firewall               |
 | [Maccy](https://maccy.app/)                                            | Clipboard manager               |
 | [macFUSE](https://github.com/macfuse/macfuse)                          | Filesystem in userspace support |
+| [MonitorControl](https://github.com/MonitorControl/MonitorControl)     | External display controls       |
 | [OnyX](https://www.titanium-software.fr/en/onyx.html)                  | macOS maintenance utility       |
 | [Pearcleaner](https://github.com/alienator88/Pearcleaner)              | Remove app leftovers            |
 | [Rancher Desktop](https://rancherdesktop.io/)                          | Container management and Kubernetes |
+| [Rectangle](https://rectangleapp.com/)                                 | Window manager                  |
 | [RustDesk](https://rustdesk.com/)                                      | Open-source remote desktop      |
 | [Signal](https://signal.org/)                                          | Private messenger               |
 | [Spotify](https://www.spotify.com/)                                    | Music streaming client          |
@@ -379,9 +413,10 @@ These desktop apps are installed on macOS via Homebrew casks or the App Store (m
 
 | App                                                                                | Description               |
 | ---------------------------------------------------------------------------------- | ------------------------- |
+| [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704)                  | Keep-awake utility        |
 | [Brother iPrint&Scan](https://apps.apple.com/app/brother-iprint-scan/id1193539993) | Printer/scanner utility   |
+| [CotEditor](https://apps.apple.com/app/coteditor/id1024640650)                     | Plain text editor         |
 | [Keynote](https://www.apple.com/keynote/)                                          | Apple presentations       |
-| [Messenger](https://www.messenger.com/desktop)                                     | Facebook Messenger client |
 | [Numbers](https://www.apple.com/numbers/)                                          | Apple spreadsheets        |
 | [Pages](https://www.apple.com/pages/)                                              | Apple word processor      |
 | [Slack](https://slack.com/)                                                        | Team messaging            |

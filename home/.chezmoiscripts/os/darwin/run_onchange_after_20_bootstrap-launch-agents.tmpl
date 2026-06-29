@@ -1,4 +1,4 @@
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 {{- $launch_agent_files := list -}}
 {{- range $path := glob (list .host.source "private_Library/LaunchAgents/**/*" | join "/") }}

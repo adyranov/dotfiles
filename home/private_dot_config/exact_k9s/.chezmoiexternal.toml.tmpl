@@ -1,5 +1,6 @@
 {{- if .toolchains.kubernetes }}
-{{ template "common/github/archive" (dict
+{{ template "base/github/external" (dict
+    "type"   "archive"
     "target"          "skins"
     "repo"            "catppuccin/k9s@main"
     "stripComponents" 2

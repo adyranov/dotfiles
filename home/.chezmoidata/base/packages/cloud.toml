@@ -6,14 +6,20 @@ package = "aws-cli"
 
 [packages.base.cloud.aws.policy]
 allow = ["aws configure list *", "aws sts get-caller-identity *"]
-ask = ["aws *"]
 deny = [
+  "aws * create-access-key *",
   "aws * delete*",
   "aws * destroy*",
+  "aws * get-secret-value *",
+  "aws * put*",
   "aws * remove*",
+  "aws * rotate-secret *",
   "aws * terminate*",
+  "aws * update*",
   "aws * s3 rm *",
   "aws * s3 sync *",
+  "aws configure *",
+  "aws secretsmanager get-secret-value *",
   "aws s3 rm *",
   "aws s3 sync *"
 ]
@@ -23,5 +29,13 @@ bin = "az"
 
 [packages.base.cloud.azure-cli.policy]
 allow = ["az account list *", "az account show *", "az version *"]
-ask = ["az *"]
-deny = ["az * delete*", "az * remove*"]
+deny = [
+  "az * create*",
+  "az * delete*",
+  "az * purge*",
+  "az * remove*",
+  "az * update*",
+  "az keyvault secret show *",
+  "az login *",
+  "az logout *"
+]

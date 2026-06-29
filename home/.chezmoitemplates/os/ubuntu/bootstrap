@@ -25,7 +25,7 @@ app_apt_repo() {
   fi
 }
 
-{{- $repos := includeTemplate "common/helpers/load-layered-section" (dict "root" . "section" "repositories") | mustFromJson -}}
+{{- $repos := includeTemplate "base/helpers/load-section" (dict "root" . "section" "repositories") | mustFromJson -}}
 {{- range $toolchain, $toolchainRepos := $repos }}
 {{- $enabled := or (eq $toolchain "core") (index $.toolchains $toolchain) -}}
 {{- if $enabled }}

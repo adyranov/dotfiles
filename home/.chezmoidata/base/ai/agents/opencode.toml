@@ -1,0 +1,50 @@
+[ai.base.agents.opencode.instructions]
+files = ["AGENTS.md"]
+
+[ai.base.agents.opencode.profiles.core]
+extends = "minimal"
+plugins = ["@plannotator/opencode"]
+
+[ai.base.agents.opencode.profiles.factory]
+extends = "core"
+plugins = ["oh-my-opencode-slim"]
+disabled_agents = ["explore", "general"]
+skills_paths = ["~/.config/opencode/profiles/factory/skills"]
+
+[ai.base.agents.opencode.profiles.minimal]
+plugins = ["@tarquinen/opencode-dcp", "opencode-notify"]
+
+[ai.base.agents.opencode.sandbox.paths]
+allow_write = [
+  "~/.cache/opencode",
+  "~/.cache/opencode/**",
+  "~/.local/share/opencode",
+  "~/.local/share/opencode/**",
+  "~/.local/state/opencode",
+  "~/.local/state/opencode/**"
+]
+infrastructure_deny = ["~/.config/opencode/auth.json"]
+infrastructure_read = [
+  "~/.config/agents/**",
+  "~/.config/greywall/**",
+  "~/.config/opencode/**"
+]
+
+[ai.base.agents.opencode.settings]
+autoupdate = "notify"
+share = "disabled"
+snapshot = true
+
+[ai.base.agents.opencode.settings.compaction]
+auto = true
+reserved = 10000
+
+[ai.base.agents.opencode.settings.tool_output]
+max_bytes = 51200
+max_lines = 2000
+
+[ai.base.agents.opencode.settings.watcher]
+ignore = [".cache/**", ".direnv/**", ".git/**", ".terraform/**", "build/**", "dist/**", "node_modules/**"]
+
+[ai.base.agents.opencode.skills]
+paths = ["~/.config/agents/skills"]

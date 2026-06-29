@@ -1,0 +1,69 @@
+{{- /* Render Pi profile settings managed dict as JSON */ -}}
+{{- $pi := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.agents.pi" "required" true) | mustFromJson -}}
+{{- $models := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $profile := includeTemplate "base/ai/resolve-profile" (dict "agentData" $pi "profile" .profile) | mustFromJson -}}
+{{- $defaults := index $models $models.default -}}
+{{- $enabledModels := list -}}
+{{- range $_, $route := $models -}}
+{{-   if not (kindIs "map" $route) -}}{{ continue }}{{- end -}}
+{{-   if not (hasKey $route "model") -}}{{ continue }}{{- end -}}
+{{-   $enabledModels = append $enabledModels $route.model | uniq -}}
+{{- end -}}
+{{- $local := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.local" "required" false) | mustFromJson -}}
+{{- if hasKey $local "models" -}}
+{{-   range $key, $_ := $local.models -}}
+{{-     $enabledModels = append $enabledModels $key -}}
+{{-   end -}}
+{{- end -}}
+{{- $enabledModels = $enabledModels | uniq -}}
+{{- $settings := $pi.settings -}}
+{{- $packages := list -}}
+{{- $skills := list -}}
+{{- range $skill := get $profile "skills" | default list -}}
+{{-   $skills = append $skills (printf "../../agents/skills/%s" $skill) -}}
+{{- end -}}
+{{- $filters := get $profile "package_filters" | default dict -}}
+{{- range $name := $profile.packages -}}
+{{-   $filter := index $filters $name -}}
+{{-   if $filter -}}
+{{-     $pkg := dict "source" (printf "npm:%s" $name) -}}
+{{-     range $k, $v := $filter -}}
+{{-       $_ := set $pkg $k $v -}}
+{{-     end -}}
+{{-     $packages = append $packages $pkg -}}
+{{-   else -}}
+{{-     $packages = append $packages (printf "npm:%s" $name) -}}
+{{-   end -}}
+{{- end -}}
+{{- $piVersion := output "mise" "current" "npm:@earendil-works/pi-coding-agent" | trim -}}
+{{- $managed := dict
+  "bashMode" (dict
+    "toggleShortcut" $settings.bash_mode.toggle_shortcut
+    "transcriptMaxBytes" $settings.bash_mode.transcript_max_bytes
+    "transcriptMaxLines" $settings.bash_mode.transcript_max_lines
+  )
+  "compaction" (dict "enabled" true "keepRecentTokens" $profile.compaction.keep_recent_tokens "reserveTokens" $profile.compaction.reserve_tokens)
+  "followUpMode" "all"
+  "steeringMode" "all"
+  "treeFilterMode" "no-tools"
+  "enableInstallTelemetry" false
+  "enabledModels" $enabledModels
+  "lastChangelogVersion" $piVersion
+  "npmCommand" (list "mise" "exec" "node@lts" "--" "npm")
+  "packages" $packages
+  "powerline" (dict
+    "fixedEditor" $settings.powerline.fixed_editor
+    "mouseScroll" $settings.powerline.mouse_scroll
+    "preset" $settings.powerline.preset
+  )
+  "quietStartup" true
+  "retry" (dict "baseDelayMs" 2000 "enabled" true "maxRetries" 3)
+  "skills" $skills
+  "theme" $settings.theme
+  "warnings" (dict "anthropicExtraUsage" true)
+-}}
+{{- if eq .profile "factory" -}}
+{{-   $agentOverrides := includeTemplate "base/helpers/render-model-category-map" (dict "root" .root "field" "agents") | mustFromJson -}}
+{{-   $_ := set $managed "subagents" (dict "agentOverrides" $agentOverrides) -}}
+{{- end -}}
+{{- $managed | toPrettyJson -}}

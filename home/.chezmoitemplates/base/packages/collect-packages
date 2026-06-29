@@ -1,0 +1,64 @@
+{{- /* base/packages/collect-packages — Render packages for a single manager.
+
+  Walks layered packages via `base/packages/walk`, normalizes field defaults
+  (`package`, `bin`, `version`, `test`, krew conventions), keeps only entries
+  matching `manager`, and dispatches to a format subtemplate.
+
+  Args (dict):
+    root    — template data root (required)
+    manager — "system" (default) | "mise" | "helm" | "krew"
+    format  — format subtemplate name: "install" (default) | "mise" | "test"
+*/ -}}
+{{- $root := .root -}}
+{{- $manager := index . "manager" | default "system" -}}
+{{- $format := index . "format" | default "install" -}}
+
+{{- $entries := includeTemplate "base/packages/walk" (dict "root" $root) | mustFromJson -}}
+{{- $result := dict -}}
+{{- range $entry := $entries -}}
+{{-   $id := $entry.id -}}
+{{-   $pkg := $entry.pkg -}}
+{{-   $pkgMgr := printf "%s" (index $pkg "manager" | default "system") -}}
+{{-   if ne $pkgMgr $manager -}}{{- continue -}}{{- end -}}
+
+{{-   $pkgName := printf "%s" (index $pkg "package" | default $id) -}}
+{{-   $pkgBin := printf "%s" (index $pkg "bin" | default $id) -}}
+
+{{-   $override := $entry.override -}}
+{{-   $baseMgr := index $entry.basePkg "manager" | default "system" -}}
+{{-   $overrideMgr := index $override "manager" -}}
+{{-   if and $overrideMgr (ne (printf "%s" $overrideMgr) (printf "%s" $baseMgr)) -}}
+{{-     if not (hasKey $override "package") -}}{{- $pkgName = $id -}}{{- end -}}
+{{-   end -}}
+
+{{-   if eq $pkgMgr "krew" -}}
+{{-     if not (hasKey $pkg "package") -}}{{- $pkgName = trimPrefix "kubectl-" $id -}}{{- end -}}
+{{-     if not (hasKey $pkg "bin") -}}{{- $pkgBin = printf "kubectl %s" (trimPrefix "kubectl-" $id) -}}{{- end -}}
+{{-   end -}}
+
+{{-   $pkgVersion := printf "%s --version" $pkgBin -}}
+{{-   if eq $pkgMgr "krew" -}}{{- $pkgVersion = printf "%s --help" $pkgBin -}}{{- end -}}
+{{-   if hasKey $pkg "version" -}}{{- $pkgVersion = printf "%s" (index $pkg "version") -}}{{- end -}}
+
+{{-   $pkgTest := $pkgVersion -}}
+{{-   if hasKey $pkg "test" -}}
+{{-     $rawTest := index $pkg "test" -}}
+{{-     if kindIs "bool" $rawTest -}}
+{{-       if not $rawTest -}}{{- $pkgTest = "" -}}{{- end -}}
+{{-     else -}}
+{{-       $pkgTest = printf "%s" $rawTest -}}
+{{-     end -}}
+{{-   end -}}
+
+{{-   $_ := set $result $id (dict
+        "id" $id
+        "manager" $pkgMgr
+        "package" $pkgName
+        "pin" (printf "%s" (index $pkg "pin" | default ""))
+        "version" $pkgVersion
+        "test" $pkgTest
+        "platforms" (index $pkg "platforms" | default dict)
+        "toolchain" $entry.toolchain
+      ) -}}
+{{- end -}}
+{{- includeTemplate (printf "base/packages/format/%s" $format) (dict "packages" $result) -}}

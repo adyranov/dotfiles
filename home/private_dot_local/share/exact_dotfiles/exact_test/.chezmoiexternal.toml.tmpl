@@ -1,15 +1,19 @@
-{{ template "common/github/archive" (dict
+{{ template "base/github/external" (dict
+    "type"   "archive"
     "target" "bats"
     "repo"   "bats-core/bats-core") }}
 
-{{ template "common/github/archive" (dict
+{{ template "base/github/external" (dict
+    "type"   "archive"
     "target" "bats-assert"
     "repo"   "bats-core/bats-assert") }}
 
-{{ template "common/github/archive" (dict
+{{ template "base/github/external" (dict
+    "type"   "archive"
     "target" "bats-support"
     "repo"   "bats-core/bats-support") }}
 
-{{ template "common/github/archive" (dict
+{{ template "base/github/external" (dict
+    "type"   "archive"
     "target" "bats-file"
     "repo"   "bats-core/bats-file") }}

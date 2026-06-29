@@ -1,2 +1,2 @@
-{{- includeTemplate "common/headers/before" . -}}
-{{- includeTemplate "common/helpers/load-os-partial" (dict "root" . "phase" "install") -}}
+{{- includeTemplate "base/headers/script" (dict "root" . "exports" false) -}}
+{{- includeTemplate "base/helpers/load-os-partial" (dict "root" . "phase" "install") -}}

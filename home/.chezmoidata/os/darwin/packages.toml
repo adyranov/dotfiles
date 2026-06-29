@@ -1,8 +1,13 @@
 [packages.os.darwin.ai]
+hf = {manager = "system"}
+llamacpp = {bin = "llama-server", manager = "system", package = "adyranov/tap/llama-cpp"}
+omlx = {exclude_arch = ["amd64"], manager = "system"}
 rtk = {manager = "system"}
+stable-diffusion-cpp = {bin = "sd-cli", manager = "system", package = "adyranov/tap/stable-diffusion-cpp", test = "command -v sd-cli"}
+whisper-cpp = {bin = "whisper-cli", manager = "system", package = "adyranov/tap/whisper-cpp", test = "command -v whisper-cli"}
 
 [packages.os.darwin.cloud]
-aws = {disabled = "headless", manager = "system", package = "awscli"}
+aws = {disabled = ["headless"], manager = "system", package = "awscli"}
 
 [packages.os.darwin.core]
 age-plugin-yubikey = {}

@@ -1,5 +1,5 @@
 {{- if .secrets.age -}}
-{{- includeTemplate "common/headers/before" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" . "exports" false) -}}
 {{- $encryptedKey := joinPath .host.source ".keys/chezmoi.txt.age" -}}
 {{- $decryptedKey := joinPath .host.home ".config/age/chezmoi.txt" -}}
 {{- if (stat $encryptedKey) }}

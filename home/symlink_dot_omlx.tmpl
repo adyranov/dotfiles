@@ -1,0 +1,3 @@
+{{- if and .toolchains.ai (eq .host.distro.family "darwin") (eq .host.arch "arm64") -}}
+{{- joinPath .host.home ".local/state/omlx" -}}
+{{- end -}}

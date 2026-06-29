@@ -1,0 +1,10 @@
+agents/**
+git/**
+logs/
+npm/
+mcp-cache.json
+pi-hermes-memory/
+projects-memory/
+sessions/**
+state.json
+tmp/**

@@ -1,0 +1,58 @@
+{{- /*
+  Usage:
+    {{- $vscode := includeTemplate "base/helpers/load-section" (dict
+          "root" .
+          "section" "editors.vscode"
+          "required" true
+        ) | mustFromJson -}}
+
+  Loads a section from the repository's layered data schema:
+    <domain>.base.<path...>
+    <domain>.os.<host.distro.id>.<path...>
+    <domain>.profile.<host.profile>.<path...>
+
+  Later layers win. The result is emitted as JSON so callers can parse it back
+  into a map with mustFromJson.
+*/ -}}
+{{- $root := .root -}}
+{{- $sectionName := index . "section" | default "" -}}
+{{- $required := index . "required" | default false -}}
+{{- if not $sectionName -}}
+  {{- fail "load-section requires section" -}}
+{{- end -}}
+{{- $segments := splitList "." $sectionName -}}
+{{- $domainName := first $segments -}}
+{{- $path := rest $segments -}}
+{{- $domain := index $root $domainName | default dict -}}
+{{- $profileKey := index $root.host "profile" | default "" -}}
+{{- $distroId := $root.host.distro.id -}}
+{{- $layers := list
+      (index $domain "base" | default dict)
+      (index (index $domain "os" | default dict) $distroId | default dict)
+      (index (index $domain "profile" | default dict) $profileKey | default dict)
+-}}
+{{- $result := dict -}}
+{{- $found := false -}}
+{{- range $layer := $layers -}}
+  {{- $section := $layer -}}
+  {{- $exists := true -}}
+  {{- range $segment := $path -}}
+    {{- if and $exists (kindIs "map" $section) (hasKey $section $segment) -}}
+      {{- $section = index $section $segment -}}
+    {{- else -}}
+      {{- $exists = false -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if $exists -}}
+    {{- $found = true -}}
+    {{- if kindIs "map" $section -}}
+      {{- $result = $result | merge $section -}}
+    {{- else -}}
+      {{- $result = dict "value" $section -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if and $required (not $found) -}}
+  {{- fail (printf "required layered data section missing: %s.%s" $domainName (join "." $path)) -}}
+{{- end -}}
+{{- $result | toJson -}}

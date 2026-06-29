@@ -1,2 +1,31 @@
-[ai.profile.work.agents.pi]
-packages = {pi-cursor-sdk = {}}
+[ai.profile.work.local]
+default_model = "qwen3.5-9b"
+engine = "omlx"
+omlx_memory_guard_gb = 21
+
+[ai.profile.work.local.models."qwen3-coder-30b-a3b"]
+context_output = 4096
+context_window = 32768
+gguf = {file = "Qwen3-Coder-30B-A3B-Instruct-UD-IQ3_XXS.gguf", repo = "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF"}
+mlx = {repo = "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit"}
+name = "Qwen 3 Coder 30B-A3B"
+reasoning = false
+sampling = {min_p = 0.0, repetition_penalty = 1.05, temperature = 0.4, top_k = 20, top_p = 0.9}
+
+[ai.profile.work.local.models."qwen3.5-9b"]
+context_output = 4096
+context_window = 65536
+gguf = {file = "Qwen3.5-9B-UD-Q6_K_XL.gguf", repo = "unsloth/Qwen3.5-9B-GGUF"}
+mlx = {repo = "mlx-community/Qwen3.5-9B-OptiQ-4bit"}
+name = "Qwen3.5 9B"
+reasoning = true
+sampling = {min_p = 0.0, presence_penalty = 0.0, repetition_penalty = 1.0, temperature = 0.6, top_k = 20, top_p = 0.95}
+
+[ai.profile.work.models]
+architect = {model = "claude-opus-4.6", provider = "github-copilot", thinking = "high"}
+auditor = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "high"}
+coder = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "medium"}
+locator = {model = "gpt-5.4-mini", provider = "github-copilot", thinking = "low"}
+oracle = {model = "claude-opus-4.6", provider = "github-copilot", thinking = "xhigh"}
+researcher = {model = "claude-sonnet-4.6", provider = "github-copilot", thinking = "medium"}
+utility = {model = "gpt-5.4-mini", provider = "github-copilot", thinking = "low"}

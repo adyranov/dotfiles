@@ -1,5 +1,5 @@
 {{- if not .host.interactive -}}
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 command -v script >/dev/null 2>&1 || {
   echo "❌ z4h bootstrap requires the 'script' command to allocate a PTY." >&2

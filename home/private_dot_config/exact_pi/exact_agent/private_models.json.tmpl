@@ -1,0 +1,19 @@
+{{- $local := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- $modelList := list -}}
+{{- range $key, $m := $local.models -}}
+{{-   $modelList = append $modelList (dict
+        "id" $key
+        "name" ($m.name | default $key)
+        "reasoning" ($m.reasoning | default false)
+        "input" (list "text")
+        "contextWindow" $m.context_window
+        "maxTokens" $m.context_output
+        "cost" (dict "input" 0 "output" 0 "cacheRead" 0 "cacheWrite" 0)
+      ) -}}
+{{- end -}}
+{{- dict "providers" (dict "local" (dict
+  "baseUrl" (printf "http://127.0.0.1:%v/v1" $local.port)
+  "api" "openai-completions"
+  "apiKey" "local"
+  "models" $modelList
+)) | toPrettyJson -}}

@@ -1,0 +1,138 @@
+{{- /* Render opencode managed config dict as JSON */ -}}
+{{- $root := .root -}}
+{{- $profile := .profile | default "core" -}}
+
+{{- /* ── Layers ── */ -}}
+{{- $opencode := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.opencode" "required" true) | mustFromJson -}}
+{{- $models := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $commandPermissions := includeTemplate "base/packages/collect-policies" (dict "root" $root) | mustFromJson -}}
+{{- $paths := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.paths" "required" true) | mustFromJson -}}
+{{- $sandboxPaths := dig "sandbox" "paths" dict $opencode -}}
+
+{{- /* ── Model IDs ── */ -}}
+{{- $defaults := index $models $models.default -}}
+{{- $modelId := $defaults.model -}}
+{{- if hasKey $defaults "provider" -}}
+{{-   $modelId = printf "%s/%s" $defaults.provider $defaults.model -}}
+{{- end -}}
+{{- $smallModelId := $modelId -}}
+{{- if hasKey $models "utility" -}}
+{{-   $utility := index $models "utility" -}}
+{{-   $smallModelId = $utility.model -}}
+{{-   if hasKey $utility "provider" -}}
+{{-     $smallModelId = printf "%s/%s" $utility.provider $utility.model -}}
+{{-   end -}}
+{{- end -}}
+
+{{- /* ── Settings (read directly from TOML; data is required) ── */ -}}
+{{- $s := $opencode.settings -}}
+
+{{- /* compaction */ -}}
+{{- $compaction := dict
+  "auto" $s.compaction.auto
+  "prune" true
+  "reserved" $s.compaction.reserved
+  "tail_turns" 6
+-}}
+
+{{- /* tool_output */ -}}
+{{- $toolOutput := dict
+  "max_lines" $s.tool_output.max_lines
+  "max_bytes" $s.tool_output.max_bytes
+-}}
+
+{{- /* watcher */ -}}
+{{- $watcher := dict "ignore" $s.watcher.ignore -}}
+
+{{- /* attachment */ -}}
+{{- $imageConfig := dict
+  "auto_resize" true
+  "max_width" 2000
+  "max_height" 2000
+  "max_base64_bytes" 5242880
+-}}
+{{- $attachment := dict "image" $imageConfig -}}
+
+
+{{- /* ── Permissions ── */ -}}
+{{- $allDeny := concat (index $paths "deny" | default list) (index $sandboxPaths "infrastructure_deny" | default list) | uniq | sortAlpha -}}
+
+{{- /* bash: ask *, allow safe patterns, deny destructive */ -}}
+{{- $bash := dict "*" "ask" -}}
+{{- range $p := $commandPermissions.allow -}}{{- $_ := set $bash $p "allow" -}}{{- end -}}
+{{- range $p := $commandPermissions.ask -}}{{- $_ := set $bash $p "ask" -}}{{- end -}}
+{{- range $p := $commandPermissions.deny -}}{{- $_ := set $bash $p "deny" -}}{{- end -}}
+
+{{- /* read: allow project files, deny sensitive paths (except infra read paths) */ -}}
+{{- $infraReadPaths := index $sandboxPaths "infrastructure_read" | default list -}}
+{{- $readObj := dict "*" "allow" -}}
+{{- range $p := $allDeny -}}{{- if not (has $p $infraReadPaths) -}}{{- $_ := set $readObj $p "deny" -}}{{- end -}}{{- end -}}
+
+{{- /* edit: allow project edits, deny sensitive paths */ -}}
+{{- $editObj := dict "*" "allow" -}}
+{{- range $p := $allDeny -}}{{- $_ := set $editObj $p "deny" -}}{{- end -}}
+
+{{- $permission := dict
+  "*" "ask"
+  "read" $readObj
+  "edit" $editObj
+  "glob" "allow"
+  "grep" "allow"
+  "list" "allow"
+  "task" "allow"
+  "question" "allow"
+  "webfetch" "allow"
+  "websearch" "allow"
+  "lsp" "allow"
+  "skill" "allow"
+  "todowrite" "allow"
+  "doom_loop" "deny"
+  "bash" $bash
+  "external_directory" "allow"
+-}}
+
+{{- /* ── Profile plugins (resolved via extends) ── */ -}}
+{{- $profileData := includeTemplate "base/ai/resolve-profile" (dict "agentData" $opencode "profile" $profile) | mustFromJson -}}
+{{- $plugins := $profileData.plugins | default list -}}
+
+{{- /* ── Skills & instructions ── */ -}}
+{{- $basePaths := index $opencode.skills "paths" | default list -}}
+{{- $profilePaths := get $profileData "skills_paths" | default list -}}
+{{- $skillsPaths := concat $basePaths $profilePaths | uniq -}}
+{{- $instructionsFiles := index $opencode.instructions "files" | default list -}}
+
+{{- /* ── Output ── */ -}}
+{{- $hasFormatter := dig "formatter" true $s -}}
+{{- $hasLsp := dig "lsp" true $s -}}
+{{- $hasSnapshot := dig "snapshot" true $s -}}
+{{- $autoupdate := dig "autoupdate" "notify" $s -}}
+{{- $share := dig "share" "disabled" $s -}}
+{{- $result := dict
+  "$schema" "https://opencode.ai/config.json"
+  "model" $modelId
+  "small_model" $smallModelId
+  "autoupdate" $autoupdate
+  "share" $share
+  "snapshot" $hasSnapshot
+  "permission" $permission
+  "compaction" $compaction
+  "tool_output" $toolOutput
+  "skills" (dict "paths" $skillsPaths)
+  "instructions" $instructionsFiles
+-}}
+
+{{- $_ := set $result "watcher" $watcher -}}
+{{- $_ := set $result "attachment" $attachment -}}
+{{- if $plugins -}}{{- $_ := set $result "plugin" $plugins -}}{{- end -}}
+{{- $disabledAgents := get $profileData "disabled_agents" | default list -}}
+{{- if $disabledAgents -}}
+{{-   $agentOverrides := dict -}}
+{{-   range $agent := $disabledAgents -}}
+{{-     $_ := set $agentOverrides $agent (dict "disable" true) -}}
+{{-   end -}}
+{{-   $_ := set $result "agent" $agentOverrides -}}
+{{- end -}}
+{{- if $hasFormatter -}}{{- $_ := set $result "formatter" true -}}{{- end -}}
+{{- if $hasLsp -}}{{- $_ := set $result "lsp" true -}}{{- end -}}
+
+{{- $result | toPrettyJson -}}

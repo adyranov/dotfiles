@@ -1,4 +1,4 @@
-{{- includeTemplate "common/headers/after" . -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 {{ $ca_bundle := joinPath .host.home ".config/certificates/ca-bundle.pem" -}}
 {{ $greyproxy_ca := joinPath .host.home ".local/share/greyproxy/ca-cert.pem" -}}
