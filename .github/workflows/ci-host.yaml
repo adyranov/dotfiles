@@ -48,21 +48,21 @@ jobs:
           key: host-homebrew-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/.chezmoidata/base/packages/*.toml', 'home/.chezmoidata/os/darwin/**', 'home/.chezmoidata/profile/**/brew.toml', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoitemplates/os/darwin/**', 'home/private_dot_config/exact_brew/**') }}
           restore-keys: host-homebrew-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-
       - name: Restore mise Cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         id: restore-mise
         with:
           path: ~/.local/share/mise/downloads
           key: host-mise-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.mise.toml', 'home/.chezmoidata/base/packages/**', 'home/.chezmoidata/os/**/packages.toml', 'home/.chezmoidata/profile/**', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoiscripts/common/run_onchange_after_01_update-mise.sh.tmpl', 'home/.chezmoiscripts/common/run_onchange_after_10_install-mise-packages.sh.tmpl') }}
           restore-keys: host-mise-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-
       - name: Restore Helm Cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         id: restore-helm
         with:
           path: ~/.local/share/helm/plugins
           key: host-helm-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('home/.chezmoidata/base/packages/kubernetes.toml', 'home/.chezmoidata/os/**/packages.toml', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoiscripts/common/run_onchange_after_20_install-helm-plugins.sh.tmpl') }}
           restore-keys: host-helm-${{ inputs.mode }}-${{ runner.os }}-${{ runner.arch }}-
       - name: Restore Krew Cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         id: restore-krew
         with:
           path: ~/.local/share/krew/store
@@ -108,19 +108,19 @@ jobs:
           key: ${{ steps.restore-homebrew.outputs.cache-primary-key }}
       - name: Save mise Cache
         if: success() && github.event_name != 'pull_request' && steps.restore-mise.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: ~/.local/share/mise/downloads
           key: ${{ steps.restore-mise.outputs.cache-primary-key }}
       - name: Save Helm Cache
         if: success() && github.event_name != 'pull_request' && steps.restore-helm.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: ~/.local/share/helm/plugins
           key: ${{ steps.restore-helm.outputs.cache-primary-key }}
       - name: Save Krew Cache
         if: success() && github.event_name != 'pull_request' && steps.restore-krew.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
         with:
           path: ~/.local/share/krew/store
           key: ${{ steps.restore-krew.outputs.cache-primary-key }}
