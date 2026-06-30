@@ -5,35 +5,18 @@ k3d = {manager = "mise", version = "k3d version", completion = {generate = "k3d 
 ]}}
 k9s = {completion = true, manager = "mise", version = "k9s version"}
 kubecolor = {manager = "mise", version = "kubecolor help", completion = {generate = "kubectl completion zsh", refresh = "kubectl version --client", sed = "s/kubectl/kubecolor/g"}}
-kubectl-access-matrix = {manager = "krew", policy = {allow = [
-  "kubectl access-matrix *"
-]}}
-kubectl-get-all = {manager = "krew", policy = {allow = [
-  "kubectl get-all *"
-]}}
-kubectl-neat = {manager = "krew", policy = {allow = ["kubectl neat *"]}}
+kubectl-access-matrix = {manager = "krew"}
+kubectl-get-all = {manager = "krew"}
+kubectl-neat = {manager = "krew"}
 kubectl-node-shell = {manager = "krew", version = "kubectl node-shell --version", policy = {deny = [
   "kubectl node-shell *"
 ]}}
-kubectl-rbac-tool = {manager = "krew", policy = {allow = [
-  "kubectl rbac-tool *"
-]}}
-kubectl-tree = {manager = "krew", policy = {allow = ["kubectl tree *"]}}
-kubescape = {completion = true, manager = "mise", package = "aqua:kubescape/kubescape", version = "kubescape help", policy = {allow = [
-  "kubescape *"
-]}}
-kustomize = {completion = true, manager = "mise", version = "kustomize version", policy = {allow = [
-  "kustomize build *",
-  "kustomize version *"
-]}}
-stern = {manager = "mise", completion = {generate = "stern --completion zsh"}, policy = {allow = [
-  "stern *"
-]}}
-yq = {manager = "mise", completion = {generate = "yq shell-completion zsh"}, policy = {allow = [
-  "yq eval *",
-  "yq eval-all *",
-  "yq version *"
-], deny = [
+kubectl-rbac-tool = {manager = "krew"}
+kubectl-tree = {manager = "krew"}
+kubescape = {completion = true, manager = "mise", package = "aqua:kubescape/kubescape", version = "kubescape help"}
+kustomize = {completion = true, manager = "mise", version = "kustomize version"}
+stern = {manager = "mise", completion = {generate = "stern --completion zsh"}}
+yq = {manager = "mise", completion = {generate = "yq shell-completion zsh"}, policy = {deny = [
   "yq * -i *",
   "yq -i *"
 ]}}
@@ -44,19 +27,6 @@ manager = "mise"
 version = "helm version"
 
 [packages.base.kubernetes.helm.policy]
-allow = [
-  "helm diff *",
-  "helm get *",
-  "helm history *",
-  "helm lint *",
-  "helm list *",
-  "helm repo list *",
-  "helm search repo *",
-  "helm show *",
-  "helm status *",
-  "helm template *",
-  "helm version *"
-]
 deny = [
   "helm * delete *",
   "helm * install *",
@@ -76,21 +46,6 @@ manager = "mise"
 version = "kubectl version --client"
 
 [packages.base.kubernetes.kubectl.policy]
-allow = [
-  "kubectl * describe *",
-  "kubectl * events *",
-  "kubectl * get *",
-  "kubectl * logs *",
-  "kubectl * top *",
-  "kubectl api-resources *",
-  "kubectl api-versions *",
-  "kubectl auth can-i *",
-  "kubectl config current-context *",
-  "kubectl config get-contexts *",
-  "kubectl explain *",
-  "kubectl options *",
-  "kubectl version *"
-]
 deny = [
   "kubectl * annotate *",
   "kubectl * apply *",
@@ -132,16 +87,6 @@ manager = "mise"
 version = "oc version --client"
 
 [packages.base.kubernetes.oc.policy]
-allow = [
-  "oc * describe *",
-  "oc * get *",
-  "oc * logs *",
-  "oc * top *",
-  "oc api-resources *",
-  "oc api-versions *",
-  "oc auth can-i *",
-  "oc version *"
-]
 deny = [
   "oc * annotate *",
   "oc * apply *",

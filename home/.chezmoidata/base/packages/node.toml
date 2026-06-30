@@ -5,7 +5,6 @@ completion = {generate = "bun completions zsh"}
 manager = "mise"
 
 [packages.base.node.bun.policy]
-allow = ["bun --version"]
 deny = ["bun login *", "bun logout *", "bun publish *"]
 
 [packages.base.node.node]
@@ -14,29 +13,6 @@ pin = "lts"
 test = "node --version && npm --version && yarn --version && pnpm --version"
 
 [packages.base.node.node.policy]
-allow = [
-  "node --version",
-  "npm --version",
-  "npm audit --dry-run *",
-  "npm explain *",
-  "npm list *",
-  "npm outdated *",
-  "npm pack --dry-run *",
-  "npm query *",
-  "npm view *",
-  "pnpm --version",
-  "pnpm audit *",
-  "pnpm list *",
-  "pnpm outdated *",
-  "pnpm view *",
-  "pnpm why *",
-  "yarn --version",
-  "yarn audit *",
-  "yarn info *",
-  "yarn list *",
-  "yarn outdated *",
-  "yarn why *"
-]
 deny = [
   "npm access *",
   "npm adduser *",

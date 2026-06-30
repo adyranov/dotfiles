@@ -5,7 +5,6 @@ manager = "mise"
 package = "aws-cli"
 
 [packages.base.cloud.aws.policy]
-allow = ["aws configure list *", "aws sts get-caller-identity *"]
 deny = [
   "aws * create-access-key *",
   "aws * delete*",
@@ -28,7 +27,6 @@ deny = [
 bin = "az"
 
 [packages.base.cloud.azure-cli.policy]
-allow = ["az account list *", "az account show *", "az version *"]
 deny = [
   "az * create*",
   "az * delete*",

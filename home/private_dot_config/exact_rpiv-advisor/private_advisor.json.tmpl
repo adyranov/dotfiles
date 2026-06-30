@@ -9,5 +9,9 @@
   "modelKey" $modelKey
   "effort" (default "high" (get $adv "thinking"))
   "disabledForModels" (concat (list $modelKey) (default (list) (get $adv "exclude")) | uniq)
+  "guidance" (dict
+    "promptSnippet" "Escalate to stronger reviewer when stuck or before declaring done"
+    "promptGuidelines" (list "Call before substantive work, when stuck, before declaring done. Make work durable first.")
+  )
   | toPrettyJson
 }}

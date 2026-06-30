@@ -2,6 +2,9 @@
 {{- $root := .root -}}
 {{- $models := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models" "required" true) | mustFromJson -}}
 
+{{- /* ── OpenCode provider aliases ── */ -}}
+{{- $ocProviderAliases := dict "openai-codex" "openai" -}}
+
 {{- /* Mapping: slim agent -> model category */ -}}
 {{- $agentMap := dict
   "orchestrator" "architect"
@@ -14,7 +17,7 @@
 -}}
 
 {{- /* MCP/skills per agent */ -}}
-{{- $starMcps := list "*" "!context7" -}}
+{{- $starMcps := list "*" "!context7" "!websearch" "!gh_grep" -}}
 {{- $librarianMcps := list "websearch" "context7" "gh_grep" -}}
 {{- $emptyMcps := list -}}
 {{- $orchestratorSkills := list "codemap" "clonedeps" "deepwork" "reflect" "oh-my-opencode-slim" "worktrees" -}}
@@ -25,14 +28,16 @@
 {{- $presetAgents := dict -}}
 {{- range $agent, $category := $agentMap -}}
 {{-   $route := index $models $category -}}
-{{-   if not $route -}}{{ continue }}{{- end -}}
+{{-   if not $route -}}
+{{-     fail (printf "render-opencode-slim-config: ai.models has no route for category %q (mapped by slim agent %q)" $category $agent) -}}
+{{-   end -}}
 {{-   $cfg := dict -}}
 {{-   $modelId := $route.model -}}
 {{-   if hasKey $route "provider" -}}
-{{-     $modelId = printf "%s/%s" $route.provider $route.model -}}
+{{-     $ocProvider := get $ocProviderAliases $route.provider | default $route.provider -}}
+{{-     $modelId = printf "%s/%s" $ocProvider $route.model -}}
 {{-   end -}}
 {{-   $_ := set $cfg "model" $modelId -}}
-
 {{-   if hasKey $route "thinking" -}}
 {{-     $thinking := $route.thinking -}}
 {{-     if ne $thinking "off" -}}
@@ -62,11 +67,14 @@
 {{- $councillors := dict -}}
 {{- range $cat := $councillorCats -}}
 {{-   $route := index $models $cat -}}
-{{-   if not $route -}}{{ continue }}{{- end -}}
+{{-   if not $route -}}
+{{-     fail (printf "render-opencode-slim-config: ai.models has no route for council category %q" $cat) -}}
+{{-   end -}}
 {{-   $cfg := dict -}}
 {{-   $modelId := $route.model -}}
 {{-   if hasKey $route "provider" -}}
-{{-     $modelId = printf "%s/%s" $route.provider $route.model -}}
+{{-     $ocProvider := get $ocProviderAliases $route.provider | default $route.provider -}}
+{{-     $modelId = printf "%s/%s" $ocProvider $route.model -}}
 {{-   end -}}
 {{-   $_ := set $cfg "model" $modelId -}}
 {{-   if hasKey $route "thinking" -}}
@@ -82,11 +90,14 @@
 {{- $council := dict "default_preset" "managed" "presets" $councilPresets -}}
 {{- $presets := dict "managed" $presetAgents -}}
 
+{{- $multiplexer := dict "type" "tmux" "layout" "main-vertical" "main_pane_size" 60 -}}
+
 {{- $result := dict
   "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"
   "preset" "managed"
   "setDefaultAgent" true
   "autoUpdate" false
+  "multiplexer" $multiplexer
   "presets" $presets
   "council" $council
 -}}

@@ -1,29 +1,17 @@
 [packages.base.core]
 atuin = {completion = {generate = "atuin gen-completions --shell zsh"}, manager = "mise"}
-bat = {completion = {generate = "bat --completion zsh"}, policy = {allow = [
-  "bat *"
-]}}
+bat = {completion = {generate = "bat --completion zsh"}}
 btop = {disabled = ["ephemeral"]}
 curl = {}
 direnv = {version = "direnv version"}
-difftastic = {manager = "mise", bin = "difft", policy = {allow = [
-  "difft *"
-]}}
-doggo = {completion = {generate = "doggo completions zsh"}, manager = "mise", package = "github:mr-karan/doggo", policy = {allow = [
-  "doggo *"
-]}}
-dust = {manager = "mise", package = "github:bootandy/dust", policy = {allow = [
-  "dust *"
-]}}
-eza = {manager = "mise", policy = {allow = ["eza *"]}}
-fd = {policy = {allow = ["fd *"]}}
-fzf = {policy = {allow = ["fzf *"]}}
-git-delta = {bin = "delta", completion = {generate = "delta --generate-completion zsh"}, policy = {allow = [
-  "delta *"
-]}}
-glow = {completion = true, manager = "mise", package = "github:charmbracelet/glow", policy = {allow = [
-  "glow *"
-]}}
+difftastic = {manager = "mise", bin = "difft"}
+doggo = {completion = {generate = "doggo completions zsh"}, manager = "mise", package = "github:mr-karan/doggo"}
+dust = {manager = "mise", package = "github:bootandy/dust"}
+eza = {manager = "mise"}
+fd = {}
+fzf = {}
+git-delta = {bin = "delta", completion = {generate = "delta --generate-completion zsh"}}
+glow = {completion = true, manager = "mise", package = "github:charmbracelet/glow"}
 gnupg = {bin = "gpg"}
 greyproxy = {disabled = [
   "ephemeral"
@@ -32,120 +20,142 @@ greywall = {disabled = [
   "ephemeral"
 ], manager = "mise", package = "github:GreyhavenHQ/greywall", completion = true}
 hyperfine = {manager = "mise"}
-jnv = {manager = "mise", package = "github:ynqa/jnv", policy = {allow = [
-  "jnv *"
-]}}
-jq = {policy = {allow = ["jq *"]}}
+jnv = {manager = "mise", package = "github:ynqa/jnv"}
+jq = {}
 lazygit = {completion = {generate = "lazygit completion zsh"}, manager = "mise"}
 mkcert = {manager = "mise", policy = {deny = ["mkcert *"]}}
 neovim = {bin = "nvim"}
 openssh-client = {bin = "ssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add"}
 ouch = {manager = "mise", package = "github:ouch-org/ouch"}
 rage = {manager = "mise", package = "github:str4d/rage"}
-ripgrep = {bin = "rg", policy = {allow = ["rg *"]}}
+ripgrep = {bin = "rg"}
 sd = {manager = "mise"}
-tealdeer = {bin = "tldr", policy = {allow = ["tldr *"]}}
+tealdeer = {bin = "tldr"}
 tmux = {version = "tmux -V"}
 topgrade = {completion = {generate = "topgrade --gen-completion zsh"}, manager = "mise", package = "github:topgrade-rs/topgrade", policy = {deny = [
   "topgrade *"
 ]}}
-vivid = {manager = "mise", policy = {allow = ["vivid *"]}}
+vivid = {manager = "mise"}
 wget = {}
 xh = {completion = {generate = "xh --generate complete-zsh"}, manager = "mise", package = "github:ducaale/xh"}
 yazi = {manager = "mise", package = "github:sxyazi/yazi"}
-zoxide = {policy = {allow = ["zoxide *"]}}
+zoxide = {}
 
 [packages.base.core.chezmoi]
 completion = true
 
 [packages.base.core.chezmoi.policy]
-allow = [
-  "chezmoi execute-template *",
-  "chezmoi data *",
-  "chezmoi diff *",
-  "chezmoi doctor *",
-  "chezmoi managed *",
-  "chezmoi status *",
-  "chezmoi verify *"
-]
 deny = ["chezmoi --remove *", "chezmoi apply *"]
 
 [packages.base.core.coreutils]
 version = "realpath --version"
 
 [packages.base.core.coreutils.policy]
-allow = [
-  "awk *",
-  "basename *",
-  "cat *",
-  "comm *",
-  "command -v *",
-  "cut *",
-  "date *",
-  "df *",
-  "diff *",
-  "dirname *",
-  "du *",
-  "echo *",
-  "env *",
-  "file *",
-  "find *",
-  "grep *",
-  "head *",
-  "id *",
-  "ls *",
-  "md5sum *",
-  "mktemp *",
-  "nl *",
-  "paste *",
-  "printf *",
-  "pwd *",
-  "readlink *",
-  "realpath *",
-  "sed -n *",
-  "seq *",
-  "sha256sum *",
-  "sort *",
-  "stat *",
-  "tail *",
-  "tput *",
-  "tr *",
-  "uname *",
-  "uniq *",
-  "wc *",
-  "which *"
+deny = [
+  # destructive filesystem
+  "rm -rf /*",
+  "rm -rf ~/*",
+  "shred *",
+  "mkfs *",
+  "dd *",
+  "diskutil erase*",
+  "diskutil partition*",
+  # privilege escalation
+  "sudo *",
+  "doas *",
+  "su *",
+  "su",
+  # system power
+  "shutdown *",
+  "reboot *",
+  "halt *",
+  "poweroff *",
+  # service management
+  "systemctl stop *",
+  "systemctl disable *",
+  "systemctl mask *",
+  "systemctl daemon-reload *",
+  "launchctl unload *",
+  "launchctl remove *",
+  "launchctl bootout *",
+  # scheduled tasks
+  "crontab -e *",
+  "crontab -r *",
+  # in-place file mutation
+  "sed -i *",
+  "sed * -i *",
+  # macOS keychain
+  "security delete-*",
+  "security add-*",
+  "security set-*",
+  "security unlock-keychain *",
+  "security dump-keychain *",
+  "security find-generic-password*",
+  "security find-internet-password*",
+  # system package managers (removal)
+  "brew uninstall *",
+  "brew remove *",
+  "brew untap *",
+  "apt remove *",
+  "apt purge *",
+  "apt-get remove *",
+  "apt-get purge *",
+  "dnf remove *",
+  "pacman -R*",
+  "snap remove *",
+  # network exfiltration tools
+  "nc *",
+  "ncat *",
+  "netcat *",
+  "socat *",
+  # credential extraction
+  "gpg --export-secret*",
+  # permission / ownership escalation
+  "chmod 777 *",
+  "chmod -R 777 *",
+  "chmod o+w *",
+  "chown * /*",
+  "chown -R * /*",
+  # destructive move of system paths
+  "mv /* *",
+  "mv /etc/* *",
+  "mv /usr/* *",
+  # symlink attacks on system dirs
+  "ln -sf * /etc/*",
+  "ln -sf * /usr/*",
+  # process kill
+  "kill -9 *",
+  "killall *",
+  "pkill *",
+  # arbitrary execution wrappers
+  "eval *",
+  "exec *",
+  # user/group management
+  "useradd *",
+  "userdel *",
+  "usermod *",
+  "groupadd *",
+  "groupdel *",
+  # mount/umount
+  "mount *",
+  "umount *",
+  # firewall / network policy
+  "iptables *",
+  "ip6tables *",
+  "nft *",
+  "pfctl *",
+  "ufw *",
+  # disk / swap
+  "swapon *",
+  "swapoff *",
+  "fdisk *",
+  "parted *"
 ]
-deny = ["rm -rf /*", "rm -rf ~/*", "sudo *", "sed -i *", "sed * -i *"]
 
 [packages.base.core.gh]
 completion = {generate = "gh completion -s zsh"}
 
 [packages.base.core.gh.policy]
-allow = [
-  "gh api repos/*/compare/*",
-  "gh api repos/*/git/*",
-  "gh auth status *",
-  "gh browse --no-browser *",
-  "gh issue list *",
-  "gh issue view *",
-  "gh label list *",
-  "gh repo list *",
-  "gh pr diff *",
-  "gh pr list *",
-  "gh pr status *",
-  "gh pr view *",
-  "gh release download *",
-  "gh release list *",
-  "gh release view *",
-  "gh repo view *",
-  "gh run download *",
-  "gh run list *",
-  "gh run view *",
-  "gh search issues *",
-  "gh search prs *",
-  "gh search repos *",
-  "gh workflow list *"
-]
 deny = [
   "gh * delete*",
   "gh * edit *",
@@ -162,33 +172,6 @@ deny = [
 [packages.base.core.git]
 
 [packages.base.core.git.policy]
-allow = [
-  "git blame *",
-  "git branch *",
-  "git check-ignore *",
-  "git config --get-regexp *",
-  "git config --get *",
-  "git describe *",
-  "git diff *",
-  "git for-each-ref *",
-  "git grep *",
-  "git log *",
-  "git ls-files *",
-  "git ls-remote *",
-  "git merge-base *",
-  "git remote -v *",
-  "git rev-list *",
-  "git rev-parse *",
-  "git shortlog *",
-  "git show *",
-  "git stash list *",
-  "git status *",
-  "git submodule status *",
-  "git tag -l *",
-  "git tag --list *",
-  "git verify-pack *",
-  "git worktree list *"
-]
 deny = [
   "git * clean *",
   "git * push --force*",
@@ -215,17 +198,10 @@ manager = "external"
 completion = true
 
 [packages.base.core.mise.policy]
-allow = [
-  "mise current *",
-  "mise list *",
-  "mise ls *",
-  "mise plugins *",
-  "mise tasks *",
-  "mise version *"
-]
 deny = ["mise run apply *", "mise trust *", "mise untrust *"]
 
 [packages.base.core.rclone]
 
 [packages.base.core.rclone.policy]
-allow = ["rclone * ls *", "rclone * lsd *", "rclone version *"]
+
+# read-only operations allowed by default; no explicit deny needed

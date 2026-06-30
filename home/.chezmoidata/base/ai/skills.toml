@@ -1,4 +1,13 @@
-[ai.base.skills]
+[ai.base.libraries.commands.plannotator-opencode]
+repo = "backnotprop/plannotator"
+prefix = "apps/opencode-plugin/commands"
+include = [
+  "plannotator-review.md",
+  "plannotator-annotate.md",
+  "plannotator-last.md"
+]
+
+[ai.base.libraries.skills]
 addyosmani = {repo = "addyosmani/agent-skills", include = [
   "api-and-interface-design",
   "ci-cd-and-automation",

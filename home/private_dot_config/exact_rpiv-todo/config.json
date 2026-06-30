@@ -1,0 +1,8 @@
+{
+  "guidance": {
+    "promptSnippet": "Track multi-step tasks",
+    "promptGuidelines": [
+      "Use for 3+ steps. One in_progress at a time. Mark completed immediately. Use blockedBy for dependencies."
+    ]
+  }
+}

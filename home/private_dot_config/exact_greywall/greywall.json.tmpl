@@ -1,17 +1,22 @@
 {{- /* Greywall kernel sandbox config — derived from shared AI path policy and package command policy.
-  Reads are project-scoped by default; sensitive paths are denied explicitly. */ -}}
+  Level 1 (sandbox): deny-all default; only allow-lists needed.
+  Level 2 (agent permissions): handled by pi-permission-system / opencode.json permission object. */ -}}
 {{- $commandPermissions := includeTemplate "base/packages/collect-policies" (dict "root" .) | mustFromJson -}}
-{{- $paths := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.paths" "required" true) | mustFromJson) -}}
-{{- $denyPaths := index $paths "deny" | default list | uniq | sortAlpha -}}
+{{- $sandbox := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.sandbox" "required" true) | mustFromJson) -}}
 {{- $cmdDeny := $commandPermissions.deny -}}
-{{- $allowRead := concat (list ".") (index $paths "allow_read" | default list) | uniq | sortAlpha -}}
-{{- $allowWrite := concat (list ".") (index $paths "allow_write" | default list) | uniq | sortAlpha -}}
+{{- $allowRead := concat (list ".") (index $sandbox "allow_read" | default list) | uniq | sortAlpha -}}
+{{- $allowWrite := concat (list ".") (index $sandbox "allow_write" | default list) | uniq | sortAlpha -}}
 {{- $greyproxy := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.sandbox.greyproxy" "required" true) | mustFromJson) -}}
+{{- $networkPolicy := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.network" "required" false) | mustFromJson) -}}
+{{- $networkRules := list -}}
+{{- range (index $networkPolicy "allow" | default list) -}}
+  {{- $networkRules = append $networkRules (dict "destination" .host "port" (toString .port) "action" "allow") -}}
+{{- end -}}
 {{- $network := dict
   "proxyUrl" (printf "socks5://localhost:%v" $greyproxy.socks)
   "httpProxyUrl" (printf "http://localhost:%v" $greyproxy.http)
   "dnsAddr" (printf "localhost:%v" $greyproxy.dns)
-  "rules" list
+  "rules" $networkRules
 -}}
 {{- $ssh := dict
   "allowedHosts" (list "github.com")
@@ -21,7 +26,7 @@
 -}}
 {{- dict
   "network" $network
-  "filesystem" (dict "defaultDenyRead" true "denyRead" $denyPaths "denyWrite" $denyPaths "allowRead" $allowRead "allowWrite" $allowWrite)
+  "filesystem" (dict "defaultDenyRead" true "allowRead" $allowRead "allowWrite" $allowWrite)
   "command" (dict "deny" $cmdDeny "useDefaults" true)
   "ssh" $ssh
 | toPrettyJson }}

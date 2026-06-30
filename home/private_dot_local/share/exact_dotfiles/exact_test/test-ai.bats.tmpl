@@ -47,8 +47,8 @@ setup() {
 {{- $agentRoutes := includeTemplate "base/helpers/render-model-category-map" (dict "root" . "field" "agents") | mustFromJson }}
 {{- $defaults := index $models $models.default }}
 {{- $plannotatorCfg := get (index $pi.profiles "core") "plannotator" | default dict }}
-{{- $paths := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.paths" "required" true) | mustFromJson) }}
-{{- $denyPaths := index $paths "deny" | default list | uniq | sortAlpha }}
+{{- $agentDeny := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) }}
+{{- $denyPaths := index $agentDeny "deny" | default list | uniq | sortAlpha }}
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi settings.json disables install telemetry" {
@@ -104,14 +104,6 @@ setup() {
   run jq -e '.skills | index("../../agents/skills/karpathy-guidelines") != null' "$HOME/.config/pi/agent/settings.json"
   assert_success
 }
-
-{{- if eq .host.profile "personal" }}
-# bats test_tags=toolchain:pi,kind:packages
-@test "pi personal settings.json does not load Cursor SDK" {
-  run grep -F '"npm:pi-cursor-sdk"' "$HOME/.config/pi/agent/settings.json"
-  assert_failure
-}
-{{- end }}
 
 # bats test_tags=toolchain:pi,kind:packages
 @test "pi factory settings.json contains rpiv-pi" {
@@ -198,6 +190,9 @@ setup() {
   run readlink -f "$HOME/.config/pi/profiles/$profile/plannotator.json"
   assert_success
   assert_output "$HOME/.config/pi/agent/plannotator.json"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/SYSTEM.md"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/SYSTEM.md"
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -205,6 +200,23 @@ setup() {
   run readlink -f "$HOME/.config/pi/profiles/factory/plannotator.json"
   assert_success
   assert_output "$HOME/.config/pi/agent/plannotator.json"
+}
+
+# bats test_tags=toolchain:pi,kind:symlink
+@test "pi minimal profile symlinks resolve to agent config" {
+  local profile="minimal"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/AGENTS.md"
+  assert_success
+  assert_output "$HOME/.config/agents/AGENTS.md"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/auth.json"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/auth.json"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/models.json"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/models.json"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/SYSTEM.md"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/SYSTEM.md"
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -234,6 +246,22 @@ setup() {
   assert_success
   assert_output --partial "--no-greywall"
   assert_output --partial "--no-update"
+  assert_output --partial "pi args"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi-agent forwards agent options" {
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  cat >"$BATS_TEST_TMPDIR/bin/pi" <<'EOF'
+#!/usr/bin/env sh
+printf '%s\n' "$@"
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/pi"
+
+  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/pi-agent" --no-greywall --no-update -c session-123
+  assert_success
+  assert_output --partial "-c"
+  assert_output --partial "session-123"
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -262,7 +290,7 @@ setup() {
 @test "agent-launch script has both greywall and direct exec paths" {
   run grep -F 'exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME"' "$HOME/.local/bin/agent-launch"
   assert_success
-  run grep -F 'exec "$BINARY_NAME" "$@"' "$HOME/.local/bin/agent-launch"
+  run grep -F 'exec "$BINARY_NAME" $EXTRA_FLAGS "$@"' "$HOME/.local/bin/agent-launch"
   assert_success
 }
 
@@ -301,12 +329,9 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:mcp
-@test "pi mcp.json declares managed MCP servers" {
+@test "pi mcp.json has no managed MCP servers" {
   assert_file_exists "$HOME/.config/pi/agent/mcp.json"
-  run jq -e '
-    (.mcpServers | keys == ["context-mode"]) and
-    (.mcpServers."context-mode".command | endswith("/context-mode"))
-  ' "$HOME/.config/pi/agent/mcp.json"
+  run jq -e '.mcpServers == {}' "$HOME/.config/pi/agent/mcp.json"
   assert_success
 }
 
@@ -334,14 +359,8 @@ setup() {
     .toolTextSummaryMaxLength == 120 and
     (.piInfrastructureReadPaths | length) > 0 and
     (.piInfrastructureReadPaths | index("~/.config/pi/**") != null) and
-    (.piInfrastructureReadPaths | index("~/.config/agents/**") != null) and
-    (.piInfrastructureReadPaths | index("~/.config/greywall/**") != null) and
     (.piInfrastructureReadPaths | index("**/node_modules/@earendil-works/pi-coding-agent/**") != null) and
-    .permission["*"] == "ask" and
-    .permission.external_directory == "allow" and
-    .permission.write == "allow" and
-    .permission.edit == "allow" and
-    .permission.task == "allow"
+    .permission["*"] == "allow"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
@@ -354,7 +373,7 @@ setup() {
   run jq -e '.permission.path[{{ $pattern | toJson }}] == "deny"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 {{- end }}
-{{- $piAgentDenyPaths := index $pi.sandbox.paths "infrastructure_deny" | default list }}
+{{- $piAgentDenyPaths := index $pi.permissions "deny" | default list }}
 {{- range $pattern := $piAgentDenyPaths }}
   run jq -e '.permission.path[{{ $pattern | toJson }}] == "deny"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
@@ -362,18 +381,14 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system: default wildcard is ask" {
-  run jq -e '.permission.bash["*"] == "ask"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+@test "pi permission-system: bash defaults to allow" {
+  run jq -e '.permission.bash["*"] == "allow"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
 
 # bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system: context-mode execution tools are ask-gated" {
-  run jq -e '
-    .permission.ctx_batch_execute == "ask" and
-    .permission.ctx_execute == "ask" and
-    .permission.ctx_execute_file == "ask"
-  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+@test "pi permission-system: default is allow (all tools accessible)" {
+  run jq -e '.permission["*"] == "allow"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
 
@@ -381,7 +396,6 @@ setup() {
 # bats test_tags=toolchain:pi,kind:permission,toolchain:cloud
 @test "pi permission-system: cloud toolchain rules" {
   run jq -e '
-    .permission.bash["aws sts get-caller-identity *"] == "allow" and
     .permission.bash["aws * s3 rm *"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
@@ -392,8 +406,6 @@ setup() {
 # bats test_tags=toolchain:pi,kind:permission,toolchain:docker
 @test "pi permission-system: docker toolchain rules" {
   run jq -e '
-    .permission.bash["docker ps *"] == "allow" and
-    .permission.bash["docker images *"] == "allow" and
     .permission.bash["docker * system prune *"] == "deny" and
     .permission.bash["docker * run * --privileged *"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
@@ -405,7 +417,6 @@ setup() {
 # bats test_tags=toolchain:pi,kind:permission,toolchain:iac
 @test "pi permission-system: iac toolchain rules" {
   run jq -e '
-    .permission.bash["tofu plan *"] == "allow" and
     .permission.bash["tofu * destroy *"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
@@ -416,9 +427,6 @@ setup() {
 # bats test_tags=toolchain:pi,kind:permission,toolchain:kubernetes
 @test "pi permission-system: kubernetes toolchain rules" {
   run jq -e '
-    .permission.bash["kubectl * get *"] == "allow" and
-    .permission.bash["kubectl * describe *"] == "allow" and
-    .permission.bash["helm list *"] == "allow" and
     .permission.bash["kubectl * delete *"] == "deny" and
     .permission.bash["helm * upgrade *"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
@@ -427,14 +435,12 @@ setup() {
 {{- end }}
 
 # bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system config gates MCP and skills by default" {
+@test "pi permission-system config: mcp and skills allowed by default" {
   run jq -e '
-    .permission.skill["*"] == "allow" and
-    .permission.mcp["*"] == "ask" and
-    .permission.mcp.mcp_status == "allow" and
-    .permission.mcp.mcp_list == "allow" and
-    .permission.mcp.mcp_search == "allow" and
-    .permission.mcp.mcp_describe == "allow"
+    # With default "*" = "allow", mcp and skill are allowed without explicit sub-namespaces
+    .permission["*"] == "allow" and
+    (.permission.mcp == null or .permission.mcp == "allow") and
+    (.permission.skill == null or .permission.skill == "allow" or .permission.skill["*"] == "allow")
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
@@ -443,13 +449,9 @@ setup() {
 # bats test_tags=toolchain:pi,kind:permission,toolchain:ai
 @test "pi permission-system: AI package rules" {
   run jq -e '
-    .permission.bash["hf download *"] == "allow" and
-    .permission.bash["hf repo ls-files *"] == "allow" and
     .permission.bash["hf auth *"] == "deny" and
     .permission.bash["hf repo delete *"] == "deny" and
-    .permission.bash["hf upload *"] == "deny" and
-    .permission.bash["llama-server --help*"] == "allow" and
-    .permission.bash["llama-server *"] != "allow"
+    .permission.bash["hf upload *"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
@@ -461,6 +463,8 @@ setup() {
 {{- if .toolchains.opencode }}
 {{- $ocModels := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson }}
 {{- $ocDefaults := index $ocModels $ocModels.default }}
+{{- $ocBuiltinAgentCategories := dict "plan" "architect" "build" "coder" "general" "researcher" "explore" "locator" "scout" "researcher" }}
+{{- $ocProviderAliases := dict "openai-codex" "openai" -}}
 
 # bats test_tags=toolchain:opencode,kind:symlink
 @test "opencode AGENTS.md fans out to global AGENTS.md" {
@@ -488,6 +492,40 @@ setup() {
   run jq -e '.model | length > 0' "$HOME/.config/opencode/opencode.json"
   assert_success
 }
+
+{{- range $agent := list "plan" "build" "general" "explore" "scout" }}
+{{-   $category := index $ocBuiltinAgentCategories $agent }}
+{{-   $route := index $ocModels $category }}
+{{-   $modelId := $route.model }}
+{{-   if hasKey $route "provider" }}{{ $ocProvider := get $ocProviderAliases $route.provider | default $route.provider }}{{ $modelId = printf "%s/%s" $ocProvider $route.model }}{{ end }}
+{{-   $thinking := get $route "thinking" | default "off" }}
+
+# bats test_tags=toolchain:opencode,kind:model
+@test "opencode.json {{ $agent }} agent uses {{ $category }} model" {
+{{-   if ne $thinking "off" }}
+  run jq -e '.agent.{{ $agent }}.model == "{{ $modelId }}" and .agent.{{ $agent }}.variant == "{{ $thinking }}"' "$HOME/.config/opencode/opencode.json"
+{{-   else }}
+  run jq -e '.agent.{{ $agent }}.model == "{{ $modelId }}" and (.agent.{{ $agent }} | has("variant") | not)' "$HOME/.config/opencode/opencode.json"
+{{-   end }}
+  assert_success
+}
+{{- end }}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json default_agent is build" {
+  run jq -e '.default_agent == "build"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+
+{{- range $agent := list "plan" "build" "general" "explore" "scout" }}
+{{-   $mode := "subagent" }}{{ if eq $agent "build" }}{{ $mode = "primary" }}{{ end }}{{ if eq $agent "plan" }}{{ $mode = "primary" }}{{ end }}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode.json {{ $agent }} agent mode is {{ $mode }}" {
+  run jq -e '.agent.{{ $agent }}.mode == "{{ $mode }}"' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
+{{- end }}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode.json contains skills path" {
@@ -518,6 +556,22 @@ setup() {
   run "$HOME/.local/bin/opencode-agent" --help
   assert_success
   assert_output --partial "--no-update"
+  assert_output --partial "opencode args"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent forwards agent options" {
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  cat >"$BATS_TEST_TMPDIR/bin/opencode" <<'EOF'
+#!/usr/bin/env sh
+printf '%s\n' "$@"
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/opencode"
+
+  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/opencode-agent" --no-greywall --no-update --continue session-123
+  assert_success
+  assert_output --partial "--continue"
+  assert_output --partial "session-123"
 }
 
 # bats test_tags=toolchain:opencode,kind:config
@@ -537,6 +591,14 @@ setup() {
 # bats test_tags=toolchain:opencode,kind:config
 @test "agent-launch script checks plugin cache with package.json" {
   run grep -F 'package.json' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "agent-launch preflight_update extracts plugin spec from tuple-form entries" {
+  run grep -F 'if type == "string" then . else .[0] end' "$HOME/.local/bin/agent-launch"
+  assert_success
+  run grep -F 'case "${plugin##*/}" in' "$HOME/.local/bin/agent-launch"
   assert_success
 }
 
@@ -569,18 +631,18 @@ setup() {
 # bats test_tags=toolchain:opencode,kind:permission
 @test "opencode.json permission defaults" {
   run jq -e '
-    .permission["*"] == "ask" and
+    .permission["*"] == "allow" and
     .permission.doom_loop == "deny" and
-    .permission.external_directory == "allow" and
-    .permission.task == "allow" and
+    .permission.bash["*"] == "allow" and
+    .permission.read != null and
     .permission.edit != null
   ' "$HOME/.config/opencode/opencode.json"
   assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:permission
-@test "opencode.json bash defaults to ask" {
-  run jq -e '.permission.bash["*"] == "ask"' "$HOME/.config/opencode/opencode.json"
+@test "opencode.json bash defaults to allow" {
+  run jq -e '.permission.bash["*"] == "allow"' "$HOME/.config/opencode/opencode.json"
   assert_success
 }
 
@@ -626,7 +688,7 @@ setup() {
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode.json core profile includes plannotator but not slim" {
-  run jq -e '.plugin | index("@plannotator/opencode") != null' "$HOME/.config/opencode/opencode.json"
+  run jq -e '.plugin[] | select(type == "array" and .[0] == "@plannotator/opencode@latest" and .[1].workflow == "plan-agent" and .[1].planningAgents == ["plan"])' "$HOME/.config/opencode/opencode.json"
   assert_success
   run jq -e '.plugin | index("oh-my-opencode-slim") | not' "$HOME/.config/opencode/opencode.json"
   assert_success
@@ -647,9 +709,80 @@ setup() {
   assert_success
   run jq -e '.plugin | index("oh-my-opencode-slim") != null' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
-  run jq -e '.plugin | index("@plannotator/opencode") != null' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  run jq -e '.plugin[] | select(type == "array" and .[0] == "@plannotator/opencode@latest" and .[1].workflow == "plan-agent" and .[1].planningAgents == ["orchestrator"])' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
 }
+
+{{- range $agent := list "plan" "build" "general" "explore" "scout" }}
+{{-   $category := index $ocBuiltinAgentCategories $agent }}
+{{-   $route := index $ocModels $category }}
+{{-   $modelId := $route.model }}
+{{-   if hasKey $route "provider" }}{{ $ocProvider := get $ocProviderAliases $route.provider | default $route.provider }}{{ $modelId = printf "%s/%s" $ocProvider $route.model }}{{ end }}
+{{-   $thinking := get $route "thinking" | default "off" }}
+
+# bats test_tags=toolchain:opencode,kind:model
+@test "opencode factory {{ $agent }} agent uses {{ $category }} model" {
+{{-   if ne $thinking "off" }}
+  run jq -e '.agent.{{ $agent }}.model == "{{ $modelId }}" and .agent.{{ $agent }}.variant == "{{ $thinking }}"' "$HOME/.config/opencode/profiles/factory/opencode.json"
+{{-   else }}
+  run jq -e '.agent.{{ $agent }}.model == "{{ $modelId }}" and (.agent.{{ $agent }} | has("variant") | not)' "$HOME/.config/opencode/profiles/factory/opencode.json"
+{{-   end }}
+  assert_success
+}
+{{- end }}
+
+{{- $ocSlimAgentCategories := dict "orchestrator" "architect" "oracle" "oracle" "council" "auditor" "librarian" "locator" "explorer" "researcher" "designer" "coder" "fixer" "coder" }}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory default_agent is orchestrator" {
+  run jq -e '.default_agent == "orchestrator"' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+{{- range $agent, $category := $ocSlimAgentCategories }}
+{{-   $route := index $ocModels $category }}
+{{-   $modelId := $route.model }}
+{{-   if hasKey $route "provider" }}{{ $ocProvider := get $ocProviderAliases $route.provider | default $route.provider }}{{ $modelId = printf "%s/%s" $ocProvider $route.model }}{{ end }}
+{{-   $thinking := get $route "thinking" | default "off" }}
+
+# bats test_tags=toolchain:opencode,kind:model
+@test "opencode factory slim {{ $agent }} uses {{ $category }} model" {
+{{-   if ne $thinking "off" }}
+  run jq -e '.presets.managed.{{ $agent }}.model == "{{ $modelId }}" and .presets.managed.{{ $agent }}.variant == "{{ $thinking }}"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+{{-   else }}
+  run jq -e '.presets.managed.{{ $agent }}.model == "{{ $modelId }}" and (.presets.managed.{{ $agent }} | has("variant") | not)' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+{{-   end }}
+  assert_success
+}
+{{- end }}
+
+{{- $ocSlimCouncilCats := list "architect" "auditor" "coder" }}
+{{- range $cat := $ocSlimCouncilCats }}
+{{-   $route := index $ocModels $cat }}
+{{-   $modelId := $route.model }}
+{{-   if hasKey $route "provider" }}{{ $ocProvider := get $ocProviderAliases $route.provider | default $route.provider }}{{ $modelId = printf "%s/%s" $ocProvider $route.model }}{{ end }}
+{{-   $thinking := get $route "thinking" | default "off" }}
+
+# bats test_tags=toolchain:opencode,kind:model
+@test "opencode factory slim council {{ $cat }} uses {{ $cat }} model" {
+{{-   if ne $thinking "off" }}
+  run jq -e '.council.presets.managed.{{ $cat }}.model == "{{ $modelId }}" and .council.presets.managed.{{ $cat }}.variant == "{{ $thinking }}"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+{{-   else }}
+  run jq -e '.council.presets.managed.{{ $cat }}.model == "{{ $modelId }}" and (.council.presets.managed.{{ $cat }} | has("variant") | not)' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+{{-   end }}
+  assert_success
+}
+{{- end }}
+
+{{- range $agent := list "plan" "build" "general" "explore" "scout" }}
+{{-   $mode := "subagent" }}{{ if eq $agent "build" }}{{ $mode = "primary" }}{{ end }}{{ if eq $agent "plan" }}{{ $mode = "primary" }}{{ end }}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory {{ $agent }} agent mode is {{ $mode }}" {
+  run jq -e '.agent.{{ $agent }}.mode == "{{ $mode }}"' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+{{- end }}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory profile does not include opencode-worktree as plugin" {
@@ -694,13 +827,13 @@ setup() {
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory disables built-in explore agent" {
-  run jq -e '.agent.explore.disable == true' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  run jq -e '.agent.explore.disable == true and .agent.explore.mode == "subagent" and (.agent.explore.model | length > 0)' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory disables built-in general agent" {
-  run jq -e '.agent.general.disable == true' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  run jq -e '.agent.general.disable == true and .agent.general.mode == "subagent" and (.agent.general.model | length > 0)' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
 }
 
@@ -751,6 +884,38 @@ setup() {
   for skill in simplify codemap clonedeps deepwork reflect oh-my-opencode-slim worktrees; do
     link="$HOME/.config/opencode/profiles/factory/skills/$skill"
     assert_symlink_to "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/$skill" "$link"
+  done
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode plannotator-opencode command library files exist" {
+  for cmd in plannotator-review.md plannotator-annotate.md plannotator-last.md; do
+    assert_file_exists "$HOME/.config/agents/libraries/commands/plannotator-opencode/$cmd"
+  done
+}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode core profile plannotator command symlinks resolve" {
+  for cmd in plannotator-review.md plannotator-annotate.md plannotator-last.md; do
+    link="$HOME/.config/opencode/commands/$cmd"
+    target="$HOME/.config/agents/libraries/commands/plannotator-opencode/$cmd"
+    assert_symlink_to "$target" "$link"
+  done
+}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode factory profile plannotator command symlinks resolve" {
+  for cmd in plannotator-review.md plannotator-annotate.md plannotator-last.md; do
+    link="$HOME/.config/opencode/profiles/factory/commands/$cmd"
+    target="$HOME/.config/agents/libraries/commands/plannotator-opencode/$cmd"
+    assert_symlink_to "$target" "$link"
+  done
+}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode minimal profile has no plannotator command symlinks" {
+  for cmd in plannotator-review.md plannotator-annotate.md plannotator-last.md; do
+    assert_not_exists "$HOME/.config/opencode/profiles/minimal/commands/$cmd"
   done
 }
 
@@ -829,69 +994,6 @@ setup() {
 
 {{- range $agent := $permAgents }}
 
-# bats test_tags={{ $agent.tag }},kind:permission
-@test "{{ $agent.name }} bash: core allow rules" {
-  run jq -e '
-    .permission.bash["git status *"] == "allow" and
-    .permission.bash["git diff *"] == "allow" and
-    .permission.bash["git blame *"] == "allow" and
-    .permission.bash["git config --get *"] == "allow" and
-    .permission.bash["git tag --list *"] == "allow" and
-    .permission.bash["git describe *"] == "allow" and
-    .permission.bash["git ls-remote *"] == "allow" and
-    .permission.bash["git merge-base *"] == "allow" and
-    .permission.bash["git worktree list *"] == "allow" and
-    .permission.bash["chezmoi diff *"] == "allow" and
-    .permission.bash["gh run list *"] == "allow" and
-    .permission.bash["gh release list *"] == "allow" and
-    .permission.bash["gh search repos *"] == "allow"
-  ' "{{ $agent.config }}"
-  assert_success
-}
-
-# bats test_tags={{ $agent.tag }},kind:permission
-@test "{{ $agent.name }} bash: node and AI metadata allow" {
-  run jq -e '
-    .permission.bash["npm view *"] == "allow" and
-    .permission.bash["npm list *"] == "allow" and
-    .permission.bash["npm explain *"] == "allow" and
-    .permission.bash["hf download *"] == "allow"
-  ' "{{ $agent.config }}"
-  assert_success
-}
-
-{{- if $.toolchains.rust }}
-# bats test_tags={{ $agent.tag }},kind:permission,toolchain:rust
-@test "{{ $agent.name }} bash: rust metadata allow" {
-  run jq -e '
-    .permission.bash["cargo metadata *"] == "allow" and
-    .permission.bash["cargo tree *"] == "allow"
-  ' "{{ $agent.config }}"
-  assert_success
-}
-{{- end }}
-
-{{- if $.toolchains.golang }}
-# bats test_tags={{ $agent.tag }},kind:permission,toolchain:golang
-@test "{{ $agent.name }} bash: golang metadata allow" {
-  run jq -e '
-    .permission.bash["go mod graph *"] == "allow" and
-    .permission.bash["go mod why *"] == "allow"
-  ' "{{ $agent.config }}"
-  assert_success
-}
-{{- end }}
-
-{{- if $.toolchains.kubernetes }}
-# bats test_tags={{ $agent.tag }},kind:permission,toolchain:kubernetes
-@test "{{ $agent.name }} bash: helm metadata allow" {
-  run jq -e '
-    .permission.bash["helm show *"] == "allow" and
-    .permission.bash["helm template *"] == "allow"
-  ' "{{ $agent.config }}"
-  assert_success
-}
-{{- end }}
 
 # bats test_tags={{ $agent.tag }},kind:permission
 @test "{{ $agent.name }} bash: core deny rules" {
@@ -939,10 +1041,6 @@ setup() {
   assert_success
   run grep -F 'brew "adyranov/tap/llama-cpp"' "$HOMEBREW_BUNDLE_FILE"
   assert_success
-  run grep -F 'brew "adyranov/tap/stable-diffusion-cpp"' "$HOMEBREW_BUNDLE_FILE"
-  assert_success
-  run grep -F 'brew "adyranov/tap/whisper-cpp"' "$HOMEBREW_BUNDLE_FILE"
-  assert_success
   run grep -F 'brew "llama.cpp"' "$HOMEBREW_BUNDLE_FILE"
   assert_failure
   run command -v llama-bench
@@ -950,10 +1048,6 @@ setup() {
   run command -v llama-server
   assert_success
   run command -v llama-cli
-  assert_success
-  run command -v whisper-cli
-  assert_success
-  run command -v sd-cli
   assert_success
   run test -d "$HOME/.local/state/llama-x86-mac"
   assert_failure
@@ -981,6 +1075,13 @@ setup() {
   assert_failure
   run grep -F 'GGUF_DIR' "$HOME/.config/shell/exports.d/ai-agents.sh"
   assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "shell exports configure plannotator data dir" {
+  assert_file_exists "$HOME/.config/shell/exports.d/ai-agents.sh"
+  run grep -F 'export PLANNOTATOR_DATA_DIR="$XDG_DATA_HOME/plannotator"' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_success
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm
@@ -1311,6 +1412,12 @@ setup() {
   assert_success
   run grep -F 'BENCH_SENTENCE=' "{{ $llmBench }}"
   assert_success
+  run grep -F 'LLM_BENCH_OMLX_WARMUP_RUNS' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'LLM_BENCH_OMLX_EXTRA_ARGS' "{{ $llmBench }}"
+  assert_success
+  run grep -F 'prompt=%s tok' "{{ $llmBench }}"
+  assert_success
   run grep -F 'llama-bench' "{{ $llmBench }}"
   assert_failure
 }
@@ -1363,8 +1470,8 @@ setup() {
 
 # bats test_tags=toolchain:ai,kind:local-llm,toolchain:pi,kind:model
 @test "pi settings.json uses standard compaction defaults" {
-  assert_file_exists "$HOME/.config/pi/agent/settings.json"
-  run jq -e '.compaction.keepRecentTokens == 20000 and .compaction.reserveTokens == 16384' "$HOME/.config/pi/agent/settings.json"
+  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
+  run jq -e '.compaction.keepRecentTokens == 20000 and .compaction.reserveTokens == 16384' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
 }
 {{- end }}
@@ -1400,8 +1507,8 @@ setup() {
 # --- Per-agent permission settings (from ai path data and package policy) ---
 
 {{- if ne .host.type "ephemeral" }}
-{{- $paths := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.paths" "required" true) | mustFromJson) }}
-{{- $denyPaths := index $paths "deny" | default list | uniq | sortAlpha }}
+{{- $agentDeny := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) }}
+{{- $denyPaths := index $agentDeny "deny" | default list | uniq | sortAlpha }}
 {{- $greywallDir := "$HOME/.config/greywall" }}
 {{- if eq .host.distro.family "darwin" }}
 {{- $greywallDir = "$HOME/Library/Application Support/greywall" }}
@@ -1420,21 +1527,20 @@ setup() {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
   run jq -e '
     .filesystem.defaultDenyRead == true and
-    .filesystem.allowRead == [".", "~/.config/certificates/ca-bundle.pem", "~/.config/npm/npmrc"] and
-    .filesystem.allowWrite == ["."] and
-    (.filesystem.denyRead | index("**/.env") != null) and
-    (.filesystem.denyRead | index("~/.ssh/**") != null) and
-    (.filesystem.denyWrite | index("**/.env") != null) and
-    (.filesystem.denyWrite | index("~/.ssh/**") != null) and
+    .filesystem.allowRead == [".", "~/.config/agents/**", "~/.config/certificates/ca-bundle.pem", "~/.config/greywall/**", "~/.config/npm/npmrc"] and
+    (.filesystem.allowWrite | index("~/.cache/npm") != null) and
+    (.filesystem.allowWrite | index("~/.cache/node-gyp") != null) and
+    (.filesystem.allowWrite | index("~/.local/state/npm") != null) and
+    (.filesystem.denyRead | not) and
+    (.filesystem.denyWrite | not) and
     (.command.allow | not) and
     (.command.deny | index("git * reset --hard *") != null) and
     (.command.deny | index("docker * system prune *") != null) and
-    (.filesystem.denyRead | index("~/.config/pi/**/auth.json") | not) and
-    (.filesystem.denyRead | index("~/.config/opencode/**/auth.json") | not) and
     .network.proxyUrl == "socks5://localhost:43052" and
     .network.httpProxyUrl == "http://localhost:43051" and
     .network.dnsAddr == "localhost:43053" and
-    (.network.rules // []) == [] and
+    ((.network.rules // []) | length) > 0 and
+    (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
     .ssh.allowedHosts == ["github.com"] and
     .ssh.allowedCommands == ["git-upload-pack"] and
     (.ssh.deniedCommands | index("git-receive-pack") != null) and
@@ -1444,29 +1550,37 @@ setup() {
   assert_success
 }
 
-# bats test_tags=kind:greywall
-@test "greywall global policy has no broad network allow" {
-  assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e '((.network.rules // []) | all(.action != "allow" or (.destination | contains("*") | not)))' "{{ $greywallDir }}/greywall.json"
-  assert_success
-}
 
 # bats test_tags=kind:greywall
-@test "greywall global policy leaves pi runtime paths to the pi profile" {
+@test "greywall global policy has no filesystem deny lists (allow-only model)" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
   run jq -e '
-    (.filesystem.denyRead | index("~/.config/pi/agent/sessions/**") | not) and
-    (.filesystem.denyRead | index("**/.config/pi/agent/sessions/**") | not) and
-    (.filesystem.denyRead | index("~/.config/pi/agent/state.json") | not) and
-    (.filesystem.denyRead | index("**/.config/pi/agent/state.json") | not) and
-    (.filesystem.denyWrite | index("~/.config/pi/agent/sessions/**") | not) and
-    (.filesystem.denyWrite | index("**/.config/pi/agent/sessions/**") | not) and
-    (.filesystem.denyWrite | index("~/.config/pi/agent/state.json") | not) and
-    (.filesystem.denyWrite | index("**/.config/pi/agent/state.json") | not)
+    (.filesystem.denyRead | not) and
+    (.filesystem.denyWrite | not)
   ' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
 
+# bats test_tags=kind:greywall
+@test "greywall global policy has no catch-all network allow" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '(.network.rules // []) | all(.destination != "*" and (.destination | test("^\\*\\.\\*") | not))' "{{ $greywallDir }}/greywall.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall
+@test "greywall opencode profile has no catch-all network allow" {
+  assert_file_exists "{{ $greywallDir }}/learned/opencode.json"
+  run jq -e '(.network.rules // []) | all(.destination != "*" and (.destination | test("^\\*\\.\\*") | not))' "{{ $greywallDir }}/learned/opencode.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall
+@test "greywall pi profile has no catch-all network allow" {
+  assert_file_exists "{{ $greywallDir }}/learned/pi.json"
+  run jq -e '(.network.rules // []) | all(.destination != "*" and (.destination | test("^\\*\\.\\*") | not))' "{{ $greywallDir }}/learned/pi.json"
+  assert_success
+}
 {{- if .toolchains.ai }}
 # bats test_tags=kind:greywall,toolchain:ai
 @test "greywall command policy includes AI package denies" {
@@ -1486,25 +1600,24 @@ setup() {
   assert_file_exists "{{ $greywallDir }}/learned/pi.json"
   run jq -e '
     .schemaVersion == 1 and
-    (.filesystem.allowWrite | index("~/.cache/node-gyp") != null) and
-    (.filesystem.allowWrite | index("~/.cache/node-gyp/**") != null) and
-    (.filesystem.allowWrite | index("~/.cache/npm") != null) and
-    (.filesystem.allowWrite | index("~/.cache/npm/**") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/npm") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/npm/**") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/pi-hermes-memory") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/pi-hermes-memory/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/context-mode") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/context-mode/**") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/profiles/factory") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/**") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/npm") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/npm/**") != null) and
-    (.filesystem.allowWrite | index("~/.local/state/npm") != null) and
-    (.filesystem.allowWrite | index("~/.local/state/npm/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/rpiv-web-tools") != null) and
+    (.filesystem.allowWrite | index("~/.config/rpiv-web-tools/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/rpiv-advisor") != null) and
+    (.filesystem.allowWrite | index("~/.local/share/plannotator") != null) and
     (.filesystem.allowWrite | index("~/.pi-lens") != null) and
-    (.filesystem.allowWrite | index("~/Library/Caches/node-gyp") != null) and
-    (.filesystem.allowWrite | index("~/Library/Caches/node-gyp/**") != null) and
-    (.network.rules // [] | map(.destination) | index("*.npmjs.org") | not) and
-    (.network.rules[] | select(.destination == "opencode.ai" and (.port | tostring) == "443" and .action == "allow")) and
+    (.filesystem.allowRead | index("~/.config/pi/**") != null) and
+    (.filesystem.allowRead | index("~/.config/rpiv-web-tools/**") != null) and
+    (.network.rules // [] | map(.destination) | index("registry.npmjs.org") != null) and
     (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow")) and
     (.network.rules[] | select(.destination == "registry.npmjs.org" and (.port | tostring) == "443" and .action == "allow"))
   ' "{{ $greywallDir }}/learned/pi.json"
@@ -1521,20 +1634,11 @@ setup() {
     (.filesystem.allowWrite | index("~/.local/state/opencode") != null) and
     (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
     (.network.rules[] | select(.destination == "opencode.ai" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "github.com" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "registry.npmjs.org" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "huggingface.co" and (.port | tostring) == "443" and .action == "allow"))
+    (.network.rules[] | select(.destination == "docs.opencode.ai" and (.port | tostring) == "443" and .action == "allow"))
   ' "{{ $greywallDir }}/learned/opencode.json"
   assert_success
 }
 
-# bats test_tags=kind:greywall
-@test "greywall opencode profile has no wildcard network allow" {
-  assert_file_exists "{{ $greywallDir }}/learned/opencode.json"
-  run jq -e '(.network.rules // []) | all(.action != "allow" or (.destination | contains("*") | not))' "{{ $greywallDir }}/learned/opencode.json"
-  assert_success
-}
 
 # bats test_tags=kind:greywall
 @test "greywall opencode profile excludes pi-specific hosts" {
@@ -1546,22 +1650,33 @@ setup() {
 }
 
 # bats test_tags=kind:greywall
-@test "greywall pi profile includes shared network hosts" {
+@test "greywall pi profile excludes opencode-specific hosts" {
   assert_file_exists "{{ $greywallDir }}/learned/pi.json"
   run jq -e '
-    (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "github.com" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "raw.githubusercontent.com" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "pypi.org" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "huggingface.co" and (.port | tostring) == "443" and .action == "allow"))
+    (.network.rules // [] | map(.destination) | index("opencode.ai") | not) and
+    (.network.rules // [] | map(.destination) | index("docs.opencode.ai") | not)
   ' "{{ $greywallDir }}/learned/pi.json"
   assert_success
 }
 
 # bats test_tags=kind:greywall
-@test "greywall pi profile has no wildcard network allow" {
-  assert_file_exists "{{ $greywallDir }}/learned/pi.json"
-  run jq -e '(.network.rules // []) | all(.action != "allow" or (.destination | contains("*") | not))' "{{ $greywallDir }}/learned/pi.json"
+@test "greywall global policy includes shared network hosts" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '
+    (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "github.com" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "*.githubusercontent.com" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "pypi.org" and (.port | tostring) == "443" and .action == "allow")) and
+    (.network.rules[] | select(.destination == "huggingface.co" and (.port | tostring) == "443" and .action == "allow"))
+  ' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
+
+# bats test_tags=kind:greywall
+@test "greywall pi learned profile is valid JSON" {
+  assert_file_exists "{{ $greywallDir }}/learned/pi.json"
+  run jq -e '.schemaVersion == 1' "{{ $greywallDir }}/learned/pi.json"
+  assert_success
+}
+
 {{- end }}

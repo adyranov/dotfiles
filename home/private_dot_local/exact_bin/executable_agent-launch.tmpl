@@ -107,10 +107,13 @@ preflight_update() {
       config_file="$dir/opencode.json"
       [ -f "$config_file" ] || return 0
       command -v jq >/dev/null 2>&1 || return 0
-      plugins=$(jq -r '.plugin[] | select(type == "string")' "$config_file" 2>/dev/null) || return 0
+      plugins=$(jq -r '.plugin[] | (if type == "string" then . else .[0] end)' "$config_file" 2>/dev/null) || return 0
       missing=0
       for plugin in $plugins; do
-        cache_dir="$CACHE_HOME/opencode/packages/${plugin}@latest"
+        case "${plugin##*/}" in
+          *@*) cache_dir="$CACHE_HOME/opencode/packages/${plugin}" ;;
+          *)   cache_dir="$CACHE_HOME/opencode/packages/${plugin}@latest" ;;
+        esac
         if [ ! -f "$cache_dir/package.json" ]; then
           warn "Plugin cache: $plugin (not installed)"
           missing=$((missing + 1))
@@ -154,7 +157,8 @@ usage() {
   case "$AGENT_NAME" in
     pi)
       cat <<'EOF'
-Usage: pi-agent [profile] [--no-greywall] [--no-update] [-- pi args...]
+Usage: pi-agent [profile] [--no-greywall] [--no-update] [pi args...]
+       pi-agent [profile] [--no-greywall] [--no-update] -- [pi args...]
        pi-agent --list
        pi-agent --print-env [profile]
 
@@ -167,6 +171,9 @@ Options:
   --no-greywall       run pi directly without greywall sandbox
   --no-update         skip pi extension update before launch
 
+Args:
+  pi args             forwarded to pi, for example to continue a session
+
 Commands:
   --list              list available profiles
   --print-env [prof]  print env vars for profile
@@ -174,7 +181,8 @@ EOF
       ;;
     opencode)
       cat <<'EOF'
-Usage: opencode-agent [profile] [--no-greywall] [--no-update] [-- opencode args...]
+Usage: opencode-agent [profile] [--no-greywall] [--no-update] [opencode args...]
+       opencode-agent [profile] [--no-greywall] [--no-update] -- [opencode args...]
        opencode-agent --list
        opencode-agent --print-env [profile]
 
@@ -186,6 +194,9 @@ Profiles:
 Options:
   --no-greywall       run opencode directly without greywall sandbox
   --no-update         skip dependency preflight check
+
+Args:
+  opencode args       forwarded to opencode, for example to continue a session
 
 Commands:
   --list              list available profiles
@@ -266,14 +277,20 @@ while [ $# -gt 0 ]; do
     --) shift; break ;;
     --no-greywall) no_greywall=true; shift ;;
     --no-update) no_update=true; shift ;;
-    -*) die "Unknown option: $1" ;;
-    *) profile="$1"; shift ;;
+    core|default|factory|minimal) profile="$1"; shift ;;
+    *) break ;;
   esac
 done
 
 # ── Launch ──
 dir=$(profile_dir "$profile")
 set_runtime_env "$dir" "$profile"
+
+# ── Agent-specific extra flags ──
+case "$AGENT_NAME" in
+  pi) EXTRA_FLAGS="-xt ast_search,ast_dump,grep,find" ;;
+  *)  EXTRA_FLAGS="" ;;
+esac
 
 info "Profile: ${_BO}${profile}${_NO}"
 
@@ -283,9 +300,10 @@ fi
 
 if [ "$no_greywall" = true ]; then
   ok "Sandbox: disabled (--no-greywall)"
-  exec "$BINARY_NAME" "$@"
+  exec "$BINARY_NAME" $EXTRA_FLAGS "$@"
 else
   dim "Launch: greywall --profile $GREYWALL_PROFILE -- $BINARY_NAME ..."
+  export PLANNOTATOR_REMOTE=1
   ensure_greyproxy
-  exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" "$@"
+  exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" $EXTRA_FLAGS "$@"
 fi

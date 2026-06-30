@@ -4,7 +4,6 @@
 manager = "mise"
 
 [packages.base.opencode.opencode.policy]
-allow = ["opencode --help", "opencode --version", "opencode list*"]
 deny = [
   "opencode auth *",
   "opencode login *",

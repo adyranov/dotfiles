@@ -1,33 +1,12 @@
 [packages.base.docker]
-dive = {manager = "mise", package = "github:wagoodman/dive", policy = {allow = [
-  "dive *"
-]}}
-docker-buildx = {version = "docker buildx version", policy = {allow = [
-  "docker buildx version *"
-]}}
+dive = {manager = "mise", package = "github:wagoodman/dive"}
+docker-buildx = {version = "docker buildx version"}
 lazydocker = {manager = "mise", package = "aqua:jesseduffield/lazydocker"}
 
 [packages.base.docker.docker]
 completion = true
 
 [packages.base.docker.docker.policy]
-allow = [
-  "docker container inspect *",
-  "docker context inspect *",
-  "docker context ls *",
-  "docker context show *",
-  "docker image inspect *",
-  "docker images *",
-  "docker info *",
-  "docker inspect *",
-  "docker logs *",
-  "docker network inspect *",
-  "docker network ls *",
-  "docker ps *",
-  "docker version *",
-  "docker volume inspect *",
-  "docker volume ls *"
-]
 deny = [
   "docker * cp *",
   "docker * exec *",
@@ -59,13 +38,6 @@ deny = [
 version = "docker compose version"
 
 [packages.base.docker.docker-compose.policy]
-allow = [
-  "docker compose config *",
-  "docker compose logs *",
-  "docker compose ls *",
-  "docker compose ps *",
-  "docker compose top *"
-]
 deny = [
   "docker compose down *",
   "docker compose exec *",

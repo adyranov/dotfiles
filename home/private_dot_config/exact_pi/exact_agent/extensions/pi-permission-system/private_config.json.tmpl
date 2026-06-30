@@ -1,50 +1,18 @@
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
 {{- $commandPermissions := includeTemplate "base/packages/collect-policies" (dict "root" .) | mustFromJson -}}
-{{- $paths := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.paths" "required" true) | mustFromJson) -}}
-{{- $sandboxTools := $pi.sandbox.tools -}}
-{{- $piInfrastructureReadPaths := index $pi.sandbox.paths "infrastructure_read" | default list -}}
-{{- $piAgentDenyPaths := index $pi.sandbox.paths "infrastructure_deny" | default list -}}
-{{- $denyPaths := concat (index $paths "deny" | default list | uniq | sortAlpha) $piAgentDenyPaths | uniq -}}
+{{- $agentPerms := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) -}}
+{{- $piInfrastructureReadPaths := index $pi.sandbox.paths "allow_read" | default list -}}
+{{- $piAgentDenyPaths := index $pi.permissions "deny" | default list -}}
+{{- $denyPaths := concat (index $agentPerms "deny" | default list | uniq | sortAlpha) $piAgentDenyPaths | uniq -}}
 {{- $path := dict "*" "allow" -}}
 {{- range $pattern := $denyPaths -}}
 {{-   $_ := set $path $pattern "deny" -}}
 {{- end -}}
-{{- $bash := dict "*" "ask" -}}
-{{- range $pattern := $commandPermissions.allow -}}
-{{-   $_ := set $bash $pattern "allow" -}}
-{{- end -}}
-{{- range $pattern := $commandPermissions.ask -}}
-{{-   $_ := set $bash $pattern "ask" -}}
-{{- end -}}
+{{- $bash := dict "*" "allow" -}}
 {{- range $pattern := $commandPermissions.deny -}}
 {{-   $_ := set $bash $pattern "deny" -}}
 {{- end -}}
-{{- $permission := dict "*" (index $sandboxTools "default" | default "ask") -}}
-{{- range $tool := index $sandboxTools "allow" | default list -}}
-{{-   $_ := set $permission $tool "allow" -}}
-{{- end -}}
-{{- range $tool := index $sandboxTools "ask" | default list -}}
-{{-   $_ := set $permission $tool "ask" -}}
-{{- end -}}
-{{- range $tool := index $sandboxTools "deny" | default list -}}
-{{-   $_ := set $permission $tool "deny" -}}
-{{- end -}}
-{{- $reserved := list "default" "allow" "ask" "deny" -}}
-{{- range $name, $config := $sandboxTools -}}
-{{-   if not (has $name $reserved) -}}
-{{-     $sub := dict "*" (index $config "default" | default "ask") -}}
-{{-     range $t := index $config "allow" | default list -}}
-{{-       $_ := set $sub $t "allow" -}}
-{{-     end -}}
-{{-     range $t := index $config "ask" | default list -}}
-{{-       $_ := set $sub $t "ask" -}}
-{{-     end -}}
-{{-     range $t := index $config "deny" | default list -}}
-{{-       $_ := set $sub $t "deny" -}}
-{{-     end -}}
-{{-     $_ := set $permission $name $sub -}}
-{{-   end -}}
-{{- end -}}
+{{- $permission := dict "*" "allow" -}}
 {{- $_ := set $permission "bash" $bash -}}
 {{- $_ := set $permission "path" $path -}}
 {{- dict

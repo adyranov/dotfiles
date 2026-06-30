@@ -1,0 +1,8 @@
+{
+  "guidance": {
+    "promptSnippet": "Ask structured questions when ambiguous",
+    "promptGuidelines": [
+      "2-4 options. Don't author 'Type something'. Use multiSelect when non-exclusive. Use preview for code/mockup comparisons."
+    ]
+  }
+}

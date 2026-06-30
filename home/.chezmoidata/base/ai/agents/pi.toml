@@ -2,7 +2,13 @@
 settings = {bash_mode = {toggle_shortcut = "ctrl+shift+b", transcript_max_bytes = 524288, transcript_max_lines = 2000}, powerline = {fixed_editor = true, mouse_scroll = true, preset = "full"}, theme = "catppuccin-mocha"}
 
 [ai.base.agents.pi.mcp_servers]
-context-mode = {command_path = "context-mode"}
+
+[ai.base.agents.pi.permissions]
+deny = [
+  "~/.config/pi/agent/auth.json",
+  "~/.config/pi/profiles/minimal/auth.json",
+  "~/.config/pi/profiles/factory/auth.json"
+]
 
 [ai.base.agents.pi.profiles.core]
 extends = "minimal"
@@ -13,7 +19,6 @@ packages = [
   "pi-lens",
   "pi-hashline-readmap",
   "pi-mcp-adapter",
-  "context-mode",
   "@plannotator/pi-extension",
   "@juicesharp/rpiv-web-tools",
   "@juicesharp/rpiv-advisor",
@@ -22,12 +27,12 @@ packages = [
   "@juicesharp/rpiv-args",
   "@juicesharp/rpiv-todo",
   "pi-context",
-  "pi-hermes-memory"
+  "pi-hermes-memory",
+  "pi-caveman"
 ]
 skills = ["karpathy-guidelines"]
 
 [ai.base.agents.pi.profiles.core.package_filters]
-context-mode = {skills = []}
 
 [ai.base.agents.pi.profiles.factory]
 extends = "core"
@@ -51,103 +56,31 @@ packages = [
 skills = []
 
 [ai.base.agents.pi.sandbox.network]
-allow = [
-  {host = "pi.dev", port = 443}
-]
+allow = [{host = "pi.dev", port = 443}]
 
 [ai.base.agents.pi.sandbox.paths]
-infrastructure_deny = [
-  "~/.config/pi/agent/auth.json",
-  "~/.config/pi/profiles/minimal/auth.json",
-  "~/.config/pi/profiles/factory/auth.json"
-]
-infrastructure_read = [
+allow_read = [
   "~/.config/pi/**",
-  "~/.config/agents/**",
-  "~/.config/greywall/**",
+  "~/.config/rpiv-advisor/**",
+  "~/.config/rpiv-pi/**",
+  "~/.config/rpiv-web-tools/**",
+  "~/.config/rpiv-todo/**",
+  "~/.config/rpiv-ask-user-question/**",
   "~/.local/share/plannotator/**",
   "**/node_modules/@earendil-works/pi-coding-agent/**"
 ]
 allow_write = [
-  "~/.cache/node-gyp",
-  "~/.cache/node-gyp/**",
-  "~/.cache/npm",
-  "~/.cache/npm/**",
   "~/.config/pi/agent/npm",
   "~/.config/pi/agent/npm/**",
   "~/.config/pi/agent/sessions",
   "~/.config/pi/agent/sessions/**",
+  "~/.config/pi/agent/pi-hermes-memory",
+  "~/.config/pi/agent/pi-hermes-memory/**",
   "~/.config/pi/profiles/minimal",
   "~/.config/pi/profiles/minimal/**",
-  "~/.config/pi/profiles/minimal/npm",
-  "~/.config/pi/profiles/minimal/npm/**",
   "~/.config/pi/profiles/factory",
   "~/.config/pi/profiles/factory/**",
-  "~/.config/pi/profiles/factory/npm",
-  "~/.config/pi/profiles/factory/npm/**",
-  "~/.local/state/npm",
-  "~/.local/state/npm/**",
-  "~/.pi-lens",
-  "~/Library/Caches/node-gyp",
+  "~/.local/share/plannotator",
   "~/.local/share/plannotator/**",
-  "~/Library/Caches/node-gyp/**"
+  "~/.pi-lens"
 ]
-
-[ai.base.agents.pi.sandbox.tools]
-allow = [
-  # pi built-in tools
-  "edit",
-  "find",
-  "grep",
-  "ls",
-  "read",
-  "write",
-  # pi-fff (FZF grep/find replacements)
-  "fffind",
-  "ffgrep",
-  # pi-lens (AST & LSP tools)
-  "ast_grep_replace",
-  "ast_grep_search",
-  "lsp_diagnostics",
-  "lsp_navigation",
-  "ast_search",
-  # rpiv (structured interaction)
-  "advisor",
-  "ask_user_question",
-  "todo",
-  # pi-intercom
-  "contact_supervisor",
-  "intercom",
-  # pi-subagents
-  "subagent",
-  "task",
-  # pi-web-access
-  "code_search",
-  "fetch_content",
-  "get_search_content",
-  "web_search",
-  # context-mode (sandboxed execution & indexing)
-  "ctx_doctor",
-  "ctx_fetch_and_index",
-  "ctx_index",
-  "ctx_insight",
-  "ctx_search",
-  "ctx_stats",
-  # plannotator
-  "plannotator_submit_plan",
-  "external_directory"
-]
-ask = [
-  # context-mode: arbitrary execution requires approval
-  "ctx_batch_execute",
-  "ctx_execute",
-  "ctx_execute_file"
-]
-default = "ask"
-
-[ai.base.agents.pi.sandbox.tools.mcp]
-allow = ["mcp_describe", "mcp_list", "mcp_search", "mcp_status"]
-default = "ask"
-
-[ai.base.agents.pi.sandbox.tools.skill]
-default = "allow"

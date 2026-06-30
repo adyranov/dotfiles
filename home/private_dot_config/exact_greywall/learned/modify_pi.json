@@ -5,7 +5,8 @@
 {{-   $baseSource = $rawStdin -}}
 {{- end -}}
 {{- $base := $baseSource | fromJsonc -}}
-{{- /* Prune wildcard (*) destinations from existing learned rules */ -}}
+{{- /* Prune wildcard (*) destinations from existing learned rules.
+    Keep other learned/bundled rules so greywall profile drift checks stay stable. */ -}}
 {{- $baseRules := dig "network" "rules" (list) $base -}}
 {{- $cleanRules := list -}}
 {{- range $rule := $baseRules -}}
@@ -15,14 +16,12 @@
 {{- end -}}
 {{- $base = setValueAtPath "network.rules" $cleanRules $base -}}
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
-{{- $permissions := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions" "required" false) | mustFromJson -}}
-{{- $sharedNetwork := dig "network" "allow" (list) $permissions -}}
 {{- $sandbox := $pi.sandbox | default dict -}}
 {{- $sandboxPaths := $sandbox.paths | default dict -}}
 {{- $allowWriteAdditions := index $sandboxPaths "allow_write" | default list -}}
-{{- $allowReadAdditions := index $sandboxPaths "infrastructure_read" | default list -}}
+{{- $allowReadAdditions := index $sandboxPaths "allow_read" | default list -}}
 {{- $networkRuleAdditions := list -}}
-{{- range $rule := concat $sharedNetwork (dig "network" "allow" (list) $sandbox) -}}
+{{- range $rule := dig "network" "allow" (list) $sandbox -}}
 {{-   $networkRuleAdditions = append $networkRuleAdditions (dict
         "destination" $rule.host
         "port" ($rule.port | toString)

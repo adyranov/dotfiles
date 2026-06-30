@@ -2,8 +2,6 @@
 {{- $omlx := eq $local.engine "omlx" -}}
 #!/usr/bin/env sh
 # llm-bench — Benchmark local LLMs using native engine tools (no server required).
-#   llamacpp: llama-bench — direct GGUF, prompt-processing + text-generation t/s
-#   omlx:     mlx_lm generate --verbose — direct MLX, pp + tg t/s
 set -eu
 
 RUNS="${LLM_BENCH_RUNS:-3}"
@@ -12,6 +10,8 @@ INPUT_TOKENS="${LLM_BENCH_INPUT_TOKENS:-512}"
 SUMMARY_FILE="$(mktemp "${TMPDIR:-/tmp}/llm-bench-summary.XXXXXX")"
 {{- if $omlx }}
 SEED="${LLM_BENCH_SEED:-12345}"
+OMLX_BENCH_WARMUP_RUNS="${LLM_BENCH_OMLX_WARMUP_RUNS:-{{ $local.omlx_bench_warmup_runs }}}"
+OMLX_BENCH_EXTRA_ARGS="${LLM_BENCH_OMLX_EXTRA_ARGS:-{{ $local.omlx_bench_extra_args }}}"
 {{- end }}
 
 cleanup() { rm -f "$SUMMARY_FILE"; }
@@ -42,6 +42,8 @@ ${B}Environment:${R}
   LLM_BENCH_MAX_TOKENS   output tokens (default: 512)
 {{- if $omlx }}
   LLM_BENCH_SEED         PRNG seed for repeatable mlx_lm runs (default: 12345)
+  LLM_BENCH_OMLX_WARMUP_RUNS warmup passes before timed runs (default: {{ $local.omlx_bench_warmup_runs }})
+  LLM_BENCH_OMLX_EXTRA_ARGS  extra flags appended to mlx_lm generate
 {{- end }}
 
 ${B}Examples:${R}
@@ -67,6 +69,7 @@ elapsed() {
   fi
 }
 {{ if $omlx }}
+# Backend: omlx — mlx_lm generate --verbose (via omlx libexec)
 MODEL_DIR="${OMLX_MODEL_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omlx/models}"
 
 # Locate the Python bundled with the omlx brew formula (subshell to avoid var leaks).
@@ -104,13 +107,17 @@ BENCH_PROMPT="$(awk -v s="$BENCH_SENTENCE" -v n="$BENCH_REPEATS" \
 
 # Run mlx_lm generate. Args: model_path prompt max_tokens verbose(true|false)
 run_mlx() {
+  # Extra args are intentionally shell-split to support multiple flags.
+  # Example: LLM_BENCH_OMLX_EXTRA_ARGS='--prefill-step-size 256 --max-kv-size 2048'
+  # shellcheck disable=SC2086
   "$OMLX_PY" -m mlx_lm generate \
     --model "$1" \
     --prompt "$2" \
     --max-tokens "$3" \
     --temp 0 \
     --seed "$SEED" \
-    --verbose "$4" 2>&1
+    --verbose "$4" \
+    $OMLX_BENCH_EXTRA_ARGS 2>&1
 }
 
 bench_model() {
@@ -126,14 +133,18 @@ bench_model() {
   # A short prompt + max-tokens=1 leaves most experts/layers unfaulted, so the
   # timed run pays the load cost and pp t/s collapses. Use the real bench
   # prompt + a few generation steps to force a steady-state forward+decode.
-  printf '  %swarming up ...%s ' "$D" "$R"
-  if ! run_mlx "$model_path" "$BENCH_PROMPT" 8 false >/dev/null 2>&1; then
-    printf '%s✗ failed — skipping%s\n' "$E" "$R"
-    return 1
-  fi
+  warm_i=0
+  printf '  %swarming up (%s pass) ...%s ' "$D" "$OMLX_BENCH_WARMUP_RUNS" "$R"
+  while [ "$warm_i" -lt "$OMLX_BENCH_WARMUP_RUNS" ]; do
+    warm_i=$((warm_i + 1))
+    if ! run_mlx "$model_path" "$BENCH_PROMPT" 8 false >/dev/null 2>&1; then
+      printf '%s✗ failed — skipping%s\n' "$E" "$R"
+      return 1
+    fi
+  done
   printf '%s✓%s\n' "$G" "$R"
 
-  pp_sum=0; pp_sq_sum=0; tg_sum=0; tg_sq_sum=0; n=0; i=0
+  pp_sum=0; pp_sq_sum=0; tg_sum=0; tg_sq_sum=0; n=0; i=0; prompt_tokens_ref=""
   while [ "$i" -lt "$RUNS" ]; do
     i=$((i + 1))
     if [ "$RUNS" -gt 1 ]; then
@@ -151,12 +162,22 @@ bench_model() {
     fi
     run_pp="$(printf '%s' "$bench_out" | awk '/^Prompt:/ && /tokens-per-sec/ {print $(NF-1); exit}')"
     run_tg="$(printf '%s' "$bench_out" | awk '/^Generation:/ && /tokens-per-sec/ {print $(NF-1); exit}')"
+    run_prompt_tokens="$(printf '%s' "$bench_out" | awk '/^Prompt:/ {for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+$/) {print $i; exit}}')"
     if [ -z "$run_pp" ] || [ -z "$run_tg" ]; then
       printf '%s✗ no metrics in output%s\n' "$E" "$R"
       printf '%s\n' "$bench_out" >&2
       continue
     fi
-    printf '%s%s pp  %s tg  (t/s)%s\n' "$G" "$run_pp" "$run_tg" "$R"
+    if [ -z "$run_prompt_tokens" ]; then
+      printf '%s%s pp  %s tg  (t/s)%s\n' "$G" "$run_pp" "$run_tg" "$R"
+    else
+      printf '%s%s pp  %s tg  (t/s, prompt=%s tok)%s\n' "$G" "$run_pp" "$run_tg" "$run_prompt_tokens" "$R"
+      if [ -z "$prompt_tokens_ref" ]; then
+        prompt_tokens_ref="$run_prompt_tokens"
+      elif [ "$prompt_tokens_ref" != "$run_prompt_tokens" ]; then
+        warn "prompt token count changed across runs: ${prompt_tokens_ref} -> ${run_prompt_tokens}"
+      fi
+    fi
     pp_sum="$(awk "BEGIN{printf \"%.2f\", $pp_sum + $run_pp}")"
     pp_sq_sum="$(awk "BEGIN{printf \"%.4f\", $pp_sq_sum + ($run_pp * $run_pp)}")"
     tg_sum="$(awk "BEGIN{printf \"%.2f\", $tg_sum + $run_tg}")"
@@ -175,6 +196,7 @@ bench_model() {
   printf '%s\t%s\t%s\t%s\t%s\n' "$model" "$pp_avg" "$pp_std" "$tg_avg" "$tg_std" >> "$SUMMARY_FILE"
 }
 {{ else }}
+# Backend: llamacpp — llama-bench (direct GGUF, prompt-processing + text-generation t/s)
 # llamacpp: resolve model id → GGUF path via hf cache
 resolve_gguf() {
   case "$1" in
@@ -269,6 +291,10 @@ info "backend:   omlx (mlx_lm generate --verbose)"
 info "python:    ${OMLX_PY}"
 info "model-dir: ${MODEL_DIR}"
 info "seed:      ${SEED}"
+info "warmup:    ${OMLX_BENCH_WARMUP_RUNS} pass"
+if [ -n "$OMLX_BENCH_EXTRA_ARGS" ]; then
+  info "mlx args:  ${OMLX_BENCH_EXTRA_ARGS}"
+fi
 {{ else -}}
 info "backend:   llamacpp (llama-bench)"
 {{ end -}}

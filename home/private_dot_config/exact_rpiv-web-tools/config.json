@@ -1,0 +1,7 @@
+{
+  "guidance": {
+    "promptGuidelines": [
+      "Use web_search for current info beyond training data. Include Sources: section with markdown URLs."
+    ]
+  }
+}

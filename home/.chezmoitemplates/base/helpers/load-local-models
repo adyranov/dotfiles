@@ -35,30 +35,28 @@
 {{-   fail (printf "ai.local.engine = %q is not one of: omlx, llamacpp" $engineRaw) -}}
 {{- end -}}
 {{- $engine := $engineRaw -}}
-{{- $gpuFlags := "-fa" -}}
+{{- $gpuFlags := "" -}}
 {{- $gpuLayers := "auto" -}}
 {{- $fitTarget := 0 -}}
 {{- $reasoningFormat := "deepseek" -}}
 {{- $omlxMaxConcurrentRequests := 1 -}}
 {{- $omlxMemoryGuardGb := index $local "omlx_memory_guard_gb" | default 0 -}}
+{{- $omlxBenchWarmupRuns := index $local "omlx_bench_warmup_runs" | default 1 -}}
+{{- $omlxBenchExtraArgs := index $local "omlx_bench_extra_args" | default "" -}}
 {{- $cacheTypeK := "q8_0" -}}
 {{- $cacheTypeV := "q8_0" -}}
-{{- $parallel := 4 -}}
+{{- $parallel := 1 -}}
 {{- $batchSize := 2048 -}}
 {{- $ubatchSize := 512 -}}
 {{- $threads := 0 -}}
 {{- $threadsBatch := 0 -}}
-{{- if eq $engine "omlx" -}}
-{{-   $gpuFlags = "" -}}
-{{- else if eq $engine "llamacpp" -}}
+{{- if eq $engine "llamacpp" -}}
 {{-   if and (eq $root.host.distro.family "darwin") (eq $root.host.arch "amd64") -}}
-{{-     $gpuFlags = "" -}}
 {{-     $fitTarget = 2048 -}}
-{{-     $parallel = 1 -}}
 {{-     $batchSize = 1024 -}}
 {{-     $ubatchSize = 256 -}}
-{{-   else if and (eq $root.host.distro.family "darwin") (eq $root.host.arch "arm64") -}}
-{{-     $gpuFlags = "" -}}
+{{-   else if ne $root.host.distro.family "darwin" -}}
+{{-     $gpuFlags = "-fa" -}}
 {{-   end -}}
 {{- end -}}
 {{- $xdgCache := printf "%s/.cache" $root.host.home -}}
@@ -123,6 +121,8 @@
   "reasoning_format" $reasoningFormat
   "omlx_max_concurrent_requests" ($omlxMaxConcurrentRequests | int)
   "omlx_memory_guard_gb" ($omlxMemoryGuardGb | int)
+  "omlx_bench_warmup_runs" ($omlxBenchWarmupRuns | int)
+  "omlx_bench_extra_args" $omlxBenchExtraArgs
   "cache_type_k" $cacheTypeK
   "cache_type_v" $cacheTypeV
   "parallel" ($parallel | int)

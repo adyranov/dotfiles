@@ -6,21 +6,26 @@
 {{- $opencode := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.opencode" "required" true) | mustFromJson -}}
 {{- $models := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models" "required" true) | mustFromJson -}}
 {{- $commandPermissions := includeTemplate "base/packages/collect-policies" (dict "root" $root) | mustFromJson -}}
-{{- $paths := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.paths" "required" true) | mustFromJson -}}
+{{- $agentPerms := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.agent" "required" true) | mustFromJson -}}
 {{- $sandboxPaths := dig "sandbox" "paths" dict $opencode -}}
+
+{{- /* ── OpenCode provider aliases ── */ -}}
+{{- $ocProviderAliases := dict "openai-codex" "openai" -}}
 
 {{- /* ── Model IDs ── */ -}}
 {{- $defaults := index $models $models.default -}}
 {{- $modelId := $defaults.model -}}
 {{- if hasKey $defaults "provider" -}}
-{{-   $modelId = printf "%s/%s" $defaults.provider $defaults.model -}}
+{{-   $ocProvider := get $ocProviderAliases $defaults.provider | default $defaults.provider -}}
+{{-   $modelId = printf "%s/%s" $ocProvider $defaults.model -}}
 {{- end -}}
 {{- $smallModelId := $modelId -}}
 {{- if hasKey $models "utility" -}}
 {{-   $utility := index $models "utility" -}}
 {{-   $smallModelId = $utility.model -}}
 {{-   if hasKey $utility "provider" -}}
-{{-     $smallModelId = printf "%s/%s" $utility.provider $utility.model -}}
+{{-     $ocProvider := get $ocProviderAliases $utility.provider | default $utility.provider -}}
+{{-     $smallModelId = printf "%s/%s" $ocProvider $utility.model -}}
 {{-   end -}}
 {{- end -}}
 
@@ -55,16 +60,11 @@
 
 
 {{- /* ── Permissions ── */ -}}
-{{- $allDeny := concat (index $paths "deny" | default list) (index $sandboxPaths "infrastructure_deny" | default list) | uniq | sortAlpha -}}
+{{- $ocDenyPaths := index $opencode.permissions "deny" | default list -}}
+{{- $allDeny := concat (index $agentPerms "deny" | default list) $ocDenyPaths | uniq | sortAlpha -}}
 
-{{- /* bash: ask *, allow safe patterns, deny destructive */ -}}
-{{- $bash := dict "*" "ask" -}}
-{{- range $p := $commandPermissions.allow -}}{{- $_ := set $bash $p "allow" -}}{{- end -}}
-{{- range $p := $commandPermissions.ask -}}{{- $_ := set $bash $p "ask" -}}{{- end -}}
-{{- range $p := $commandPermissions.deny -}}{{- $_ := set $bash $p "deny" -}}{{- end -}}
-
-{{- /* read: allow project files, deny sensitive paths (except infra read paths) */ -}}
-{{- $infraReadPaths := index $sandboxPaths "infrastructure_read" | default list -}}
+{{- /* read: allow project files, deny sensitive paths (except sandbox allow_read paths) */ -}}
+{{- $infraReadPaths := index $sandboxPaths "allow_read" | default list -}}
 {{- $readObj := dict "*" "allow" -}}
 {{- range $p := $allDeny -}}{{- if not (has $p $infraReadPaths) -}}{{- $_ := set $readObj $p "deny" -}}{{- end -}}{{- end -}}
 
@@ -72,8 +72,12 @@
 {{- $editObj := dict "*" "allow" -}}
 {{- range $p := $allDeny -}}{{- $_ := set $editObj $p "deny" -}}{{- end -}}
 
+{{- /* bash: default allow; dangerous commands denied via package policies */ -}}
+{{- $bash := dict "*" "allow" -}}
+{{- range $pattern := $commandPermissions.deny -}}{{- $_ := set $bash $pattern "deny" -}}{{- end -}}
+
 {{- $permission := dict
-  "*" "ask"
+  "*" "allow"
   "read" $readObj
   "edit" $editObj
   "glob" "allow"
@@ -94,6 +98,50 @@
 {{- /* ── Profile plugins (resolved via extends) ── */ -}}
 {{- $profileData := includeTemplate "base/ai/resolve-profile" (dict "agentData" $opencode "profile" $profile) | mustFromJson -}}
 {{- $plugins := $profileData.plugins | default list -}}
+{{- $renderedPlugins := list -}}
+{{- range $plugin := $plugins -}}
+{{-   if and (kindIs "string" $plugin) (eq $plugin "@plannotator/opencode") -}}
+{{- $planningAgents := get $profileData "plannotator_planning_agents" | default (list "plan") -}}
+{{-     $renderedPlugins = append $renderedPlugins (list "@plannotator/opencode@latest" (dict "workflow" "plan-agent" "planningAgents" $planningAgents)) -}}
+{{-   else -}}
+{{-     $renderedPlugins = append $renderedPlugins $plugin -}}
+{{-   end -}}
+{{- end -}}
+
+{{- /* ── Built-in agents ── */ -}}
+{{- $builtinAgentCategories := dict
+  "build" "coder"
+  "plan" "architect"
+  "general" "researcher"
+  "explore" "locator"
+  "scout" "researcher"
+-}}
+{{- $builtinAgentModes := dict "build" "primary" "plan" "primary" "general" "subagent" "explore" "subagent" "scout" "subagent" -}}
+{{- $agentOverrides := dict -}}
+{{- range $agent := keys $builtinAgentCategories | sortAlpha -}}
+{{-   $category := index $builtinAgentCategories $agent -}}
+{{-   $route := index $models $category -}}
+{{-   if not $route -}}
+{{-     fail (printf "render-opencode-config: ai.models has no route for category %q (mapped by agent %q)" $category $agent) -}}
+{{-   end -}}
+{{-   $agentModelId := $route.model -}}
+{{-   if hasKey $route "provider" -}}
+{{-     $ocProvider := get $ocProviderAliases $route.provider | default $route.provider -}}
+{{-     $agentModelId = printf "%s/%s" $ocProvider $route.model -}}
+{{-   end -}}
+{{-   $agentConfig := dict "model" $agentModelId "mode" (get $builtinAgentModes $agent | default "all") -}}
+{{-   $thinking := get $route "thinking" | default "off" -}}
+{{-   if ne $thinking "off" -}}
+{{-     $_ := set $agentConfig "variant" $thinking -}}
+{{-   end -}}
+{{-   $_ := set $agentOverrides $agent $agentConfig -}}
+{{- end -}}
+{{- $disabledAgents := get $profileData "disabled_agents" | default list -}}
+{{- range $agent := $disabledAgents -}}
+{{-   $agentConfig := get $agentOverrides $agent | default dict -}}
+{{-   $_ := set $agentConfig "disable" true -}}
+{{-   $_ := set $agentOverrides $agent $agentConfig -}}
+{{- end -}}
 
 {{- /* ── Skills & instructions ── */ -}}
 {{- $basePaths := index $opencode.skills "paths" | default list -}}
@@ -119,19 +167,13 @@
   "tool_output" $toolOutput
   "skills" (dict "paths" $skillsPaths)
   "instructions" $instructionsFiles
+  "default_agent" (get $profileData "default_agent" | default "build")
 -}}
 
 {{- $_ := set $result "watcher" $watcher -}}
 {{- $_ := set $result "attachment" $attachment -}}
-{{- if $plugins -}}{{- $_ := set $result "plugin" $plugins -}}{{- end -}}
-{{- $disabledAgents := get $profileData "disabled_agents" | default list -}}
-{{- if $disabledAgents -}}
-{{-   $agentOverrides := dict -}}
-{{-   range $agent := $disabledAgents -}}
-{{-     $_ := set $agentOverrides $agent (dict "disable" true) -}}
-{{-   end -}}
-{{-   $_ := set $result "agent" $agentOverrides -}}
-{{- end -}}
+{{- if $renderedPlugins -}}{{- $_ := set $result "plugin" $renderedPlugins -}}{{- end -}}
+{{- $_ := set $result "agent" $agentOverrides -}}
 {{- if $hasFormatter -}}{{- $_ := set $result "formatter" true -}}{{- end -}}
 {{- if $hasLsp -}}{{- $_ := set $result "lsp" true -}}{{- end -}}
 
