@@ -26,13 +26,17 @@
 ## AI Packages, Policy & Sandboxing
 
 - **Toolchain Enablement**: The `ai` toolchain gates nested agents (e.g., `pi`). Controlled in `.chezmoi.yaml.tmpl`.
-- **Package Policy**: Agent command policies are set in `policy = {allow = [...], ask = [...], deny = [...]}` within package TOMLs. Use `common/helpers/load-package-permissions` to evaluate.
-  - **Rules**: Allow safe read/status. Ask for mutating/build/network. Deny destructive actions.
-- **Path Permissions**: `ai.base.permissions.paths.deny` holds exact sensitive globs. `allow_read` holds narrow read exceptions. Write explicit home paths with `~/`.
-- **Pi Permission System**: Evaluates chained commands, applies path denies across tools and bash. This is a prompt/deny layer, *not* a host sandbox.
+- **Command Deny**: `ai.base.permissions.commands.deny` holds system-wide dangerous command patterns, merged with per-package `policy.deny` by `base/ai/collect-policies` into a single deny list consumed by greywall and pi-permission-system. This is a deny-list overlay on a default-allow execution model — risky by default, relying on comprehensive deny coverage. Greywall remains the host-level sandbox.
+- **Path Permissions** (agent-level): `ai.base.permissions.agent.deny` holds shared sensitive globs. Per-agent deny lists (in `pi.toml`/`opencode.toml`) cover agent-specific auth files. Both layers are merged at render time.
+- **Path Permissions** (process-level): `ai.base.permissions.sandbox` holds allow-read/write for caches and runtime dirs consumed by greywall filesystem config.
+- **Shared Network**: `ai.base.permissions.network` holds allow-listed hosts (AI providers, registries, docs, search) rendered into greywall network rules.
+- **Pi Permission System**: Evaluates chained commands, applies path denies across tools and bash. Uses default-allow, deny-list model. This is a prompt/deny layer, *not* a host sandbox.
 - **Greywall**: The true host filesystem/network/process sandbox. Uses the same path data for explicit read/write denies. Config is managed at `~/.config/greywall/greywall.json`.
   - Greywall SSH is allowlist-based (`github.com`, `git-upload-pack`).
   - Learn profiles via `greywall --learning -- <command>` before committing stable network rules.
+- **CRITICAL**: Agents must edit chezmoi source files only. Do not edit rendered files under `$HOME` to make tests pass.
+- **CRITICAL**: Use targeted `chezmoi apply <destination...>` only for files affected by source edits. Global `chezmoi apply`, `mise run apply`, and sync/remove require user approval. If a path is denied, ask user — do not bypass.
+- Treat greywall and pi-permission denials as security boundaries. Do not retry via alternate write paths (`cp`, `mv`, `sed -i`, Python writes, temp-file swaps) after denial.
 
 ## Workflow, Commands & CI
 

@@ -1,0 +1,12 @@
+{{- /*
+  Render an OpenCode-compatible model ID string from a route config entry.
+
+  Input (.): { provider?: string, model: string }
+  Output: "provider/model" or just "model" if no provider.
+
+  Mapped: openai-codex → openai (OpenCode uses different provider key for codex)
+*/ -}}
+{{- $provider := get . "provider" | default "" -}}
+{{- $ocAliases := dict "openai-codex" "openai" -}}
+{{- $ocProvider := get $ocAliases $provider | default $provider -}}
+{{- if $ocProvider -}}{{- printf "%s/%s" $ocProvider (get . "model") -}}{{ else -}}{{- get . "model" -}}{{- end -}}

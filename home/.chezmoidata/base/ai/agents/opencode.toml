@@ -1,5 +1,10 @@
 [ai.base.agents.opencode.instructions]
-files = ["AGENTS.md"]
+files = ["AGENTS.md", "OPENCODE.md"]
+
+[ai.base.agents.opencode.permissions.agent]
+allow = []
+ask = []
+deny = ["~/.local/share/opencode/auth.json"]
 
 [ai.base.agents.opencode.profiles.core]
 extends = "minimal"
@@ -7,27 +12,26 @@ plugins = ["@plannotator/opencode"]
 
 [ai.base.agents.opencode.profiles.factory]
 extends = "core"
+default_agent = "orchestrator"
 plugins = ["oh-my-opencode-slim"]
-disabled_agents = ["explore", "general"]
+disabled_agents = ["build", "explore", "general", "plan", "scout"]
+plannotator_planning_agents = ["orchestrator"]
 skills_paths = ["~/.config/opencode/profiles/factory/skills"]
 
 [ai.base.agents.opencode.profiles.minimal]
 plugins = ["@tarquinen/opencode-dcp", "opencode-notify"]
 
 [ai.base.agents.opencode.sandbox.paths]
+allow_read = ["~/.config/opencode/**"]
 allow_write = [
   "~/.cache/opencode",
   "~/.cache/opencode/**",
   "~/.local/share/opencode",
   "~/.local/share/opencode/**",
   "~/.local/state/opencode",
-  "~/.local/state/opencode/**"
-]
-infrastructure_deny = ["~/.config/opencode/auth.json"]
-infrastructure_read = [
-  "~/.config/agents/**",
-  "~/.config/greywall/**",
-  "~/.config/opencode/**"
+  "~/.local/state/opencode/**",
+  "/tmp/agents/opencode",
+  "/tmp/agents/opencode/**"
 ]
 
 [ai.base.agents.opencode.settings]
@@ -44,7 +48,15 @@ max_bytes = 51200
 max_lines = 2000
 
 [ai.base.agents.opencode.settings.watcher]
-ignore = [".cache/**", ".direnv/**", ".git/**", ".terraform/**", "build/**", "dist/**", "node_modules/**"]
+ignore = [
+  ".cache/**",
+  ".direnv/**",
+  ".git/**",
+  ".terraform/**",
+  "build/**",
+  "dist/**",
+  "node_modules/**"
+]
 
 [ai.base.agents.opencode.skills]
 paths = ["~/.config/agents/skills"]

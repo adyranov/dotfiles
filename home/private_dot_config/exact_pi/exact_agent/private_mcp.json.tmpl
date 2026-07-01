@@ -1,13 +1,14 @@
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
 {{- $binDir := joinPath .chezmoi.homeDir ".config/pi/agent/npm/node_modules/.bin" -}}
-{{- range $name, $config := $pi.mcp_servers -}}
+{{- $mcpServers := get $pi "mcp_servers" | default dict -}}
+{{- range $name, $config := $mcpServers -}}
 {{-   if hasKey $config "command_path" -}}
 {{-     $_ := set $config "command" (joinPath $binDir $config.command_path) -}}
 {{-     $_ := unset $config "command_path" -}}
 {{-   end -}}
 {{- end -}}
 {{- dict
-  "mcpServers" $pi.mcp_servers
+  "mcpServers" $mcpServers
   "settings" (dict
     "autoAuth" false
     "directTools" false

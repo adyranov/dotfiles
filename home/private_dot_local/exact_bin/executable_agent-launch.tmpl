@@ -34,6 +34,7 @@ CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 GREYPROXY_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/greyproxy"
 GREYPROXY_LOG="$GREYPROXY_STATE/greyproxy.log"
+GREYPROXY_API_PORT={{ index .ai.base.sandbox.greyproxy "api" }}
 
 # ── Colors ──
 if [ -t 2 ] && [ -z "${NO_COLOR:-}" ] && command -v tput >/dev/null 2>&1; then
@@ -107,10 +108,13 @@ preflight_update() {
       config_file="$dir/opencode.json"
       [ -f "$config_file" ] || return 0
       command -v jq >/dev/null 2>&1 || return 0
-      plugins=$(jq -r '.plugin[] | select(type == "string")' "$config_file" 2>/dev/null) || return 0
+      plugins=$(jq -r '.plugin[] | (if type == "string" then . else .[0] end)' "$config_file" 2>/dev/null) || return 0
       missing=0
       for plugin in $plugins; do
-        cache_dir="$CACHE_HOME/opencode/packages/${plugin}@latest"
+        case "${plugin##*/}" in
+          *@*) cache_dir="$CACHE_HOME/opencode/packages/${plugin}" ;;
+          *)   cache_dir="$CACHE_HOME/opencode/packages/${plugin}@latest" ;;
+        esac
         if [ ! -f "$cache_dir/package.json" ]; then
           warn "Plugin cache: $plugin (not installed)"
           missing=$((missing + 1))
@@ -154,7 +158,8 @@ usage() {
   case "$AGENT_NAME" in
     pi)
       cat <<'EOF'
-Usage: pi-agent [profile] [--no-greywall] [--no-update] [-- pi args...]
+Usage: pi-agent [profile] [--no-greywall] [--no-update] [pi args...]
+       pi-agent [profile] [--no-greywall] [--no-update] -- [pi args...]
        pi-agent --list
        pi-agent --print-env [profile]
 
@@ -167,6 +172,9 @@ Options:
   --no-greywall       run pi directly without greywall sandbox
   --no-update         skip pi extension update before launch
 
+Args:
+  pi args             forwarded to pi, for example to continue a session
+
 Commands:
   --list              list available profiles
   --print-env [prof]  print env vars for profile
@@ -174,7 +182,8 @@ EOF
       ;;
     opencode)
       cat <<'EOF'
-Usage: opencode-agent [profile] [--no-greywall] [--no-update] [-- opencode args...]
+Usage: opencode-agent [profile] [--no-greywall] [--no-update] [opencode args...]
+       opencode-agent [profile] [--no-greywall] [--no-update] -- [opencode args...]
        opencode-agent --list
        opencode-agent --print-env [profile]
 
@@ -186,6 +195,9 @@ Profiles:
 Options:
   --no-greywall       run opencode directly without greywall sandbox
   --no-update         skip dependency preflight check
+
+Args:
+  opencode args       forwarded to opencode, for example to continue a session
 
 Commands:
   --list              list available profiles
@@ -201,10 +213,38 @@ list_profiles() {
   printf '%s\n' core factory minimal
 }
 
+# ── Shared: PWD guard ──
+pwd_guard() {
+  case "$(pwd)" in
+    "$HOME")
+      die "Refusing to launch from home directory: $(pwd)
+   Launch from a project directory inside a git worktree."
+      ;;
+    "/")
+      die "Refusing to launch from root: $(pwd)
+   Launch from a project directory inside a git worktree."
+      ;;
+  esac
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    die "Not inside a git worktree.
+   Launch from a project directory inside a git worktree."
+  fi
+}
+
 # ── Shared: greyproxy ──
 greyproxy_ready() {
   command -v nc >/dev/null 2>&1 || return 1
-  nc -z 127.0.0.1 {{ (index .ai.base.sandbox.greyproxy "socks") }} 2>/dev/null
+  command -v curl >/dev/null 2>&1 || return 1
+  # Check API, then all three proxy services: SOCKS, HTTP, DNS
+  curl --silent --show-error --fail --max-time 1 \
+    "http://127.0.0.1:${GREYPROXY_API_PORT}/api/health" >/dev/null 2>&1 || return 1
+  nc -z 127.0.0.1 {{ (index .ai.base.sandbox.greyproxy "socks") }} 2>/dev/null || return 1
+  nc -z 127.0.0.1 {{ (index .ai.base.sandbox.greyproxy "http") }} 2>/dev/null || return 1
+  nc -z 127.0.0.1 {{ (index .ai.base.sandbox.greyproxy "dns") }} 2>/dev/null || return 1
+  # Binary must report a version
+  command -v greyproxy >/dev/null 2>&1 || return 1
+  greyproxy --version 2>/dev/null | head -1 | grep -q 'greyproxy' || return 1
+  return 0
 }
 
 ensure_greyproxy() {
@@ -266,14 +306,17 @@ while [ $# -gt 0 ]; do
     --) shift; break ;;
     --no-greywall) no_greywall=true; shift ;;
     --no-update) no_update=true; shift ;;
-    -*) die "Unknown option: $1" ;;
-    *) profile="$1"; shift ;;
+    core|default|factory|minimal) profile="$1"; shift ;;
+    *) break ;;
   esac
 done
 
 # ── Launch ──
+pwd_guard
+
 dir=$(profile_dir "$profile")
 set_runtime_env "$dir" "$profile"
+
 
 info "Profile: ${_BO}${profile}${_NO}"
 
@@ -284,8 +327,26 @@ fi
 if [ "$no_greywall" = true ]; then
   ok "Sandbox: disabled (--no-greywall)"
   exec "$BINARY_NAME" "$@"
-else
-  dim "Launch: greywall --profile $GREYWALL_PROFILE -- $BINARY_NAME ..."
-  ensure_greyproxy
-  exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" "$@"
 fi
+
+dim "Launch: greywall --profile $GREYWALL_PROFILE -- $BINARY_NAME ..."
+export PLANNOTATOR_REMOTE=1
+
+# ── Proxy / CA env (force all agent traffic through Greyproxy) ──
+export HTTP_PROXY="http://127.0.0.1:43051"
+export HTTPS_PROXY="http://127.0.0.1:43051"
+export ALL_PROXY="socks5://127.0.0.1:43052"
+export NO_PROXY="127.0.0.1,localhost"
+export NODE_USE_ENV_PROXY="1"
+_CA="$HOME/.config/certificates/ca-bundle.pem"
+if [ -f "$_CA" ]; then
+  export SSL_CERT_FILE="$_CA"
+  export REQUESTS_CA_BUNDLE="$_CA"
+  export CURL_CA_BUNDLE="$_CA"
+  export NODE_EXTRA_CA_CERTS="$_CA"
+fi
+unset _CA
+
+ensure_greyproxy
+
+exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" "$@"

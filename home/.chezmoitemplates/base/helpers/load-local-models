@@ -1,5 +1,5 @@
 {{- /*
-  Resolves per-host local LLM engine and model backends from ai.local.
+  Resolves per-host local LLM engine and model backends from ai.models.catalog.local.
 
   Input: .root (chezmoi data root)
   Output: JSON dict:
@@ -14,7 +14,7 @@
                               upstream_id?, backend: { repo, file } } }
 
   Engine selection:
-    ai.local.engine (required): "omlx" | "llamacpp"
+    ai.models.catalog.local.engine (required): "omlx" | "llamacpp"
     Models must declare the backend matching the active engine.
 
   GPU flags (llamacpp only, best-effort static presets):
@@ -26,39 +26,37 @@
     Qwen 3.5+ model ids auto-attach qwen-froggeric.jinja unless overridden in profile data.
 */ -}}
 {{- $root := .root -}}
-{{- $local := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.local" "required" true) | mustFromJson -}}
+{{- $local := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.catalog.local" "required" true) | mustFromJson -}}
 {{- $engineRaw := index $local "engine" | default "" -}}
 {{- if not $engineRaw -}}
-{{-   fail "ai.local.engine must be set in the active profile (got empty); expected \"omlx\" or \"llamacpp\"" -}}
+{{-   fail "ai.models.catalog.local.engine must be set in the active profile (got empty); expected \"omlx\" or \"llamacpp\"" -}}
 {{- end -}}
 {{- if not (has $engineRaw (list "omlx" "llamacpp")) -}}
-{{-   fail (printf "ai.local.engine = %q is not one of: omlx, llamacpp" $engineRaw) -}}
+{{-   fail (printf "ai.models.catalog.local.engine = %q is not one of: omlx, llamacpp" $engineRaw) -}}
 {{- end -}}
 {{- $engine := $engineRaw -}}
-{{- $gpuFlags := "-fa" -}}
+{{- $gpuFlags := "" -}}
 {{- $gpuLayers := "auto" -}}
 {{- $fitTarget := 0 -}}
 {{- $reasoningFormat := "deepseek" -}}
 {{- $omlxMaxConcurrentRequests := 1 -}}
 {{- $omlxMemoryGuardGb := index $local "omlx_memory_guard_gb" | default 0 -}}
+{{- $omlxBenchWarmupRuns := index $local "omlx_bench_warmup_runs" | default 1 -}}
+{{- $omlxBenchExtraArgs := index $local "omlx_bench_extra_args" | default "" -}}
 {{- $cacheTypeK := "q8_0" -}}
 {{- $cacheTypeV := "q8_0" -}}
-{{- $parallel := 4 -}}
+{{- $parallel := 1 -}}
 {{- $batchSize := 2048 -}}
 {{- $ubatchSize := 512 -}}
 {{- $threads := 0 -}}
 {{- $threadsBatch := 0 -}}
-{{- if eq $engine "omlx" -}}
-{{-   $gpuFlags = "" -}}
-{{- else if eq $engine "llamacpp" -}}
+{{- if eq $engine "llamacpp" -}}
 {{-   if and (eq $root.host.distro.family "darwin") (eq $root.host.arch "amd64") -}}
-{{-     $gpuFlags = "" -}}
 {{-     $fitTarget = 2048 -}}
-{{-     $parallel = 1 -}}
 {{-     $batchSize = 1024 -}}
 {{-     $ubatchSize = 256 -}}
-{{-   else if and (eq $root.host.distro.family "darwin") (eq $root.host.arch "arm64") -}}
-{{-     $gpuFlags = "" -}}
+{{-   else if ne $root.host.distro.family "darwin" -}}
+{{-     $gpuFlags = "-fa" -}}
 {{-   end -}}
 {{- end -}}
 {{- $xdgCache := printf "%s/.cache" $root.host.home -}}
@@ -77,8 +75,8 @@
 {{-   if not (index $backend "repo") -}}
 {{-     fail (printf "model %q has no %q backend entry (engine=%q)" $id $backendKey $engine) -}}
 {{-   end -}}
-{{-   $ctxWindow := $m.context_window | default 128000 -}}
-{{-   $ctxOutput := $m.context_output | default 16384 -}}
+{{-   $ctxWindow := get $m "context_window" | default 128000 -}}
+{{-   $ctxOutput := get $m "max_output" | default (get $m "context_output" | default 16384) -}}
 {{-   $sampling := index $m "sampling" | default dict -}}
 {{-   if eq $engine "omlx" -}}
 {{-     if index $backend "context_window" -}}
@@ -123,6 +121,8 @@
   "reasoning_format" $reasoningFormat
   "omlx_max_concurrent_requests" ($omlxMaxConcurrentRequests | int)
   "omlx_memory_guard_gb" ($omlxMemoryGuardGb | int)
+  "omlx_bench_warmup_runs" ($omlxBenchWarmupRuns | int)
+  "omlx_bench_extra_args" $omlxBenchExtraArgs
   "cache_type_k" $cacheTypeK
   "cache_type_v" $cacheTypeV
   "parallel" ($parallel | int)

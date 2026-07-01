@@ -1,0 +1,8 @@
+{
+  "guidance": {
+    "promptSnippet": "Track 3+ step work",
+    "promptGuidelines": [
+      "Use todo for 3+ step tasks. Keep one in_progress. Mark done immediately. Use blockers for dependencies."
+    ]
+  }
+}

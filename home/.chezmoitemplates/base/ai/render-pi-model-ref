@@ -1,0 +1,13 @@
+{{- /*
+  Render a Pi model selector/cycle string from a route config entry.
+
+  Input (.): { provider?: string, model: string }
+  Output: "provider/model" if provider given, else "model" (bare ID).
+*/ -}}
+{{- $provider := get . "provider" | default "" -}}
+{{- $model := get . "model" -}}
+{{- if $provider -}}
+{{-   printf "%s/%s" $provider $model -}}
+{{- else -}}
+{{-   $model -}}
+{{- end -}}

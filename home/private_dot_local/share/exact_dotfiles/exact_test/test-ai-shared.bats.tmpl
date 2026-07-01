@@ -1,0 +1,88 @@
+#!/usr/bin/env bats
+
+# bats file_tags=suite:ai
+
+load 'common-helper'
+
+setup() {
+  common_setup
+  AGENTS_MD="${HOME}/.config/agents/AGENTS.md"
+}
+
+# --- Shared agents tree ---
+
+# bats test_tags=kind:agents-tree
+@test "global AGENTS.md exists and contains abstract workflow" {
+  assert_file_exists "$AGENTS_MD"
+  run grep -F "Search and read before editing" "$AGENTS_MD"
+  assert_success
+  run grep -F "Treat sandbox and permission denials" "$AGENTS_MD"
+  assert_success
+}
+
+# bats test_tags=kind:agents-tree
+@test "global AGENTS.md stays generic" {
+  run grep -ci "chezmoi" "$AGENTS_MD"
+  assert_failure
+}
+
+# bats test_tags=kind:agents-tree
+@test "repo AGENTS.md contains targeted apply rule" {
+  run chezmoi source-path
+  assert_success
+  local repo_agents="$(printf '%s' "$output")/../AGENTS.md"
+  assert_file_exists "$repo_agents"
+  run grep -F "chezmoi apply <destination" "$repo_agents"
+  assert_success
+}
+
+# bats test_tags=kind:agents-tree
+@test "~/.agents alias points at ~/.config/agents" {
+  run readlink -f "$HOME/.agents"
+  assert_success
+  assert_output "$HOME/.config/agents"
+}
+
+# bats test_tags=kind:agents-tree
+@test "~/.agents/skills directory is reachable" {
+  assert_dir_exists "$HOME/.agents/skills"
+}
+
+# bats test_tags=kind:config
+@test "rpiv advisor config has guidance" {
+  run jq -e '.guidance.promptSnippet | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-advisor/advisor.json"
+  assert_success
+  run jq -e '.guidance.promptGuidelines | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-advisor/advisor.json"
+  assert_success
+}
+
+# bats test_tags=kind:config
+@test "rpiv web-tools config has per-tool guidance and interceptor" {
+  run jq -e '
+    (.guidance.web_search.promptGuidelines | length > 0) and
+    (.guidance.web_fetch.promptGuidelines | length > 0) and
+    (.guidance.web_search.promptGuidelines | any(index("plan or final answer"))) and
+    (.guidance.web_fetch.promptGuidelines | any(index("plan or final answer"))) and
+    .interceptors.github.enabled == true
+  ' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
+  assert_success
+}
+
+# bats test_tags=kind:config
+@test "rpiv ask-user-question config has guidance" {
+  run jq -e '.guidance.promptSnippet | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-ask-user-question/config.json"
+  assert_success
+  run jq -e '.guidance.promptGuidelines | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-ask-user-question/config.json"
+  assert_success
+  run jq -r '.guidance.promptGuidelines | join(" ")' "{{ .chezmoi.homeDir }}/.config/rpiv-ask-user-question/config.json"
+  assert_success
+  assert_output --partial "material ambiguity"
+}
+
+# bats test_tags=kind:config
+@test "rpiv todo config has guidance" {
+  run jq -e '.guidance.promptSnippet | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-todo/config.json"
+  assert_success
+  run jq -e '.guidance.promptGuidelines | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-todo/config.json"
+  assert_success
+}

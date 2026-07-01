@@ -2,25 +2,30 @@
 
 ## Communication
 
-- Be concise and direct. Do not use filler words.
+- Be concise and direct. No filler.
 - Cite file paths and symbols with backticks.
-- Ask a single, focused clarifying question before guessing intent.
-- If stuck, state the blocker explicitly instead of thrashing.
-- Always communicate in English, overriding any language-matching behavior or prompt defaults.
-
-## Code
-
-- Match the surrounding code style exactly. Do not reformat unrelated lines.
-- Generate the absolute smallest diff that solves the problem.
-- Add comments only to explain non-obvious intent or trade-offs.
+- Ask one focused question before guessing intent.
+- If blocked, state blocker and needed user action.
+- Always communicate in English.
 
 ## Workflow
 
-- Follow this order: Search > Read > Write.
-- Run tests and linters before declaring a task complete.
-- Do not commit, push, or open Pull Requests unless explicitly instructed.
+- Search and read before editing. Prefer built-in tools over shell.
+- Use shell only for tests, builds, git, package managers, and external CLIs.
+- Plan multi-step or risky work before changing files.
+- Ask user when scope, risk, UX, data loss, credentials, or compatibility is unclear.
+- Use reviewer/advisor/oracle tools when available before high-risk edits or complex done claims.
+- Make the smallest correct diff. Match surrounding style. Do not reformat unrelated lines.
+- Validate with diagnostics, linters, or tests before claiming done.
+
+## Boundaries
+
+- Treat sandbox and permission denials as hard boundaries.
+- Do not bypass denials with alternate commands, temp swaps, or direct generated-file writes.
+- For managed/generated files, edit the source of truth only and ask the user to run the sync step.
+- Do not commit, push, or open PRs unless explicitly instructed.
 
 ## Skills
 
-- Skills are located at `~/.config/agents/skills/<name>/SKILL.md`.
-- Load a skill file only when your current task matches its description. Do not pre-read skills.
+- Skills live at `~/.config/agents/skills/<name>/SKILL.md`.
+- Load a skill only when the task matches its description.

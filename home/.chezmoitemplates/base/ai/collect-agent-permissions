@@ -1,0 +1,19 @@
+{{- /* base/ai/collect-agent-permissions — Merged path permission lists for agents.
+
+  Merges system-wide generic denies from ai.permissions.agent.deny
+  with per-agent permissions.agent.deny lists. Also collects sandbox infra read paths.
+  Returns a JSON object with sorted, unique arrays.
+
+  Args (dict):
+    root — template data root (required)
+    agentData — agent configuration dict (required)
+
+  Output: JSON object, e.g. {"deny": ["...", ...], "infra_read": ["...", ...]}
+*/ -}}
+{{- $root := .root -}}
+{{- $agentData := .agentData -}}
+{{- $agentPerms := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.agent" "required" true) | mustFromJson -}}
+{{- $infraReadPaths := dig "sandbox" "paths" "allow_read" list $agentData -}}
+{{- $agentDenyPaths := dig "permissions" "agent" "deny" list $agentData -}}
+{{- $denyPaths := concat (index $agentPerms "deny" | default list) $agentDenyPaths | uniq | sortAlpha -}}
+{{- dict "deny" $denyPaths "infra_read" ($infraReadPaths | uniq | sortAlpha) | toJson -}}

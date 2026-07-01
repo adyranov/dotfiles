@@ -1,0 +1,11 @@
+{{- /* chezmoi:modify-template */ -}}
+#!/usr/bin/env bash
+# Normalize OpenCode auth.json: remove provider entries that auto-discover env vars.
+# OpenCode does NOT expand $VAR in auth.json key values (unlike Pi).
+# OpenCode auto-discovers OPENCODE_API_KEY for opencode-go per models catalog.
+# Deleting the entry lets this fallback work instead of sending literal "$OPENCODE_API_KEY".
+# openai uses OAuth → left alone.
+set -euo pipefail
+jq '
+  del(.["opencode-go"]) | del(.["opencode"])
+'

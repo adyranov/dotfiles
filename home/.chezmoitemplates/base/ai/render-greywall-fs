@@ -1,0 +1,27 @@
+{{- /* render-greywall-fs — Build Greywall filesystem policy from base + optional agent overlay.
+  Usage:
+    {{ includeTemplate "base/ai/render-greywall-fs" (dict "root" .) | mustFromJson }}
+    {{ includeTemplate "base/ai/render-greywall-fs" (dict "root" . "agent" "pi") | mustFromJson }}
+  Output: JSON { allowRead, allowWrite, denyRead, denyWrite }
+  Allow lists get "." prepended, all lists sorted/deduped.
+  Agent overlay only merges allow lists; global denies always apply.
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $agent := dig "agent" "" . -}}
+{{- $sandbox := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.sandbox" "required" true) | mustFromJson) -}}
+{{- $allowRead := concat (list ".") (index $sandbox "allow_read" | default list) | uniq | sortAlpha -}}
+{{- $allowWrite := concat (list ".") (index $sandbox "allow_write" | default list) | uniq | sortAlpha -}}
+{{- $denyRead := index $sandbox "deny_read" | default list | uniq | sortAlpha -}}
+{{- $denyWrite := index $sandbox "deny_write" | default list | uniq | sortAlpha -}}
+{{- if ne $agent "" -}}
+{{-   $agentSection := printf "ai.agents.%s.sandbox.paths" $agent -}}
+{{-   $agentPaths := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" $agentSection "required" false) | mustFromJson) -}}
+{{-   $allowRead = concat $allowRead (index $agentPaths "allow_read" | default list) | uniq | sortAlpha -}}
+{{-   $allowWrite = concat $allowWrite (index $agentPaths "allow_write" | default list) | uniq | sortAlpha -}}
+{{- end -}}
+{{- dict
+  "allowRead" $allowRead
+  "allowWrite" $allowWrite
+  "denyRead" $denyRead
+  "denyWrite" $denyWrite
+| toJson -}}

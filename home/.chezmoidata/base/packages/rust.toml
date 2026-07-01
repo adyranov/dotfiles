@@ -5,18 +5,6 @@ manager = "mise"
 bin = "rustc"
 
 [packages.base.rust.rust.policy]
-allow = [
-  "cargo --version",
-  "cargo check *",
-  "cargo clippy *",
-  "cargo doc *",
-  "cargo fmt --check *",
-  "cargo metadata *",
-  "cargo package --list *",
-  "cargo test *",
-  "cargo tree *",
-  "rustc *"
-]
 deny = [
   "cargo login *",
   "cargo logout *",
