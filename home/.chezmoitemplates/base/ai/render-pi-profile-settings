@@ -1,21 +1,28 @@
 {{- /* Render Pi profile settings managed dict as JSON */ -}}
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.agents.pi" "required" true) | mustFromJson -}}
-{{- $models := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.personas" "required" true) | mustFromJson -}}
+{{- $catalog := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.catalog" "required" false) | mustFromJson -}}
 {{- $profile := includeTemplate "base/ai/resolve-profile" (dict "agentData" $pi "profile" .profile) | mustFromJson -}}
-{{- $defaults := index $models $models.default -}}
+{{- $defaults := index $personas $personas.default -}}
+{{- $enabled := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.enabled" "required" false) | mustFromJson -}}
 {{- $enabledModels := list -}}
-{{- range $_, $route := $models -}}
-{{-   if not (kindIs "map" $route) -}}{{ continue }}{{- end -}}
-{{-   if not (hasKey $route "model") -}}{{ continue }}{{- end -}}
-{{-   $enabledModels = append $enabledModels $route.model | uniq -}}
-{{- end -}}
-{{- $local := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.local" "required" false) | mustFromJson -}}
-{{- if hasKey $local "models" -}}
-{{-   range $key, $_ := $local.models -}}
-{{-     $enabledModels = append $enabledModels $key -}}
+{{- if hasKey $enabled "models" -}}
+{{-   $enabledModels = get $enabled "models" -}}
+{{- else -}}
+{{-   range $_, $route := $personas -}}
+{{-     if not (kindIs "map" $route) -}}{{ continue }}{{- end -}}
+{{-     if not (hasKey $route "model") -}}{{ continue }}{{- end -}}
+{{-     $modelId := includeTemplate "base/ai/render-pi-model-ref" $route -}}
+{{-     $enabledModels = append $enabledModels $modelId | uniq -}}
 {{-   end -}}
+{{-   $local := get $catalog "local" | default dict -}}
+{{-   if hasKey $local "models" -}}
+{{-     range $key, $_ := $local.models -}}
+{{-       $enabledModels = append $enabledModels (printf "local/%s" $key) -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $enabledModels = $enabledModels | uniq -}}
 {{- end -}}
-{{- $enabledModels = $enabledModels | uniq -}}
 {{- $settings := $pi.settings -}}
 {{- $packages := list -}}
 {{- $skills := list -}}

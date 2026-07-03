@@ -1,5 +1,5 @@
-{{- $models := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson -}}
-{{- $adv := get $models "oracle" -}}
+{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson -}}
+{{- $adv := get $personas "oracle" -}}
 {{- $modelKey := get $adv "model" -}}
 {{- if get $adv "provider" -}}
   {{- $modelKey = printf "%s:%s" (get $adv "provider") (get $adv "model") -}}
@@ -9,5 +9,9 @@
   "modelKey" $modelKey
   "effort" (default "high" (get $adv "thinking"))
   "disabledForModels" (concat (list $modelKey) (default (list) (get $adv "exclude")) | uniq)
+  "guidance" (dict
+    "promptSnippet" "Ask stronger reviewer before risky work or final answer"
+    "promptGuidelines" (list "Use advisor before high-risk edits, when stuck, or before declaring complex work done. Keep question specific.")
+  )
   | toPrettyJson
-}}
+-}}

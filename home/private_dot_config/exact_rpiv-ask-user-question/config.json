@@ -1,0 +1,10 @@
+{
+  "guidance": {
+    "promptSnippet": "Ask focused questions before guessing unclear requirements",
+    "promptGuidelines": [
+      "Use ask_user_question when guessing could change scope, UX, risk, compatibility, data loss, or success criteria.",
+      "Ask early and repeat until material ambiguity is resolved.",
+      "Prefer 2-4 concrete options when choices help; keep labels short and descriptions specific."
+    ]
+  }
+}

@@ -8,17 +8,6 @@ bin = "tofu"
 version = "tofu version"
 
 [packages.base.iac.opentofu.policy]
-allow = [
-  "tofu fmt -check *",
-  "tofu output *",
-  "tofu plan *",
-  "tofu providers *",
-  "tofu show *",
-  "tofu validate *",
-  "tofu version *",
-  "tofu workspace list *",
-  "tofu workspace show *"
-]
 deny = [
   "tofu * apply *",
   "tofu * destroy *",
@@ -38,15 +27,6 @@ deny = [
 manager = "mise"
 
 [packages.base.iac.terragrunt.policy]
-allow = [
-  "terragrunt output *",
-  "terragrunt plan *",
-  "terragrunt show *",
-  "terragrunt validate *",
-  "terragrunt version *",
-  "terragrunt workspace list *",
-  "terragrunt workspace show *"
-]
 deny = [
   "terragrunt * apply *",
   "terragrunt * destroy *",

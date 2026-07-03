@@ -1,6 +1,8 @@
 {{- /* Render oh-my-opencode-slim plugin config from managed model data */ -}}
 {{- $root := .root -}}
-{{- $models := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.personas" "required" true) | mustFromJson -}}
+
+
 
 {{- /* Mapping: slim agent -> model category */ -}}
 {{- $agentMap := dict
@@ -14,8 +16,8 @@
 -}}
 
 {{- /* MCP/skills per agent */ -}}
-{{- $starMcps := list "*" "!context7" -}}
-{{- $librarianMcps := list "websearch" "context7" "gh_grep" -}}
+{{- $starMcps := list -}}
+{{- $librarianMcps := list -}}
 {{- $emptyMcps := list -}}
 {{- $orchestratorSkills := list "codemap" "clonedeps" "deepwork" "reflect" "oh-my-opencode-slim" "worktrees" -}}
 {{- $oracleSkills := list "simplify" -}}
@@ -24,15 +26,12 @@
 {{- /* Build managed preset */ -}}
 {{- $presetAgents := dict -}}
 {{- range $agent, $category := $agentMap -}}
-{{-   $route := index $models $category -}}
-{{-   if not $route -}}{{ continue }}{{- end -}}
-{{-   $cfg := dict -}}
-{{-   $modelId := $route.model -}}
-{{-   if hasKey $route "provider" -}}
-{{-     $modelId = printf "%s/%s" $route.provider $route.model -}}
+{{-   $route := index $personas $category -}}
+{{-   if not $route -}}
+{{-     fail (printf "render-opencode-slim-config: ai.models has no route for category %q (mapped by slim agent %q)" $category $agent) -}}
 {{-   end -}}
-{{-   $_ := set $cfg "model" $modelId -}}
-
+{{-   $cfg := dict -}}
+{{-   $_ := set $cfg "model" (includeTemplate "base/ai/render-opencode-model-id" $route) -}}
 {{-   if hasKey $route "thinking" -}}
 {{-     $thinking := $route.thinking -}}
 {{-     if ne $thinking "off" -}}
@@ -61,14 +60,12 @@
 {{- $councillorCats := list "architect" "auditor" "coder" -}}
 {{- $councillors := dict -}}
 {{- range $cat := $councillorCats -}}
-{{-   $route := index $models $cat -}}
-{{-   if not $route -}}{{ continue }}{{- end -}}
-{{-   $cfg := dict -}}
-{{-   $modelId := $route.model -}}
-{{-   if hasKey $route "provider" -}}
-{{-     $modelId = printf "%s/%s" $route.provider $route.model -}}
+{{-   $route := index $personas $cat -}}
+{{-   if not $route -}}
+{{-     fail (printf "render-opencode-slim-config: ai.models has no route for council category %q" $cat) -}}
 {{-   end -}}
-{{-   $_ := set $cfg "model" $modelId -}}
+{{-   $cfg := dict -}}
+{{-   $_ := set $cfg "model" (includeTemplate "base/ai/render-opencode-model-id" $route) -}}
 {{-   if hasKey $route "thinking" -}}
 {{-     $thinking := $route.thinking -}}
 {{-     if ne $thinking "off" -}}
@@ -82,11 +79,14 @@
 {{- $council := dict "default_preset" "managed" "presets" $councilPresets -}}
 {{- $presets := dict "managed" $presetAgents -}}
 
+{{- $multiplexer := dict "type" "tmux" "layout" "main-vertical" "main_pane_size" 60 -}}
+
 {{- $result := dict
   "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"
   "preset" "managed"
   "setDefaultAgent" true
   "autoUpdate" false
+  "multiplexer" $multiplexer
   "presets" $presets
   "council" $council
 -}}

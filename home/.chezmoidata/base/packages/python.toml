@@ -1,30 +1,8 @@
 [packages.base.python]
-uv = {completion = {generate = "uv generate-shell-completion zsh"}, manager = "mise", policy = {allow = [
-  "uv --version",
-  "uv lock --check *",
-  "uv pip check *",
-  "uv pip freeze *",
-  "uv pip list *",
-  "uv pip show *",
-  "uv pip tree *",
-  "uv python list *",
-  "uv tree *"
-], deny = [
+uv = {completion = {generate = "uv generate-shell-completion zsh"}, manager = "mise", policy = {deny = [
   "uv publish *"
 ]}}
 
 [packages.base.python.python]
 manager = "mise"
 bin = "python3"
-
-[packages.base.python.python.policy]
-allow = [
-  "mypy *",
-  "pytest --collect-only *",
-  "python --version",
-  "python -m pytest --collect-only *",
-  "python3 --version",
-  "ruff --version",
-  "ruff check *",
-  "ruff format --check *"
-]

@@ -18,7 +18,8 @@ fi
 # ----- Constants & defaults ---------------------------------------------------
 
 PACKAGE_SUITES=(test-system-packages.bats test-mise-packages.bats test-helm-plugins.bats test-krew-plugins.bats)
-ALL_SUITES=("${PACKAGE_SUITES[@]}" test-config.bats test-ai.bats)
+AI_SUITES=(test-ai-shared.bats test-ai-pi.bats test-ai-opencode.bats test-ai-local-llm.bats test-ai-permissions.bats)
+ALL_SUITES=("${PACKAGE_SUITES[@]}" test-config.bats "${AI_SUITES[@]}")
 
 detectJobs() {
   if command -v nproc >/dev/null 2>&1; then
@@ -50,7 +51,12 @@ suiteAlias() {
   helm-plugins | helm) echo test-helm-plugins.bats ;;
   krew-plugins | krew) echo test-krew-plugins.bats ;;
   config) echo test-config.bats ;;
-  ai) echo test-ai.bats ;;
+  ai) printf '%s\n' "${AI_SUITES[@]}" ;;
+  ai-shared) echo test-ai-shared.bats ;;
+  ai-pi) echo test-ai-pi.bats ;;
+  ai-opencode) echo test-ai-opencode.bats ;;
+  ai-local-llm | ai-llm) echo test-ai-local-llm.bats ;;
+  ai-permissions | ai-perms) echo test-ai-permissions.bats ;;
   all) printf '%s\n' "${ALL_SUITES[@]}" ;;
   *) return 1 ;;
   esac
@@ -158,12 +164,25 @@ runAll() {
   local wall_start
   wall_start=$(date +%s)
 
-  # Filter to suites with matching tests.
-  local active=() suite_path count
+  # Filter to suites with matching tests; fail loud on Bats parse errors.
+  local active=() suite_path count count_output
   for suite_path in "${suites[@]}"; do
     [ -f "$suite_path" ] || continue
-    count=$("$BATS_BIN" "${BATS_FILTER_ARGS[@]}" --count "$suite_path" 2>/dev/null || echo 0)
-    [ "${count:-0}" -gt 0 ] && active+=("$suite_path")
+    if ! count_output=$("$BATS_BIN" "${BATS_FILTER_ARGS[@]}" --count "$suite_path" 2>&1); then
+      printf '\n%s== suite: %s ==%s\n' "$C_BLUE$C_BOLD" "$(suiteDisplayName "$suite_path")" "$C_RESET"
+      printf '%s\n' "$count_output"
+      rm -rf "$tmp_root"
+      return 1
+    fi
+    count=$(printf '%s\n' "$count_output" | tail -n 1)
+    case $count in
+    '' | *[!0-9]*)
+      printf 'check-dotfiles: invalid test count for %s: %s\n' "$suite_path" "$count" >&2
+      rm -rf "$tmp_root"
+      return 1
+      ;;
+    esac
+    [ "$count" -gt 0 ] && active+=("$suite_path")
   done
 
   # Launch all suites in parallel.

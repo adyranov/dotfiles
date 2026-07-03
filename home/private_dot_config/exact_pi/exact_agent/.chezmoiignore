@@ -1,4 +1,3 @@
-auth.json
 agents/sdd-*
 # rpiv managed agents
 agents/.rpiv-managed.json
@@ -19,7 +18,6 @@ agents/slice-verifier.md
 agents/web-search-researcher.md
 
 chains/
-cursor-sdk-model-list.json
 extensions/*
 !extensions/pi-permission-system
 !extensions/pi-permission-system/config.json
@@ -35,3 +33,4 @@ projects-memory/
 run-history.jsonl
 sessions/**
 state.json
+trust.json

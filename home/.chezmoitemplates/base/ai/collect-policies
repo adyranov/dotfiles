@@ -1,0 +1,28 @@
+{{- /* base/ai/collect-policies — Merged command policy (deny + ask) for bash commands.
+
+  Walks layered packages and merges system-wide generic denies from
+  ai.permissions.commands.deny with per-package policy.deny and policy.ask lists.
+  Returns a JSON object with sorted, unique "deny" and "ask" arrays.
+
+  Args (dict):
+    root — template data root (required)
+
+  Output: JSON object, e.g. {"deny": ["sudo *", ...], "ask": ["chezmoi apply", ...]}
+*/ -}}
+{{- $root := .root -}}
+{{- $commands := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.commands" "required" false) | mustFromJson -}}
+{{- $genericDeny := index $commands "deny" | default list -}}
+{{- $genericAsk := index $commands "ask" | default list -}}
+{{- $entries := includeTemplate "base/packages/walk" (dict "root" $root) | mustFromJson -}}
+{{- $deny := $genericDeny -}}
+{{- $ask := $genericAsk -}}
+{{- range $entry := $entries -}}
+{{-   $policy := index $entry.pkg "policy" | default dict -}}
+{{-   range $pattern := index $policy "deny" | default list -}}
+{{-     $deny = append $deny $pattern -}}
+{{-   end -}}
+{{-   range $pattern := index $policy "ask" | default list -}}
+{{-     $ask = append $ask $pattern -}}
+{{-   end -}}
+{{- end -}}
+{{- dict "deny" ($deny | uniq | sortAlpha) "ask" ($ask | uniq | sortAlpha) | toJson -}}

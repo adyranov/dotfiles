@@ -47,8 +47,9 @@ Prebuilt images are also published to GHCR and Docker Hub:
 
 - The `ai` toolchain gates nested agents such as Pi, plus model routing, skills,
   permissions, and sandbox configuration.
-- Pi command policy defaults to ask, allows safe read/status operations, and
-  denies destructive patterns.
+- Pi command policy defaults to allow with deny-list restrictions. The deny list
+  covers dangerous commands (sudo, rm -rf, destructive git/docker/kubectl, etc.).
+  Greywall enforces the host-level filesystem/network/process sandbox.
 - Greywall provides the host filesystem/network/process sandbox; Pi permission
   prompts are a higher-level agent guard.
 - Pi uses runtime profiles: `pi-agent` or `pi-agent core` (daily driver with Plannotator, permission system, catppuccin), `pi-agent minimal`
@@ -67,8 +68,8 @@ Prebuilt images are also published to GHCR and Docker Hub:
 
 **`llm-serve`** is the local OpenAI-compatible gateway on
 `http://127.0.0.1:8321/v1`. Model data lives in
-`home/.chezmoidata/base/ai/local.toml`; profile overrides live in
-`home/.chezmoidata/profile/<profile>/ai.toml`.
+`home/.chezmoidata/base/ai/models.toml`; profile overrides live in
+`home/.chezmoidata/profile/<profile>/models.toml`.
 
 - `llm-serve` — start in the foreground (Ctrl-C to stop)
 - `llm-serve start` — start in the background
@@ -78,12 +79,13 @@ Prebuilt images are also published to GHCR and Docker Hub:
 
 | Host | Default engine | Notes |
 | --- | --- | --- |
-| darwin / arm64 | profile (`engine` in `ai.toml`) | Installs both oMLX and `adyranov/tap/llama-cpp`; runtime picks `omlx` or `llamacpp` |
+| darwin / arm64 | profile (`models.catalog.local.engine`) | Installs both oMLX and `adyranov/tap/llama-cpp`; runtime picks `omlx` or `llamacpp` |
 | darwin / amd64 | `llamacpp` | `adyranov/tap/llama-cpp`; native llama.cpp router mode |
 | Linux / WSL2 | `llamacpp` | mise `llama.cpp` native router mode |
 
-Set `engine = "omlx"` or `engine = "llamacpp"` under `[ai.profile.<profile>.local]`.
-Each model must declare the matching backend (`mlx` or `gguf`). Qwen 3.5+ GGUF models
+Set `engine = "omlx"` or `engine = "llamacpp"` under
+`[ai.profile.<profile>.models.catalog.local]`. Each model must declare the
+matching backend (`mlx` or `gguf`). Qwen 3.5+ GGUF models
 auto-attach the froggeric chat template. Use `llm-pull` to download weights, then
 `chezmoi apply` to sync model symlinks and llama.cpp router presets.
 

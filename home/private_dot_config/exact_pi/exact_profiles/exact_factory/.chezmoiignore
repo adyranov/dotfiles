@@ -7,4 +7,5 @@ pi-hermes-memory/
 projects-memory/
 sessions/**
 state.json
+trust.json
 tmp/**

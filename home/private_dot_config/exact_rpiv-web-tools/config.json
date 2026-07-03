@@ -1,0 +1,29 @@
+{
+  "interceptors": {
+    "github": {
+      "enabled": true,
+      "maxRepoSizeMB": 350,
+      "cloneTimeoutSeconds": 30,
+      "clonePath": "~/.cache/pi-github-repos"
+    }
+  },
+  "guidance": {
+    "web_search": {
+      "promptSnippet": "Search the web for current facts, docs, APIs, releases, or external errors.",
+      "promptGuidelines": [
+        "Use web_search only when current/external evidence is needed.",
+        "Prefer official docs, source repos, changelogs, and package registries.",
+        "Cite source URLs in plan or final answer."
+      ]
+    },
+    "web_fetch": {
+      "promptSnippet": "Fetch a specific URL and read source content.",
+      "promptGuidelines": [
+        "Fetch primary sources before making claims.",
+        "Use raw:true only when page source matters.",
+        "Use GitHub interceptor for github.com repo/file URLs when enabled.",
+        "Cite fetched URLs in plan or final answer."
+      ]
+    }
+  }
+}

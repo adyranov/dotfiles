@@ -1,8 +1,9 @@
 {{- if .toolchains.ai -}}
-{{- $skills := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.skills" "required" true) | mustFromJson -}}
+{{- $libraries := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.libraries" "required" true) | mustFromJson -}}
 {{- $tagMemo := dict -}}
-{{- /* Curated skills — one external per sub-skill; chezmoi caches archive downloads by URL */ -}}
-{{- range $alias, $skill := default (dict) $skills }}
+
+{{- /* Skills — one external per sub-skill */ -}}
+{{- range $alias, $skill := default (dict) (index $libraries "skills" | default dict) }}
 {{-   $repo := $skill.repo }}
 {{-   $prefix := default "skills" (index $skill "prefix") }}
 {{-   range $sub := $skill.include }}
@@ -11,10 +12,30 @@
     "memo"   $tagMemo
     "target" (printf "libraries/skills/%s/%s" $alias $sub)
     "repo"   $repo
-    "stripComponents" (add (len (splitList "/" (default "skills" (index $skill "prefix")))) 2)
+    "stripComponents" (add (len (splitList "/" $prefix)) 2)
     "include" (list (printf "*/%s/%s/**" $prefix $sub))
     "exact"  true) }}
 
 {{   end }}
+{{- end }}
+
+{{- /* Commands — one external per group, extracting all files */ -}}
+{{- range $alias, $cmdGroup := default (dict) (index $libraries "commands" | default dict) }}
+{{-   $repo := $cmdGroup.repo }}
+{{-   $prefix := $cmdGroup.prefix }}
+{{-   if not $prefix }}{{ continue }}{{ end }}
+{{-   $includes := list }}
+{{-   range $file := $cmdGroup.include }}
+{{-     $includes = append $includes (printf "*/%s/%s" $prefix $file) }}
+{{-   end }}
+{{ template "base/github/external" (dict
+    "type"   "archive"
+    "memo"   $tagMemo
+    "target" (printf "libraries/commands/%s" $alias)
+    "repo"   $repo
+    "stripComponents" (add (len (splitList "/" $prefix)) 1)
+    "include" $includes
+    "exact"  true) }}
+
 {{- end }}
 {{- end -}}

@@ -85,9 +85,8 @@ ehthumbs.db
 *.swp
 *.swo
 *~
-# Agent-generated plans
-plans/
-/PLAN.md
+# Plannotator plan workspace
+.plannotator/
 
 # Local Pi runtime state
 .atl/

@@ -1,13 +1,18 @@
-{{- $models := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models" "required" true) | mustFromJson -}}
+{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson -}}
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
-{{- $defaults := index $models $models.default -}}
+{{- $defaults := index $personas $personas.default -}}
 {{- $cfg := get (index $pi.profiles "core") "plannotator" | default dict -}}
 
 {{- $planningCat := get $cfg "planning" | default "architect" -}}
 {{- $executingCat := get $cfg "executing" | default "coder" -}}
 
-{{- $planningRoute := get $models $planningCat | default dict -}}
-{{- $executingRoute := get $models $executingCat | default dict -}}
+{{- $planningRoute := get $personas $planningCat | default dict -}}
+{{- $executingRoute := get $personas $executingCat | default dict -}}
+
+{{- $planningPrompt := "[PLANNOTATOR PLANNING]\nNo code edits. Only create/edit markdown plan files under `.plannotator/` in workspace.\nGoal: resolve ambiguity first, then submit one concise action plan.\nQuestion phase first: inspect enough context, then use `ask_user_question` to grill user until scope, constraints, risks, success criteria, and apply/render expectations are clear.\nAsk only with `ask_user_question`; repeat until material ambiguity is resolved. Do not present final plan while material ambiguity remains.\nUse Pi file/search/code-intel tools before bash. Explore enough to reuse existing code.\nUse `web_search`/`web_fetch` for current external facts; cite URLs in plan when used.\nKeep one current plan with: context, decisions, approach, files, reuse, exact steps, verification.\nFinal plan: concise, decisive, no fluff, no unresolved options.\nSubmit with `plannotator_submit_plan`." -}}
+{{- $executingPrompt := "[PLANNOTATOR EXECUTING]\nExecute approved plan ${planFilePath}.\nRemaining:\n${todoList}\nSmall source-only changes. Reuse existing utilities. Validate with diagnostics/tests.\nDo not edit rendered dotfiles, run apply/sync, or bypass sandbox. Ask user to apply/sync generated files.\nUse `ask_user_question` for new scope/risk choices; use `advisor` before risky pivots.\nAfter step n, say `[DONE:n]`." -}}
+{{- $reviewingPrompt := "[PLANNOTATOR REVIEWING]\nReview feedback. Preserve plan filename.\nUse `ask_user_question` for any new ambiguity; do not revise final plan while material ambiguity remains.\nUse search/read tools if needed. Make smallest plan update addressing feedback.\nDo not implement code changes in review phase.\nResubmit with `plannotator_submit_plan`." -}}
+{{- $planningTools := list "read" "fffind" "ffgrep" "grep" "find" "ls" "nu" "module_report" "read_symbol" "read_enclosing" "lsp_navigation" "lsp_diagnostics" "lens_diagnostics" "ast_grep_search" "ast_grep_outline" "ast_grep_dump" "web_search" "web_fetch" "ask_user_question" "advisor" "todo" "memory_search" "session_search" "context_checkpoint" "context_timeline" "context_compact" "bash" "write" "edit" "plannotator_submit_plan" -}}
 
 {{- dict
   "defaults" (dict
@@ -18,10 +23,19 @@
     "planning" (dict
       "model" (dict "provider" ($planningRoute.provider | default $defaults.provider) "id" ($planningRoute.model | default $defaults.model))
       "thinking" ($planningRoute.thinking | default $defaults.thinking)
+      "activeTools" $planningTools
+      "systemPrompt" $planningPrompt
+      "statusLabel" "⏸ plan"
     )
     "executing" (dict
       "model" (dict "provider" ($executingRoute.provider | default $defaults.provider) "id" ($executingRoute.model | default $defaults.model))
       "thinking" ($executingRoute.thinking | default $defaults.thinking)
+      "systemPrompt" $executingPrompt
+      "statusLabel" "▶ execute"
+    )
+    "reviewing" (dict
+      "systemPrompt" $reviewingPrompt
+      "statusLabel" "↻ review"
     )
   )
 | toPrettyJson -}}

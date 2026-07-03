@@ -1,6 +1,5 @@
 .gitignore
-auth.json
-dcp.jsonc
+
 logs/
 npm/
 node_modules/
@@ -8,3 +7,4 @@ package*.json
 sessions/**
 state.json
 mcp-cache.json
+auth.json

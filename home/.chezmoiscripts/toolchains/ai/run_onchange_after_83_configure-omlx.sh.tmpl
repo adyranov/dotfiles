@@ -1,9 +1,9 @@
 {{- if and .toolchains.ai (eq .host.distro.family "darwin") (eq .host.arch "arm64") -}}
 {{- /* Install wiring: always sync mlx backends, independent of runtime engine. */ -}}
-{{- $local := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.local" "required" true) | mustFromJson -}}
+{{- $catalog := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.catalog" "required" true) | mustFromJson -}}
 {{- $omlxModels := dict -}}
 {{- $hf_dirs := list -}}
-{{- range $id, $m := index $local "models" | default dict -}}
+{{- range $id, $m := index (get $catalog "local" | default dict) "models" | default dict -}}
 {{-   $mlx := index $m "mlx" | default dict -}}
 {{-   if index $mlx "repo" -}}
 {{-     $omlxModels = merge $omlxModels (dict $id (dict "backend" $mlx)) -}}
