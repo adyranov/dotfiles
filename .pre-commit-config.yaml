@@ -91,23 +91,23 @@ repos:
       - id: gitleaks
         name: Detect Hardcoded Secrets
   - repo: https://github.com/editorconfig-checker/editorconfig-checker
-    rev: v3.7.0
+    rev: v3.8.0
     hooks:
       - id: editorconfig-checker
         name: Check EditorConfig
         exclude: plist|tmpl|pub|age
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 43.243.2
+    rev: 43.251.0
     hooks:
       - id: renovate-config-validator
         name: Validate Renovate Config
   - repo: https://github.com/crate-ci/typos
-    rev: v1.47.2
+    rev: v1.48.0
     hooks:
       - id: typos
         name: Check Spelling
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.22.1
+    rev: v0.23.0
     hooks:
       - id: markdownlint-cli2
         name: Lint Markdown

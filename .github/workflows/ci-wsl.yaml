@@ -17,14 +17,14 @@ jobs:
         with:
           distribution: Ubuntu-24.04
       - name: Restore WSL mise Cache
-        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: restore-wsl-mise
         with:
           path: \\wsl$\Ubuntu-24.04\root\.local\share\mise\downloads
           key: wsl-mise-${{ hashFiles('.mise.toml', 'home/.chezmoidata/base/packages/**', 'home/.chezmoidata/os/ubuntu/packages.toml', 'home/.chezmoidata/profile/**', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoiscripts/common/run_onchange_after_01_update-mise.sh.tmpl', 'home/.chezmoiscripts/common/run_onchange_after_10_install-mise-packages.sh.tmpl') }}
           restore-keys: wsl-mise-
       - name: Restore WSL APT Cache
-        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: restore-wsl-apt
         with:
           path: \\wsl$\Ubuntu-24.04\var\cache\apt\archives
@@ -49,13 +49,13 @@ jobs:
           zsh -lic 'check-dotfiles'
       - name: Save WSL mise Cache
         if: success() && github.event_name != 'pull_request' && steps.restore-wsl-mise.outputs.cache-hit != 'true'
-        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: \\wsl$\Ubuntu-24.04\root\.local\share\mise\downloads
           key: ${{ steps.restore-wsl-mise.outputs.cache-primary-key }}
       - name: Save WSL APT Cache
         if: success() && github.event_name != 'pull_request' && steps.restore-wsl-apt.outputs.cache-hit != 'true'
-        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: \\wsl$\Ubuntu-24.04\var\cache\apt\archives
           key: ${{ steps.restore-wsl-apt.outputs.cache-primary-key }}
