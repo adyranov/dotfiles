@@ -37,13 +37,13 @@ setup() {
 
 # bats test_tags=toolchain:pi,kind:packages
 @test "pi settings.json contains core packages only" {
-  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+  assert_file_exists "$HOME/.config/pi/profiles/core/settings.json"
 {{- $core := index $pi.profiles "core" }}
 {{- range $name := $core.packages }}
-  run grep -F '"npm:{{ $name }}"' "$HOME/.config/pi/agent/settings.json"
+  run grep -F '"npm:{{ $name }}"' "$HOME/.config/pi/profiles/core/settings.json"
   assert_success
 {{- end }}
-  run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/agent/settings.json"
+  run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/core/settings.json"
   assert_failure
 }
 
@@ -65,15 +65,15 @@ setup() {
   run jq -e '
     .compaction.keepRecentTokens == 8000 and
     .compaction.reserveTokens == 8192
-  ' "$HOME/.config/pi/agent/settings.json"
+  ' "$HOME/.config/pi/profiles/core/settings.json"
   assert_success
 }
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi settings.json loads only core skills" {
-  run jq -e '.skills | length == 1' "$HOME/.config/pi/agent/settings.json"
+  run jq -e '.skills | length == 1' "$HOME/.config/pi/profiles/core/settings.json"
   assert_success
-  run jq -e '.skills | index("../../agents/skills/karpathy-guidelines") != null' "$HOME/.config/pi/agent/settings.json"
+  run jq -e '.skills | index("../../agents/skills/karpathy-guidelines") != null' "$HOME/.config/pi/profiles/core/settings.json"
   assert_success
 }
 
@@ -115,48 +115,48 @@ setup() {
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi plannotator.json planning has expanded activeTools" {
-  run jq -e '.phases.planning.activeTools | any(. == "module_report")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "module_report")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "read_symbol")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "read_symbol")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "lsp_navigation")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "lsp_navigation")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "lens_diagnostics")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "lens_diagnostics")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "ast_grep_search")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "ast_grep_search")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "memory_search")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "mem_search")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "context_checkpoint")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "context_checkpoint")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "plannotator_submit_plan")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "plannotator_submit_plan")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "ask_user_question")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "ask_user_question")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "advisor")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "advisor")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "web_search")' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.activeTools | any(. == "web_search")' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
 }
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi plannotator.json phase systemPrompts are non-empty" {
-  run jq -e '.phases.planning.systemPrompt | length > 0' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.planning.systemPrompt | length > 0' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.executing.systemPrompt | length > 0' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.executing.systemPrompt | length > 0' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -e '.phases.reviewing.systemPrompt | length > 0' "$HOME/.config/pi/agent/plannotator.json"
+  run jq -e '.phases.reviewing.systemPrompt | length > 0' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/agent/plannotator.json"
+  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
   assert_output --partial ".plannotator/"
-  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/agent/plannotator.json"
+  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
   assert_output --partial "Question phase first"
-  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/agent/plannotator.json"
+  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
   assert_output --partial "material ambiguity"
-  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/agent/plannotator.json"
+  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
   assert_output --partial "Final plan: concise"
 }
@@ -175,7 +175,7 @@ setup() {
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi core plannotator.json exists" {
-  assert_file_exists "$HOME/.config/pi/agent/plannotator.json"
+  assert_file_exists "$HOME/.config/pi/profiles/core/plannotator.json"
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -194,7 +194,7 @@ setup() {
     .defaults.model.provider == "{{ $defaults.provider }}" and
     .defaults.model.id == "{{ $defaults.model }}" and
     .defaults.thinking == "{{ $defaults.thinking }}"
-  ' "$HOME/.config/pi/agent/plannotator.json"
+  ' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
 }
 
@@ -204,7 +204,7 @@ setup() {
     .phases.planning.model.provider == "{{ $planPlanningRoute.provider | default $defaults.provider }}" and
     .phases.planning.model.id == "{{ $planPlanningRoute.model | default $defaults.model }}" and
     .phases.planning.thinking == "{{ $planPlanningRoute.thinking | default $defaults.thinking }}"
-  ' "$HOME/.config/pi/agent/plannotator.json"
+  ' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
 }
 
@@ -214,7 +214,7 @@ setup() {
     .phases.executing.model.provider == "{{ $planExecutingRoute.provider | default $defaults.provider }}" and
     .phases.executing.model.id == "{{ $planExecutingRoute.model | default $defaults.model }}" and
     .phases.executing.thinking == "{{ $planExecutingRoute.thinking | default $defaults.thinking }}"
-  ' "$HOME/.config/pi/agent/plannotator.json"
+  ' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
 }
 
@@ -232,13 +232,13 @@ setup() {
   assert_output "$HOME/.config/pi/agent/models.json"
   run readlink -f "$HOME/.config/pi/profiles/$profile/mcp.json"
   assert_success
-  assert_output "$HOME/.config/pi/agent/mcp.json"
+  assert_output "$HOME/.config/pi/profiles/core/mcp.json"
   run readlink -f "$HOME/.config/pi/profiles/$profile/extensions/pi-permission-system/config.json"
   assert_success
   assert_output "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   run readlink -f "$HOME/.config/pi/profiles/$profile/plannotator.json"
   assert_success
-  assert_output "$HOME/.config/pi/agent/plannotator.json"
+  assert_output "$HOME/.config/pi/profiles/core/plannotator.json"
   run readlink -f "$HOME/.config/pi/profiles/$profile/SYSTEM.md"
   assert_success
   assert_output "$HOME/.config/pi/agent/SYSTEM.md"
@@ -248,24 +248,17 @@ setup() {
 @test "pi factory has plannotator symlink" {
   run readlink -f "$HOME/.config/pi/profiles/factory/plannotator.json"
   assert_success
-  assert_output "$HOME/.config/pi/agent/plannotator.json"
+  assert_output "$HOME/.config/pi/profiles/core/plannotator.json"
 }
 
-# bats test_tags=toolchain:pi,kind:symlink
-@test "pi minimal profile symlinks resolve to agent config" {
-  local profile="minimal"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/AGENTS.md"
+# bats test_tags=toolchain:pi,kind:config
+@test "pi minimal config resides in agent dir" {
+  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+  assert_file_exists "$HOME/.config/pi/agent/auth.json"
+  assert_file_exists "$HOME/.config/pi/agent/models.json"
+  run readlink -f "$HOME/.config/pi/agent/AGENTS.md"
   assert_success
   assert_output "$HOME/.config/agents/AGENTS.md"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/auth.json"
-  assert_success
-  assert_output "$HOME/.config/pi/agent/auth.json"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/models.json"
-  assert_success
-  assert_output "$HOME/.config/pi/agent/models.json"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/SYSTEM.md"
-  assert_success
-  assert_output "$HOME/.config/pi/agent/SYSTEM.md"
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -381,9 +374,12 @@ EOF
   run "$HOME/.local/bin/pi-agent" --print-env minimal
   assert_success
   assert_output --partial "PI_CODING_AGENT_DIR"
-  assert_output --partial "pi/profiles/minimal"
+  assert_output --partial "pi/agent"
   assert_output --partial "PI_CODING_AGENT_SESSION_DIR"
-  assert_output --partial "pi/profiles/minimal/sessions"
+  assert_output --partial "pi/agent/sessions"
+  assert_output --partial "ENGRAM_DATA_DIR"
+  assert_output --partial "ENGRAM_PORT"
+  assert_output --partial "ENGRAM_URL"
 }
 
 # bats test_tags=toolchain:ai,kind:config
@@ -404,7 +400,17 @@ EOF
     .settings.idleTimeout == 10 and
     .settings.sampling == false and
     .settings.toolPrefix == "server"
-  ' "$HOME/.config/pi/agent/mcp.json"
+  ' "$HOME/.config/pi/profiles/core/mcp.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:mcp
+# Pi accesses engram via the gentle-engram package (direct daemon client),
+# not via MCP — so no mcpServers entry is expected here.
+@test "pi mcp.json has no engram server" {
+  run jq -e '
+    .mcpServers == {}
+  ' "$HOME/.config/pi/profiles/core/mcp.json"
   assert_success
 }
 {{- end }}

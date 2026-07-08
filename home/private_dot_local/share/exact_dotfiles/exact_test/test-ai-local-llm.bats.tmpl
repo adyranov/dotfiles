@@ -67,9 +67,11 @@ setup() {
 }
 
 # bats test_tags=toolchain:ai,kind:config
-@test "shell exports configure plannotator data dir" {
+@test "shell exports configure plannotator data dir and port" {
   assert_file_exists "$HOME/.config/shell/exports.d/ai-agents.sh"
-  run grep -F 'export PLANNOTATOR_DATA_DIR="$XDG_DATA_HOME/plannotator"' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  run grep -F 'export PLANNOTATOR_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/plannotator"' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_success
+  run grep -F 'export PLANNOTATOR_PORT="${PLANNOTATOR_PORT:-19432}"' "$HOME/.config/shell/exports.d/ai-agents.sh"
   assert_success
 }
 

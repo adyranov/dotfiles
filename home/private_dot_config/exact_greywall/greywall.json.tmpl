@@ -7,12 +7,16 @@
 {{- $fs := (includeTemplate "base/ai/render-greywall-fs" (dict "root" .) | mustFromJson) -}}
 {{- $networkRules := (includeTemplate "base/ai/render-network-rules" (dict "root" .) | mustFromJson) -}}
 {{- $creds := (includeTemplate "base/ai/render-credentials" . | mustFromJson) -}}
+{{- $netPolicy := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.network" "required" false) | mustFromJson) -}}
+{{- $localhost := index $netPolicy "localhost" | default dict -}}
 {{- $network := dict
   "proxyUrl" (printf "socks5://localhost:%v" $greyproxy.socks)
   "httpProxyUrl" (printf "http://localhost:%v" $greyproxy.http)
   "dnsAddr" (printf "localhost:%v" $greyproxy.dns)
   "rules" $networkRules
 -}}
+{{- if hasKey $localhost "allow_outbound" -}}{{- $_ := set $network "allowLocalOutbound" $localhost.allow_outbound -}}{{- end -}}
+{{- if hasKey $localhost "forward_ports" -}}{{- $_ := set $network "forwardPorts" $localhost.forward_ports -}}{{- end -}}
 {{- $ssh := dict
   "allowedHosts" (list "github.com")
   "allowedCommands" (list "git-upload-pack")

@@ -4,32 +4,32 @@ on:
     branches:
       - main
     paths:
-      - '**'
-      - '!**.md'
-      - '!LICENSE'
-      - '!.editorconfig'
-      - '!.gitattributes'
-      - '!.gitignore'
-      - '!.pre-commit-config.yaml'
-      - '!.github/renovate.json5'
-      - '!.github/workflows/**'
-      - '.github/workflows/ci.yaml'
-      - '.github/workflows/ci-*.yaml'
+      - "**"
+      - "!**.md"
+      - "!LICENSE"
+      - "!.editorconfig"
+      - "!.gitattributes"
+      - "!.gitignore"
+      - "!.pre-commit-config.yaml"
+      - "!.github/renovate.json5"
+      - "!.github/workflows/**"
+      - ".github/workflows/ci.yaml"
+      - ".github/workflows/ci-*.yaml"
   pull_request:
     branches:
       - main
     paths:
-      - '**'
-      - '!**.md'
-      - '!LICENSE'
-      - '!.editorconfig'
-      - '!.gitattributes'
-      - '!.gitignore'
-      - '!.pre-commit-config.yaml'
-      - '!.github/renovate.json5'
-      - '!.github/workflows/**'
-      - '.github/workflows/ci.yaml'
-      - '.github/workflows/ci-*.yaml'
+      - "**"
+      - "!**.md"
+      - "!LICENSE"
+      - "!.editorconfig"
+      - "!.gitattributes"
+      - "!.gitignore"
+      - "!.pre-commit-config.yaml"
+      - "!.github/renovate.json5"
+      - "!.github/workflows/**"
+      - ".github/workflows/ci.yaml"
+      - ".github/workflows/ci-*.yaml"
   workflow_dispatch:
 concurrency:
   group: ci-${{ github.head_ref || github.ref }}

@@ -34,6 +34,8 @@ CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 GREYPROXY_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/greyproxy"
 GREYPROXY_LOG="$GREYPROXY_STATE/greyproxy.log"
+ENGRAM_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/engram"
+ENGRAM_LOG="$ENGRAM_STATE/engram.log"
 GREYPROXY_API_PORT={{ index .ai.base.sandbox.greyproxy "api" }}
 
 # ── Colors ──
@@ -56,17 +58,17 @@ profile_dir() {
   case "$AGENT_NAME" in
     pi)
       case "$1" in
-        core|default) printf '%s\n' "$CONFIG_HOME/pi/agent" ;;
+        core|default) printf '%s\n' "$CONFIG_HOME/pi/profiles/core" ;;
         factory)      printf '%s\n' "$CONFIG_HOME/pi/profiles/factory" ;;
-        minimal)      printf '%s\n' "$CONFIG_HOME/pi/profiles/minimal" ;;
+        minimal)      printf '%s\n' "$CONFIG_HOME/pi/agent" ;;
         *)            die "Unknown profile: $1" ;;
       esac
       ;;
     opencode)
       case "$1" in
-        core|default) printf '%s\n' "$CONFIG_HOME/opencode" ;;
+        core|default) printf '%s\n' "$CONFIG_HOME/opencode/profiles/core" ;;
         factory)      printf '%s\n' "$CONFIG_HOME/opencode/profiles/factory" ;;
-        minimal)      printf '%s\n' "$CONFIG_HOME/opencode/profiles/minimal" ;;
+        minimal)      printf '%s\n' "$CONFIG_HOME/opencode" ;;
         *)            die "Unknown profile: $1" ;;
       esac
       ;;
@@ -90,6 +92,9 @@ print_env() {
       fi
       ;;
   esac
+  printf 'export ENGRAM_DATA_DIR="%s"\n' "${ENGRAM_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/engram}"
+  printf 'export ENGRAM_PORT="%s"\n' "${ENGRAM_PORT:-7437}"
+  printf 'export ENGRAM_URL="http://127.0.0.1:%s"\n' "${ENGRAM_PORT:-7437}"
 }
 
 # ── Agent-specific: preflight update ──
@@ -279,6 +284,47 @@ ensure_greyproxy() {
   die "greyproxy did not become ready (see $GREYPROXY_LOG)"
 }
 
+# ── Shared: engram daemon ──
+engram_ready() {
+  curl --silent --fail --max-time 1 \
+    "${ENGRAM_URL}/health" >/dev/null 2>&1
+}
+
+ensure_engram() {
+  [ "$profile" = "minimal" ] && return 0
+
+  command -v engram >/dev/null 2>&1 || die "engram not found on PATH"
+  command -v curl >/dev/null 2>&1 || die "curl not found (needed for engram health check)"
+
+  info "Engram: checking..."
+
+  if engram_ready; then
+    ok "Engram: daemon ready"
+    return 0
+  fi
+
+  info "Engram: starting daemon..."
+  mkdir -p "$ENGRAM_STATE"
+  dim "Log: $ENGRAM_LOG"
+  mkdir -p "$ENGRAM_DATA_DIR"
+  nohup engram serve "$ENGRAM_PORT" >>"$ENGRAM_LOG" 2>&1 &
+  pid=$!
+  dim "PID: $pid"
+
+  attempts=0
+  max_attempts=10
+  while [ "$attempts" -lt "$max_attempts" ]; do
+    if engram_ready; then
+      ok "Engram: daemon ready"
+      return 0
+    fi
+    sleep 1
+    attempts=$((attempts + 1))
+  done
+
+  die "Engram daemon did not become ready (see $ENGRAM_LOG)"
+}
+
 # ── Dispatch: subcommands ──
 case "${1:-}" in
   --help|-h)
@@ -317,7 +363,6 @@ pwd_guard
 dir=$(profile_dir "$profile")
 set_runtime_env "$dir" "$profile"
 
-
 info "Profile: ${_BO}${profile}${_NO}"
 
 if [ "$no_update" = false ]; then
@@ -330,6 +375,11 @@ if [ "$no_greywall" = true ]; then
 fi
 
 dim "Launch: greywall --profile $GREYWALL_PROFILE -- $BINARY_NAME ..."
+
+# Engram daemon must start before proxy env is set — its curl health-check
+# must reach localhost directly, not through the (not-yet-running) greyproxy.
+ensure_engram
+
 export PLANNOTATOR_REMOTE=1
 
 # ── Proxy / CA env (force all agent traffic through Greyproxy) ──

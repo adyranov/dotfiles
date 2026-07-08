@@ -6,7 +6,7 @@ allow = []
 ask = []
 deny = [
   "~/.config/pi/agent/auth.json",
-  "~/.config/pi/profiles/minimal/auth.json",
+  "~/.config/pi/profiles/core/auth.json",
   "~/.config/pi/profiles/factory/auth.json"
 ]
 
@@ -27,7 +27,7 @@ packages = [
   "@juicesharp/rpiv-args",
   "@juicesharp/rpiv-todo",
   "pi-context",
-  "pi-hermes-memory",
+  "gentle-engram",
   "pi-caveman"
 ]
 skills = ["karpathy-guidelines"]
@@ -72,10 +72,8 @@ allow_write = [
   "~/.config/pi/agent/npm/**",
   "~/.config/pi/agent/sessions",
   "~/.config/pi/agent/sessions/**",
-  "~/.config/pi/agent/pi-hermes-memory",
-  "~/.config/pi/agent/pi-hermes-memory/**",
-  "~/.config/pi/profiles/minimal",
-  "~/.config/pi/profiles/minimal/**",
+  "~/.config/pi/profiles/core",
+  "~/.config/pi/profiles/core/**",
   "~/.config/pi/profiles/factory",
   "~/.config/pi/profiles/factory/**",
   "/tmp/agents/pi",

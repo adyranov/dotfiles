@@ -28,8 +28,6 @@ logs/
 lastChangelogVersion
 mcp-cache.json
 npm/
-pi-hermes-memory/
-projects-memory/
 run-history.jsonl
 sessions/**
 state.json

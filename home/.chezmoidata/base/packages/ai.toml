@@ -5,6 +5,12 @@ manager = "mise"
 package = "pipx:aiperf"
 version = "aiperf --help"
 
+[packages.base.ai.engram]
+bin = "engram"
+manager = "mise"
+package = "github:Gentleman-Programming/engram"
+version = "engram version"
+
 [packages.base.ai.hf]
 completion = {generate = "env _HF_COMPLETE=source_zsh hf"}
 manager = "mise"

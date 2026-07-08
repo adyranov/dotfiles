@@ -168,7 +168,10 @@ deny = [
   "~/.mongosh_history",
   "~/.rediscli_history",
   "~/.sqlite_history",
-  "~/.lesshst"
+  "~/.lesshst",
+  # AI agent persistent memory (accessed via MCP, not direct file tools)
+  "~/.local/share/engram",
+  "~/.local/share/engram/**"
 ]
 
 # Level 3 — System-wide command deny list
@@ -259,8 +262,10 @@ deny = [
 [ai.base.permissions.network.hosts]
 ai_providers = [
   "*.aiplatform.googleapis.com",
+  "*.maas.aliyuncs.com",
   "*.openai.azure.com",
   "*.opencode.ai",
+  "*.services.ai.azure.com",
   "aiplatform.googleapis.com",
   "api.anthropic.com",
   "api.baseten.co",
@@ -274,17 +279,28 @@ ai_providers = [
   "api.githubcopilot.com",
   "api.groq.com",
   "api-inference.huggingface.co",
+  "api.jina.ai",
+  "api.minimax.io",
   "api.mistral.ai",
+  "api.moonshot.ai",
   "api.openai.com",
   "api.perplexity.ai",
   "api.replicate.com",
+  "api.stepfun.ai",
   "api.together.xyz",
+  "api.voyageai.com",
   "api.x.ai",
+  "api.xiaomimimo.com",
+  "api.z.ai",
+  "auth.openai.com",
   "cloudcode-pa.googleapis.com",
+  "dashscope-intl.aliyuncs.com",
+  "dashscope-us.aliyuncs.com",
   "docs.anthropic.com",
   "gateway.ai.cloudflare.com",
   "generativelanguage.googleapis.com",
   "integrate.api.nvidia.com",
+  "models.github.ai",
   "opencode.ai",
   "openrouter.ai",
   "platform.openai.com",
@@ -481,12 +497,20 @@ infra_schema = [
   "supabase.com"
 ]
 
+[ai.base.permissions.network.localhost]
+# macOS: allow sandboxed processes to reach host localhost services.
+allow_outbound = true
+# Linux: host localhost ports forwarded into the isolated network namespace.
+forward_ports = [7437, 19432]
+
 [ai.base.permissions.sandbox]
 allow_read = [
   "~/.config/certificates/ca-bundle.pem",
   "~/.config/npm/npmrc",
   "~/.config/agents/**",
-  "~/.config/greywall/**"
+  "~/.config/greywall/**",
+  "~/.local/share/engram",
+  "~/.local/share/engram/**"
 ]
 allow_write = [
   "/dev/fd/**",
@@ -517,7 +541,9 @@ allow_write = [
   "~/.cargo/registry",
   "~/.cargo/registry/**",
   "~/.cargo/git",
-  "~/.cargo/git/**"
+  "~/.cargo/git/**",
+  "~/.local/share/engram",
+  "~/.local/share/engram/**"
 ]
 deny_read = [
   "~/.ssh/id_*",

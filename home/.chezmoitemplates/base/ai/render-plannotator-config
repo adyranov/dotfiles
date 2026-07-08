@@ -1,0 +1,57 @@
+{{- /* render-plannotator-config — Full Plannotator JSON config.
+  Args:
+    root:          template data root
+    agent:         agent name ("pi") — used to locate profile plannotator settings
+    profile:       profile name (default "core")
+    platform_note: extra instruction line for planning prompt (default "")
+*/ -}}
+{{- $root := .root -}}
+{{- $agent := .agent -}}
+{{- $profile := dig "profile" "core" . -}}
+{{- $platformNote := dig "platform_note" "" . -}}
+
+{{- /* Model routing from personas */ -}}
+{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.personas" "required" true) | mustFromJson -}}
+{{- $agentSection := printf "ai.agents.%s" $agent -}}
+{{- $agentData := includeTemplate "base/helpers/load-section" (dict "root" $root "section" $agentSection "required" true) | mustFromJson -}}
+{{- $defaults := index $personas $personas.default -}}
+{{- $cfg := get (index $agentData.profiles $profile) "plannotator" | default dict -}}
+
+{{- $planningCat := get $cfg "planning" | default "architect" -}}
+{{- $executingCat := get $cfg "executing" | default "coder" -}}
+{{- $planningRoute := get $personas $planningCat | default dict -}}
+{{- $executingRoute := get $personas $executingCat | default dict -}}
+
+{{- /* Phase prompts (shared across agents) */ -}}
+{{- $planningPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "planning" "platform_note" $platformNote) -}}
+{{- $executingPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "executing") -}}
+{{- $reviewingPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "reviewing") -}}
+
+{{- /* Planning-phase active tools */ -}}
+{{- $planningTools := list "read" "fffind" "ffgrep" "grep" "find" "ls" "nu" "module_report" "read_symbol" "read_enclosing" "lsp_navigation" "lsp_diagnostics" "lens_diagnostics" "ast_grep_search" "ast_grep_outline" "ast_grep_dump" "web_search" "web_fetch" "ask_user_question" "advisor" "todo" "mem_search" "session_search" "context_checkpoint" "context_timeline" "context_compact" "bash" "write" "edit" "plannotator_submit_plan" -}}
+
+{{- dict
+  "defaults" (dict
+    "model" (dict "provider" $defaults.provider "id" $defaults.model)
+    "thinking" $defaults.thinking
+  )
+  "phases" (dict
+    "planning" (dict
+      "model" (dict "provider" ($planningRoute.provider | default $defaults.provider) "id" ($planningRoute.model | default $defaults.model))
+      "thinking" ($planningRoute.thinking | default $defaults.thinking)
+      "activeTools" $planningTools
+      "systemPrompt" $planningPrompt
+      "statusLabel" "⏸ plan"
+    )
+    "executing" (dict
+      "model" (dict "provider" ($executingRoute.provider | default $defaults.provider) "id" ($executingRoute.model | default $defaults.model))
+      "thinking" ($executingRoute.thinking | default $defaults.thinking)
+      "systemPrompt" $executingPrompt
+      "statusLabel" "▶ execute"
+    )
+    "reviewing" (dict
+      "systemPrompt" $reviewingPrompt
+      "statusLabel" "↻ review"
+    )
+  )
+| toPrettyJson -}}
