@@ -1,0 +1,40 @@
+{{- /* render-plannotator-prompts — Shared Plannotator phase prompts for Pi and OpenCode.
+  Args:
+    phase: "planning" | "executing" | "reviewing"
+    submit_tool: tool name for submitting plans (default "plannotator_submit_plan")
+    advisor_tool: tool name for escalation (default "advisor"; set "" to omit line)
+    platform_note: extra instruction line for platform-specific tools (default "")
+*/ -}}
+{{- $submit := dig "submit_tool" "plannotator_submit_plan" . -}}
+{{- $advisor := dig "advisor_tool" "advisor" . -}}
+{{- $platformNote := dig "platform_note" "" . -}}
+{{- $phase := dig "phase" "" . -}}
+
+{{- if eq $phase "planning" -}}
+[PLANNOTATOR PLANNING]
+No code edits. Only create/edit markdown plan files under `.plannotator/` in workspace.
+Goal: resolve ambiguity first, then submit one concise action plan.
+Question phase first: inspect enough context, then ask user questions until scope, constraints, risks, success criteria, and apply/render expectations are clear.
+Ask only directly; repeat until material ambiguity is resolved. Do not present final plan while material ambiguity remains.
+{{ $platformNote }}Use web search/fetch for current external facts; cite URLs in plan when used.
+Keep one current plan with: context, decisions, approach, files, reuse, exact steps, verification.
+Final plan: concise, decisive, no fluff, no unresolved options.
+Submit with `{{ $submit }}`.
+{{- else if eq $phase "executing" -}}
+[PLANNOTATOR EXECUTING]
+Execute approved plan ${planFilePath}.
+Remaining:
+${todoList}
+Small source-only changes. Reuse existing utilities. Validate with diagnostics/tests.
+Do not edit rendered dotfiles, run apply/sync, or bypass sandbox. Ask user to apply/sync generated files.
+Ask user for new scope/risk choices.
+{{ if $advisor }}Use `{{ $advisor }}` before risky pivots.
+{{ end }}After step n, say `[DONE:n]`.
+{{- else if eq $phase "reviewing" -}}
+[PLANNOTATOR REVIEWING]
+Review feedback. Preserve plan filename.
+Ask user for any new ambiguity; do not revise final plan while material ambiguity remains.
+Use search/read tools if needed. Make smallest plan update addressing feedback.
+Do not implement code changes in review phase.
+Resubmit with `{{ $submit }}`.
+{{- end -}}

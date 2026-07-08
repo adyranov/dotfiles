@@ -4,36 +4,22 @@
   "autoUpdate": false,
   "debug": false,
   "pruneNotification": "minimal",
-  "commands": {
-    "enabled": true,
-    "protectedTools": []
-  },
   "turnProtection": {
     "enabled": true,
     "turns": 6
   },
   "protectedFilePatterns": [],
-  "tools": {
-    "settings": {
-      "nudgeEnabled": true,
-      "nudgeFrequency": 10,
-      "protectedTools": []
-    },
-    "discard": {
-      "enabled": true
-    },
-    "extract": {
-      "enabled": true,
-      "showDistillation": true
-    }
+  "commands": {
+    "enabled": true,
+    "protectedTools": []
+  },
+  "compress": {
+    "nudgeFrequency": 10
   },
   "strategies": {
     "deduplication": {
       "enabled": true,
       "protectedTools": []
-    },
-    "supersedeWrites": {
-      "enabled": true
     },
     "purgeErrors": {
       "enabled": true,

@@ -254,7 +254,7 @@ setup() {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
   run jq -e '
     .filesystem.defaultDenyRead == true and
-    .filesystem.allowRead == [".", "~/.config/agents/**", "~/.config/certificates/ca-bundle.pem", "~/.config/greywall/**", "~/.config/npm/npmrc"] and
+    .filesystem.allowRead == [".", "~/.config/agents/**", "~/.config/certificates/ca-bundle.pem", "~/.config/greywall/**", "~/.config/npm/npmrc", "~/.local/share/engram", "~/.local/share/engram/**"] and
     (.filesystem.allowWrite | index("~/.cache/npm") != null) and
     (.filesystem.allowWrite | index("~/.cache/node-gyp") != null) and
     (.filesystem.allowWrite | index("~/.local/state/npm") != null) and
@@ -320,8 +320,6 @@ setup() {
     (.filesystem.allowWrite | index("~/.config/pi/agent/npm/**") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions/**") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/pi-hermes-memory") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/pi-hermes-memory/**") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/profiles/factory") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/**") != null) and
     (.filesystem.allowRead | index("~/.config/rpiv-web-tools/**") != null) and
@@ -345,10 +343,15 @@ setup() {
     (.credentials == $global[0].credentials) and
     (.filesystem.allowWrite | index("~/.cache/opencode") != null) and
     (.filesystem.allowWrite | index("~/.local/share/opencode") != null) and
+    (.filesystem.allowWrite | index("~/.local/share/plannotator") != null) and
+    (.filesystem.allowWrite | index("~/.local/share/plannotator/**") != null) and
     (.filesystem.allowWrite | index("~/.local/state/opencode") != null) and
     (.filesystem.allowWrite | index("/tmp/agents/opencode") != null) and
     (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
-    (.network.rules | map(.destination) | map(contains("*") | not) | all)
+    (.filesystem.allowRead | index("~/.local/share/plannotator") != null) and
+    (.filesystem.allowRead | index("~/.local/share/plannotator/**") != null) and
+    (.network.rules | map(.destination) | map(contains("*") | not) | all) and
+    (.network.forwardPorts // [] | map(tostring) | index("19432") != null)
   ' "{{ $greywallDir }}/learned/opencode.json"
   assert_success
 }
@@ -367,6 +370,14 @@ setup() {
     ((.network.rules | map(.destination) | index("r.jina.ai")) | not) and
     ((.network.rules | map(.destination) | index("s.jina.ai")) | not)
   ' "{{ $greywallDir }}/greywall.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,toolchain:opencode,kind:greywall
+@test "greywall base config allows engram loopback outbound" {
+  run jq -e '.network.allowLocalOutbound == true' "{{ $greywallDir }}/greywall.json"
+  assert_success
+  run jq -e '(.network.forwardPorts // []) | index(7437) != null' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
 

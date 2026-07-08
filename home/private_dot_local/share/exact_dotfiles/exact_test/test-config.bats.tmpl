@@ -18,6 +18,24 @@ setup() {
   assert [ -n "$XDG_STATE_HOME" ]
 }
 
+# bats test_tags=kind:env
+@test "ENGRAM_DATA_DIR is set to XDG data home" {
+  assert [ -n "$ENGRAM_DATA_DIR" ]
+  assert [ "$ENGRAM_DATA_DIR" = "$XDG_DATA_HOME/engram" ]
+}
+
+# bats test_tags=kind:env
+@test "ENGRAM_PORT defaults to 7437" {
+  assert [ -n "$ENGRAM_PORT" ]
+  assert [ "$ENGRAM_PORT" = "7437" ]
+}
+
+# bats test_tags=kind:env
+@test "ENGRAM_URL uses ENGRAM_PORT" {
+  assert [ -n "$ENGRAM_URL" ]
+  assert [ "$ENGRAM_URL" = "http://127.0.0.1:${ENGRAM_PORT:-7437}" ]
+}
+
 # bats test_tags=kind:shell
 @test "LANG is en_US.UTF-8" {
   assert_equal "$LANG" "en_US.UTF-8"

@@ -158,6 +158,9 @@ EOF
   run "$HOME/.local/bin/opencode-agent" --print-env core
   assert_success
   assert_output --partial 'export OPENCODE_CONFIG='
+  assert_output --partial "ENGRAM_DATA_DIR"
+  assert_output --partial "ENGRAM_PORT"
+  assert_output --partial "ENGRAM_URL"
 }
 
 # bats test_tags=toolchain:opencode,kind:config
@@ -179,18 +182,38 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode.json core profile includes plugins" {
-  run jq -e '.plugin | index("@tarquinen/opencode-dcp") != null' "$HOME/.config/opencode/opencode.json"
+@test "opencode default core config at profiles/core has plugins" {
+  run jq -e '.plugin | index("@tarquinen/opencode-dcp") != null' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
-  run jq -e '.plugin | index("opencode-notify") != null' "$HOME/.config/opencode/opencode.json"
+  run jq -e '.plugin | index("opencode-notify") != null' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode.json core profile includes plannotator but not slim" {
-  run jq -e '.plugin[] | select(type == "array" and .[0] == "@plannotator/opencode@latest" and .[1].workflow == "plan-agent" and .[1].planningAgents == ["plan"])' "$HOME/.config/opencode/opencode.json"
+@test "opencode core profile has engram mcp server" {
+  run jq -e '
+    .mcp.engram.type == "local" and
+    .mcp.engram.command == ["engram", "mcp", "--tools=agent"] and
+    .mcp.engram.enabled == true
+  ' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
-  run jq -e '.plugin | index("oh-my-opencode-slim") | not' "$HOME/.config/opencode/opencode.json"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode core profile includes plannotator but not slim" {
+  run jq -e '.plugin[] | select(type == "array" and .[0] == "@plannotator/opencode@latest" and .[1].workflow == "plan-agent" and .[1].planningAgents == ["plan"])' "$HOME/.config/opencode/profiles/core/opencode.json"
+  assert_success
+  run jq -e '.plugin | index("oh-my-opencode-slim") | not' "$HOME/.config/opencode/profiles/core/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode core plan agent has inline plannotator prompt and restricted permissions" {
+  run jq -e '.agent.plan.prompt | contains("PLANNOTATOR PLANNING")' "$HOME/.config/opencode/profiles/core/opencode.json"
+  assert_success
+  run jq -e '.agent.plan.permission.edit == {".plannotator/**": "allow", "*": "deny"}' "$HOME/.config/opencode/profiles/core/opencode.json"
+  assert_success
+  run jq -e '.agent.plan.permission.bash == "deny"' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
 }
 
@@ -211,6 +234,39 @@ EOF
   assert_success
   run jq -e '.plugin[] | select(type == "array" and .[0] == "@plannotator/opencode@latest" and .[1].workflow == "plan-agent" and .[1].planningAgents == ["orchestrator"])' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory profile has engram mcp server" {
+  run jq -e '
+    .mcp.engram.type == "local" and
+    .mcp.engram.command == ["engram", "mcp", "--tools=agent"] and
+    .mcp.engram.enabled == true
+  ' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory profile symlinks engram plugin to vendor" {
+  assert_file_exists "$HOME/.config/opencode/profiles/factory/plugins/engram.ts"
+  run readlink -f "$HOME/.config/opencode/profiles/factory/plugins/engram.ts"
+  assert_success
+  assert_output "$HOME/.config/opencode/vendor/engram.ts"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode default minimal config has no engram mcp server or plugin" {
+  run jq -e '.mcp.engram == null' "$HOME/.config/opencode/opencode.json"
+  assert_success
+  assert [ ! -e "$HOME/.config/opencode/plugins/engram.ts" ]
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode core profile symlinks engram plugin to vendor" {
+  assert_file_exists "$HOME/.config/opencode/profiles/core/plugins/engram.ts"
+  run readlink -f "$HOME/.config/opencode/profiles/core/plugins/engram.ts"
+  assert_success
+  assert_output "$HOME/.config/opencode/vendor/engram.ts"
 }
 
 {{- range $agent := list "plan" "build" "general" "explore" "scout" }}
@@ -355,6 +411,12 @@ EOF
     assert_symlink_to "$target" "$link"
   done
 }
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory oh-my-opencode-slim has orchestrator plannotator append prompt" {
+  assert_file_exists "$HOME/.config/opencode/oh-my-opencode-slim/orchestrator_append.md"
+  run head -1 "$HOME/.config/opencode/oh-my-opencode-slim/orchestrator_append.md"
+  assert_output --partial "PLANNOTATOR PLANNING"
+}
 
 # bats test_tags=toolchain:opencode,kind:symlink
 @test "opencode global karpathy-guidelines skill symlink resolves" {
@@ -395,7 +457,7 @@ EOF
   run "$HOME/.local/bin/opencode-agent" --print-env core
   assert_success
   assert_output --partial "OPENCODE_CONFIG"
-  assert_output --partial "opencode/opencode.json"
+  assert_output --partial "opencode/profiles/core/opencode.json"
   assert_output --partial "OPENCODE_CONFIG_DIR"
   refute_output --partial "OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS"
 }
@@ -405,9 +467,9 @@ EOF
   run "$HOME/.local/bin/opencode-agent" --print-env minimal
   assert_success
   assert_output --partial "OPENCODE_CONFIG"
-  assert_output --partial "opencode/profiles/minimal/opencode.json"
+  assert_output --partial "opencode/opencode.json"
   assert_output --partial "OPENCODE_CONFIG_DIR"
-  assert_output --partial "opencode/profiles/minimal"
+  assert_output --partial "opencode"
 }
 
 # bats test_tags=toolchain:opencode,kind:config

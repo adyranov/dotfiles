@@ -3,37 +3,4 @@
   Preserve Greywall learned/bundled baseline so profile drift checks stay stable.
   Append OpenCode overlays and shared credentials deterministically. */ -}}
 {{- $rawStdin := get .chezmoi "stdin" | default "" | trim -}}
-{{- $baseSource := `{"schemaVersion": 1, "filesystem": {"allowRead": [], "allowWrite": []}, "network": {"rules": []}}` -}}
-{{- if ne $rawStdin "" -}}
-{{-   $baseSource = $rawStdin -}}
-{{- end -}}
-{{- $base := $baseSource | fromJsonc -}}
-{{- $oc := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.opencode" "required" true) | mustFromJson -}}
-{{- $ocPaths := dig "sandbox" "paths" dict $oc -}}
-{{- $allowReadAdditions := index $ocPaths "allow_read" | default list -}}
-{{- $allowWriteAdditions := index $ocPaths "allow_write" | default list -}}
-{{- $base = setValueAtPath "filesystem.allowRead" (concat (dig "filesystem" "allowRead" (list) $base) $allowReadAdditions | uniq | sortAlpha) $base -}}
-{{- $base = setValueAtPath "filesystem.allowWrite" (concat (dig "filesystem" "allowWrite" (list) $base) $allowWriteAdditions | uniq | sortAlpha) $base -}}
-{{- $ocNetwork := dig "sandbox" "network" dict $oc -}}
-{{- $baseRules := dig "network" "rules" (list) $base -}}
-{{- $ruleMap := dict -}}
-{{- range $rule := $baseRules -}}
-{{-   $dest := $rule.destination | toString -}}
-{{-   if not (contains "*" $dest) -}}
-{{-     $_ := set $ruleMap (printf "%s\t%s\t%s" $dest ($rule.port | toString) ($rule.action | default "allow")) $rule -}}
-{{-   end -}}
-{{- end -}}
-{{- range $host := (index $ocNetwork "hosts" | default list) -}}
-{{-   $_ := set $ruleMap (printf "%s\t443\tallow" $host) (dict "destination" $host "port" "443" "action" "allow") -}}
-{{- end -}}
-{{- range $entry := (index $ocNetwork "allow" | default list) -}}
-{{-   $_ := set $ruleMap (printf "%s\t%s\tallow" $entry.host ($entry.port | toString)) (dict "destination" $entry.host "port" ($entry.port | toString) "action" "allow") -}}
-{{- end -}}
-{{- $networkRules := list -}}
-{{- range $key := (keys $ruleMap | sortAlpha) -}}
-{{-   $networkRules = append $networkRules (index $ruleMap $key) -}}
-{{- end -}}
-{{- $base = setValueAtPath "network.rules" $networkRules $base -}}
-{{- $creds := (includeTemplate "base/ai/render-credentials" . | mustFromJson) -}}
-{{- $_ := set $base "credentials" (dict "inject" $creds.inject "secrets" $creds.secrets "ignore" $creds.ignore) -}}
-{{- $base | toPrettyJson -}}
+{{- includeTemplate "base/ai/merge-greywall-learned-profile" (dict "root" . "agent" "opencode" "stdin" $rawStdin) -}}

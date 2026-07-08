@@ -115,6 +115,25 @@
 {{-   $_ := set $agentConfig "disable" true -}}
 {{-   $_ := set $agentOverrides $agent $agentConfig -}}
 {{- end -}}
+{{- /* ── Plannotator: configure plan agent prompt and permissions if plugin active ── */ -}}
+{{- $hasPlannotator := false -}}
+{{- $plannotatorPlanningAgents := list -}}
+{{- range $p := $renderedPlugins -}}
+{{-   if and (kindIs "slice" $p) (hasPrefix "@plannotator/opencode" (index $p 0)) -}}
+{{-     $hasPlannotator = true -}}
+{{-     $plannotatorPlanningAgents = get (index $p 1) "planningAgents" | default (list "plan") -}}
+{{-   end -}}
+{{- end -}}
+{{- if $hasPlannotator -}}
+{{-   range $agentName := $plannotatorPlanningAgents -}}
+{{-     if hasKey $agentOverrides $agentName -}}
+{{-       $agentCfg := get $agentOverrides $agentName -}}
+{{-       $planningPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "planning" "submit_tool" "submit_plan" "advisor_tool" "" "platform_note" "") -}}
+{{-       $_ := set $agentCfg "prompt" $planningPrompt -}}
+{{-       $_ := set $agentCfg "permission" (dict "edit" (dict ".plannotator/**" "allow" "*" "deny") "bash" "deny") -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
 
 {{- /* ── Skills & instructions ── */ -}}
 {{- $basePaths := index $opencode.skills "paths" | default list -}}
@@ -149,5 +168,8 @@
 {{- $_ := set $result "agent" $agentOverrides -}}
 {{- if $hasFormatter -}}{{- $_ := set $result "formatter" true -}}{{- end -}}
 {{- if $hasLsp -}}{{- $_ := set $result "lsp" true -}}{{- end -}}
+
+{{- $mcpServers := get $profileData "mcp_servers" | default dict -}}
+{{- if ne (len $mcpServers) 0 -}}{{- $_ := set $result "mcp" $mcpServers -}}{{- end -}}
 
 {{- $result | toPrettyJson -}}
