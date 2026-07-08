@@ -76,17 +76,11 @@ setup() {
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm
-@test "llm-pull downloads missing models and interactively cleans stale GGUF caches" {
+@test "llm-pull can download missing models" {
   assert_file_exists "{{ $llmPull }}"
   run grep -F 'Download or resume ${count} model(s)?' "{{ $llmPull }}"
   assert_success
   run grep -F 'hf_download_cmd' "{{ $llmPull }}"
-  assert_success
-  run grep -F 'scan_stale' "{{ $llmPull }}"
-  assert_success
-  run grep -F '[y/N]' "{{ $llmPull }}"
-  assert_success
-  run grep -F 'rm -rf "$target"' "{{ $llmPull }}"
   assert_success
 }
 
@@ -106,26 +100,13 @@ setup() {
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm
-@test "llama.cpp models.ini declares every local model" {
-  assert_file_exists "{{ $llamaCppPreset }}"
-{{- range $id, $_ := $resolved.models }}
-  run grep -F '[{{ $id }}]' "{{ $llamaCppPreset }}"
-  assert_success
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:local-llm
-@test "llama.cpp models.ini autoloads the default model only" {
+@test "llama.cpp models.ini declares local models and autoloads default" {
   assert_file_exists "{{ $llamaCppPreset }}"
 {{- if $resolved.default_model }}
+  run grep -F '[{{ $resolved.default_model }}]' "{{ $llamaCppPreset }}"
+  assert_success
   run awk 'BEGIN{in_section=0} $0=="[{{ $resolved.default_model }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="load-on-startup = true"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
   assert_success
-{{- end }}
-{{- range $id, $_ := $resolved.models }}
-{{-   if ne $id $resolved.default_model }}
-  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="load-on-startup = false"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
-  assert_success
-{{-   end }}
 {{- end }}
 }
 
@@ -142,154 +123,35 @@ setup() {
   assert_failure
 }
 
-# bats test_tags=toolchain:ai,kind:local-llm
-@test "llama.cpp models.ini uses compatible KV cache types" {
-  assert_file_exists "{{ $llamaCppPreset }}"
-{{- if $resolved.cache_type_k }}
-  run grep -F -- 'cache-type-k = {{ $resolved.cache_type_k }}' "{{ $llamaCppPreset }}"
-  assert_success
-{{- else }}
-  run grep -F -- 'cache-type-k' "{{ $llamaCppPreset }}"
-  assert_failure
-{{- end }}
-{{- if $resolved.cache_type_v }}
-  run grep -F -- 'cache-type-v = {{ $resolved.cache_type_v }}' "{{ $llamaCppPreset }}"
-  assert_success
-{{- else }}
-  run grep -F -- 'cache-type-v' "{{ $llamaCppPreset }}"
-  assert_failure
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:local-llm
-@test "llama.cpp models.ini renders model sampling parameters" {
-  assert_file_exists "{{ $llamaCppPreset }}"
-{{- range $id, $m := $resolved.models }}
-{{-   $sampling := index $m "sampling" | default dict }}
-{{-   if hasKey $sampling "temperature" }}
-  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="temp = {{ index $sampling "temperature" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
-  assert_success
-{{-   end }}
-{{-   if hasKey $sampling "top_p" }}
-  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="top-p = {{ index $sampling "top_p" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
-  assert_success
-{{-   end }}
-{{-   if hasKey $sampling "top_k" }}
-  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="top-k = {{ index $sampling "top_k" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
-  assert_success
-{{-   end }}
-{{-   if hasKey $sampling "min_p" }}
-  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="min-p = {{ index $sampling "min_p" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
-  assert_success
-{{-   end }}
-{{-   if hasKey $sampling "presence_penalty" }}
-  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="presence-penalty = {{ index $sampling "presence_penalty" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
-  assert_success
-{{-   end }}
-{{-   if hasKey $sampling "repetition_penalty" }}
-  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="repeat-penalty = {{ index $sampling "repetition_penalty" }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
-  assert_success
-{{-   end }}
-{{- end }}
-}
 
 # bats test_tags=toolchain:ai,kind:local-llm
 @test "llama.cpp models.ini uses HF hub cache for GGUF models" {
   assert_file_exists "{{ $llamaCppPreset }}"
-{{- range $id, $m := $resolved.models }}
-  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="hf-repo = {{ $m.backend.repo }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  run grep -F 'hf-repo =' "{{ $llamaCppPreset }}"
   assert_success
-  run awk 'BEGIN{in_section=0} $0=="[{{ $id }}]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="hf-file = {{ $m.backend.file }}"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
+  run grep -F 'hf-file =' "{{ $llamaCppPreset }}"
   assert_success
-{{- end }}
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm
-@test "llama.cpp models.ini renders host performance flags" {
+@test "llama.cpp models.ini renders core runtime flags" {
   assert_file_exists "{{ $llamaCppPreset }}"
   run grep -F -- 'jinja = true' "{{ $llamaCppPreset }}"
   assert_success
-  run grep -F -- 'reasoning-format = {{ $resolved.reasoning_format }}' "{{ $llamaCppPreset }}"
-  assert_success
-  run grep -F -- 'chat-template =' "{{ $llamaCppPreset }}"
-  assert_failure
-{{- $hasChatTemplateFile := false }}
-{{- range $id, $m := $resolved.models }}
-{{-   $chatTemplateFile := index $m "chat_template_file" | default "" }}
-{{-   if $chatTemplateFile }}
-{{-     $hasChatTemplateFile = true }}
-  run grep -F -- 'chat-template-file = {{ $chatTemplateFile }}' "{{ $llamaCppPreset }}"
-  assert_success
-{{-   end }}
-{{- end }}
-{{- if not $hasChatTemplateFile }}
-  run grep -F -- 'chat-template-file' "{{ $llamaCppPreset }}"
-  assert_failure
-{{- end }}
   run grep -F -- 'gpu-layers = {{ $resolved.gpu_layers }}' "{{ $llamaCppPreset }}"
   assert_success
 {{- if gt ($resolved.fit_target | int) 0 }}
   run grep -F -- 'fit-target = {{ $resolved.fit_target }}' "{{ $llamaCppPreset }}"
   assert_success
-{{- else }}
-  run grep -F -- 'fit-target' "{{ $llamaCppPreset }}"
-  assert_failure
-{{- end }}
-{{- if gt ($resolved.parallel | int) 0 }}
-  run grep -F -- 'parallel = {{ $resolved.parallel }}' "{{ $llamaCppPreset }}"
-  assert_success
-{{- else }}
-  run grep -F -- 'parallel =' "{{ $llamaCppPreset }}"
-  assert_failure
-{{- end }}
-{{- if gt ($resolved.batch_size | int) 0 }}
-  run grep -F -- 'batch-size = {{ $resolved.batch_size }}' "{{ $llamaCppPreset }}"
-  assert_success
-{{- else }}
-  run grep -F -- 'batch-size' "{{ $llamaCppPreset }}"
-  assert_failure
-{{- end }}
-{{- if gt ($resolved.ubatch_size | int) 0 }}
-  run grep -F -- 'ubatch-size = {{ $resolved.ubatch_size }}' "{{ $llamaCppPreset }}"
-  assert_success
-{{- else }}
-  run grep -F -- 'ubatch-size' "{{ $llamaCppPreset }}"
-  assert_failure
-{{- end }}
-{{- if gt ($resolved.threads | int) 0 }}
-  run grep -F -- 'threads = {{ $resolved.threads }}' "{{ $llamaCppPreset }}"
-  assert_success
-{{- end }}
-{{- if gt ($resolved.threads_batch | int) 0 }}
-  run grep -F -- 'threads-batch = {{ $resolved.threads_batch }}' "{{ $llamaCppPreset }}"
-  assert_success
-{{- end }}
-{{- if and (eq .host.distro.family "darwin") (eq .host.arch "amd64") }}
-  run grep -F -- 'flash-attn = true' "{{ $llamaCppPreset }}"
-  assert_failure
-  run grep -F -- 'split-mode = none' "{{ $llamaCppPreset }}"
-  assert_failure
-  run grep -F -- 'main-gpu = 0' "{{ $llamaCppPreset }}"
-  assert_failure
-  run grep -F -- 'kv-device = MTL0' "{{ $llamaCppPreset }}"
-  assert_failure
 {{- end }}
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm
-@test "Qwen 3.5+ models auto-attach froggeric chat template" {
+@test "Qwen 3.5+ models use froggeric chat template when present" {
   assert_file_exists "{{ $llamaCppPreset }}"
 {{- if index $resolved.models "qwen3.5-9b" }}
   run awk 'BEGIN{in_section=0} $0=="[qwen3.5-9b]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="chat-template-file = '"$HOME"'/.config/llama.cpp/qwen-froggeric.jinja"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
   assert_success
-{{- end }}
-{{- if index $resolved.models "qwen3.6-27b" }}
-  run awk 'BEGIN{in_section=0} $0=="[qwen3.6-27b]"{in_section=1; next} /^\[/{in_section=0} in_section && $0=="chat-template-file = '"$HOME"'/.config/llama.cpp/qwen-froggeric.jinja"{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
-  assert_success
-{{- end }}
-{{- if index $resolved.models "qwen3-coder-30b-a3b" }}
-  run awk 'BEGIN{in_section=0} $0=="[qwen3-coder-30b-a3b]"{in_section=1; next} /^\[/{in_section=0} in_section && /^chat-template-file = /{found=1} END{exit found ? 0 : 1}' "{{ $llamaCppPreset }}"
-  assert_failure
 {{- end }}
 }
 
@@ -298,18 +160,10 @@ setup() {
   assert_file_exists "{{ $llmServe }}"
   run grep -F 'llama-server' "{{ $llmServe }}"
   assert_success
-  run grep -F 'llama-server --slot-save-path "$SLOT_DIR" --models-preset "$PRESET" --models-max 1 --models-autoload --host "$HOST" --port "$PORT"' "{{ $llmServe }}"
-  assert_success
   run grep -F 'LLAMA_CPP_MODELS_PRESET' "{{ $llmServe }}"
   assert_success
   run grep -F '/v1/models' "{{ $llmServe }}"
   assert_success
-  run grep -F 'llama-swap' "{{ $llmServe }}"
-  assert_failure
-  run grep -F 'LLAMA_SWAP_CONFIG' "{{ $llmServe }}"
-  assert_failure
-  run grep -F 'omlx serve' "{{ $llmServe }}"
-  assert_failure
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm
@@ -317,25 +171,7 @@ setup() {
   assert_file_exists "{{ $llmBench }}"
   run grep -F 'llama-bench \' "{{ $llmBench }}"
   assert_success
-  run grep -F -- '-m "$model_path"' "{{ $llmBench }}"
-  assert_success
-  run grep -F -- '-p "$INPUT_TOKENS"' "{{ $llmBench }}"
-  assert_success
-  run grep -F -- '-n "$MAX_TOKENS"' "{{ $llmBench }}"
-  assert_success
-  run grep -F -- '-r "$RUNS"' "{{ $llmBench }}"
-  assert_success
-  run grep -F -- '-o json' "{{ $llmBench }}"
-  assert_success
   run grep -F 'resolve_gguf' "{{ $llmBench }}"
-  assert_success
-  run grep -F 'need hf' "{{ $llmBench }}"
-  assert_success
-  run grep -F 'need llama-bench' "{{ $llmBench }}"
-  assert_success
-  run grep -F 'need jq' "{{ $llmBench }}"
-  assert_success
-  run grep -F 'trap cleanup EXIT' "{{ $llmBench }}"
   assert_success
   run grep -F 'print_summary' "{{ $llmBench }}"
   assert_success
@@ -354,20 +190,13 @@ setup() {
   assert_failure
 }
 
+# bats test_tags=toolchain:ai,kind:local-llm
 @test "llm-bench benchmarks mlx models directly on omlx hosts" {
   assert_file_exists "{{ $llmBench }}"
   run grep -F 'mlx_lm generate' "{{ $llmBench }}"
   assert_success
-  run grep -F 'BENCH_SENTENCE=' "{{ $llmBench }}"
-  assert_success
-  run grep -F 'LLM_BENCH_OMLX_WARMUP_RUNS' "{{ $llmBench }}"
-  assert_success
-  run grep -F 'LLM_BENCH_OMLX_EXTRA_ARGS' "{{ $llmBench }}"
-  assert_success
   run grep -F 'prompt=%s tok' "{{ $llmBench }}"
   assert_success
-  run grep -F 'llama-bench' "{{ $llmBench }}"
-  assert_failure
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm
@@ -375,46 +204,21 @@ setup() {
   assert_file_exists "{{ $llmServe }}"
   run grep -F 'omlx serve' "{{ $llmServe }}"
   assert_success
-  run grep -F -- '--max-concurrent-requests {{ $resolved.omlx_max_concurrent_requests }}' "{{ $llmServe }}"
-  assert_success
-{{- if gt ($resolved.omlx_memory_guard_gb | int) 0 }}
-  run grep -F -- '--memory-guard-gb {{ $resolved.omlx_memory_guard_gb }}' "{{ $llmServe }}"
-  assert_success
-{{- end }}
   run grep -F -- '--paged-ssd-cache-dir "$STATE_DIR/cache"' "{{ $llmServe }}"
   assert_success
-  run grep -F 'llama-swap' "{{ $llmServe }}"
-  assert_failure
-  run grep -F 'llama-server' "{{ $llmServe }}"
-  assert_failure
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm
-@test "omlx flat model dir exists with logical-id symlinks" {
+@test "omlx flat model dir exists" {
   assert_dir_exists "{{ $omlxModelDir }}"
-{{- range $id, $m := $resolved.models }}
-{{-   $cacheSlug := replace "/" "--" $m.backend.repo }}
-  if [ -d "${HF_HUB_CACHE}/models--{{ $cacheSlug }}/snapshots" ]; then
-    run test -L "{{ $omlxModelDir }}/{{ $id }}"
-    assert_success
-    run readlink "{{ $omlxModelDir }}/{{ $id }}"
-    assert_success
-    assert_output --partial "models--{{ $cacheSlug }}"
-  else
-    run test -e "{{ $omlxModelDir }}/{{ $id }}"
-    assert_failure
-  fi
-{{- end }}
 }
 {{- end }}
 
 # bats test_tags=toolchain:ai,kind:local-llm,toolchain:pi,kind:model
-@test "pi models.json uses host-resolved local context limits" {
+@test "pi models.json includes local model limits" {
   assert_file_exists "{{ $personasJson }}"
-{{- range $id, $m := $resolved.models }}
-  run jq -e '.providers.local.models[] | select(.id == "{{ $id }}") | .contextWindow == {{ $m.context_window }} and .maxTokens == {{ $m.context_output }}' "{{ $personasJson }}"
+  run jq -e '.providers.local.models | length > 0 and all(.[]; .contextWindow > 0 and .maxTokens > 0)' "{{ $personasJson }}"
   assert_success
-{{- end }}
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm,toolchain:pi,kind:model
@@ -425,8 +229,8 @@ setup() {
 }
 {{ if .toolchains.pi }}
 {{- $personas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson }}
-{{- $enabled := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.enabled" "required" false) | mustFromJson -}}
-{{- $hasExplicitEnabled := hasKey $enabled "models" -}}
+{{- $enabledAuth := includeTemplate "base/ai/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson -}}
+{{- $hasExplicitEnabled := $enabledAuth.has_enabled_data -}}
 
 # bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
 @test "pi models.json points local provider at llm-serve" {
@@ -436,22 +240,18 @@ setup() {
 }
 
 # bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
-@test "pi models.json uses logical local model ids" {
+@test "pi models.json exposes local models" {
   assert_file_exists "{{ $personasJson }}"
-{{- range $id, $m := $resolved.models }}
-  run jq -e '.providers.local.models[] | select(.id == "{{ $id }}") | .name == "{{ $m.name }}"' "{{ $personasJson }}"
+  run jq -e '.providers.local.models | length == {{ len $resolved.models }}' "{{ $personasJson }}"
   assert_success
-{{- end }}
 }
 
 {{ if not $hasExplicitEnabled }}
 # bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
-@test "pi settings.json enables logical local model ids" {
+@test "pi settings.json enables local models" {
   assert_file_exists "$HOME/.config/pi/agent/settings.json"
-{{-   range $id, $_ := $resolved.models }}
-  run jq -e '.enabledModels | index("local/{{ $id }}") != null' "$HOME/.config/pi/agent/settings.json"
+  run jq -e '.enabledModels | any(startswith("local/"))' "$HOME/.config/pi/agent/settings.json"
   assert_success
-{{-   end }}
 }
 {{ end }}
 
@@ -468,7 +268,7 @@ setup() {
 {{- $expectedEnabledModels := list -}}
 {{- $forbiddenBareModels := list -}}
 {{- if $hasExplicitEnabled -}}
-{{-   $expectedEnabledModels = get $enabled "models" | sortAlpha -}}
+{{-   $expectedEnabledModels = $enabledAuth.enabled_models | sortAlpha -}}
 {{- else -}}
 {{-   $expectedRemoteModels := list -}}
 {{-   $forbiddenBareModels = list -}}

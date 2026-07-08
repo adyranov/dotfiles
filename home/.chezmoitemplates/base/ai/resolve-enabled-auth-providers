@@ -1,0 +1,49 @@
+{{- /* Resolve provider-derived model/auth data from merged ai.models.providers.
+  Shape kept backward-compatible for existing tests:
+    providers: enabled auth keys
+    has_enabled_data: any provider has explicit enabled
+  Extra fields avoid consumers reloading provider metadata.
+*/ -}}
+{{- $root := .root -}}
+{{- $providers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.providers" "required" false) | mustFromJson -}}
+{{- $enabledAuthKeys := list -}}
+{{- $enabledModels := list -}}
+{{- $enabledApiKeyEnvs := list -}}
+{{- $disabledAuthKeys := list -}}
+{{- $apiKeyMap := dict -}}
+{{- $authEntries := dict -}}
+{{- $hasEnabledData := false -}}
+{{- range $id, $p := $providers -}}
+  {{- $envVar := get $p "api_key_env" | default "" -}}
+  {{- $authKeys := get $p "auth_keys" | default list -}}
+  {{- range $ak := $authKeys -}}
+    {{- if $envVar -}}{{- $_ := set $apiKeyMap $ak $envVar -}}{{- end -}}
+  {{- end -}}
+
+  {{- if hasKey $p "enabled" -}}
+    {{- $hasEnabledData = true -}}
+    {{- if get $p "enabled" -}}
+      {{- $enabledAuthKeys = concat $enabledAuthKeys $authKeys -}}
+      {{- if $envVar -}}{{- $enabledApiKeyEnvs = append $enabledApiKeyEnvs $envVar -}}{{- end -}}
+      {{- range $m := get $p "models" | default list -}}
+        {{- $enabledModels = append $enabledModels (printf "%s/%s" $id $m) -}}
+      {{- end -}}
+      {{- if $envVar -}}
+        {{- range $ak := $authKeys -}}
+          {{- $_ := set $authEntries $ak (dict "type" "api_key" "key" (printf "$%s" $envVar)) -}}
+        {{- end -}}
+      {{- end -}}
+    {{- else -}}
+      {{- $disabledAuthKeys = concat $disabledAuthKeys $authKeys -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- dict
+  "providers" ($enabledAuthKeys | uniq)
+  "enabled_models" ($enabledModels | uniq)
+  "enabled_api_key_envs" ($enabledApiKeyEnvs | uniq | sortAlpha)
+  "has_enabled_data" $hasEnabledData
+  "api_key_map" $apiKeyMap
+  "auth_entries" $authEntries
+  "disabled_auth_keys" ($disabledAuthKeys | uniq)
+| toJson -}}

@@ -1,18 +1,6 @@
 [ai.base.models.catalog.local]
 port = 8321
 
-[ai.base.models.catalog.models]
-"gpt-5.5" = {name = "GPT-5.5", provider = "openai-codex", reasoning = true, input = [
-  "text",
-  "image"
-], context_window = 1050000, max_output = 128000, cost_per_million = {input = 5.00, output = 30.00, cache_read = 0.50, cache_write = 0}}
-"gpt-5.4-mini" = {name = "GPT-5.4 mini", provider = "openai-codex", reasoning = true, input = [
-  "text",
-  "image"
-], context_window = 400000, max_output = 128000, cost_per_million = {input = 0.75, output = 4.50, cache_read = 0.075, cache_write = 0}}
-"deepseek-v4-pro" = {name = "DeepSeek V4 Pro", provider = "opencode-go", reasoning = true}
-"deepseek-v4-flash" = {name = "DeepSeek V4 Flash", provider = "opencode-go", reasoning = true}
-
 [ai.base.models.personas]
 default = "coder"
 
@@ -74,3 +62,18 @@ skills = [
   "migrate-to-guidance",
   "resume-handoff"
 ]
+
+[ai.base.models.providers.github-copilot]
+auth_keys = []
+
+[ai.base.models.providers.openai-codex]
+aliases = {opencode = "openai"}
+auth_keys = []
+
+[ai.base.models.providers.opencode-go]
+api_key_env = "OPENCODE_API_KEY"
+auth_keys = ["opencode-go"]
+
+[ai.base.models.providers.openrouter]
+api_key_env = "OPENROUTER_API_KEY"
+auth_keys = ["openrouter"]

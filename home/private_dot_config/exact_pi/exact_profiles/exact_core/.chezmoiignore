@@ -1,3 +1,4 @@
 context-mode/
 npm/
 sessions/**
+trust.json

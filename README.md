@@ -62,7 +62,10 @@ Prebuilt images are also published to GHCR and Docker Hub:
   lightweight stack (no plugins, no subagents), and `opencode-agent factory` for
   slim multi-agent orchestration with background subagents, worktrees, and planning.
   Core uses the default OpenCode config location; factory uses a profile overlay
-  (`~/.config/opencode/profiles/factory/`).
+  (`~/.config/opencode/profiles/factory/`). Every profile also exposes the local
+  LLM gateway (configured under `[ai.profile.<profile>.models.catalog.local]`)
+  as the `local` provider in `opencode.json`, so any catalog model can be
+  selected with `--model local/<id>` or routed from a persona override.
 
 ### Local LLM serving
 

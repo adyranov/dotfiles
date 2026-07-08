@@ -4,11 +4,11 @@
 {{- $catalog := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.catalog" "required" false) | mustFromJson -}}
 {{- $profile := includeTemplate "base/ai/resolve-profile" (dict "agentData" $pi "profile" .profile) | mustFromJson -}}
 {{- $defaults := index $personas $personas.default -}}
-{{- $enabled := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.enabled" "required" false) | mustFromJson -}}
-{{- $enabledModels := list -}}
-{{- if hasKey $enabled "models" -}}
-{{-   $enabledModels = get $enabled "models" -}}
-{{- else -}}
+{{- $enabledAuth := includeTemplate "base/ai/resolve-enabled-auth-providers" (dict "root" .root) | mustFromJson -}}
+{{- $enabledModels := $enabledAuth.enabled_models -}}
+{{- /* Fallback: if no provider has explicit enabled or no models from enabled providers, derive from personas + local */ -}}
+{{- if or (not $enabledAuth.has_enabled_data) (eq (len $enabledModels) 0) -}}
+{{-   $enabledModels = list -}}
 {{-   range $_, $route := $personas -}}
 {{-     if not (kindIs "map" $route) -}}{{ continue }}{{- end -}}
 {{-     if not (hasKey $route "model") -}}{{ continue }}{{- end -}}
