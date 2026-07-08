@@ -426,6 +426,7 @@ docs_frameworks = [
   "hono.dev",
   "kubernetes.io",
   "learn.microsoft.com",
+  "mise.jdx.dev",
   "modelcontextprotocol.io",
   "models.dev",
   "nextjs.org",

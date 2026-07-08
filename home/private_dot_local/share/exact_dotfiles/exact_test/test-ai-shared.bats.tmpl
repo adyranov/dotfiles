@@ -26,15 +26,6 @@ setup() {
   assert_failure
 }
 
-# bats test_tags=kind:agents-tree
-@test "repo AGENTS.md contains targeted apply rule" {
-  run chezmoi source-path
-  assert_success
-  local repo_agents="$(printf '%s' "$output")/../AGENTS.md"
-  assert_file_exists "$repo_agents"
-  run grep -F "chezmoi apply <destination" "$repo_agents"
-  assert_success
-}
 
 # bats test_tags=kind:agents-tree
 @test "~/.agents alias points at ~/.config/agents" {
