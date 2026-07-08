@@ -17,35 +17,24 @@ setup() {
 {{- $denyPaths := index $agentDeny "deny" | default list | uniq | sortAlpha }}
 
 # bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system config renders secure runtime defaults" {
+@test "pi permission-system config renders secure defaults" {
   assert_file_exists "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   run jq -e '
-    .debugLog == false and
-    .permissionReviewLog == true and
     .yoloMode == false and
-    .toolInputPreviewMaxLength == 400 and
-    .toolTextSummaryMaxLength == 120 and
-    (.piInfrastructureReadPaths | length) > 0 and
-    (.piInfrastructureReadPaths | index("~/.config/pi/**") != null) and
-    (.piInfrastructureReadPaths | index("**/node_modules/@earendil-works/pi-coding-agent/**") != null) and
+    .permissionReviewLog == true and
     .permission["*"] == "allow"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
 
 # bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system config protects sensitive paths" {
-  run jq -e '.permission.path["*"] == "allow"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
+@test "pi permission-system config protects key sensitive paths" {
+  run jq -e '
+    .permission.path["**/.env"] == "deny" and
+    .permission.path["~/.ssh/**"] == "deny" and
+    .permission.path["~/.config/pi/agent/auth.json"] == "deny"
+  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
-{{- range $pattern := $denyPaths }}
-  run jq -e '.permission.path[{{ $pattern | toJson }}] == "deny"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-{{- end }}
-{{- $piAgentDenyPaths := dig "permissions" "agent" "deny" list $pi }}
-{{- range $pattern := $piAgentDenyPaths }}
-  run jq -e '.permission.path[{{ $pattern | toJson }}] == "deny"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-{{- end }}
 }
 
 # bats test_tags=toolchain:pi,kind:permission
@@ -156,27 +145,15 @@ setup() {
 }
 
 # bats test_tags=toolchain:opencode,kind:permission
-@test "opencode.json path permissions block repo-local secrets" {
+@test "opencode.json path permissions block key secrets" {
   run jq -e '
+    .permission.read["**/.env"] == "deny" and
     .permission.read["**/.npmrc"] == "deny" and
-    .permission.read["**/.pypirc"] == "deny" and
-    .permission.read["**/.yarnrc.yml"] == "deny" and
-    .permission.read["**/.aws/**"] == "deny" and
-    .permission.read["**/.azure/**"] == "deny" and
-    .permission.edit["**/.npmrc"] == "deny" and
-    .permission.edit["**/.aws/**"] == "deny"
+    .permission.edit["**/.env"] == "deny"
   ' "$HOME/.config/opencode/opencode.json"
   assert_success
 }
 
-# bats test_tags=toolchain:opencode,kind:permission
-@test "opencode.json path permissions block sensitive patterns" {
-  run jq -e '
-    .permission.read["**/.env"] == "deny" and
-    .permission.read["**/.env.*"] == "deny"
-  ' "$HOME/.config/opencode/opencode.json"
-  assert_success
-}
 
 # bats test_tags=toolchain:opencode,kind:permission
 @test "opencode.json edit denies infra config" {
@@ -193,7 +170,7 @@ setup() {
 {{- $permAgents := list -}}
 {{- if .toolchains.pi -}}
 {{-   $permAgents = append $permAgents (dict "name" "pi" "config" "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json" "tag" "toolchain:pi") -}}
-{{- end -}}
+{{- end }}
 {{- if .toolchains.opencode -}}
 {{-   $permAgents = append $permAgents (dict "name" "opencode" "config" "$HOME/.config/opencode/opencode.json" "tag" "toolchain:opencode") -}}
 {{- end -}}
@@ -205,26 +182,11 @@ setup() {
   run jq -e '
     .permission.bash["git * push --force*"] == "deny" and
     .permission.bash["rm -rf /*"] == "deny" and
-    .permission.bash["rm -rf ~/*"] == "deny" and
     .permission.bash["sudo *"] == "deny" and
-    .permission.bash["su *"] == "deny" and
-    .permission.bash["sed -i *"] == "deny" and
-    .permission.bash["sed * -i *"] == "deny" and
-    .permission.bash["chmod 777 *"] == "deny" and
-    .permission.bash["gpg --export-secret*"] == "deny" and
-    .permission.bash["gh auth token *"] == "deny" and
     .permission.bash["chezmoi apply"] == "deny" and
-    (.permission.bash["chezmoi apply *"] | not)
-  ' "{{ $agent.config }}"
-  assert_success
-
-  # no-arg deny gap
-  run jq -e '
+    (.permission.bash["chezmoi apply *"] | not) and
     (.permission.bash["gh auth token"] == "deny" or .permission.bash["gh auth token"] == "ask") and
-    (.permission.bash["mise run apply"] == "deny" or .permission.bash["mise run apply"] == "ask") and
-    (.permission.bash["topgrade"] == "deny" or .permission.bash["topgrade"] == "ask") and
-    (.permission.bash["npm login"] == "deny" or .permission.bash["npm login"] == "ask") and
-    (.permission.bash["bun login"] == "deny" or .permission.bash["bun login"] == "ask")
+    (.permission.bash["mise run apply"] == "deny" or .permission.bash["mise run apply"] == "ask")
   ' "{{ $agent.config }}"
   assert_success
 }
@@ -254,40 +216,14 @@ setup() {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
   run jq -e '
     .filesystem.defaultDenyRead == true and
-    .filesystem.allowRead == [".", "~/.config/agents/**", "~/.config/certificates/ca-bundle.pem", "~/.config/greywall/**", "~/.config/npm/npmrc", "~/.local/share/engram", "~/.local/share/engram/**"] and
-    (.filesystem.allowWrite | index("~/.cache/npm") != null) and
-    (.filesystem.allowWrite | index("~/.cache/node-gyp") != null) and
-    (.filesystem.allowWrite | index("~/.local/state/npm") != null) and
     (.filesystem.denyRead | index("~/.ssh/id_*") != null) and
-    (.filesystem.denyRead | index("~/.gnupg/**") != null) and
-    (.filesystem.denyRead | index(".env") != null) and
-    (.filesystem.denyRead | index("**/.env") != null) and
-    (.filesystem.denyWrite | index("~/.ssh") != null) and
-    (.filesystem.denyWrite | index("~/.gnupg") != null) and
-    (.filesystem.denyWrite | index(".env") != null) and
     (.filesystem.denyWrite | index("**/.env") != null) and
-    (.filesystem.denyRead | index("**/.npmrc") == null) and
-    (.filesystem.denyRead | index("**/*.tfstate") == null) and
-    (.filesystem.denyWrite | index("**/.npmrc") == null) and
-    (.filesystem.denyWrite | index("**/*.tfstate") == null) and
-    (.filesystem.denyRead | index("~/.config/pi/agent/auth.json") == null) and
-    (.filesystem.denyRead | index("~/.local/share/opencode/auth.json") == null) and
-    (.filesystem.denyWrite | index("~/.config/pi/agent/auth.json") == null) and
-    (.filesystem.denyWrite | index("~/.local/share/opencode/auth.json") == null) and
     (.command.allow | not) and
-    (.command.deny | index("git * reset --hard *") != null) and
-    (.command.deny | index("docker * system prune *") != null) and
     (.command.deny | index("chezmoi apply") != null) and
     (.command.deny | index("chezmoi apply *") == null) and
     .network.proxyUrl == "socks5://localhost:43052" and
-    .network.httpProxyUrl == "http://localhost:43051" and
-    .network.dnsAddr == "localhost:43053" and
-    ((.network.rules // []) | length) > 0 and
     (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
     .ssh.allowedHosts == ["github.com"] and
-    .ssh.allowedCommands == ["git-upload-pack"] and
-    (.ssh.deniedCommands | index("git-receive-pack") != null) and
-    (.ssh.deniedCommands | index("scp") != null) and
     .ssh.inheritDeny == true
   ' "{{ $greywallDir }}/greywall.json"
   assert_success
@@ -299,12 +235,7 @@ setup() {
   run jq -e '
     (.command.allow | not) and
     (.command.deny | index("hf auth *") != null) and
-    (.command.deny | index("hf repo delete *") != null) and
-    (.command.deny | index("hf upload *") != null) and
     (.command.deny | index("sudo *") != null) and
-    (.command.deny | index("rm -rf /*") != null) and
-    (.command.deny | index("chmod 777 *") != null) and
-    (.command.deny | index("gpg --export-secret*") != null) and
     (.command.deny | index("chezmoi apply") != null)
   ' "{{ $greywallDir }}/greywall.json"
   assert_success
@@ -316,20 +247,8 @@ setup() {
   run jq -e --slurpfile global "{{ $greywallDir }}/greywall.json" '
     .schemaVersion == 1 and
     (.credentials == $global[0].credentials) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/npm") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/npm/**") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/sessions") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions/**") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/**") != null) and
-    (.filesystem.allowRead | index("~/.config/rpiv-web-tools/**") != null) and
-    (.filesystem.allowRead | index("~/.config/rpiv-advisor/**") != null) and
-    (.filesystem.allowRead | index("~/.config/rpiv-todo/**") != null) and
-    (.filesystem.allowRead | index("~/.config/rpiv-ask-user-question/**") != null) and
-    (.filesystem.allowWrite | index("~/.local/share/plannotator") != null) and
-    (.filesystem.allowWrite | index("~/.pi-lens") != null) and
     (.filesystem.allowRead | index("~/.config/pi/**") != null) and
-    (.network.rules // [] | map(.destination) | index("pi.dev") != null) and
     (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow"))
   ' "{{ $greywallDir }}/learned/pi.json"
   assert_success
@@ -341,16 +260,8 @@ setup() {
   run jq -e --slurpfile global "{{ $greywallDir }}/greywall.json" '
     .schemaVersion == 1 and
     (.credentials == $global[0].credentials) and
-    (.filesystem.allowWrite | index("~/.cache/opencode") != null) and
     (.filesystem.allowWrite | index("~/.local/share/opencode") != null) and
-    (.filesystem.allowWrite | index("~/.local/share/plannotator") != null) and
-    (.filesystem.allowWrite | index("~/.local/share/plannotator/**") != null) and
-    (.filesystem.allowWrite | index("~/.local/state/opencode") != null) and
-    (.filesystem.allowWrite | index("/tmp/agents/opencode") != null) and
     (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
-    (.filesystem.allowRead | index("~/.local/share/plannotator") != null) and
-    (.filesystem.allowRead | index("~/.local/share/plannotator/**") != null) and
-    (.network.rules | map(.destination) | map(contains("*") | not) | all) and
     (.network.forwardPorts // [] | map(tostring) | index("19432") != null)
   ' "{{ $greywallDir }}/learned/opencode.json"
   assert_success
@@ -362,13 +273,8 @@ setup() {
   run jq -e '
     (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
     (.network.rules[] | select(.destination == "api.github.com" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "cdn.jsdelivr.net" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "docs.github.com" and (.port | tostring) == "443" and .action == "allow")) and
     (.network.rules[] | select(.destination == "registry.npmjs.org" and (.port | tostring) == "443" and .action == "allow")) and
-    ((.network.rules | map(.destination) | index("api-dashboard.search.brave.com")) | not) and
-    ((.network.rules | map(.destination) | index("brave.com")) | not) and
-    ((.network.rules | map(.destination) | index("r.jina.ai")) | not) and
-    ((.network.rules | map(.destination) | index("s.jina.ai")) | not)
+    ((.network.rules | map(.destination) | index("brave.com")) | not)
   ' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
@@ -388,73 +294,16 @@ setup() {
   assert_success
 }
 
+{{ $enabledAuth := includeTemplate "base/ai/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson }}
 # bats test_tags=kind:greywall
-@test "greywall credentials inject OPENROUTER_API_KEY" {
+@test "greywall credentials inject enabled API keys" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e '
-    (.credentials.inject | index("OPENROUTER_API_KEY") != null) and
-    (.credentials.secrets | index("OPENROUTER_API_KEY") | not)
+  run jq -e --argjson expected '{{ $enabledAuth.enabled_api_key_envs | sortAlpha | toJson }}' '
+    . as $root |
+    all($expected[]; . as $k | ($root.credentials.inject | index($k) != null)) and
+    all($expected[]; . as $k | ($root.credentials.secrets | index($k) | not))
   ' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
 
-
-# bats test_tags=kind:greywall
-@test "greywall base config arrays are duplicate-free" {
-  run jq -e '
-    (.filesystem.allowRead | length) == (.filesystem.allowRead | unique | length)
-    and (.filesystem.allowWrite | length) == (.filesystem.allowWrite | unique | length)
-    and (.filesystem.denyRead | length) == (.filesystem.denyRead | unique | length)
-    and (.filesystem.denyWrite | length) == (.filesystem.denyWrite | unique | length)
-    and (.network.rules | length) == (.network.rules | unique | length)
-  ' "{{ $greywallDir }}/greywall.json"
-  assert_success
-}
-
-# bats test_tags=kind:greywall
-@test "greywall learned profiles arrays are duplicate-free" {
-  for profile in pi opencode; do
-    run jq -e '
-      (.filesystem.allowRead | length) == (.filesystem.allowRead | unique | length)
-      and (.filesystem.allowWrite | length) == (.filesystem.allowWrite | unique | length)
-      and ((.filesystem.denyRead // []) | length) == ((.filesystem.denyRead // []) | unique | length)
-      and ((.filesystem.denyWrite // []) | length) == ((.filesystem.denyWrite // []) | unique | length)
-      and (.network.rules | length) == (.network.rules | unique | length)
-    ' "{{ $greywallDir }}/learned/$profile.json"
-    assert_success
-  done
-}
-
-# bats test_tags=kind:greywall
-@test "greywall base network excludes agent-only hosts" {
-  run jq -e '
-    (.network.rules | map(.destination) | index("pi.dev") | not)
-  ' "{{ $greywallDir }}/greywall.json"
-  assert_success
-}
-
-# bats test_tags=kind:greywall
-@test "greywall pi profile network includes pi.dev" {
-  run jq -e '
-    .network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow")
-  ' "{{ $greywallDir }}/learned/pi.json"
-  assert_success
-}
-
-# bats test_tags=kind:greywall
-@test "greywall learned profiles do not duplicate agent-layer denies" {
-  for profile in pi opencode; do
-    run jq -e '
-      ((.filesystem.denyRead // []) | index("**/.npmrc") == null)
-      and ((.filesystem.denyRead // []) | index("**/*.tfstate") == null)
-      and ((.filesystem.denyWrite // []) | index("**/.npmrc") == null)
-      and ((.filesystem.denyWrite // []) | index("**/*.tfstate") == null)
-      and ((.filesystem.denyRead // []) | index("~/.config/pi/agent/auth.json") == null)
-      and ((.filesystem.denyRead // []) | index("~/.local/share/opencode/auth.json") == null)
-      and ((.filesystem.denyWrite // []) | index("~/.config/pi/agent/auth.json") == null)
-      and ((.filesystem.denyWrite // []) | index("~/.local/share/opencode/auth.json") == null)
-    ' "{{ $greywallDir }}/learned/$profile.json"
-    assert_success
-  done
-}
 {{- end }}

@@ -9,9 +9,6 @@ omlx_memory_guard_gb = 21
 "qwen3-coder-30b-a3b" = {name = "Qwen 3 Coder 30B-A3B", reasoning = false, context_window = 32768, max_output = 4096, gguf = {repo = "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF", file = "Qwen3-Coder-30B-A3B-Instruct-UD-IQ3_XXS.gguf"}, mlx = {repo = "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit"}, sampling = {min_p = 0.0, repetition_penalty = 1.05, temperature = 0.4, top_k = 20, top_p = 0.9}}
 "qwen3.5-9b" = {name = "Qwen3.5 9B", reasoning = true, context_window = 65536, max_output = 4096, mlx = {repo = "mlx-community/Qwen3.5-9B-OptiQ-4bit"}, sampling = {min_p = 0.0, presence_penalty = 0.0, repetition_penalty = 1.0, temperature = 0.6, top_k = 20, top_p = 0.95}}
 
-[ai.profile.work.models.enabled]
-models = ["github-copilot/claude-sonnet-5", "github-copilot/claude-opus-4.8"]
-
 [ai.profile.work.models.personas]
 default = "coder"
 architect = {provider = "github-copilot", model = "claude-opus-4.8", thinking = "high"}
@@ -21,3 +18,7 @@ locator = {provider = "github-copilot", model = "gpt-5.4-mini", thinking = "low"
 oracle = {provider = "github-copilot", model = "claude-opus-4.8", thinking = "xhigh"}
 researcher = {provider = "github-copilot", model = "claude-sonnet-5", thinking = "medium"}
 utility = {provider = "github-copilot", model = "gpt-5.4-mini", thinking = "low"}
+
+[ai.profile.work.models.providers.github-copilot]
+enabled = true
+models = ["claude-sonnet-5", "claude-opus-4.8"]

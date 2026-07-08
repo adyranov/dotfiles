@@ -8,13 +8,37 @@
 {{- $cmdPolicies := includeTemplate "base/ai/collect-policies" (dict "root" $root) | mustFromJson -}}
 {{- $cmdDeny := index $cmdPolicies "deny" | default list -}}
 
+{{- /* ── Local LLM catalog (shared with Pi via load-local-models) ── */ -}}
+{{- $localResolved := includeTemplate "base/helpers/load-local-models" (dict "root" $root) | mustFromJson -}}
+{{- $localModels := get $localResolved "models" | default dict -}}
+{{- $localPort := get $localResolved "port" | default 8321 -}}
+{{- $localProviderModels := dict -}}
+{{- range $id, $m := $localModels -}}
+{{-   $modelEntry := dict
+        "name" (get $m "name" | default $id)
+        "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "context_output" | default 8192))
+      -}}
+{{-   if get $m "reasoning" -}}
+{{-     $_ := set $modelEntry "reasoning" true -}}
+{{-   end -}}
+{{-   $_ := set $localProviderModels $id $modelEntry -}}
+{{- end -}}
+{{- $providers := dict -}}
+{{- if $localProviderModels -}}
+{{-   $_ := set $providers "local" (dict
+        "npm" "@ai-sdk/openai-compatible"
+        "name" "Local LLM Gateway"
+        "options" (dict "baseURL" (printf "http://127.0.0.1:%v/v1" $localPort) "apiKey" "local")
+        "models" $localProviderModels
+      ) -}}
+{{- end -}}
 
 {{- /* ── Model IDs ── */ -}}
 {{- $defaults := index $personas $personas.default -}}
-{{- $modelId := includeTemplate "base/ai/render-opencode-model-id" $defaults -}}
+{{- $modelId := includeTemplate "base/ai/render-opencode-model-id" (dict "route" $defaults "root" $root) -}}
 {{- $smallModelId := $modelId -}}
 {{- if hasKey $personas "utility" -}}
-{{-   $smallModelId = includeTemplate "base/ai/render-opencode-model-id" (index $personas "utility") -}}
+{{-   $smallModelId = includeTemplate "base/ai/render-opencode-model-id" (dict "route" (index $personas "utility") "root" $root) -}}
 {{- end -}}
 
 {{- /* ── Settings (read directly from TOML; data is required) ── */ -}}
@@ -101,7 +125,7 @@
 {{-   if not $route -}}
 {{-     fail (printf "render-opencode-config: ai.models has no route for category %q (mapped by agent %q)" $category $agent) -}}
 {{-   end -}}
-{{-   $agentModelId := includeTemplate "base/ai/render-opencode-model-id" $route -}}
+{{-   $agentModelId := includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root) -}}
 {{-   $agentConfig := dict "model" $agentModelId "mode" (get $builtinAgentModes $agent | default "all") -}}
 {{-   $thinking := get $route "thinking" | default "off" -}}
 {{-   if ne $thinking "off" -}}
@@ -171,5 +195,7 @@
 
 {{- $mcpServers := get $profileData "mcp_servers" | default dict -}}
 {{- if ne (len $mcpServers) 0 -}}{{- $_ := set $result "mcp" $mcpServers -}}{{- end -}}
+
+{{- if $providers -}}{{- $_ := set $result "provider" $providers -}}{{- end -}}
 
 {{- $result | toPrettyJson -}}

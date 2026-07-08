@@ -1,12 +1,24 @@
 {{- /*
   Render an OpenCode-compatible model ID string from a route config entry.
 
-  Input (.): { provider?: string, model: string }
+  Input: $route (dict with provider/model) or {route: $route, root: $root}
+  When root is provided, aliases are resolved from ai.models.providers metadata.
   Output: "provider/model" or just "model" if no provider.
-
-  Mapped: openai-codex → openai (OpenCode uses different provider key for codex)
 */ -}}
-{{- $provider := get . "provider" | default "" -}}
-{{- $ocAliases := dict "openai-codex" "openai" -}}
-{{- $ocProvider := get $ocAliases $provider | default $provider -}}
-{{- if $ocProvider -}}{{- printf "%s/%s" $ocProvider (get . "model") -}}{{ else -}}{{- get . "model" -}}{{- end -}}
+{{- $route := . -}}
+{{- if hasKey . "route" -}}{{- $route = .route -}}{{- end -}}
+{{- $provider := get $route "provider" | default "" -}}
+{{- $model := get $route "model" -}}
+{{- if $provider -}}
+  {{- $ocProvider := $provider -}}
+  {{- if hasKey . "root" -}}
+    {{- $providers := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.providers" "required" false) | mustFromJson -}}
+    {{- $meta := get $providers $provider | default dict -}}
+    {{- $aliases := get $meta "aliases" | default dict -}}
+    {{- $aliasVal := get $aliases "opencode" | default "" -}}
+    {{- if $aliasVal -}}{{- $ocProvider = $aliasVal -}}{{- end -}}
+  {{- end -}}
+  {{- printf "%s/%s" $ocProvider $model -}}
+{{- else -}}
+  {{- $model -}}
+{{- end -}}

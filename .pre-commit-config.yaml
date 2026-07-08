@@ -78,13 +78,13 @@ repos:
       - id: shfmt
         name: Format Shell Scripts
         args: ["-w", "-s", "-i", "2"]
-        exclude: .*\.tmpl|.*\.bats
+        exclude: .*\.tmpl|.*\.bats|\.chezmoitemplates/
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
       - id: shellcheck
         name: Lint Shell Scripts
-        exclude: .*\.tmpl|.*\.bats|dot_p10k\.zsh
+        exclude: .*\.tmpl|.*\.bats|\.chezmoitemplates/|dot_p10k\.zsh
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
     hooks:

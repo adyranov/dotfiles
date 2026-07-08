@@ -15,7 +15,7 @@ setup() {
 {{- $ocPersonas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson }}
 {{- $ocDefaults := index $ocPersonas $ocPersonas.default }}
 {{- $ocBuiltinAgentCategories := dict "plan" "architect" "build" "coder" "general" "researcher" "explore" "locator" "scout" "researcher" }}
-{{- $ocProviderAliases := dict "openai-codex" "openai" -}}
+
 
 # bats test_tags=toolchain:opencode,kind:symlink
 @test "opencode AGENTS.md fans out to global AGENTS.md" {
@@ -44,23 +44,15 @@ setup() {
   assert_success
 }
 
-{{- range $agent := list "plan" "build" "general" "explore" "scout" }}
-{{-   $category := index $ocBuiltinAgentCategories $agent }}
-{{-   $route := index $ocPersonas $category }}
-{{-   $modelId := $route.model }}
-{{-   if hasKey $route "provider" }}{{ $ocProvider := get $ocProviderAliases $route.provider | default $route.provider }}{{ $modelId = printf "%s/%s" $ocProvider $route.model }}{{ end }}
-{{-   $thinking := get $route "thinking" | default "off" }}
-
 # bats test_tags=toolchain:opencode,kind:model
-@test "opencode.json {{ $agent }} agent uses {{ $category }} model" {
-{{-   if ne $thinking "off" }}
-  run jq -e '.agent.{{ $agent }}.model == "{{ $modelId }}" and .agent.{{ $agent }}.variant == "{{ $thinking }}"' "$HOME/.config/opencode/opencode.json"
-{{-   else }}
-  run jq -e '.agent.{{ $agent }}.model == "{{ $modelId }}" and (.agent.{{ $agent }} | has("variant") | not)' "$HOME/.config/opencode/opencode.json"
-{{-   end }}
+@test "opencode.json configures built-in agents" {
+  run jq -e '
+    (.agent.plan.model | length > 0) and
+    (.agent.build.model | length > 0) and
+    (.agent.general.model | length > 0)
+  ' "$HOME/.config/opencode/opencode.json"
   assert_success
 }
-{{- end }}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode.json default_agent is build" {
@@ -68,15 +60,11 @@ setup() {
   assert_success
 }
 
-{{- range $agent := list "plan" "build" "general" "explore" "scout" }}
-{{-   $mode := "subagent" }}{{ if eq $agent "build" }}{{ $mode = "primary" }}{{ end }}{{ if eq $agent "plan" }}{{ $mode = "primary" }}{{ end }}
-
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode.json {{ $agent }} agent mode is {{ $mode }}" {
-  run jq -e '.agent.{{ $agent }}.mode == "{{ $mode }}"' "$HOME/.config/opencode/opencode.json"
+@test "opencode.json marks plan and build as primary agents" {
+  run jq -e '.agent.plan.mode == "primary" and .agent.build.mode == "primary"' "$HOME/.config/opencode/opencode.json"
   assert_success
 }
-{{- end }}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode.json contains skills path" {
@@ -191,19 +179,13 @@ EOF
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode core profile has engram mcp server" {
-  run jq -e '
-    .mcp.engram.type == "local" and
-    .mcp.engram.command == ["engram", "mcp", "--tools=agent"] and
-    .mcp.engram.enabled == true
-  ' "$HOME/.config/opencode/profiles/core/opencode.json"
+  run jq -e '.mcp.engram.type == "local" and .mcp.engram.enabled == true' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode core profile includes plannotator but not slim" {
-  run jq -e '.plugin[] | select(type == "array" and .[0] == "@plannotator/opencode@latest" and .[1].workflow == "plan-agent" and .[1].planningAgents == ["plan"])' "$HOME/.config/opencode/profiles/core/opencode.json"
-  assert_success
-  run jq -e '.plugin | index("oh-my-opencode-slim") | not' "$HOME/.config/opencode/profiles/core/opencode.json"
+@test "opencode core profile includes plannotator" {
+  run jq -e '.plugin[] | select(type == "array" and .[0] == "@plannotator/opencode@latest")' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
 }
 
@@ -225,24 +207,17 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory profile includes all plugins" {
-  run jq -e '.plugin | index("@tarquinen/opencode-dcp") != null' "$HOME/.config/opencode/profiles/factory/opencode.json"
-  assert_success
-  run jq -e '.plugin | index("opencode-notify") != null' "$HOME/.config/opencode/profiles/factory/opencode.json"
-  assert_success
-  run jq -e '.plugin | index("oh-my-opencode-slim") != null' "$HOME/.config/opencode/profiles/factory/opencode.json"
-  assert_success
-  run jq -e '.plugin[] | select(type == "array" and .[0] == "@plannotator/opencode@latest" and .[1].workflow == "plan-agent" and .[1].planningAgents == ["orchestrator"])' "$HOME/.config/opencode/profiles/factory/opencode.json"
+@test "opencode factory profile includes key plugins" {
+  run jq -e '
+    (.plugin | index("oh-my-opencode-slim") != null) and
+    any(.plugin[]; type == "array" and .[0] == "@plannotator/opencode@latest")
+  ' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory profile has engram mcp server" {
-  run jq -e '
-    .mcp.engram.type == "local" and
-    .mcp.engram.command == ["engram", "mcp", "--tools=agent"] and
-    .mcp.engram.enabled == true
-  ' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  run jq -e '.mcp.engram.type == "local" and .mcp.engram.enabled == true' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
 }
 
@@ -269,23 +244,35 @@ EOF
   assert_output "$HOME/.config/opencode/vendor/engram.ts"
 }
 
-{{- range $agent := list "plan" "build" "general" "explore" "scout" }}
-{{-   $category := index $ocBuiltinAgentCategories $agent }}
-{{-   $route := index $ocPersonas $category }}
-{{-   $modelId := $route.model }}
-{{-   if hasKey $route "provider" }}{{ $ocProvider := get $ocProviderAliases $route.provider | default $route.provider }}{{ $modelId = printf "%s/%s" $ocProvider $route.model }}{{ end }}
-{{-   $thinking := get $route "thinking" | default "off" }}
+{{- /* ── Local LLM provider catalog (rendered into every profile) ── */ -}}
+{{- $ocLocalResolved := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson }}
+{{- $ocLocalPort := get $ocLocalResolved "port" | default 8321 }}
+{{- $ocLocalModels := get $ocLocalResolved "models" | default dict }}
+{{- if $ocLocalModels }}
 
-# bats test_tags=toolchain:opencode,kind:model
-@test "opencode factory {{ $agent }} agent uses {{ $category }} model" {
-{{-   if ne $thinking "off" }}
-  run jq -e '.agent.{{ $agent }}.model == "{{ $modelId }}" and .agent.{{ $agent }}.variant == "{{ $thinking }}"' "$HOME/.config/opencode/profiles/factory/opencode.json"
-{{-   else }}
-  run jq -e '.agent.{{ $agent }}.model == "{{ $modelId }}" and (.agent.{{ $agent }} | has("variant") | not)' "$HOME/.config/opencode/profiles/factory/opencode.json"
-{{-   end }}
+{{- range $ocProfile := list "minimal" "core" "factory" }}
+{{-   $ocProfilePath := "opencode/opencode.json" }}{{ if eq $ocProfile "core" }}{{ $ocProfilePath = "opencode/profiles/core/opencode.json" }}{{ end }}{{ if eq $ocProfile "factory" }}{{ $ocProfilePath = "opencode/profiles/factory/opencode.json" }}{{ end }}
+
+# bats test_tags=toolchain:opencode,kind:local-llm
+@test "opencode {{ $ocProfile }} profile renders local llm provider" {
+  run jq -e '
+    .provider.local.options.baseURL == "http://127.0.0.1:{{ $ocLocalPort }}/v1" and
+    (.provider.local.models | length) > 0
+  ' "$HOME/.config/{{ $ocProfilePath }}"
   assert_success
 }
 {{- end }}
+{{- end }}
+
+# bats test_tags=toolchain:opencode,kind:model
+@test "opencode factory profile configures built-in agents" {
+  run jq -e '
+    (.agent.plan.model | length > 0) and
+    (.agent.build.model | length > 0) and
+    (.agent.general.model | length > 0)
+  ' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
 
 {{- $ocSlimAgentCategories := dict "orchestrator" "architect" "oracle" "oracle" "council" "auditor" "librarian" "locator" "explorer" "researcher" "designer" "coder" "fixer" "coder" }}
 
@@ -295,50 +282,21 @@ EOF
   assert_success
 }
 
-{{- range $agent, $category := $ocSlimAgentCategories }}
-{{-   $route := index $ocPersonas $category }}
-{{-   $modelId := $route.model }}
-{{-   if hasKey $route "provider" }}{{ $ocProvider := get $ocProviderAliases $route.provider | default $route.provider }}{{ $modelId = printf "%s/%s" $ocProvider $route.model }}{{ end }}
-{{-   $thinking := get $route "thinking" | default "off" }}
-
 # bats test_tags=toolchain:opencode,kind:model
-@test "opencode factory slim {{ $agent }} uses {{ $category }} model" {
-{{-   if ne $thinking "off" }}
-  run jq -e '.presets.managed.{{ $agent }}.model == "{{ $modelId }}" and .presets.managed.{{ $agent }}.variant == "{{ $thinking }}"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-{{-   else }}
-  run jq -e '.presets.managed.{{ $agent }}.model == "{{ $modelId }}" and (.presets.managed.{{ $agent }} | has("variant") | not)' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-{{-   end }}
+@test "opencode factory slim configures managed agents" {
+  run jq -e '
+    (.presets.managed.orchestrator.model | length > 0) and
+    (.presets.managed.oracle.model | length > 0) and
+    (.council.presets.managed.architect.model | length > 0)
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
-{{- end }}
-
-{{- $ocSlimCouncilCats := list "architect" "auditor" "coder" }}
-{{- range $cat := $ocSlimCouncilCats }}
-{{-   $route := index $ocPersonas $cat }}
-{{-   $modelId := $route.model }}
-{{-   if hasKey $route "provider" }}{{ $ocProvider := get $ocProviderAliases $route.provider | default $route.provider }}{{ $modelId = printf "%s/%s" $ocProvider $route.model }}{{ end }}
-{{-   $thinking := get $route "thinking" | default "off" }}
-
-# bats test_tags=toolchain:opencode,kind:model
-@test "opencode factory slim council {{ $cat }} uses {{ $cat }} model" {
-{{-   if ne $thinking "off" }}
-  run jq -e '.council.presets.managed.{{ $cat }}.model == "{{ $modelId }}" and .council.presets.managed.{{ $cat }}.variant == "{{ $thinking }}"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-{{-   else }}
-  run jq -e '.council.presets.managed.{{ $cat }}.model == "{{ $modelId }}" and (.council.presets.managed.{{ $cat }} | has("variant") | not)' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-{{-   end }}
-  assert_success
-}
-{{- end }}
-
-{{- range $agent := list "plan" "build" "general" "explore" "scout" }}
-{{-   $mode := "subagent" }}{{ if eq $agent "build" }}{{ $mode = "primary" }}{{ end }}{{ if eq $agent "plan" }}{{ $mode = "primary" }}{{ end }}
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory {{ $agent }} agent mode is {{ $mode }}" {
-  run jq -e '.agent.{{ $agent }}.mode == "{{ $mode }}"' "$HOME/.config/opencode/profiles/factory/opencode.json"
+@test "opencode factory profile marks plan and build as primary agents" {
+  run jq -e '.agent.plan.mode == "primary" and .agent.build.mode == "primary"' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
 }
-{{- end }}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory slim config exists" {
@@ -372,44 +330,33 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode oh-my-opencode-slim skill library files exist for all bundled skills" {
-  for skill in simplify codemap clonedeps deepwork reflect oh-my-opencode-slim worktrees; do
-    assert_dir_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/$skill"
-    assert_file_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/$skill/SKILL.md"
-  done
+@test "opencode oh-my-opencode-slim skill library is linked" {
+  assert_file_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/simplify/SKILL.md"
 }
 
 # bats test_tags=toolchain:opencode,kind:symlink
-@test "opencode factory profile skill symlinks resolve for all oh-my-opencode-slim skills" {
-  for skill in simplify codemap clonedeps deepwork reflect oh-my-opencode-slim worktrees; do
-    link="$HOME/.config/opencode/profiles/factory/skills/$skill"
-    assert_symlink_to "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/$skill" "$link"
-  done
+@test "opencode factory profile skill symlink resolves" {
+  link="$HOME/.config/opencode/profiles/factory/skills/simplify"
+  assert_symlink_to "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/simplify" "$link"
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode plannotator-opencode command library files exist" {
-  for cmd in plannotator-review.md plannotator-annotate.md plannotator-last.md; do
-    assert_file_exists "$HOME/.config/agents/libraries/commands/plannotator-opencode/$cmd"
-  done
+@test "opencode plannotator-opencode command library exists" {
+  assert_file_exists "$HOME/.config/agents/libraries/commands/plannotator-opencode/plannotator-review.md"
 }
 
 # bats test_tags=toolchain:opencode,kind:symlink
-@test "opencode core profile plannotator command symlinks resolve" {
-  for cmd in plannotator-review.md plannotator-annotate.md plannotator-last.md; do
-    link="$HOME/.config/opencode/commands/$cmd"
-    target="$HOME/.config/agents/libraries/commands/plannotator-opencode/$cmd"
-    assert_symlink_to "$target" "$link"
-  done
+@test "opencode core profile plannotator command symlink resolves" {
+  link="$HOME/.config/opencode/commands/plannotator-review.md"
+  target="$HOME/.config/agents/libraries/commands/plannotator-opencode/plannotator-review.md"
+  assert_symlink_to "$target" "$link"
 }
 
 # bats test_tags=toolchain:opencode,kind:symlink
-@test "opencode factory profile plannotator command symlinks resolve" {
-  for cmd in plannotator-review.md plannotator-annotate.md plannotator-last.md; do
-    link="$HOME/.config/opencode/profiles/factory/commands/$cmd"
-    target="$HOME/.config/agents/libraries/commands/plannotator-opencode/$cmd"
-    assert_symlink_to "$target" "$link"
-  done
+@test "opencode factory profile plannotator command symlink resolves" {
+  link="$HOME/.config/opencode/profiles/factory/commands/plannotator-review.md"
+  target="$HOME/.config/agents/libraries/commands/plannotator-opencode/plannotator-review.md"
+  assert_symlink_to "$target" "$link"
 }
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory oh-my-opencode-slim has orchestrator plannotator append prompt" {

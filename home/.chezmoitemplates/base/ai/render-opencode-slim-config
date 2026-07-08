@@ -31,7 +31,7 @@
 {{-     fail (printf "render-opencode-slim-config: ai.models has no route for category %q (mapped by slim agent %q)" $category $agent) -}}
 {{-   end -}}
 {{-   $cfg := dict -}}
-{{-   $_ := set $cfg "model" (includeTemplate "base/ai/render-opencode-model-id" $route) -}}
+{{-   $_ := set $cfg "model" (includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root)) -}}
 {{-   if hasKey $route "thinking" -}}
 {{-     $thinking := $route.thinking -}}
 {{-     if ne $thinking "off" -}}
@@ -65,7 +65,7 @@
 {{-     fail (printf "render-opencode-slim-config: ai.models has no route for council category %q" $cat) -}}
 {{-   end -}}
 {{-   $cfg := dict -}}
-{{-   $_ := set $cfg "model" (includeTemplate "base/ai/render-opencode-model-id" $route) -}}
+{{-   $_ := set $cfg "model" (includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root)) -}}
 {{-   if hasKey $route "thinking" -}}
 {{-     $thinking := $route.thinking -}}
 {{-     if ne $thinking "off" -}}

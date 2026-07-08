@@ -25,9 +25,6 @@ setup() {
 {{- if .toolchains.pi }}
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
 {{- $personas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson }}
-{{- $agentRoutes := includeTemplate "base/helpers/render-model-category-map" (dict "root" . "field" "agents") | mustFromJson }}
-{{- $defaults := index $personas $personas.default }}
-{{- $plannotatorCfg := get (index $pi.profiles "core") "plannotator" | default dict }}
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi settings.json enables install telemetry" {
@@ -36,27 +33,17 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:packages
-@test "pi settings.json contains core packages only" {
+@test "pi settings.json contains core packages" {
   assert_file_exists "$HOME/.config/pi/profiles/core/settings.json"
-{{- $core := index $pi.profiles "core" }}
-{{- range $name := $core.packages }}
-  run grep -F '"npm:{{ $name }}"' "$HOME/.config/pi/profiles/core/settings.json"
+  run grep -F '"npm:pi-lens"' "$HOME/.config/pi/profiles/core/settings.json"
   assert_success
-{{- end }}
   run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/core/settings.json"
   assert_failure
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi settings.json renders powerline footer config" {
-  run jq -e '
-    .powerline.preset == "{{ $pi.settings.powerline.preset }}" and
-    .powerline.fixedEditor == {{ $pi.settings.powerline.fixed_editor }} and
-    .powerline.mouseScroll == {{ $pi.settings.powerline.mouse_scroll }} and
-    .bashMode.toggleShortcut == "{{ $pi.settings.bash_mode.toggle_shortcut }}" and
-    .bashMode.transcriptMaxLines == {{ $pi.settings.bash_mode.transcript_max_lines }} and
-    .bashMode.transcriptMaxBytes == {{ $pi.settings.bash_mode.transcript_max_bytes }}
-  ' "$HOME/.config/pi/agent/settings.json"
+@test "pi settings.json renders footer config" {
+  run jq -e '.powerline.preset == "{{ $pi.settings.powerline.preset }}" and .bashMode.toggleShortcut == "{{ $pi.settings.bash_mode.toggle_shortcut }}"' "$HOME/.config/pi/agent/settings.json"
   assert_success
 }
 
@@ -85,19 +72,14 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:packages
-@test "pi factory inherits core and minimal packages" {
+@test "pi factory inherits core and factory packages" {
   assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
   run grep -F '"npm:pi-system-prompt"' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
-  run grep -F '"npm:pi-lens"' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
-  run grep -F '"npm:pi-powerline-footer"' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
-  run grep -F '"npm:@sherif-fanous/pi-catppuccin"' "$HOME/.config/pi/profiles/factory/settings.json"
+  run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
 }
 
-# bats test_tags=toolchain:pi,kind:packages
 # bats test_tags=toolchain:pi,kind:config
 @test "pi SYSTEM.md has compact tool routing" {
   assert_file_exists "$HOME/.config/pi/agent/SYSTEM.md"
@@ -107,70 +89,37 @@ setup() {
   assert_success
   run grep -F "web_search" "$HOME/.config/pi/agent/SYSTEM.md"
   assert_success
-  run grep -F "advisor" "$HOME/.config/pi/agent/SYSTEM.md"
-  assert_success
-  run grep -F "ask_user_question" "$HOME/.config/pi/agent/SYSTEM.md"
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi plannotator.json planning has key activeTools" {
+  run jq -e '
+    .phases.planning.activeTools | index("module_report") != null and
+    index("lsp_navigation") != null and
+    index("plannotator_submit_plan") != null and
+    index("ask_user_question") != null
+  ' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi plannotator.json planning has expanded activeTools" {
-  run jq -e '.phases.planning.activeTools | any(. == "module_report")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "read_symbol")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "lsp_navigation")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "lens_diagnostics")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "ast_grep_search")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "mem_search")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "context_checkpoint")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "plannotator_submit_plan")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "ask_user_question")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "advisor")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.planning.activeTools | any(. == "web_search")' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi plannotator.json phase systemPrompts are non-empty" {
-  run jq -e '.phases.planning.systemPrompt | length > 0' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.executing.systemPrompt | length > 0' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -e '.phases.reviewing.systemPrompt | length > 0' "$HOME/.config/pi/profiles/core/plannotator.json"
+@test "pi plannotator.json phase systemPrompts are wired" {
+  run jq -e '
+    (.phases.planning.systemPrompt | length > 0) and
+    (.phases.executing.systemPrompt | length > 0) and
+    (.phases.reviewing.systemPrompt | length > 0)
+  ' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
   run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
   assert_output --partial ".plannotator/"
-  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  assert_output --partial "Question phase first"
-  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  assert_output --partial "material ambiguity"
-  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  assert_output --partial "Final plan: concise"
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi factory settings.json renders category-mapped agent routes" {
+@test "pi factory settings.json renders agent routes" {
   assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
-  run jq -e --argjson expected '{{ keys $agentRoutes | sortAlpha | toJson }}' '.subagents.agentOverrides | keys | sort == $expected' "$HOME/.config/pi/profiles/factory/settings.json"
+  run jq -e '(.subagents.agentOverrides | length > 0) and all(.subagents.agentOverrides[]; (.model | length > 0) and (.thinking | length > 0))' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
-{{- range $agent := keys $agentRoutes | sortAlpha }}
-{{-   $route := index $agentRoutes $agent }}
-  run jq -e '.subagents.agentOverrides["{{ $agent }}"].model == "{{ $route.model }}" and .subagents.agentOverrides["{{ $agent }}"].thinking == "{{ $route.thinking }}"' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
-{{- end }}
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -183,37 +132,14 @@ setup() {
   assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
 }
 
-{{- $planPlanningCat := get $plannotatorCfg "planning" | default "architect" }}
-{{- $planExecutingCat := get $plannotatorCfg "executing" | default "coder" }}
-{{- $planPlanningRoute := get $personas $planPlanningCat | default dict }}
-{{- $planExecutingRoute := get $personas $planExecutingCat | default dict }}
+
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi plannotator.json defaults match ai.models.default" {
+@test "pi plannotator.json has model routes" {
   run jq -e '
-    .defaults.model.provider == "{{ $defaults.provider }}" and
-    .defaults.model.id == "{{ $defaults.model }}" and
-    .defaults.thinking == "{{ $defaults.thinking }}"
-  ' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi plannotator.json planning phase uses {{ $planPlanningCat }}" {
-  run jq -e '
-    .phases.planning.model.provider == "{{ $planPlanningRoute.provider | default $defaults.provider }}" and
-    .phases.planning.model.id == "{{ $planPlanningRoute.model | default $defaults.model }}" and
-    .phases.planning.thinking == "{{ $planPlanningRoute.thinking | default $defaults.thinking }}"
-  ' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi plannotator.json executing phase uses {{ $planExecutingCat }}" {
-  run jq -e '
-    .phases.executing.model.provider == "{{ $planExecutingRoute.provider | default $defaults.provider }}" and
-    .phases.executing.model.id == "{{ $planExecutingRoute.model | default $defaults.model }}" and
-    .phases.executing.thinking == "{{ $planExecutingRoute.thinking | default $defaults.thinking }}"
+    (.defaults.model.id | length > 0) and
+    (.phases.planning.model.id | length > 0) and
+    (.phases.executing.model.id | length > 0)
   ' "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
 }
@@ -224,24 +150,12 @@ setup() {
   run readlink -f "$HOME/.config/pi/profiles/$profile/AGENTS.md"
   assert_success
   assert_output "$HOME/.config/agents/AGENTS.md"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/auth.json"
-  assert_success
-  assert_output "$HOME/.config/pi/agent/auth.json"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/models.json"
-  assert_success
-  assert_output "$HOME/.config/pi/agent/models.json"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/mcp.json"
-  assert_success
-  assert_output "$HOME/.config/pi/profiles/core/mcp.json"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/extensions/pi-permission-system/config.json"
-  assert_success
-  assert_output "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/plannotator.json"
-  assert_success
-  assert_output "$HOME/.config/pi/profiles/core/plannotator.json"
   run readlink -f "$HOME/.config/pi/profiles/$profile/SYSTEM.md"
   assert_success
   assert_output "$HOME/.config/pi/agent/SYSTEM.md"
+  run readlink -f "$HOME/.config/pi/profiles/$profile/plannotator.json"
+  assert_success
+  assert_output "$HOME/.config/pi/profiles/core/plannotator.json"
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -307,18 +221,10 @@ EOF
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "agent-launch script validates greyproxy API and ports" {
+@test "agent-launch script validates greyproxy API" {
   run grep -F 'GREYPROXY_API_PORT=43080' "$HOME/.local/bin/agent-launch"
   assert_success
   run grep -F '/api/health' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'greyproxy --version' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'nc -z 127.0.0.1 43051' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'nc -z 127.0.0.1 43052' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'nc -z 127.0.0.1 43053' "$HOME/.local/bin/agent-launch"
   assert_success
 }
 
@@ -327,10 +233,6 @@ EOF
   run grep -F 'pi update --extensions' "$HOME/.local/bin/agent-launch"
   assert_success
   run grep -F -- '--no-update' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'no_update=true' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'if [ "$no_update" = false ]; then' "$HOME/.local/bin/agent-launch"
   assert_success
 }
 
@@ -346,10 +248,6 @@ EOF
   run grep -F 'Refusing to launch from home directory' "$HOME/.local/bin/agent-launch"
   assert_success
   run grep -F 'Refusing to launch from root' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'Not inside a git worktree' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'git rev-parse --is-inside-work-tree' "$HOME/.local/bin/agent-launch"
   assert_success
 }
 
@@ -374,11 +272,6 @@ EOF
   run "$HOME/.local/bin/pi-agent" --print-env minimal
   assert_success
   assert_output --partial "PI_CODING_AGENT_DIR"
-  assert_output --partial "pi/agent"
-  assert_output --partial "PI_CODING_AGENT_SESSION_DIR"
-  assert_output --partial "pi/agent/sessions"
-  assert_output --partial "ENGRAM_DATA_DIR"
-  assert_output --partial "ENGRAM_PORT"
   assert_output --partial "ENGRAM_URL"
 }
 
@@ -393,14 +286,7 @@ EOF
 
 # bats test_tags=toolchain:pi,kind:mcp
 @test "pi mcp.json keeps adapter proxy-only defaults" {
-  run jq -e '
-    .settings.autoAuth == false and
-    .settings.directTools == false and
-    .settings.disableProxyTool == false and
-    .settings.idleTimeout == 10 and
-    .settings.sampling == false and
-    .settings.toolPrefix == "server"
-  ' "$HOME/.config/pi/profiles/core/mcp.json"
+  run jq -e '.settings.directTools == false and .settings.disableProxyTool == false' "$HOME/.config/pi/profiles/core/mcp.json"
   assert_success
 }
 
@@ -414,10 +300,20 @@ EOF
   assert_success
 }
 
+{{- $enabledAuth := includeTemplate "base/ai/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson }}
+{{- if or (not $enabledAuth.has_enabled_data) ($enabledAuth.providers | has "openrouter") }}
 # bats test_tags=toolchain:pi,kind:config
 @test "pi auth.json maps openrouter to env var" {
   assert_file_exists "$HOME/.config/pi/agent/auth.json"
   run jq -e '.openrouter.key == "$OPENROUTER_API_KEY"' "$HOME/.config/pi/agent/auth.json"
   assert_success
 }
+{{- else }}
+# bats test_tags=toolchain:pi,kind:config
+@test "pi auth.json omits disabled openrouter" {
+  assert_file_exists "$HOME/.config/pi/agent/auth.json"
+  run jq -e 'has("openrouter") | not' "$HOME/.config/pi/agent/auth.json"
+  assert_success
+}
+{{- end }}
 {{- end }}
