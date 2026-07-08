@@ -53,7 +53,7 @@
   "followUpMode" "all"
   "steeringMode" "all"
   "treeFilterMode" "no-tools"
-  "enableInstallTelemetry" false
+  "enableInstallTelemetry" true
   "enabledModels" $enabledModels
   "lastChangelogVersion" $piVersion
   "npmCommand" (list "mise" "exec" "node@lts" "--" "npm")

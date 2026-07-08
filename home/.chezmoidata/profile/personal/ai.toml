@@ -1,2 +1,2 @@
 [ai.profile.personal.credentials]
-inject = ["BRAVE_SEARCH_API_KEY", "OPENCODE_API_KEY"]
+inject = ["BRAVE_SEARCH_API_KEY", "OPENCODE_API_KEY", "OPENROUTER_API_KEY"]

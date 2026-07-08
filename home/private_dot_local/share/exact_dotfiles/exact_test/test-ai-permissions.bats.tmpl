@@ -389,6 +389,16 @@ setup() {
 }
 
 # bats test_tags=kind:greywall
+@test "greywall credentials inject OPENROUTER_API_KEY" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '
+    (.credentials.inject | index("OPENROUTER_API_KEY") != null) and
+    (.credentials.secrets | index("OPENROUTER_API_KEY") | not)
+  ' "{{ $greywallDir }}/greywall.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall
 @test "greywall pi and opencode profiles retain original denyWrite" {
   # pi: denyWrite should still have ~/.ssh (not narrowed)
   run jq -e '.filesystem.denyWrite | index("~/.ssh") != null' "{{ $greywallDir }}/learned/pi.json"
