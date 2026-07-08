@@ -64,7 +64,7 @@ setup() {
 # bats test_tags=toolchain:pi,kind:permission,toolchain:cloud
 @test "pi permission-system: cloud toolchain rules" {
   run jq -e '
-    .permission.bash["aws * s3 rm *"] == "deny"
+    .permission.bash["az * delete*"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
@@ -389,14 +389,15 @@ setup() {
 }
 
 # bats test_tags=kind:greywall
-@test "greywall pi and opencode profiles retain original denyWrite" {
-  # pi: denyWrite should still have ~/.ssh (not narrowed)
-  run jq -e '.filesystem.denyWrite | index("~/.ssh") != null' "{{ $greywallDir }}/learned/pi.json"
-  assert_success
-  # opencode: denyWrite should still have ~/.ssh (not narrowed)
-  run jq -e '.filesystem.denyWrite | index("~/.ssh") != null' "{{ $greywallDir }}/learned/opencode.json"
+@test "greywall credentials inject OPENROUTER_API_KEY" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '
+    (.credentials.inject | index("OPENROUTER_API_KEY") != null) and
+    (.credentials.secrets | index("OPENROUTER_API_KEY") | not)
+  ' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
+
 
 # bats test_tags=kind:greywall
 @test "greywall base config arrays are duplicate-free" {

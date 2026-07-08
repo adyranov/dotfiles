@@ -42,7 +42,6 @@
 {{-     $packages = append $packages (printf "npm:%s" $name) -}}
 {{-   end -}}
 {{- end -}}
-{{- $piVersion := output "mise" "current" "npm:@earendil-works/pi-coding-agent" | trim -}}
 {{- $managed := dict
   "bashMode" (dict
     "toggleShortcut" $settings.bash_mode.toggle_shortcut
@@ -53,9 +52,8 @@
   "followUpMode" "all"
   "steeringMode" "all"
   "treeFilterMode" "no-tools"
-  "enableInstallTelemetry" false
+  "enableInstallTelemetry" true
   "enabledModels" $enabledModels
-  "lastChangelogVersion" $piVersion
   "npmCommand" (list "mise" "exec" "node@lts" "--" "npm")
   "packages" $packages
   "powerline" (dict

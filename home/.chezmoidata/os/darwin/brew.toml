@@ -1,5 +1,6 @@
 [brew.os.darwin]
 taps = [
   {name = "adyranov/tap", url = "https://github.com/adyranov/homebrew-tap"},
-  {name = "jundot/omlx", url = "https://github.com/jundot/omlx"}
+  {name = "jundot/omlx", url = "https://github.com/jundot/omlx"},
+  {name = "gentleman-programming/tap", url = "https://github.com/Gentleman-Programming/homebrew-tap"}
 ]

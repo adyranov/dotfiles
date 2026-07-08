@@ -30,8 +30,8 @@ setup() {
 {{- $plannotatorCfg := get (index $pi.profiles "core") "plannotator" | default dict }}
 
 # bats test_tags=toolchain:pi,kind:permission
-@test "pi settings.json disables install telemetry" {
-  run grep -F '"enableInstallTelemetry": false' "$HOME/.config/pi/agent/settings.json"
+@test "pi settings.json enables install telemetry" {
+  run grep -F '"enableInstallTelemetry": true' "$HOME/.config/pi/agent/settings.json"
   assert_success
 }
 
@@ -411,6 +411,13 @@ EOF
   run jq -e '
     .mcpServers == {}
   ' "$HOME/.config/pi/profiles/core/mcp.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi auth.json maps openrouter to env var" {
+  assert_file_exists "$HOME/.config/pi/agent/auth.json"
+  run jq -e '.openrouter.key == "$OPENROUTER_API_KEY"' "$HOME/.config/pi/agent/auth.json"
   assert_success
 }
 {{- end }}
