@@ -32,6 +32,8 @@ hoodini = {repo = "hoodini/ai-agents-skills", include = [
   "clonedeps",
   "deepwork",
   "reflect",
+  "release-smoke-test",
   "oh-my-opencode-slim",
   "worktrees"
 ]}
+herdr = {repo = "ogulcancelik/herdr", type = "file", source = "SKILL.md"}

@@ -330,14 +330,30 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory slim config uses herdr multiplexer" {
+  run jq -e '.multiplexer.type == "herdr"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.multiplexer | has("main_pane_size") | not' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
 @test "opencode oh-my-opencode-slim skill library is linked" {
   assert_file_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/simplify/SKILL.md"
+  assert_file_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/release-smoke-test/SKILL.md"
 }
 
 # bats test_tags=toolchain:opencode,kind:symlink
 @test "opencode factory profile skill symlink resolves" {
   link="$HOME/.config/opencode/profiles/factory/skills/simplify"
   assert_symlink_to "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/simplify" "$link"
+  link="$HOME/.config/opencode/profiles/factory/skills/release-smoke-test"
+  assert_symlink_to "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/release-smoke-test" "$link"
+}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode-notify log symlink resolves to local share" {
+  assert_symlink_to "$HOME/.local/share/opencode/opencode-notify.log" "$HOME/.opencode-notify.log"
 }
 
 # bats test_tags=toolchain:opencode,kind:config
@@ -360,8 +376,8 @@ EOF
 }
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory oh-my-opencode-slim has orchestrator plannotator append prompt" {
-  assert_file_exists "$HOME/.config/opencode/oh-my-opencode-slim/orchestrator_append.md"
-  run head -1 "$HOME/.config/opencode/oh-my-opencode-slim/orchestrator_append.md"
+  assert_file_exists "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim/orchestrator_append.md"
+  run head -1 "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim/orchestrator_append.md"
   assert_output --partial "PLANNOTATOR PLANNING"
 }
 
@@ -370,6 +386,33 @@ EOF
   link="$HOME/.config/agents/skills/karpathy-guidelines"
   target="$HOME/.config/agents/libraries/skills/karpathy/karpathy-guidelines"
   assert_symlink_to "$target" "$link"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode herdr skill library exists" {
+  assert_file_exists "$HOME/.config/agents/libraries/skills/herdr/herdr/SKILL.md"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory profile herdr skill symlink resolves" {
+  link="$HOME/.config/opencode/profiles/factory/skills/herdr"
+  target="$HOME/.config/agents/libraries/skills/herdr/herdr"
+  assert_symlink_to "$target" "$link"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode global herdr skill symlink resolves" {
+  link="$HOME/.config/agents/skills/herdr"
+  target="$HOME/.config/agents/libraries/skills/herdr/herdr"
+  assert_symlink_to "$target" "$link"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory slim config orchestrator has herdr and release-smoke-test skills" {
+  run jq -e '.presets.managed.orchestrator.skills | index("herdr")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.presets.managed.orchestrator.skills | index("release-smoke-test")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:symlink
@@ -397,6 +440,84 @@ EOF
   assert_output --partial "OPENCODE_CONFIG_DIR"
   assert_output --partial "opencode/profiles/factory"
   assert_output --partial "OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode-agent --print-env factory exports OPENCODE_PORT" {
+  run "$HOME/.local/bin/opencode-agent" --print-env factory
+  assert_success
+  assert_output --partial "OPENCODE_PORT="
+}
+
+# bats test_tags=toolchain:opencode,kind:port
+@test "opencode-agent factory port: no env, no CLI" {
+  local tmpdir="$BATS_TEST_TMPDIR"
+  mkdir -p "$tmpdir/bin"
+  cat >"$tmpdir/bin/opencode" <<'SCRIPT'
+#!/usr/bin/env sh
+printf 'PORT=%s\n' "${OPENCODE_PORT-}"
+printf 'ARGS=%s\n' "$*"
+SCRIPT
+  chmod +x "$tmpdir/bin/opencode"
+
+  run env PATH="$tmpdir/bin:$PATH" "$HOME/.local/bin/opencode-agent" factory --no-greywall --no-update
+  assert_success
+  # Extract generated port from output
+  [[ "$output" =~ PORT=([0-9]+) ]]
+  local port="${BASH_REMATCH[1]}"
+  # Must be in ephemeral range
+  (( port >= 49152 && port <= 65535 ))
+  # --port arg must match the env value
+  [[ "$output" =~ ARGS=--port\ $port ]]
+}
+
+# bats test_tags=toolchain:opencode,kind:port
+@test "opencode-agent factory port: CLI-only" {
+  local tmpdir="$BATS_TEST_TMPDIR"
+  mkdir -p "$tmpdir/bin"
+  cat >"$tmpdir/bin/opencode" <<'SCRIPT'
+#!/usr/bin/env sh
+printf 'PORT=%s\n' "${OPENCODE_PORT-}"
+printf 'ARGS=%s\n' "$*"
+SCRIPT
+  chmod +x "$tmpdir/bin/opencode"
+
+  run env PATH="$tmpdir/bin:$PATH" "$HOME/.local/bin/opencode-agent" factory --no-greywall --no-update --port 55555
+  assert_success
+  assert_output --partial "PORT=55555"
+  assert_output --partial "ARGS=--port 55555"
+}
+
+# bats test_tags=toolchain:opencode,kind:port
+@test "opencode-agent factory port: env + different CLI, CLI wins" {
+  local tmpdir="$BATS_TEST_TMPDIR"
+  mkdir -p "$tmpdir/bin"
+  cat >"$tmpdir/bin/opencode" <<'SCRIPT'
+#!/usr/bin/env sh
+printf 'PORT=%s\n' "${OPENCODE_PORT-}"
+printf 'ARGS=%s\n' "$*"
+SCRIPT
+  chmod +x "$tmpdir/bin/opencode"
+
+  run env OPENCODE_PORT=50000 PATH="$tmpdir/bin:$PATH" "$HOME/.local/bin/opencode-agent" factory --no-greywall --no-update --port 55555
+  assert_success
+  assert_output --partial "PORT=55555"
+  refute_output --partial "PORT=50000"
+  assert_output --partial "ARGS=--port 55555"
+}
+
+# bats test_tags=toolchain:opencode,kind:port
+@test "opencode-agent factory port: rejects missing CLI value" {
+  run "$HOME/.local/bin/opencode-agent" factory --no-greywall --no-update --port
+  assert_failure
+  assert_output --partial "--port requires a value"
+}
+
+# bats test_tags=toolchain:opencode,kind:port
+@test "opencode-agent factory port: rejects zero" {
+  run "$HOME/.local/bin/opencode-agent" factory --no-greywall --no-update --port 0
+  assert_failure
+  assert_output --partial "--port must be greater than 0"
 }
 
 # bats test_tags=toolchain:opencode,kind:config

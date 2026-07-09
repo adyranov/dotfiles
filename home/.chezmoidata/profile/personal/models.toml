@@ -13,8 +13,9 @@ default = "coder"
 architect = {provider = "openai-codex", model = "gpt-5.5", thinking = "high"}
 auditor = {provider = "opencode-go", model = "deepseek-v4-pro", thinking = "high"}
 coder = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "medium"}
+designer = {provider = "openrouter", model = "gemini-3-flash-preview", thinking = "low"}
 locator = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "off"}
-oracle = {provider = "openai-codex", model = "gpt-5.5", thinking = "xhigh"}
+oracle = {provider = "openai-codex", model = "gpt-5.5", thinking = "high"}
 researcher = {provider = "opencode-go", model = "deepseek-v4-pro", thinking = "medium"}
 utility = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "off"}
 
@@ -28,3 +29,4 @@ models = ["deepseek-v4-flash"]
 
 [ai.profile.personal.models.providers.openrouter]
 enabled = true
+models = ["gemini-3-flash-preview"]

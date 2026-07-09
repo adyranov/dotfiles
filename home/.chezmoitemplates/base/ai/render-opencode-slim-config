@@ -11,15 +11,15 @@
   "council" "auditor"
   "librarian" "locator"
   "explorer" "researcher"
-  "designer" "coder"
+  "designer" "designer"
   "fixer" "coder"
 -}}
 
 {{- /* MCP/skills per agent */ -}}
 {{- $starMcps := list -}}
-{{- $librarianMcps := list -}}
+{{- $librarianMcps := list "websearch" "context7" "gh_grep" -}}
 {{- $emptyMcps := list -}}
-{{- $orchestratorSkills := list "codemap" "clonedeps" "deepwork" "reflect" "oh-my-opencode-slim" "worktrees" -}}
+{{- $orchestratorSkills := list "codemap" "clonedeps" "deepwork" "herdr" "reflect" "release-smoke-test" "oh-my-opencode-slim" "worktrees" -}}
 {{- $oracleSkills := list "simplify" -}}
 {{- $emptySkills := list -}}
 
@@ -79,7 +79,7 @@
 {{- $council := dict "default_preset" "managed" "presets" $councilPresets -}}
 {{- $presets := dict "managed" $presetAgents -}}
 
-{{- $multiplexer := dict "type" "tmux" "layout" "main-vertical" "main_pane_size" 60 -}}
+{{- $multiplexer := dict "type" "herdr" "layout" "main-vertical" -}}
 
 {{- $result := dict
   "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"

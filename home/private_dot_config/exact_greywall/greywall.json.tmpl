@@ -17,6 +17,7 @@
 -}}
 {{- if hasKey $localhost "allow_outbound" -}}{{- $_ := set $network "allowLocalOutbound" $localhost.allow_outbound -}}{{- end -}}
 {{- if hasKey $localhost "forward_ports" -}}{{- $_ := set $network "forwardPorts" $localhost.forward_ports -}}{{- end -}}
+{{- if hasKey $netPolicy "allow_unix_sockets" -}}{{- $_ := set $network "allowUnixSockets" (index $netPolicy "allow_unix_sockets") -}}{{- end -}}
 {{- $ssh := dict
   "allowedHosts" (list "github.com")
   "allowedCommands" (list "git-upload-pack")

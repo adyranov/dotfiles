@@ -259,6 +259,9 @@ deny = [
   "ufw *"
 ]
 
+[ai.base.permissions.network]
+allow_unix_sockets = ["~/.config/herdr"]
+
 [ai.base.permissions.network.hosts]
 ai_providers = [
   "*.aiplatform.googleapis.com",
@@ -343,6 +346,8 @@ registries = [
   "index.golang.org",
   "index.rubygems.org",
   "jsr.io",
+  "libraries.io",
+  "*.libraries.io",
   "npmjs.com",
   "packagist.org",
   "pkg.go.dev",
@@ -510,6 +515,8 @@ allow_read = [
   "~/.config/npm/npmrc",
   "~/.config/agents/**",
   "~/.config/greywall/**",
+  "~/.config/herdr",
+  "~/.config/herdr/**",
   "~/.local/share/engram",
   "~/.local/share/engram/**"
 ]
@@ -544,7 +551,9 @@ allow_write = [
   "~/.cargo/git",
   "~/.cargo/git/**",
   "~/.local/share/engram",
-  "~/.local/share/engram/**"
+  "~/.local/share/engram/**",
+  "~/.config/herdr",
+  "~/.config/herdr/**"
 ]
 deny_read = [
   "~/.ssh/id_*",
