@@ -55,6 +55,10 @@
 {{-   $base = setValueAtPath "network.forwardPorts" $forwardPorts $base -}}
 {{- end -}}
 {{- $allowOutbound := dig "allow_outbound" false $localhost -}}
+{{- $allowUnixSockets := dig "allow_unix_sockets" (list) $netPolicy -}}
+{{- if gt (len $allowUnixSockets) 0 -}}
+{{-   $base = setValueAtPath "network.allowUnixSockets" $allowUnixSockets $base -}}
+{{- end -}}
 {{- if $allowOutbound -}}
 {{-   $base = setValueAtPath "network.allowLocalOutbound" true $base -}}
 {{- end -}}

@@ -1,0 +1,59 @@
+onboarding = false
+
+[update]
+channel = "stable"
+version_check = true
+manifest_check = true
+
+[terminal]
+shell_mode = "auto"
+new_cwd = "follow"
+
+[worktrees]
+directory = "{{ .chezmoi.homeDir }}/.local/share/herdr/worktrees"
+
+[remote]
+manage_ssh_config = true
+
+[session]
+resume_agents_on_restore = true
+
+[theme]
+name = "catppuccin"
+auto_switch = true
+light_name = "catppuccin-latte"
+dark_name = "catppuccin"
+
+[ui]
+sidebar_collapsed_mode = "compact"
+hide_tab_bar_when_single_tab = true
+agent_panel_sort = "spaces"
+show_agent_labels_on_pane_borders = true
+confirm_close = true
+prompt_new_tab_name = false
+pane_borders = true
+pane_gaps = true
+mouse_capture = true
+right_click_passthrough_modifier = "ctrl"
+redraw_on_focus_gained = true
+
+[ui.toast]
+delivery = "terminal"
+delay_seconds = 1
+
+[ui.toast.clipboard]
+enabled = true
+position = "bottom-center"
+
+[ui.sound]
+enabled = false
+
+[keys]
+prefix = "ctrl+b"
+open_worktree = "prefix+shift+o"
+remove_worktree = "prefix+alt+d"
+previous_workspace = "prefix+shift+left"
+next_workspace = "prefix+shift+right"
+switch_workspace = "prefix+shift+1..9"
+focus_agent = "prefix+alt+1..9"
+last_pane = "prefix+backtick"

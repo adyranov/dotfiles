@@ -216,6 +216,12 @@ setup() {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
   run jq -e '
     .filesystem.defaultDenyRead == true and
+    (.filesystem.allowRead | index("~/.config/herdr/**") != null) and
+    (.filesystem.allowRead | index("~/.local/share/herdr") == null) and
+    (.filesystem.allowRead | index("~/.local/share/herdr/**") == null) and
+    (.filesystem.allowWrite | index("~/.config/herdr/**") != null) and
+    (.filesystem.allowWrite | index("~/.local/share/herdr") == null) and
+    (.filesystem.allowWrite | index("~/.local/share/herdr/**") == null) and
     (.filesystem.denyRead | index("~/.ssh/id_*") != null) and
     (.filesystem.denyWrite | index("**/.env") != null) and
     (.command.allow | not) and
@@ -224,7 +230,8 @@ setup() {
     .network.proxyUrl == "socks5://localhost:43052" and
     (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
     .ssh.allowedHosts == ["github.com"] and
-    .ssh.inheritDeny == true
+    .ssh.inheritDeny == true and
+    (.network.allowUnixSockets | index("~/.config/herdr") != null)
   ' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
@@ -252,6 +259,8 @@ setup() {
     (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow"))
   ' "{{ $greywallDir }}/learned/pi.json"
   assert_success
+  run jq -e ".network.allowUnixSockets | index(\"~/.config/herdr\") != null" "{{ $greywallDir }}/learned/pi.json"
+  assert_success
 }
 
 # bats test_tags=kind:greywall
@@ -264,6 +273,8 @@ setup() {
     (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
     (.network.forwardPorts // [] | map(tostring) | index("19432") != null)
   ' "{{ $greywallDir }}/learned/opencode.json"
+  assert_success
+  run jq -e ".network.allowUnixSockets | index(\"~/.config/herdr\") != null" "{{ $greywallDir }}/learned/opencode.json"
   assert_success
 }
 

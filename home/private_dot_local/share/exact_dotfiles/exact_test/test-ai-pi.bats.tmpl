@@ -78,6 +78,8 @@ setup() {
   assert_success
   run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
+  run grep -F '"npm:@ogulcancelik/pi-herdr"' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
 }
 
 # bats test_tags=toolchain:pi,kind:config

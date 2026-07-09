@@ -75,6 +75,11 @@ profile_dir() {
   esac
 }
 
+# ── Helper: pick ephemeral high port (49152-65535) ──
+pick_high_port() {
+  awk 'BEGIN{srand();print int(rand()*16384)+49152}'
+}
+
 # ── Agent-specific: export env for profile ──
 print_env() {
   profile="${1:-core}"
@@ -89,6 +94,7 @@ print_env() {
       printf 'export OPENCODE_CONFIG_DIR="%s"\n' "$dir"
       if [ "$profile" = "factory" ]; then
         printf 'export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true\n'
+        printf 'export OPENCODE_PORT="%s"\n' "${OPENCODE_PORT:-$(pick_high_port)}"
       fi
       ;;
   esac
@@ -151,7 +157,9 @@ set_runtime_env() {
       export OPENCODE_CONFIG_DIR="$dir"
       if [ "$profile" = "factory" ]; then
         export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
+        export OPENCODE_PORT="${OPENCODE_PORT:-$(pick_high_port)}"
         dim "Background subagents: enabled"
+        dim "OpenCode port: $OPENCODE_PORT"
       fi
       dim "Config:  $dir"
       ;;
@@ -357,6 +365,34 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# Factory OpenCode: keep --port and OPENCODE_PORT aligned for oh-my-opencode-slim
+if [ "$AGENT_NAME" = "opencode" ] && [ "$profile" = "factory" ]; then
+  _port=""
+  _next_is_port=false
+  for _arg; do
+    if [ "$_next_is_port" = true ]; then
+      _port="$_arg"
+      _next_is_port=false
+      break
+    fi
+    case "$_arg" in
+      --port=*) _port="${_arg#--port=}"; break ;;
+      --port) _next_is_port=true ;;
+    esac
+  done
+  [ "$_next_is_port" = false ] || die "--port requires a value"
+  if [ -n "$_port" ]; then
+    case "$_port" in
+      *[!0-9]*|'') die "--port must be a positive integer" ;;
+      0) die "--port must be greater than 0" ;;
+    esac
+    export OPENCODE_PORT="$_port"
+  else
+    export OPENCODE_PORT="${OPENCODE_PORT:-$(pick_high_port)}"
+    set -- --port "$OPENCODE_PORT" "$@"
+  fi
+  unset _port _next_is_port _arg
+fi
 # ── Launch ──
 pwd_guard
 

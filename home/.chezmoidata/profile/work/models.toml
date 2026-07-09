@@ -14,11 +14,12 @@ default = "coder"
 architect = {provider = "github-copilot", model = "claude-opus-4.8", thinking = "high"}
 auditor = {provider = "github-copilot", model = "claude-sonnet-5", thinking = "high"}
 coder = {provider = "github-copilot", model = "claude-sonnet-5", thinking = "medium"}
+designer = {provider = "github-copilot", model = "gemini-3-flash", thinking = "low"}
 locator = {provider = "github-copilot", model = "gpt-5.4-mini", thinking = "low"}
-oracle = {provider = "github-copilot", model = "claude-opus-4.8", thinking = "xhigh"}
+oracle = {provider = "github-copilot", model = "claude-opus-4.8", thinking = "high"}
 researcher = {provider = "github-copilot", model = "claude-sonnet-5", thinking = "medium"}
 utility = {provider = "github-copilot", model = "gpt-5.4-mini", thinking = "low"}
 
 [ai.profile.work.models.providers.github-copilot]
 enabled = true
-models = ["claude-sonnet-5", "claude-opus-4.8"]
+models = ["claude-sonnet-5", "claude-opus-4.8", "gemini-3-flash"]
