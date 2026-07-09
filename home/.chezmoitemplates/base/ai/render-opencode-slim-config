@@ -9,8 +9,8 @@
   "orchestrator" "architect"
   "oracle" "oracle"
   "council" "auditor"
-  "librarian" "locator"
-  "explorer" "researcher"
+  "librarian" "researcher"
+  "explorer" "locator"
   "designer" "designer"
   "fixer" "coder"
 -}}

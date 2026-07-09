@@ -22,4 +22,4 @@ utility = {provider = "github-copilot", model = "gpt-5.4-mini", thinking = "low"
 
 [ai.profile.work.models.providers.github-copilot]
 enabled = true
-models = ["claude-sonnet-5", "claude-opus-4.8", "gemini-3-flash"]
+models = ["claude-opus-4.8", "claude-sonnet-5", "gemini-3-flash", "gpt-5.4-mini"]
