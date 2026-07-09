@@ -10,17 +10,24 @@
 {{- $profile := dig "profile" "core" . -}}
 {{- $platformNote := dig "platform_note" "" . -}}
 
-{{- /* Model routing from personas */ -}}
-{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.personas" "required" true) | mustFromJson -}}
+{{- /* Model routing from tiers */ -}}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.tiers" "required" true) | mustFromJson -}}
+{{- if not (hasKey $tiers "default") -}}{{- fail "ai.models.tiers has no 'default' key" -}}{{- end -}}
 {{- $agentSection := printf "ai.agents.%s" $agent -}}
 {{- $agentData := includeTemplate "base/helpers/load-section" (dict "root" $root "section" $agentSection "required" true) | mustFromJson -}}
-{{- $defaults := index $personas $personas.default -}}
+{{- $defaults := index $tiers $tiers.default -}}
 {{- $cfg := get (index $agentData.profiles $profile) "plannotator" | default dict -}}
 
-{{- $planningCat := get $cfg "planning" | default "architect" -}}
-{{- $executingCat := get $cfg "executing" | default "coder" -}}
-{{- $planningRoute := get $personas $planningCat | default dict -}}
-{{- $executingRoute := get $personas $executingCat | default dict -}}
+{{- $planningCat := get $cfg "planning" | default "big" -}}
+{{- $executingCat := get $cfg "executing" | default "medium" -}}
+{{- $planningRoute := get $tiers $planningCat -}}
+{{- if not $planningRoute -}}
+{{-   fail (printf "render-plannotator-config: planning tier %q not found in ai.models.tiers" $planningCat) -}}
+{{- end -}}
+{{- $executingRoute := get $tiers $executingCat -}}
+{{- if not $executingRoute -}}
+{{-   fail (printf "render-plannotator-config: executing tier %q not found in ai.models.tiers" $executingCat) -}}
+{{- end -}}
 
 {{- /* Phase prompts (shared across agents) */ -}}
 {{- $planningPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "planning" "platform_note" $platformNote) -}}

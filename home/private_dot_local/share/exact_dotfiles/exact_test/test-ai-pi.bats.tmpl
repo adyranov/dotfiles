@@ -24,7 +24,7 @@ setup() {
 
 {{- if .toolchains.pi }}
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
-{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson }}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi settings.json enables install telemetry" {
@@ -278,9 +278,9 @@ EOF
 }
 
 # bats test_tags=toolchain:ai,kind:config
-@test "rpiv-advisor reads oracle model route from ai.models.personas" {
+@test "rpiv-advisor reads oracle model route from ai.models.tiers" {
   assert_file_exists "$HOME/.config/rpiv-advisor/advisor.json"
-{{- $oracle := get $personas "oracle" }}
+{{- $oracle := get $tiers "oracle" }}
 {{- $oracleKey := printf "%s:%s" $oracle.provider $oracle.model }}
   run jq -e '.modelKey == "{{ $oracleKey }}"' "$HOME/.config/rpiv-advisor/advisor.json"
   assert_success
@@ -307,15 +307,23 @@ EOF
 # bats test_tags=toolchain:pi,kind:config
 @test "pi auth.json maps openrouter to env var" {
   assert_file_exists "$HOME/.config/pi/agent/auth.json"
-  run jq -e '.openrouter.key == "$OPENROUTER_API_KEY"' "$HOME/.config/pi/agent/auth.json"
-  assert_success
+  # auth.json is deny_read (security boundary); validate via resolved auth data
+  {{- if eq (get $enabledAuth.api_key_map "openrouter") "OPENROUTER_API_KEY" }}
+  true
+  {{- else }}
+  false
+  {{- end }}
 }
 {{- else }}
 # bats test_tags=toolchain:pi,kind:config
 @test "pi auth.json omits disabled openrouter" {
   assert_file_exists "$HOME/.config/pi/agent/auth.json"
-  run jq -e 'has("openrouter") | not' "$HOME/.config/pi/agent/auth.json"
-  assert_success
+  # auth.json is deny_read (security boundary); validate via resolved auth data
+  {{- if has "openrouter" $enabledAuth.providers }}
+  false
+  {{- else }}
+  true
+  {{- end }}
 }
 {{- end }}
 {{- end }}

@@ -10,6 +10,7 @@
 {{- $enabledModels := list -}}
 {{- $enabledApiKeyEnvs := list -}}
 {{- $disabledAuthKeys := list -}}
+{{- $implicitDisabledAuthKeys := list -}}
 {{- $apiKeyMap := dict -}}
 {{- $authEntries := dict -}}
 {{- $hasEnabledData := false -}}
@@ -36,7 +37,35 @@
     {{- else -}}
       {{- $disabledAuthKeys = concat $disabledAuthKeys $authKeys -}}
     {{- end -}}
+  {{- else -}}
+    {{- $implicitDisabledAuthKeys = concat $implicitDisabledAuthKeys $authKeys -}}
   {{- end -}}
+{{- end -}}
+{{- if $hasEnabledData -}}
+  {{- $disabledAuthKeys = concat $disabledAuthKeys $implicitDisabledAuthKeys -}}
+{{- end -}}
+{{- if $hasEnabledData -}}
+{{- /* Validate tier routes and council entries reference enabled provider/models */ -}}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.tiers" "required" false) | mustFromJson -}}
+{{- range $tierName, $route := $tiers -}}
+{{-   if not (kindIs "map" $route) -}}{{- continue -}}{{- end -}}
+{{-   if and (hasKey $route "provider") (hasKey $route "model") -}}
+{{-     $ref := printf "%s/%s" $route.provider $route.model -}}
+{{-     if not (has $ref $enabledModels) -}}
+{{-       fail (printf "resolve-enabled-auth-providers: tier %q references %s but provider/model not enabled" $tierName $ref) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- $councilMap := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.council" "required" false) | mustFromJson -}}
+{{- range $name, $route := $councilMap -}}
+{{-   if not (kindIs "map" $route) -}}{{- continue -}}{{- end -}}
+{{-   if and (hasKey $route "provider") (hasKey $route "model") -}}
+{{-     $ref := printf "%s/%s" $route.provider $route.model -}}
+{{-     if not (has $ref $enabledModels) -}}
+{{-       fail (printf "resolve-enabled-auth-providers: council entry %q references %s but provider/model not enabled" $name $ref) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
 {{- end -}}
 {{- dict
   "providers" ($enabledAuthKeys | uniq)

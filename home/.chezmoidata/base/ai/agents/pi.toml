@@ -13,7 +13,7 @@ deny = [
 [ai.base.agents.pi.profiles.core]
 extends = "minimal"
 compaction = {keep_recent_tokens = 8000, reserve_tokens = 8192}
-plannotator = {executing = "coder", planning = "architect"}
+plannotator = {executing = "medium", planning = "big"}
 packages = [
   "@ff-labs/pi-fff",
   "pi-lens",

@@ -1,5 +1,5 @@
 {{- /*
-  Renders category-mapped model routes from ai.models.
+  Renders category-mapped model routes from ai.models.tiers.
 
   Args (dict):
     root  — chezmoi data root (required)
@@ -10,17 +10,17 @@
 */ -}}
 {{- $root := .root -}}
 {{- $field := index . "field" | default "agents" -}}
-{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.personas" "required" true) | mustFromJson -}}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.tiers" "required" true) | mustFromJson -}}
 {{- $result := dict -}}
-{{- range $category := keys $personas | sortAlpha -}}
-{{-   $route := index $personas $category -}}
+{{- range $tierName := keys $tiers | sortAlpha -}}
+{{-   $route := index $tiers $tierName -}}
 {{-   if not (kindIs "map" $route) -}}{{ continue }}{{- end -}}
 {{-   if not (hasKey $route $field) -}}{{ continue }}{{- end -}}
 {{-   if not (hasKey $route "model") -}}
-{{-     fail (printf "ai.models.%s maps %s but has no model route" $category $field) -}}
+{{-     fail (printf "ai.models.tiers.%s maps %s but has no model route" $tierName $field) -}}
 {{-   end -}}
 {{-   if not (hasKey $route "thinking") -}}
-{{-     fail (printf "ai.models.%s maps %s but has no thinking route" $category $field) -}}
+{{-     fail (printf "ai.models.tiers.%s maps %s but has no thinking route" $tierName $field) -}}
 {{-   end -}}
 {{-   $names := index $route $field | default list -}}
 {{-   range $name := $names -}}

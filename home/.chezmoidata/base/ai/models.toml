@@ -1,68 +1,6 @@
 [ai.base.models.catalog.local]
 port = 8321
 
-[ai.base.models.personas]
-default = "coder"
-
-[ai.base.models.personas.architect]
-description = "Architecture, serial synthesis, and plan/design decisions."
-skills = ["architecture-review", "blueprint", "design", "plan"]
-
-[ai.base.models.personas.auditor]
-description = "Adversarial verification, review, and evidence checking."
-agents = [
-  "artifact-code-reviewer",
-  "artifact-coverage-reviewer",
-  "claim-verifier",
-  "diff-auditor",
-  "peer-comparator",
-  "slice-verifier"
-]
-skills = ["code-review", "pr-triage", "validate"]
-
-[ai.base.models.personas.coder]
-description = "Patch execution and focused revision from an approved plan."
-skills = ["annotate-inline", "implement", "revise"]
-
-[ai.base.models.personas.locator]
-description = "Cheap targeted lookup where missed hits can poison downstream work."
-agents = [
-  "artifacts-locator",
-  "codebase-locator",
-  "precedent-locator",
-  "web-search-researcher"
-]
-
-[ai.base.models.personas.oracle]
-description = "Rare escalation and adjudication outside normal fan-out."
-
-[ai.base.models.personas.researcher]
-description = "Repo comprehension, solution exploration, and fan-out analysis."
-agents = [
-  "artifacts-analyzer",
-  "codebase-analyzer",
-  "codebase-pattern-finder",
-  "integration-scanner",
-  "scope-tracer"
-]
-skills = [
-  "annotate-guidance",
-  "discover",
-  "explore",
-  "frontend-design",
-  "research"
-]
-
-[ai.base.models.personas.utility]
-description = "Low-risk deterministic transforms and bookkeeping."
-skills = [
-  "changelog",
-  "commit",
-  "create-handoff",
-  "migrate-to-guidance",
-  "resume-handoff"
-]
-
 [ai.base.models.providers.github-copilot]
 auth_keys = []
 
@@ -77,3 +15,62 @@ auth_keys = ["opencode-go"]
 [ai.base.models.providers.openrouter]
 api_key_env = "OPENROUTER_API_KEY"
 auth_keys = ["openrouter"]
+
+[ai.base.models.tiers]
+default = "medium"
+
+[ai.base.models.tiers.big]
+description = "Planning, review, deep analysis, and architecture."
+agents = [
+  "artifact-code-reviewer",
+  "artifact-coverage-reviewer",
+  "artifacts-analyzer",
+  "claim-verifier",
+  "codebase-analyzer",
+  "codebase-pattern-finder",
+  "diff-auditor",
+  "integration-scanner",
+  "peer-comparator",
+  "scope-tracer",
+  "slice-verifier"
+]
+skills = [
+  "annotate-guidance",
+  "architecture-review",
+  "blueprint",
+  "code-review",
+  "design",
+  "plan",
+  "pr-triage",
+  "validate"
+]
+
+[ai.base.models.tiers.medium]
+description = "Implementation, revision, and bookkeeping."
+skills = [
+  "annotate-inline",
+  "changelog",
+  "commit",
+  "create-handoff",
+  "implement",
+  "migrate-to-guidance",
+  "resume-handoff",
+  "revise"
+]
+
+[ai.base.models.tiers.oracle]
+description = "Rare escalation, adjudication, and final review."
+
+[ai.base.models.tiers.small]
+description = "Fast lookup, search, and discovery."
+agents = [
+  "artifacts-locator",
+  "codebase-locator",
+  "precedent-locator",
+  "web-search-researcher"
+]
+skills = ["discover", "explore", "research"]
+
+[ai.base.models.tiers.visual]
+description = "Visual and frontend design."
+skills = ["frontend-design"]

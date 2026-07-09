@@ -8,15 +8,139 @@
 [ai.base.permissions.agent]
 allow = []
 ask = []
+deny_paths = [
+  "project_secrets",
+  "private_key_files",
+  "cert_key_binaries",
+  "ssh_broad",
+  "gpg_broad",
+  "password_stores",
+  "cloud_creds",
+  "cloud_creds_broad",
+  "git_gh_creds",
+  "git_gh_creds_broad",
+  "package_creds",
+  "package_creds_broad",
+  "service_creds",
+  "service_creds_broad",
+  "ai_provider_creds",
+  "ai_provider_creds_broad",
+  "db_client_secrets",
+  "shell_history",
+  "secrets_dirs",
+  "terraform_state",
+  "macos_keychain",
+  "engram_memory"
+]
+
+# Level 3 — System-wide command deny list
+[ai.base.permissions.commands]
 deny = [
-  # repo / worktree secrets
+  "sudo *",
+  "doas *",
+  "su *",
+  "su",
+  "shutdown *",
+  "reboot *",
+  "halt *",
+  "poweroff *",
+  "systemctl stop *",
+  "systemctl disable *",
+  "systemctl mask *",
+  "systemctl daemon-reload *",
+  "launchctl unload *",
+  "launchctl remove *",
+  "launchctl bootout *",
+  "crontab -e *",
+  "crontab -r *",
+  "sed -i *",
+  "sed * -i *",
+  "security delete-*",
+  "security add-*",
+  "security set-*",
+  "security unlock-keychain *",
+  "security dump-keychain *",
+  "security find-generic-password*",
+  "security find-internet-password*",
+  "brew uninstall *",
+  "brew remove *",
+  "brew untap *",
+  "apt remove *",
+  "apt purge *",
+  "apt-get remove *",
+  "apt-get purge *",
+  "dnf remove *",
+  "pacman -R*",
+  "snap remove *",
+  "nc *",
+  "ncat *",
+  "netcat *",
+  "socat *",
+  "gpg --export-secret*",
+  "kill -9 *",
+  "killall *",
+  "pkill *",
+  "eval *",
+  "exec *",
+  "useradd *",
+  "userdel *",
+  "usermod *",
+  "groupadd *",
+  "groupdel *",
+  "mount *",
+  "umount *",
+  "mkfs *",
+  "diskutil erase*",
+  "diskutil partition*",
+  "swapon *",
+  "swapoff *",
+  "fdisk *",
+  "parted *",
+  "iptables *",
+  "ip6tables *",
+  "nft *",
+  "pfctl *",
+  "ufw *"
+]
+
+[ai.base.permissions.filesystem.paths]
+project_secrets = [
+  ".env",
+  ".env.*",
   "**/.env",
   "**/.env.*",
+  "**/.npmrc",
   "**/.envrc.local",
   "**/.envrc.private",
   "**/.envrc.secret",
   "**/.direnv/**",
-  "**/.htpasswd",
+  "**/.htpasswd"
+]
+ssh_private = [
+  "~/.ssh/id_*",
+  "~/.ssh/authorized_keys",
+  "~/.ssh/agent",
+  "~/.ssh/environment-*",
+  "~/.ssh/identity",
+  "~/.ssh/environment"
+]
+ssh_broad = ["~/.ssh/**", "~/.config/ssh/**"]
+gpg_private = [
+  "~/.gnupg/private-keys-v1.d/**",
+  "~/.gnupg/random_seed",
+  "~/.local/share/gnupg/private-keys-v1.d/**",
+  "~/.local/share/gnupg/random_seed"
+]
+gpg_broad = ["~/.gnupg/**", "~/.local/share/gnupg/**"]
+password_stores = [
+  "~/.password-store/**",
+  "~/.local/share/pass/**",
+  "~/.keys/**",
+  "~/.config/age/**",
+  "~/.config/sops/**"
+]
+# === PRIVATE KEYS — broad (agent) vs narrow (sandbox) ===
+private_key_files = [
   "**/*-key.pem",
   "**/*_rsa",
   "**/*_rsa.pub",
@@ -26,47 +150,41 @@ deny = [
   "**/*id_ed25519*",
   "**/key.pem",
   "**/private*.pem",
+  "**/*.pem.bak",
+  "**/*_rsa.bak",
+  "**/*_rsa.old",
+  "**/*_ed25519.bak",
+  "**/*_ed25519.old",
+  "**/*id_rsa.bak",
+  "**/*id_rsa.old",
   "**/*.asc",
-  "**/*.key",
+  "**/*.key"
+]
+sandbox_private_keys = [
+  "**/*_rsa",
+  "**/*_ed25519",
+  "**/*id_rsa",
+  "**/*id_ed25519",
+  "**/key.pem",
+  "**/private*.pem",
+  "**/*.pem.bak",
+  "**/*_rsa.bak",
+  "**/*_rsa.old",
+  "**/*_ed25519.bak",
+  "**/*_ed25519.old",
+  "**/*id_rsa.bak",
+  "**/*id_rsa.old"
+]
+cert_key_binaries = [
   "**/*.p8",
   "**/*.p12",
   "**/*.pfx",
   "**/*.jks",
   "**/*.keystore",
-  "**/*.kdbx",
-  "**/*.tfstate",
-  "**/*.tfstate.*",
-  "**/*.tfvars",
-  "**/*.tfvars.json",
-  "**/.terraform/**",
-  "**/*kubeconfig*",
-  "**/secrets/**",
-  "**/.secrets/**",
-  "**/credentials/**",
-  "**/.credentials/**",
-  # macOS
-  "~/Library/Keychains/**",
-  # identity / crypto
-  "~/.ssh/**",
-  "~/.config/ssh/**",
-  "~/.gnupg/**",
-  "~/.local/share/gnupg/**",
-  "~/.password-store/**",
-  "~/.local/share/pass/**",
-  "~/.keys/**",
-  "~/.config/age/**",
-  "~/.config/sops/**",
-  # cloud / infra
-  "**/.aws/**",
-  "**/.azure/**",
-  "**/.boto",
-  "**/.config/gcloud/**",
-  "**/.config/gh/hosts.yml",
-  "**/.config/github-copilot/hosts.json",
-  "**/.docker/config.json",
-  "**/.netrc",
-  "**/.terraform.d/credentials.tfrc.json",
-  "**/.terraformrc",
+  "**/*.kdbx"
+]
+# === CREDENTIAL PATTERNS — local (~) vs broad (**/) ===
+cloud_creds = [
   "~/.aws/**",
   "~/.azure/**",
   "~/.config/containers/auth.json",
@@ -78,16 +196,54 @@ deny = [
   "~/.local/share/containers/auth.json",
   "~/.pulumi/**",
   "~/.terraform.d/credentials.tfrc.json",
-  "~/.terraformrc",
-  # git / gh / auth
-  "**/.git-credentials",
-  "**/.config/git/credentials",
+  "~/.terraformrc"
+]
+cloud_creds_broad = [
+  "**/.aws/**",
+  "**/.azure/**",
+  "**/.boto",
+  "**/.config/gcloud/**",
+  "**/.docker/config.json",
+  "**/.netrc",
+  "**/.terraform.d/credentials.tfrc.json",
+  "**/.terraformrc"
+]
+git_gh_creds = [
   "~/.git-credentials",
   "~/.config/git/credentials",
   "~/.config/gh/hosts.yml",
-  "~/.config/github-copilot/hosts.json",
-  "~/.netrc",
-  # package managers / build tools
+  "~/.config/github-copilot/**",
+  "~/.netrc"
+]
+git_gh_creds_broad = [
+  "**/.git-credentials",
+  "**/.config/git/credentials",
+  "**/.config/gh/hosts.yml",
+  "**/.config/github-copilot/hosts.json",
+  "**/.docker/config.json",
+  "**/.netrc",
+  "**/.terraform.d/credentials.tfrc.json",
+  "**/.terraformrc"
+]
+package_creds = [
+  "~/.gem/credentials",
+  "~/.cargo/credentials",
+  "~/.local/share/cargo/credentials",
+  "~/.config/gradle/gradle.properties",
+  "~/.config/npm/npmrc",
+  "~/.config/pip/pip.conf",
+  "~/.config/pypoetry/auth.toml",
+  "~/.gradle/gradle.properties",
+  "~/.m2/settings.xml",
+  "~/.npm",
+  "~/.npm/**",
+  "~/.npmrc",
+  "~/.pnpmrc",
+  "~/.pypirc",
+  "~/.yarnrc",
+  "~/.yarnrc.yml"
+]
+package_creds_broad = [
   "**/.npmrc",
   "**/.pnpmrc",
   "**/.pypirc",
@@ -99,26 +255,9 @@ deny = [
   "**/.pip/pip.conf",
   "**/gradle.properties",
   "**/poetry.toml",
-  "**/settings.xml",
-  "~/.gem/credentials",
-  "~/.cargo/credentials",
-  "~/.config/gradle/gradle.properties",
-  "~/.config/pip/pip.conf",
-  "~/.config/pypoetry/auth.toml",
-  "~/.gradle/gradle.properties",
-  "~/.local/share/cargo/credentials",
-  "~/.m2/settings.xml",
-  "~/.npm",
-  "~/.npm/**",
-  "~/.npmrc",
-  "~/.pnpmrc",
-  "~/.pypirc",
-  "~/.yarnrc",
-  "~/.yarnrc.yml",
-  # service CLIs
-  "**/.config/netlify/config.json",
-  "**/.config/ngrok/ngrok.yml",
-  "**/.config/vercel/auth.json",
+  "**/settings.xml"
+]
+service_creds = [
   "~/.config/op/**",
   "~/.config/.wrangler/**",
   "~/.config/netlify/config.json",
@@ -127,18 +266,14 @@ deny = [
   "~/.config/vercel/auth.json",
   "~/.fly/config.yml",
   "~/.huggingface/token",
-  "~/.supabase/**",
-  # AI agents / model providers
-  "**/.anthropic/**",
-  "**/.claude/**",
-  "**/.codex/**",
-  "**/.config/anthropic/**",
-  "**/.config/claude/**",
-  "**/.config/gemini/**",
-  "**/.cursor/**",
-  "**/.gemini/**",
-  "**/.huggingface/token",
-  "**/.openai/**",
+  "~/.supabase/**"
+]
+service_creds_broad = [
+  "**/.config/netlify/config.json",
+  "**/.config/ngrok/ngrok.yml",
+  "**/.config/vercel/auth.json"
+]
+ai_provider_creds = [
   "~/.openai/**",
   "~/.anthropic/**",
   "~/.claude/**",
@@ -152,11 +287,83 @@ deny = [
   "~/.cursor/**",
   "~/.config/Cursor/**",
   "~/.windsurf/**",
-  "~/.config/Windsurf/**",
-  # db/client secrets
-  "~/.pgpass",
-  "~/.config/pg/pgpass",
-  # shell / REPL / CLI history
+  "~/.config/Windsurf/**"
+]
+ai_provider_creds_broad = [
+  "**/.anthropic/**",
+  "**/.claude/**",
+  "**/.codex/**",
+  "**/.config/anthropic/**",
+  "**/.config/claude/**",
+  "**/.config/gemini/**",
+  "**/.cursor/**",
+  "**/.gemini/**",
+  "**/.huggingface/token",
+  "**/.openai/**"
+]
+password_manager_local = [
+  "~/.config/gopass/**",
+  "~/.config/rbw/**",
+  "~/.config/rclone/**",
+  "~/.config/AWS VPN Client/**",
+  "~/.config/AWSVPNClient/**",
+  "~/.config/Gemalto/**",
+  "~/.config/lftp/**",
+  "~/.config/1Password/**",
+  "~/.config/Bitwarden/**",
+  "~/.config/keepassxc/**",
+  "~/.local/share/keyrings/**",
+  "~/.local/share/kwalletd/**"
+]
+app_data_creds = [
+  "~/.config/Google/**",
+  "~/.config/configstore/**",
+  "~/.config/colima/**/id_*",
+  "~/.config/colima/**/*_rsa",
+  "~/.config/colima/**/*_ed25519",
+  "~/.config/colima/**/key.pem",
+  "~/.config/Duplicati/**",
+  "~/.config/opentofu/**",
+  "~/.local/share/azure/msal_token_cache.json",
+  "~/.local/share/GitKrakenCLI/**",
+  "~/.local/share/Amazon.com Inc./**",
+  "~/.local/share/mkcert/rootCA-key.pem",
+  "~/.local/share/ykman/**",
+  "~/.local/share/IsolatedStorage/**"
+]
+terraform_state = [
+  "**/*.tfstate",
+  "**/*.tfstate.*",
+  "**/*.tfvars",
+  "**/*.tfvars.json",
+  "**/*.auto.tfvars",
+  "**/*.auto.tfvars.json",
+  "**/secret.tfvars",
+  "**/secret.tfvars.json",
+  "**/.terraform/**",
+  "**/*kubeconfig*",
+  "**/.kube/config",
+  "**/kubeconfig.secret*"
+]
+sandbox_terraform_state = [
+  "**/*.tfstate",
+  "**/*.tfstate.*",
+  "**/*.auto.tfvars",
+  "**/*.auto.tfvars.json",
+  "**/secret.tfvars",
+  "**/secret.tfvars.json",
+  "**/.terraform/**",
+  "**/.kube/config",
+  "**/kubeconfig.secret*"
+]
+secrets_dirs = [
+  "**/secrets/**",
+  "**/.secrets/**",
+  "**/credentials/**",
+  "**/.credentials/**"
+]
+sandbox_secrets_dirs = ["**/.secrets/**", "**/.credentials/**"]
+shell_history = [
   "~/.bash_history",
   "~/.zsh_history",
   "~/.history",
@@ -168,95 +375,187 @@ deny = [
   "~/.mongosh_history",
   "~/.rediscli_history",
   "~/.sqlite_history",
-  "~/.lesshst",
-  # AI agent persistent memory (accessed via MCP, not direct file tools)
-  "~/.local/share/engram",
-  "~/.local/share/engram/**"
+  "~/.lesshst"
 ]
-
-# Level 3 — System-wide command deny list
-[ai.base.permissions.commands]
-deny = [
-  # privilege escalation
-  "sudo *",
-  "doas *",
-  "su *",
-  "su",
-  # system power
-  "shutdown *",
-  "reboot *",
-  "halt *",
-  "poweroff *",
-  # service management
-  "systemctl stop *",
-  "systemctl disable *",
-  "systemctl mask *",
-  "systemctl daemon-reload *",
-  "launchctl unload *",
-  "launchctl remove *",
-  "launchctl bootout *",
-  # scheduled tasks
-  "crontab -e *",
-  "crontab -r *",
-  # in-place file mutation
-  "sed -i *",
-  "sed * -i *",
-  # macOS keychain
-  "security delete-*",
-  "security add-*",
-  "security set-*",
-  "security unlock-keychain *",
-  "security dump-keychain *",
-  "security find-generic-password*",
-  "security find-internet-password*",
-  # system package managers (removal)
-  "brew uninstall *",
-  "brew remove *",
-  "brew untap *",
-  "apt remove *",
-  "apt purge *",
-  "apt-get remove *",
-  "apt-get purge *",
-  "dnf remove *",
-  "pacman -R*",
-  "snap remove *",
-  # network exfiltration tools
-  "nc *",
-  "ncat *",
-  "netcat *",
-  "socat *",
-  # credential extraction
-  "gpg --export-secret*",
-  # process kill
-  "kill -9 *",
-  "killall *",
-  "pkill *",
-  # arbitrary execution wrappers
-  "eval *",
-  "exec *",
-  # user/group management
-  "useradd *",
-  "userdel *",
-  "usermod *",
-  "groupadd *",
-  "groupdel *",
-  # mount/umount
-  "mount *",
-  "umount *",
-  # disk / partition / swap
-  "mkfs *",
-  "diskutil erase*",
-  "diskutil partition*",
-  "swapon *",
-  "swapoff *",
-  "fdisk *",
-  "parted *",
-  # firewall / network policy
-  "iptables *",
-  "ip6tables *",
-  "nft *",
-  "pfctl *",
-  "ufw *"
+db_client_secrets = ["~/.pgpass", "~/.config/pg/pgpass"]
+macos_keychain = [
+  "~/Library/Keychains/**",
+  "~/Library/Application Support/1Password/**",
+  "~/Library/Application Support/Google/Chrome/Default/Login Data",
+  "~/Library/Application Support/Google/Chrome/Default/Cookies",
+  "~/Library/Group Containers/**",
+  "~/Library/Caches/gcloud/**",
+  "~/Library/Caches/aws/**",
+  "~/Library/Caches/gh/**"
+]
+engram_memory = ["~/.local/share/engram", "~/.local/share/engram/**"]
+greywall_config_boundary = [
+  "~/.config/greywall/**",
+  "~/Library/Application Support/greywall",
+  "~/Library/Application Support/greywall/**",
+  "~/Library/Application Support/greyproxy"
+]
+colima_private_keys = [
+  "~/.config/colima/**/id_*",
+  "~/.config/colima/**/*_rsa",
+  "~/.config/colima/**/*_ed25519",
+  "~/.config/colima/**/key.pem"
+]
+local_credential_overlaps = ["~/.local/share/mkcert/rootCA-key.pem"]
+sandbox_read_base = [
+  ".",
+  "~/.cache/chezmoi",
+  "~/.cache/chezmoi/**",
+  "~/.ssh",
+  "~/.ssh/config",
+  "~/.editorconfig",
+  "~/.zshenv",
+  "~/.agents",
+  "~/.pi",
+  "~/.pi-lens",
+  "~/.omlx",
+  "~/.opencode-notify.log",
+  "~/.config",
+  "~/.local",
+  "~/.local/share"
+]
+managed_config_dirs = [
+  "~/.config/agents/**",
+  "~/.config/atuin/**",
+  "~/.config/bat/**",
+  "~/.config/brew/**",
+  "~/.config/btop/**",
+  "~/.config/certificates/**",
+  "~/.config/colima/**",
+  "~/.config/docker/**",
+  "~/.config/fd/**",
+  "~/.config/ghostty/**",
+  "~/.config/git/**",
+  "~/.config/greywall/**",
+  "~/.config/herdr/**",
+  "~/.config/iterm2/**",
+  "~/.config/k9s/**",
+  "~/.config/lazygit/**",
+  "~/.config/llama.cpp/**",
+  "~/.config/maven/**",
+  "~/.config/mise/**",
+  "~/.config/npm/**",
+  "~/.config/nvim/**",
+  "~/.config/opencode/**",
+  "~/.config/pi/**",
+  "~/.config/rpiv-advisor/**",
+  "~/.config/rpiv-ask-user-question/**",
+  "~/.config/rpiv-pi/**",
+  "~/.config/rpiv-todo/**",
+  "~/.config/rpiv-web-tools/**",
+  "~/.config/shell/**",
+  "~/.config/ssh/**",
+  "~/.config/tmux/**",
+  "~/.config/wget/**",
+  "~/.config/yazi/**",
+  "~/.config/zsh/**",
+  "~/.config/zsh-abbr/**"
+]
+managed_local_dirs = [
+  "~/.local/bin/**",
+  "~/.local/share/dotfiles/**",
+  "~/.local/share/gnupg/**",
+  "~/.local/share/java/**",
+  "~/.local/share/mkcert/**",
+  "~/.local/share/opencode/**",
+  "~/.local/share/pi-lens/**",
+  "~/.local/share/ssh/**",
+  "~/.local/src/**"
+]
+sandbox_macos = [
+  "~/Library",
+  "~/Library/Application Support",
+  "~/Library/Application Support/Cursor",
+  "~/Library/Application Support/Cursor/User",
+  "~/Library/Application Support/Cursor/User/settings.json",
+  "~/Library/Application Support/Cursor/User/keybindings.json",
+  "~/Library/Application Support/Code",
+  "~/Library/Application Support/Code/User",
+  "~/Library/Application Support/Code/User/settings.json",
+  "~/Library/Application Support/Code/User/keybindings.json",
+  "~/Library/Application Support/greywall",
+  "~/Library/Application Support/greyproxy",
+  "~/Library/Fonts",
+  "~/Library/Fonts/**",
+  "~/Library/Scripts",
+  "~/Library/Scripts/setenv.sh",
+  "~/Library/LaunchAgents",
+  "~/Library/LaunchAgents/com.user.setenv.plist",
+  "~/Library/Caches/node-gyp",
+  "~/Library/Caches/node-gyp/**",
+  "~/Library/Caches/go-build",
+  "~/Library/Caches/go-build/**"
+]
+build_caches = [
+  "~/.cache/bun",
+  "~/.cache/bun/**",
+  "~/.cache/go-build",
+  "~/.cache/go-build/**",
+  "~/.cache/mise/**",
+  "~/.cache/node-gyp",
+  "~/.cache/node-gyp/**",
+  "~/.cache/npm",
+  "~/.cache/npm/**",
+  "~/.cache/pip",
+  "~/.cache/pip/**",
+  "~/.cache/pnpm",
+  "~/.cache/pnpm/**",
+  "~/.cache/uv",
+  "~/.cache/uv/**",
+  "~/.cache/yarn",
+  "~/.cache/yarn/**",
+  "~/.cargo/git",
+  "~/.cargo/git/**",
+  "~/.cargo/registry",
+  "~/.cargo/registry/**",
+  "~/.local/state/npm",
+  "~/.local/state/npm/**"
+]
+sandbox_write_base = [
+  ".",
+  "/dev/fd/**",
+  "/proc/self/fd/**",
+  "~/.agents",
+  "~/.cache/chezmoi",
+  "~/.cache/chezmoi/**",
+  "~/.editorconfig",
+  "~/.local",
+  "~/.local/bin/**",
+  "~/.local/share",
+  "~/.local/share/dotfiles/**",
+  "~/.omlx",
+  "~/.opencode-notify.log",
+  "~/.pi",
+  "~/.pi-lens",
+  "~/.ssh",
+  "~/.ssh/config",
+  "~/.zshenv"
+]
+sandbox_write_specific = [
+  "~/.config",
+  "~/.config/chezmoi/chezmoistate.boltdb",
+  "~/.config/pi/agent/.models.json*",
+  "~/.config/pi/agent/.settings.json*",
+  "~/.config/pi/agent/models.json",
+  "~/.config/pi/agent/settings.json",
+  "~/.config/rpiv-pi",
+  "~/.config/rpiv-pi/**",
+  "~/.local/share/dotfiles/test",
+  "~/.local/share/dotfiles/test/**",
+  "~/.local/share/engram",
+  "~/.local/share/engram/**",
+  "~/.local/share/gnupg/**",
+  "~/.local/share/java/**",
+  "~/.local/share/mkcert/**",
+  "~/.local/share/opencode/**",
+  "~/.local/share/pi-lens/**",
+  "~/.local/share/ssh/**",
+  "~/.local/src/**"
 ]
 
 [ai.base.permissions.network]
@@ -504,75 +803,56 @@ infra_schema = [
 ]
 
 [ai.base.permissions.network.localhost]
-# macOS: allow sandboxed processes to reach host localhost services.
 allow_outbound = true
-# Linux: host localhost ports forwarded into the isolated network namespace.
 forward_ports = [7437, 19432]
 
 [ai.base.permissions.sandbox]
-allow_read = [
-  "~/.config/certificates/ca-bundle.pem",
-  "~/.config/npm/npmrc",
-  "~/.config/agents/**",
-  "~/.config/greywall/**",
-  "~/.config/herdr",
-  "~/.config/herdr/**",
-  "~/.local/share/engram",
-  "~/.local/share/engram/**"
+allow_read_paths = [
+  "sandbox_read_base",
+  "managed_config_dirs",
+  "managed_local_dirs",
+  "sandbox_macos"
 ]
-allow_write = [
-  "/dev/fd/**",
-  "/proc/self/fd/**",
-  "~/.cache/mise/**",
-  "~/.cache/npm",
-  "~/.cache/npm/**",
-  "~/.cache/node-gyp",
-  "~/.cache/node-gyp/**",
-  "~/.local/state/npm",
-  "~/.local/state/npm/**",
-  "~/Library/Caches/node-gyp",
-  "~/Library/Caches/node-gyp/**",
-  "~/.cache/pnpm",
-  "~/.cache/pnpm/**",
-  "~/.cache/yarn",
-  "~/.cache/yarn/**",
-  "~/.cache/bun",
-  "~/.cache/bun/**",
-  "~/.cache/pip",
-  "~/.cache/pip/**",
-  "~/.cache/uv",
-  "~/.cache/uv/**",
-  "~/.cache/go-build",
-  "~/.cache/go-build/**",
-  "~/Library/Caches/go-build",
-  "~/Library/Caches/go-build/**",
-  "~/.cargo/registry",
-  "~/.cargo/registry/**",
-  "~/.cargo/git",
-  "~/.cargo/git/**",
-  "~/.local/share/engram",
-  "~/.local/share/engram/**",
-  "~/.config/herdr",
-  "~/.config/herdr/**"
+allow_write_paths = [
+  "sandbox_write_base",
+  "sandbox_write_specific",
+  "managed_config_dirs",
+  "build_caches",
+  "sandbox_macos"
 ]
-deny_read = [
-  "~/.ssh/id_*",
-  "~/.gnupg/**",
-  ".env",
-  ".env.*",
-  "**/.env",
-  "**/.env.*"
+deny_read_paths = [
+  "project_secrets",
+  "sandbox_private_keys",
+  "cert_key_binaries",
+  "ssh_private",
+  "gpg_private",
+  "password_stores",
+  "cloud_creds",
+  "git_gh_creds",
+  "package_creds",
+  "service_creds",
+  "ai_provider_creds",
+  "password_manager_local",
+  "app_data_creds",
+  "sandbox_terraform_state",
+  "sandbox_secrets_dirs",
+  "shell_history",
+  "db_client_secrets",
+  "colima_private_keys",
+  "macos_keychain"
 ]
-deny_write = [
-  "~/.bashrc",
-  "~/.bash_profile",
-  "~/.zshrc",
-  "~/.zprofile",
-  "~/.profile",
-  "~/.ssh",
-  "~/.gnupg",
-  ".env",
-  ".env.*",
-  "**/.env",
-  "**/.env.*"
+deny_write_paths = [
+  "project_secrets",
+  "sandbox_private_keys",
+  "cert_key_binaries",
+  "ssh_private",
+  "gpg_private",
+  "cloud_creds",
+  "git_gh_creds",
+  "package_creds",
+  "sandbox_terraform_state",
+  "sandbox_secrets_dirs",
+  "greywall_config_boundary",
+  "colima_private_keys",
+  "local_credential_overlaps"
 ]

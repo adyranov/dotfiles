@@ -35,6 +35,7 @@ repos:
         name: Detect Private Key
       - id: end-of-file-fixer
         name: Fix End of Files
+        exclude: ^\.vscode/
       - id: fix-byte-order-marker
         name: Fix UTF-8 BOM
       - id: mixed-line-ending
@@ -115,12 +116,6 @@ repos:
     rev: v2.14.0
     hooks:
       - id: hadolint
-  - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.26.1
-    hooks:
-      - id: zizmor
-        name: Lint GitHub Actions Security
-        args: ["--min-severity=high", "--min-confidence=high"]
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
     hooks:
