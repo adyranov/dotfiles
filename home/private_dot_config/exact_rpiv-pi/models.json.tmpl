@@ -1,8 +1,9 @@
-{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson -}}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson -}}
 {{- $skills := includeTemplate "base/helpers/render-model-category-map" (dict "root" . "field" "skills") | mustFromJson -}}
 {{- $agents := includeTemplate "base/helpers/render-model-category-map" (dict "root" . "field" "agents") | mustFromJson -}}
-{{- $defaultRole := default "coder" (get $personas "default") -}}
-{{- $default := get $personas $defaultRole -}}
+{{- $defaultRole := default "medium" (get $tiers "default") -}}
+{{- $default := get $tiers $defaultRole -}}
+{{- if not $default -}}{{- fail (printf "ai.models.tiers.default resolves to unknown tier %q" $defaultRole) -}}{{- end -}}
 
 {{- dict
   "defaults" (dict "model" (includeTemplate "base/ai/render-pi-model-ref" $default) "thinking" (get $default "thinking"))

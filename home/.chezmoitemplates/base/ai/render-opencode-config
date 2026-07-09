@@ -4,7 +4,7 @@
 
 {{- /* ── Layers ── */ -}}
 {{- $opencode := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.opencode" "required" true) | mustFromJson -}}
-{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.personas" "required" true) | mustFromJson -}}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.tiers" "required" true) | mustFromJson -}}
 {{- $cmdPolicies := includeTemplate "base/ai/collect-policies" (dict "root" $root) | mustFromJson -}}
 {{- $cmdDeny := index $cmdPolicies "deny" | default list -}}
 
@@ -34,11 +34,13 @@
 {{- end -}}
 
 {{- /* ── Model IDs ── */ -}}
-{{- $defaults := index $personas $personas.default -}}
+{{- if not (hasKey $tiers "default") -}}{{- fail "ai.models.tiers has no 'default' key" -}}{{- end -}}
+{{- $defaults := index $tiers $tiers.default -}}
 {{- $modelId := includeTemplate "base/ai/render-opencode-model-id" (dict "route" $defaults "root" $root) -}}
+{{- $smallTier := index $tiers "small" | default dict -}}
 {{- $smallModelId := $modelId -}}
-{{- if hasKey $personas "utility" -}}
-{{-   $smallModelId = includeTemplate "base/ai/render-opencode-model-id" (dict "route" (index $personas "utility") "root" $root) -}}
+{{- if $smallTier -}}
+{{-   $smallModelId = includeTemplate "base/ai/render-opencode-model-id" (dict "route" $smallTier "root" $root) -}}
 {{- end -}}
 
 {{- /* ── Settings (read directly from TOML; data is required) ── */ -}}
@@ -111,19 +113,19 @@
 
 {{- /* ── Built-in agents ── */ -}}
 {{- $builtinAgentCategories := dict
-  "build" "coder"
-  "plan" "architect"
-  "general" "researcher"
-  "explore" "locator"
-  "scout" "researcher"
+  "build" "medium"
+  "plan" "big"
+  "general" "medium"
+  "explore" "small"
+  "scout" "small"
 -}}
 {{- $builtinAgentModes := dict "build" "primary" "plan" "primary" "general" "subagent" "explore" "subagent" "scout" "subagent" -}}
 {{- $agentOverrides := dict -}}
 {{- range $agent := keys $builtinAgentCategories | sortAlpha -}}
-{{-   $category := index $builtinAgentCategories $agent -}}
-{{-   $route := index $personas $category -}}
+{{-   $tier := index $builtinAgentCategories $agent -}}
+{{-   $route := index $tiers $tier -}}
 {{-   if not $route -}}
-{{-     fail (printf "render-opencode-config: ai.models has no route for category %q (mapped by agent %q)" $category $agent) -}}
+{{-     fail (printf "render-opencode-config: ai.models.tiers has no route for tier %q (mapped by agent %q)" $tier $agent) -}}
 {{-   end -}}
 {{-   $agentModelId := includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root) -}}
 {{-   $agentConfig := dict "model" $agentModelId "mode" (get $builtinAgentModes $agent | default "all") -}}

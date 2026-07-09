@@ -1,5 +1,5 @@
-{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson -}}
-{{- $adv := get $personas "oracle" -}}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson -}}
+{{- $adv := get $tiers "oracle" -}}
 {{- $modelKey := get $adv "model" -}}
 {{- if get $adv "provider" -}}
   {{- $modelKey = printf "%s:%s" (get $adv "provider") (get $adv "model") -}}

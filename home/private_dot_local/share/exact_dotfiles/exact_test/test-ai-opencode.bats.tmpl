@@ -12,9 +12,9 @@ setup() {
 # --- opencode ---
 
 {{- if .toolchains.opencode }}
-{{- $ocPersonas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson }}
-{{- $ocDefaults := index $ocPersonas $ocPersonas.default }}
-{{- $ocBuiltinAgentCategories := dict "plan" "architect" "build" "coder" "general" "researcher" "explore" "locator" "scout" "researcher" }}
+{{- $ocTiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
+{{- $ocDefaults := index $ocTiers $ocTiers.default }}
+{{- $ocBuiltinAgentCategories := dict "plan" "big" "build" "medium" "general" "medium" "explore" "small" "scout" "small" }}
 
 
 # bats test_tags=toolchain:opencode,kind:symlink
@@ -38,7 +38,7 @@ setup() {
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode.json uses model from ai.models.personas" {
+@test "opencode.json uses model from ai.models.tiers" {
   assert_file_exists "$HOME/.config/opencode/opencode.json"
   run jq -e '.model | length > 0' "$HOME/.config/opencode/opencode.json"
   assert_success
@@ -274,7 +274,7 @@ EOF
   assert_success
 }
 
-{{- $ocSlimAgentCategories := dict "orchestrator" "architect" "oracle" "oracle" "council" "auditor" "librarian" "researcher" "explorer" "locator" "designer" "designer" "fixer" "coder" }}
+{{- $ocSlimAgentCategories := dict "orchestrator" "big" "oracle" "oracle" "council" "big" "librarian" "small" "explorer" "small" "designer" "visual" "fixer" "medium" }}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory default_agent is orchestrator" {
@@ -287,7 +287,7 @@ EOF
   run jq -e '
     (.presets.managed.orchestrator.model | length > 0) and
     (.presets.managed.oracle.model | length > 0) and
-    (.council.presets.managed.architect.model | length > 0)
+    (.council.presets.managed.alpha.model | length > 0)
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
@@ -319,7 +319,7 @@ EOF
 @test "opencode factory slim config has council section" {
   run jq -e '.council.default_preset == "managed"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
-  run jq -e '.council.presets.managed.architect | length > 0' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e '.council.presets.managed.alpha | length > 0' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 
@@ -414,6 +414,114 @@ EOF
   run jq -e '.presets.managed.orchestrator.skills | index("release-smoke-test")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim all agents have non-empty models" {
+  run jq -e '
+    all(
+      .presets.managed[];
+      (.model | length > 0)
+    )
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+{{- range $agent, $tier := $ocSlimAgentCategories }}
+{{- $route := index $ocTiers $tier }}
+{{- if and $route (ne $agent "council") }}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim {{ $agent }} routes to {{ $tier }} tier model" {
+  run jq -e '.presets.managed.{{ $agent }}.model | length > 0' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+{{- end }}
+{{- end }}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim all councilors have non-empty models" {
+  run jq -e '
+    all(
+      .council.presets.managed[];
+      (.model | length > 0)
+    )
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim council councillors are diverse (not all same model)" {
+  run jq -e '
+    ([.council.presets.managed[] | .model] | unique | length) >= 2
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim council has alpha beta gamma councillors" {
+  run jq -e '
+    .council.presets.managed.alpha.model and
+    .council.presets.managed.beta.model and
+    .council.presets.managed.gamma.model
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+{{- if eq .host.profile "personal" }}
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim personal oracle uses openai provider" {
+  run jq -e '.presets.managed.oracle.model | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim personal designer uses opencode-go provider" {
+  run jq -e '.presets.managed.designer.model | startswith("opencode-go/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim personal orchestrator is not OpenAI gpt-5.5" {
+  run jq -e '.presets.managed.orchestrator.model | startswith("openai/") | not' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim personal oracle is OpenAI gpt-5.6-luna" {
+  run jq -e '.presets.managed.oracle.model == "openai/gpt-5.6-luna"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim personal designer is opencode-go/minimax-m3" {
+  run jq -e '.presets.managed.designer.model == "opencode-go/minimax-m3"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+{{- end }}
+
+{{- if eq .host.profile "work" }}
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim work routes use only github-copilot provider" {
+  run jq -e '
+    all(
+      .presets.managed[];
+      (.model | startswith("github-copilot/"))
+    )
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim work council routes use only github-copilot provider" {
+  run jq -e '
+    all(
+      .council.presets.managed[];
+      (.model | startswith("github-copilot/"))
+    )
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+{{- end }}
 
 # bats test_tags=toolchain:opencode,kind:symlink
 @test "opencode factory AGENTS.md fans out to global AGENTS.md" {

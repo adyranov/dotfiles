@@ -12,9 +12,9 @@ setup() {
 
 {{- if .toolchains.pi }}
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
-{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson }}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
 {{- $agentDeny := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) }}
-{{- $denyPaths := index $agentDeny "deny" | default list | uniq | sortAlpha }}
+{{- $denyPaths := includeTemplate "base/ai/expand-path-groups" (dict "root" . "groups" (index $agentDeny "deny_paths" | default list)) | mustFromJson }}
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi permission-system config renders secure defaults" {
@@ -118,7 +118,7 @@ setup() {
 # --- OpenCode permission tests ---
 
 {{- if .toolchains.opencode }}
-{{- $ocPersonas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson }}
+{{- $ocTiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
 
 # bats test_tags=toolchain:opencode,kind:permission
 @test "opencode.json permission defaults" {
@@ -200,7 +200,7 @@ setup() {
 {{- end }}
 {{- if ne .host.type "ephemeral" }}
 {{- $agentDeny := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) }}
-{{- $denyPaths := index $agentDeny "deny" | default list | uniq | sortAlpha }}
+{{- $denyPaths := includeTemplate "base/ai/expand-path-groups" (dict "root" . "groups" (index $agentDeny "deny_paths" | default list)) | mustFromJson }}
 
 {{- if eq .host.distro.family "darwin" }}
 # bats test_tags=kind:greywall
@@ -216,14 +216,26 @@ setup() {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
   run jq -e '
     .filesystem.defaultDenyRead == true and
-    (.filesystem.allowRead | index("~/.config/herdr/**") != null) and
-    (.filesystem.allowRead | index("~/.local/share/herdr") == null) and
-    (.filesystem.allowRead | index("~/.local/share/herdr/**") == null) and
+    (.filesystem.allowWrite | index("**") == null) and
+    (.filesystem.allowWrite | index(".*/**") == null) and
     (.filesystem.allowWrite | index("~/.config/herdr/**") != null) and
     (.filesystem.allowWrite | index("~/.local/share/herdr") == null) and
     (.filesystem.allowWrite | index("~/.local/share/herdr/**") == null) and
     (.filesystem.denyRead | index("~/.ssh/id_*") != null) and
+    (.filesystem.denyRead | index("~/.config/colima/**") == null) and
+    (.filesystem.denyRead | index("~/.config/colima/**/id_*") != null) and
+    (.filesystem.denyRead | index("**/.env.*") != null) and
     (.filesystem.denyWrite | index("**/.env") != null) and
+    (.filesystem.denyWrite | index("**/.env.*") != null) and
+    (.filesystem.denyWrite | index("~/.config/greywall/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/greywall/**") != null) and
+    (.filesystem.denyWrite | index("~/Library/Application Support/greywall") != null) and
+    (.filesystem.allowWrite | index("~/Library/Application Support/greywall") != null) and
+    (.filesystem.denyWrite | index("~/.config/agents/**") == null) and
+    (.filesystem.allowWrite | index("~/.config/agents/**") != null) and
+    (.filesystem.denyWrite | index("~/.config/docker/config.json") != null) and
+    (.filesystem.denyWrite | index("~/.config/git/credentials") != null) and
+    (.filesystem.denyWrite | index("~/.local/share/mkcert/rootCA-key.pem") != null) and
     (.command.allow | not) and
     (.command.deny | index("chezmoi apply") != null) and
     (.command.deny | index("chezmoi apply *") == null) and
@@ -231,7 +243,61 @@ setup() {
     (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
     .ssh.allowedHosts == ["github.com"] and
     .ssh.inheritDeny == true and
-    (.network.allowUnixSockets | index("~/.config/herdr") != null)
+    (.network.allowUnixSockets | index("~/.config/herdr") != null) and
+    (.filesystem.denyWrite | index("~/.config/pi/**") == null) and
+    (.filesystem.denyWrite | index("~/.config/pi/profiles/core/**") == null) and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/.models.json*") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/.settings.json*") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/models.json") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/agent/settings.json") != null) and
+    (.filesystem.allowWrite | index("~/.config/rpiv-pi") != null) and
+    (.filesystem.allowWrite | index("~/.config/opencode/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/rpiv-pi/**") != null) and
+    (.filesystem.allowWrite | index("~/.local/share/dotfiles/test") != null) and
+    (.filesystem.allowWrite | index("~/.local/share/dotfiles/test/**") != null) and
+    (.filesystem.denyWrite | index("~/.config/pi/agent/auth.json") == null) and
+    (.filesystem.denyWrite | index("~/.config/pi/profiles/core/auth.json") == null) and
+    (.filesystem.denyWrite | index("~/.config/pi/profiles/factory/auth.json") == null)
+  ' "{{ $greywallDir }}/greywall.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall,kind:permission
+@test "greywall allows pi agent auth: in allowRead, not in denyRead" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '
+    (.filesystem.allowRead | index("~/.config/pi/**") != null) and
+    (.filesystem.denyRead | index("~/.config/pi/agent/auth.json") == null) and
+    (.filesystem.denyRead | index("~/.config/pi/profiles/core/auth.json") == null) and
+    (.filesystem.denyRead | index("~/.config/pi/profiles/factory/auth.json") == null)
+  ' "{{ $greywallDir }}/greywall.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall,kind:permission
+@test "greywall deny-wins: SSH managed root allowed but identity/environment denied" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '
+    (.filesystem.denyRead | index("~/.ssh/identity") != null) and
+    (.filesystem.denyRead | index("~/.ssh/environment") != null) and
+    (.filesystem.denyWrite | index("~/.ssh/identity") != null) and
+    (.filesystem.denyWrite | index("~/.ssh/environment") != null) and
+    (.filesystem.allowRead | index("~/.config/ssh/**") != null) and
+    (.filesystem.denyRead | index("~/.config/ssh/**") == null)
+  ' "{{ $greywallDir }}/greywall.json"
+  assert_success
+}
+
+# bats test_tags=kind:greywall,kind:permission
+@test "greywall allows opencode auth: in allowRead, not in denyRead" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jq -e '
+    (.filesystem.denyRead | index("~/.config/gh/hosts.yml") != null) and
+    (.filesystem.allowRead | index("~/.local/share/opencode/**") != null) and
+    (.filesystem.denyRead | index("~/.local/share/opencode/auth.json") == null) and
+    (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/opencode/**") != null) and
+    (.filesystem.denyRead | index("~/.config/opencode/auth.json") == null)
   ' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
@@ -255,11 +321,17 @@ setup() {
     .schemaVersion == 1 and
     (.credentials == $global[0].credentials) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/profiles/core/**") != null) and
+    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/**") != null) and
     (.filesystem.allowRead | index("~/.config/pi/**") != null) and
     (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow"))
   ' "{{ $greywallDir }}/learned/pi.json"
   assert_success
   run jq -e ".network.allowUnixSockets | index(\"~/.config/herdr\") != null" "{{ $greywallDir }}/learned/pi.json"
+  assert_success
+  run jq -e '.filesystem.denyWrite | index("~/.config/pi/**") == null' "{{ $greywallDir }}/learned/pi.json"
+  assert_success
+  run jq -e '.filesystem.denyWrite | index("~/.config/pi/profiles/core/**") == null' "{{ $greywallDir }}/learned/pi.json"
   assert_success
 }
 

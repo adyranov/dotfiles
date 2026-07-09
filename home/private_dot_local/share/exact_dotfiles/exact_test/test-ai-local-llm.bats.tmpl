@@ -15,7 +15,7 @@ setup() {
 {{- $resolved := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson }}
 {{- $swapConfig := "$HOME/.config/llama-swap/config.yaml" }}
 {{- $llamaCppPreset := "$HOME/.config/llama.cpp/models.ini" }}
-{{- $personasJson := "$HOME/.config/pi/agent/models.json" }}
+{{- $modelsJson := "$HOME/.config/pi/agent/models.json" }}
 {{- $port := get $resolved "port" | default 8321 }}
 {{- $omlxModelDir := "$HOME/.local/state/omlx/models" }}
 {{- $llmBench := "$HOME/.local/bin/llm-bench" }}
@@ -216,8 +216,8 @@ setup() {
 
 # bats test_tags=toolchain:ai,kind:local-llm,toolchain:pi,kind:model
 @test "pi models.json includes local model limits" {
-  assert_file_exists "{{ $personasJson }}"
-  run jq -e '.providers.local.models | length > 0 and all(.[]; .contextWindow > 0 and .maxTokens > 0)' "{{ $personasJson }}"
+  assert_file_exists "{{ $modelsJson }}"
+  run jq -e '.providers.local.models | length > 0 and all(.[]; .contextWindow > 0 and .maxTokens > 0)' "{{ $modelsJson }}"
   assert_success
 }
 
@@ -228,21 +228,21 @@ setup() {
   assert_success
 }
 {{ if .toolchains.pi }}
-{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.personas" "required" true) | mustFromJson }}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
 {{- $enabledAuth := includeTemplate "base/ai/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson -}}
 {{- $hasExplicitEnabled := $enabledAuth.has_enabled_data -}}
 
 # bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
 @test "pi models.json points local provider at llm-serve" {
-  assert_file_exists "{{ $personasJson }}"
-  run jq -e '.providers.local.baseUrl == "http://127.0.0.1:{{ $port }}/v1"' "{{ $personasJson }}"
+  assert_file_exists "{{ $modelsJson }}"
+  run jq -e '.providers.local.baseUrl == "http://127.0.0.1:{{ $port }}/v1"' "{{ $modelsJson }}"
   assert_success
 }
 
 # bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
 @test "pi models.json exposes local models" {
-  assert_file_exists "{{ $personasJson }}"
-  run jq -e '.providers.local.models | length == {{ len $resolved.models }}' "{{ $personasJson }}"
+  assert_file_exists "{{ $modelsJson }}"
+  run jq -e '.providers.local.models | length == {{ len $resolved.models }}' "{{ $modelsJson }}"
   assert_success
 }
 
@@ -260,8 +260,8 @@ setup() {
 
 # bats test_tags=toolchain:pi,kind:model
 @test "pi models.json has only local provider" {
-  assert_file_exists "{{ $personasJson }}"
-  run jq -e '.providers | keys == {{ $expectedProviders | toJson }}' "{{ $personasJson }}"
+  assert_file_exists "{{ $modelsJson }}"
+  run jq -e '.providers | keys == {{ $expectedProviders | toJson }}' "{{ $modelsJson }}"
   assert_success
 }
 
@@ -272,7 +272,7 @@ setup() {
 {{- else -}}
 {{-   $expectedRemoteModels := list -}}
 {{-   $forbiddenBareModels = list -}}
-{{-   range $_, $route := $personas -}}
+{{-   range $_, $route := $tiers -}}
 {{-     if kindIs "map" $route -}}
 {{-       if hasKey $route "model" -}}
 {{-         if hasKey $route "provider" -}}

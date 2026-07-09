@@ -15,8 +15,9 @@
 {{-   if not $current -}}{{- $current = dict -}}{{- end -}}
 {{- end -}}
 {{- $managed := includeTemplate "base/ai/render-pi-profile-settings" (dict "root" .root "profile" .profile) | fromJsonc -}}
-{{- $personas := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.personas" "required" true) | mustFromJson -}}
-{{- $defaults := index $personas $personas.default -}}
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.tiers" "required" true) | mustFromJson -}}
+{{- if not (hasKey $tiers "default") -}}{{- fail "ai.models.tiers has no 'default' key" -}}{{- end -}}
+{{- $defaults := index $tiers $tiers.default -}}
 {{- if not (hasKey $current "defaultModel") -}}
 {{-   $_ := set $managed "defaultModel" $defaults.model -}}
 {{- end -}}

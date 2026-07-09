@@ -35,12 +35,13 @@
   - Greywall SSH is allowlist-based (`github.com`, `git-upload-pack`).
   - Learn profiles via `greywall --learning -- <command>` before committing stable network rules.
 - **CRITICAL**: Agents must edit chezmoi source files only. Do not edit rendered files under `$HOME` to make tests pass.
-- **CRITICAL**: Use targeted `chezmoi apply <destination...>` only for files affected by source edits. Global `chezmoi apply`, `mise run apply`, and sync/remove require user approval. If a path is denied, ask user — do not bypass.
+- **CRITICAL**: Use targeted `chezmoi apply <destination...>` only for destinations affected by source edits. Agents have approval to run targeted apply before tests; never substitute global `chezmoi apply`, `mise run apply`, sync, or remove unless the user explicitly approves that broader operation. If a path is denied, ask user — do not bypass.
 - Treat greywall and pi-permission denials as security boundaries. Do not retry via alternate write paths (`cp`, `mv`, `sed -i`, Python writes, temp-file swaps) after denial.
 
 ## Workflow, Commands & CI
 
 - **Entry Point**: Use **mise tasks** (`mise run ...`).
+- **Required change workflow**: change source files, write or update tests, run `mise run lint`, run targeted `chezmoi apply <destination...>` for affected rendered files, then run relevant `mise run test ...`. Tests validate applied/rendered infrastructure; do not claim test coverage from source-only changes that were not applied.
 - **Commands**:
   - `mise run apply` (review diffs before confirming)
   - `mise run lint` (uses `pre-commit`)
@@ -57,8 +58,10 @@
 
 ## Testing
 
-- Validate locally: `chezmoi doctor`, `chezmoi diff`, `chezmoi apply --dry-run`, `chezmoi verify`.
-- Run `mise run test` after applying changes with `chezmoi apply`.
+- Validate locally: `chezmoi doctor`, targeted `chezmoi diff <destination...>`, targeted `chezmoi apply --dry-run <destination...>`, `chezmoi verify`.
+- Run `mise run lint` before applying changed destinations.
+- Run targeted `chezmoi apply <destination...>` for affected rendered files before tests. Do not run global apply without explicit user approval.
+- Run relevant `mise run test ...` only after targeted apply, because tests exercise applied/rendered infrastructure.
 - Use `chezmoi --remove --dry-run apply` to preview removals enforced by `.chezmoiremove.tmpl`.
 
 ## Coding Style
