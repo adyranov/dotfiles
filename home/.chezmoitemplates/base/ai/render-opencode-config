@@ -165,7 +165,11 @@
 {{- $basePaths := index $opencode.skills "paths" | default list -}}
 {{- $profilePaths := get $profileData "skills_paths" | default list -}}
 {{- $skillsPaths := concat $basePaths $profilePaths | uniq -}}
-{{- $instructionsFiles := index $opencode.instructions "files" | default list -}}
+{{- $baseInstructions := index $opencode.instructions "files" | default list -}}
+{{- $instructionsFiles := $baseInstructions -}}
+{{- if hasKey $profileData "instructions" -}}
+{{-   $instructionsFiles = get $profileData "instructions" -}}
+{{- end -}}
 
 {{- /* ── Output ── */ -}}
 {{- $hasFormatter := dig "formatter" true $s -}}

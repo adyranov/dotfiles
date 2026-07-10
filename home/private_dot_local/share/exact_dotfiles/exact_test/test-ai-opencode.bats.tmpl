@@ -222,11 +222,13 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory profile symlinks engram plugin to vendor" {
-  assert_file_exists "$HOME/.config/opencode/profiles/factory/plugins/engram.ts"
-  run readlink -f "$HOME/.config/opencode/profiles/factory/plugins/engram.ts"
-  assert_success
-  assert_output "$HOME/.config/opencode/vendor/engram.ts"
+@test "opencode core and factory profiles symlink engram plugin to shared library" {
+  target="$HOME/.config/agents/libraries/extensions/opencode-engram/engram.ts"
+  for profile in core factory; do
+    link="$HOME/.config/opencode/profiles/${profile}/plugins/engram.ts"
+    assert_file_exists "$link"
+    assert_symlink_to "$target" "$link"
+  done
 }
 
 # bats test_tags=toolchain:opencode,kind:config
@@ -234,14 +236,6 @@ EOF
   run jq -e '.mcp.engram == null' "$HOME/.config/opencode/opencode.json"
   assert_success
   assert [ ! -e "$HOME/.config/opencode/plugins/engram.ts" ]
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "opencode core profile symlinks engram plugin to vendor" {
-  assert_file_exists "$HOME/.config/opencode/profiles/core/plugins/engram.ts"
-  run readlink -f "$HOME/.config/opencode/profiles/core/plugins/engram.ts"
-  assert_success
-  assert_output "$HOME/.config/opencode/vendor/engram.ts"
 }
 
 {{- /* ── Local LLM provider catalog (rendered into every profile) ── */ -}}
@@ -330,8 +324,8 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory slim config uses herdr multiplexer" {
-  run jq -e '.multiplexer.type == "herdr"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+@test "opencode factory slim config uses auto multiplexer" {
+  run jq -e '.multiplexer.type == "auto"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
   run jq -e '.multiplexer | has("main_pane_size") | not' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
@@ -388,6 +382,8 @@ EOF
   assert_symlink_to "$target" "$link"
 }
 
+
+
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode herdr skill library exists" {
   assert_file_exists "$HOME/.config/agents/libraries/skills/herdr/herdr/SKILL.md"
@@ -407,6 +403,64 @@ EOF
   assert_symlink_to "$target" "$link"
 }
 
+# bats test_tags=toolchain:opencode,kind:config
+
+@test "opencode core caveman plugin in settings" {
+  run jq -e '.plugin | index("./plugins/caveman/plugin.js")' "$HOME/.config/opencode/profiles/core/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+
+@test "opencode factory inherits caveman plugin" {
+  run jq -e '.plugin | index("./plugins/caveman/plugin.js")' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+
+@test "opencode minimal does not have caveman plugin" {
+  run jq -e '.plugin | index("./plugins/caveman/plugin.js")' "$HOME/.config/opencode/opencode.json"
+  assert_failure
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+
+@test "opencode core instructions include CAVEMAN.md" {
+  run jq -e '.instructions | index("CAVEMAN.md")' "$HOME/.config/opencode/profiles/core/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+
+@test "opencode factory instructions include CAVEMAN.md" {
+  run jq -e '.instructions | index("CAVEMAN.md")' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+
+@test "opencode minimal does not have CAVEMAN.md in instructions" {
+  run jq -e '.instructions | index("CAVEMAN.md")' "$HOME/.config/opencode/opencode.json"
+  assert_failure
+}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode profiles expose shared caveman plugin and commands" {
+  library="$HOME/.config/agents/libraries"
+  for profile in core factory; do
+    plugin="$HOME/.config/opencode/profiles/${profile}/plugins/caveman"
+    assert_symlink_to "$library/extensions/opencode-caveman" "$plugin"
+    assert_file_exists "${plugin}/plugin.js"
+    assert_file_exists "${plugin}/package.json"
+    assert_file_exists "${plugin}/caveman-config.cjs"
+
+    for command in caveman caveman-commit caveman-review caveman-compress caveman-stats caveman-help; do
+      assert_symlink_to "$library/commands/caveman/${command}.md" \
+        "$HOME/.config/opencode/profiles/${profile}/commands/${command}.md"
+    done
+  done
+}
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory slim config orchestrator has herdr and release-smoke-test skills" {
   run jq -e '.presets.managed.orchestrator.skills | index("herdr")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
@@ -481,8 +535,8 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim personal orchestrator is not OpenAI gpt-5.5" {
-  run jq -e '.presets.managed.orchestrator.model | startswith("openai/") | not' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+@test "opencode factory slim personal orchestrator is OpenAI gpt-5.6-luna" {
+  run jq -e '.presets.managed.orchestrator.model == "openai/gpt-5.6-luna"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 
