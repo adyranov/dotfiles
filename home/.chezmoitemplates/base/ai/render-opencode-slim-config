@@ -82,7 +82,7 @@
 {{- $council := dict "default_preset" "managed" "presets" $councilPresets -}}
 {{- $presets := dict "managed" $presetAgents -}}
 
-{{- $multiplexer := dict "type" "herdr" "layout" "main-vertical" -}}
+{{- $multiplexer := dict "type" "auto" "layout" "main-vertical" -}}
 
 {{- $result := dict
   "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"

@@ -8,7 +8,8 @@ deny = ["~/.local/share/opencode/auth.json"]
 
 [ai.base.agents.opencode.profiles.core]
 extends = "minimal"
-plugins = ["@plannotator/opencode"]
+plugins = ["@plannotator/opencode", "./plugins/caveman/plugin.js"]
+instructions = ["AGENTS.md", "OPENCODE.md", "CAVEMAN.md"]
 
 [ai.base.agents.opencode.profiles.core.mcp_servers.engram]
 type = "local"

@@ -29,6 +29,6 @@ models = []
 default = "medium"
 small = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "off"}
 medium = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "high"}
-big = {provider = "opencode-go", model = "deepseek-v4-pro", thinking = "high"}
+big = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "high"}
 oracle = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "high"}
 visual = {provider = "opencode-go", model = "minimax-m3", thinking = "low"}

@@ -77,3 +77,22 @@ setup() {
   run jq -e '.guidance.promptGuidelines | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-todo/config.json"
   assert_success
 }
+# bats test_tags=toolchain:ai,kind:symlink
+@test "shared caveman skill directory symlink resolves" {
+  link="$HOME/.config/agents/skills/caveman"
+  target="$HOME/.config/agents/libraries/skills/caveman/caveman"
+  assert_symlink_to "$target" "$link"
+  assert_file_exists "${link}/SKILL.md"
+}
+
+# bats test_tags=toolchain:ai,kind:symlink
+@test "shared caveman commands resolve via library" {
+  for cmd in caveman caveman-commit caveman-review caveman-compress caveman-stats caveman-help; do
+    assert_file_exists "$HOME/.config/agents/libraries/commands/caveman/${cmd}.md"
+  done
+}
+
+# bats test_tags=toolchain:ai,kind:symlink
+@test "shared caveman installation instructions resolve" {
+  assert_file_exists "$HOME/.config/agents/libraries/commands/caveman-instructions/caveman-instructions.md"
+}

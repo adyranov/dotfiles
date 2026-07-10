@@ -133,7 +133,29 @@ setup() {
 @test "pi factory settings.json exists" {
   assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
 }
+# bats test_tags=toolchain:pi,kind:config
+@test "pi caveman package in core settings" {
+  run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/core/settings.json"
+  assert_success
+}
 
+# bats test_tags=toolchain:pi,kind:config
+@test "pi factory inherits caveman package" {
+  run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi minimal does not have caveman package" {
+  run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/minimal/settings.json"
+  assert_failure
+}
+
+# bats test_tags=toolchain:pi,kind:config
+@test "pi caveman default level is full" {
+  run jq -e '.defaultLevel == "full"' "$HOME/.config/pi/agent/caveman.json"
+  assert_success
+}
 
 
 # bats test_tags=toolchain:pi,kind:config

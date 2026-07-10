@@ -1,0 +1,43 @@
+[ai.base.libraries.commands]
+caveman = {repository = "caveman", prefix = "src/plugins/opencode/commands", files = [
+  "caveman.md",
+  "caveman-commit.md",
+  "caveman-review.md",
+  "caveman-compress.md",
+  "caveman-stats.md",
+  "caveman-help.md"
+]}
+caveman-instructions = {repository = "caveman", source = "src/rules/caveman-activate.md"}
+plannotator-opencode = {repo = "backnotprop/plannotator", prefix = "apps/opencode-plugin/commands", files = [
+  "plannotator-review.md",
+  "plannotator-annotate.md",
+  "plannotator-last.md"
+]}
+
+[ai.base.libraries.extensions]
+opencode-caveman = {repository = "caveman", prefix = "src/plugins/opencode", files = [
+  "plugin.js",
+  "package.json"
+]}
+opencode-caveman-config = {repository = "caveman", source = "src/hooks/caveman-config.js", target = "libraries/extensions/opencode-caveman/caveman-config.cjs"}
+opencode-engram = {repo = "Gentleman-Programming/engram", ref = "main", source = "plugin/opencode/engram.ts", target = "libraries/extensions/opencode-engram/engram.ts"}
+
+[ai.base.libraries.repositories]
+caveman = {repo = "JuliusBrussee/caveman", ref = "v1.9.1"}
+
+[ai.base.libraries.skills]
+caveman = {repository = "caveman", type = "file", source = "skills/caveman/SKILL.md"}
+karpathy = {repo = "multica-ai/andrej-karpathy-skills@main", include = [
+  "karpathy-guidelines"
+]}
+"oh-my-opencode-slim" = {repo = "alvinunreal/oh-my-opencode-slim", prefix = "src/skills", include = [
+  "simplify",
+  "codemap",
+  "clonedeps",
+  "deepwork",
+  "reflect",
+  "release-smoke-test",
+  "oh-my-opencode-slim",
+  "worktrees"
+]}
+herdr = {repo = "ogulcancelik/herdr", type = "file", source = "SKILL.md"}
