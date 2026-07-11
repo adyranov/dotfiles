@@ -40,4 +40,3 @@ karpathy = {repo = "multica-ai/andrej-karpathy-skills@main", include = [
   "oh-my-opencode-slim",
   "worktrees"
 ]}
-herdr = {repo = "ogulcancelik/herdr", type = "file", source = "SKILL.md"}

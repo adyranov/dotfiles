@@ -18,7 +18,7 @@
 {{- $starMcps := list -}}
 {{- $librarianMcps := list "websearch" "context7" "gh_grep" -}}
 {{- $emptyMcps := list -}}
-{{- $orchestratorSkills := list "codemap" "clonedeps" "deepwork" "herdr" "reflect" "release-smoke-test" "oh-my-opencode-slim" "worktrees" -}}
+{{- $orchestratorSkills := list "codemap" "clonedeps" "deepwork" "reflect" "release-smoke-test" "oh-my-opencode-slim" "worktrees" -}}
 {{- $oracleSkills := list "simplify" -}}
 {{- $emptySkills := list -}}
 
@@ -82,7 +82,7 @@
 {{- $council := dict "default_preset" "managed" "presets" $councilPresets -}}
 {{- $presets := dict "managed" $presetAgents -}}
 
-{{- $multiplexer := dict "type" "auto" "layout" "main-vertical" -}}
+{{- $multiplexer := dict "type" "auto" "layout" "main-vertical" "main_pane_size" 60 -}}
 
 {{- $result := dict
   "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"

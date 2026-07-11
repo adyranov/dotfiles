@@ -67,11 +67,15 @@ Prebuilt images are also published to GHCR and Docker Hub:
   as the `local` provider in `opencode.json`, so any catalog model can be
   selected with `--model local/<id>` or routed from a persona override.
 
-  For multi-agent workflows, the factory profile can run inside
-  [Herdr](https://herdr.dev/), an agent-aware terminal multiplexer:
-  start `herdr` from your project worktree, then `opencode-agent factory`
-  inside the Herdr session. oh-my-opencode-slim automatically opens each
-  subagent in a dedicated Herdr pane so you can watch specialists work live.
+  For multi-agent workflows, start `tmux` from your project worktree, then
+  `opencode-agent factory` inside the tmux session. oh-my-opencode-slim
+  automatically opens each subagent in a dedicated tmux pane
+  (`multiplexer.type=auto`, `layout=main-vertical`, `main_pane_size=60`).
+  Tmux socket is stored at `~/.local/share/tmux/tmux-UID/default` via
+  `TMUX_TMPDIR`. Native terminal features: `tmux-256color`, RGB, clipboard,
+  focus events, CSI-u extended keys, and OSC-52 passthrough for OpenCode/Pi.
+  Plugins: `tmux-yank` (WSL2 clipboard fallback), `tmux-resurrect`,
+  `tmux-continuum` (save-only, no auto-restore), `tmux-open`.
 
 ### Local LLM serving
 
@@ -247,7 +251,7 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 | [GnuPG](https://gnupg.org/)                              | OpenPGP encryption toolkit      | `system`                               | ✅    | ✅              | ✅     | ✅   |
 | [Greyproxy](https://github.com/GreyhavenHQ/greyproxy)   | Network-level request proxy     | `mise ✅`                              | ✅    | ✅              | ✅     | ✅   |
 | [Greywall](https://github.com/GreyhavenHQ/greywall)     | Filesystem/process sandbox      | `mise ✅`                              | ✅    | ✅              | ✅     | ✅   |
-| [herdr](https://herdr.dev/)                               | Agent-aware terminal multiplexer | `mise ✅`                              | ✅    | ✅              | ✅     | ✅   |
+| [tmux](https://github.com/tmux/tmux)                     | Terminal multiplexer (agent-aware SOTA config) | `system` | ✅ | ✅ | ✅ | ✅ |
 | [hyperfine](https://github.com/sharkdp/hyperfine)        | Command benchmarking            | `mise ✅` (macOS/Arch: `system`)       | ✅    | ✅              | ✅     | ✅   |
 | [jnv](https://github.com/ynqa/jnv)                       | Interactive JSON viewer with jq  | `mise ✅` (macOS/Arch: `system`)       | ✅    | ✅              | ✅     | ✅   |
 | [jq](https://stedolan.github.io/jq/)                     | JSON processor                  | `system`                               | ✅    | ✅              | ✅     | ✅   |

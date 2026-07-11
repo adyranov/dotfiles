@@ -43,7 +43,7 @@ setup() {
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi settings.json renders footer config" {
-  run jq -e '.powerline.preset == "{{ $pi.settings.powerline.preset }}" and .bashMode.toggleShortcut == "{{ $pi.settings.bash_mode.toggle_shortcut }}"' "$HOME/.config/pi/agent/settings.json"
+  run jq -e '.powerline.preset == "{{ $pi.settings.powerline.preset }}" and .powerline.mouseScroll == {{ $pi.settings.powerline.mouse_scroll }} and .bashMode.toggleShortcut == "{{ $pi.settings.bash_mode.toggle_shortcut }}"' "$HOME/.config/pi/agent/settings.json"
   assert_success
 }
 
@@ -78,9 +78,8 @@ setup() {
   assert_success
   run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
-  run grep -F '"npm:@ogulcancelik/pi-herdr"' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
 }
+
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi SYSTEM.md has compact tool routing" {

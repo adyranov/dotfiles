@@ -1,0 +1,21 @@
+# macOS override — loaded after XDG common config.
+# macOS-native features incompatible with Linux compositors.
+
+# Option key behavior
+macos-option-as-alt = left
+macos-auto-secure-input = true
+macos-secure-input-indication = true
+
+# Quick terminal
+initial-window = false
+quick-terminal-position = top
+quick-terminal-screen = mouse
+quick-terminal-animation-duration = 0.1
+quick-terminal-autohide = true
+keybind = global:super+backquote=toggle_quick_terminal
+
+# Pi fixed-editor CSI navigation
+keybind = super+arrow_up=csi:1;9A
+keybind = super+arrow_down=csi:1;9B
+keybind = super+shift+arrow_up=csi:1;10A
+keybind = super+shift+arrow_down=csi:1;10B

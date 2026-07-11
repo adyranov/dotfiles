@@ -1,0 +1,49 @@
+# Common portable config — loaded first. macOS-only settings in App Support override.
+
+# Theme
+theme = Catppuccin Mocha
+minimum-contrast = 1.1
+
+# Font — omit to use embedded JetBrains Mono
+font-size = 14
+font-shaping-break = cursor
+
+# Window
+window-padding-x = 4
+window-padding-y = 4
+window-padding-balance = true
+scrollbar = system
+scrollback-limit = 50000000
+unfocused-split-opacity = 0.9
+background-opacity = 1
+window-inherit-working-directory = false
+tab-inherit-working-directory = true
+split-inherit-working-directory = true
+confirm-close-surface = true
+
+# Cursor
+cursor-style-blink = false
+cursor-click-to-move = true
+mouse-hide-while-typing = true
+mouse-shift-capture = never
+
+# Clipboard safety
+clipboard-read = ask
+clipboard-write = allow
+clipboard-paste-protection = true
+clipboard-paste-bracketed-safe = true
+clipboard-trim-trailing-spaces = true
+copy-on-select = clipboard
+link-previews = true
+
+# Notifications and signals
+notify-on-command-finish = unfocused
+notify-on-command-finish-action = no-bell,notify
+notify-on-command-finish-after = 30s
+desktop-notifications = true
+bell-features = attention,title,border,no-system,no-audio
+progress-style = true
+
+# Shell and remote session integration
+shell-integration = detect
+shell-integration-features = cursor,sudo,title,ssh-env,ssh-terminfo,path
