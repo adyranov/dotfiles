@@ -8,5 +8,6 @@ sessions/**
 state.json
 mcp-cache.json
 auth.json
+.caveman-active
 oh-my-opencode-slim/*.json
 oh-my-opencode-slim/*.jsonc

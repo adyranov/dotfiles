@@ -41,6 +41,12 @@ setup() {
   assert_equal "$LANG" "en_US.UTF-8"
 }
 
+# bats test_tags=kind:env
+@test "TMUX_TMPDIR is set to XDG data home" {
+  assert [ -n "$TMUX_TMPDIR" ]
+  assert [ "$TMUX_TMPDIR" = "$XDG_DATA_HOME/tmux" ]
+}
+
 {{- if eq .host.distro.family "darwin" }}
 # bats test_tags=kind:certificates
 @test "macOS CA bundle is generated" {
@@ -121,4 +127,134 @@ setup() {
   assert [ -f "$HOME/.config/zsh/catppuccin-fzf-mocha.sh" ]
   run grep -q 'FZF_DEFAULT_OPTS' "$HOME/.config/zsh/catppuccin-fzf-mocha.sh"
   assert_success
+}
+
+# --- Ghostty ---
+
+# bats test_tags=kind:ghostty
+@test "ghostty config uses canonical filename" {
+  assert_file_exists "$XDG_CONFIG_HOME/ghostty/config.ghostty"
+  assert [ ! -f "$XDG_CONFIG_HOME/ghostty/config" ]
+}
+
+# bats test_tags=kind:ghostty
+@test "ghostty common config has no system font dependency" {
+  run grep -q 'font-family' "$XDG_CONFIG_HOME/ghostty/config.ghostty"
+  assert_failure
+}
+
+# bats test_tags=kind:ghostty
+@test "ghostty common config has clipboard safety" {
+  run grep -q 'clipboard-read = ask' "$XDG_CONFIG_HOME/ghostty/config.ghostty"
+  assert_success
+}
+
+# bats test_tags=kind:ghostty
+@test "ghostty common config has signal-first notifications" {
+  run grep -q 'notify-on-command-finish = unfocused' "$XDG_CONFIG_HOME/ghostty/config.ghostty"
+  assert_success
+  run grep -q 'desktop-notifications = true' "$XDG_CONFIG_HOME/ghostty/config.ghostty"
+  assert_success
+}
+
+# bats test_tags=kind:ghostty
+@test "ghostty common config has stable SSH shell integration" {
+  run grep -q 'ssh-env,ssh-terminfo' "$XDG_CONFIG_HOME/ghostty/config.ghostty"
+  assert_success
+}
+
+{{- if eq .host.distro.family "darwin" }}
+# bats test_tags=kind:ghostty
+@test "ghostty macOS override exists" {
+  assert_file_exists "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
+}
+
+# bats test_tags=kind:ghostty
+@test "ghostty macOS override has left-only option-as-alt" {
+  run grep -q 'macos-option-as-alt = left' "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
+  assert_success
+}
+
+# bats test_tags=kind:ghostty
+@test "ghostty macOS override has quick terminal" {
+  run grep -q 'global:super+backquote=toggle_quick_terminal' "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
+  assert_success
+}
+
+# bats test_tags=kind:ghostty
+@test "ghostty macOS override has initial-window=false" {
+  run grep -q 'initial-window = false' "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
+  assert_success
+}
+{{- end }}
+
+# bats test_tags=kind:ghostty
+@test "ghostty common config has no global keybinding" {
+  run grep -q 'global:' "$XDG_CONFIG_HOME/ghostty/config.ghostty"
+  assert_failure
+}
+
+# bats test_tags=kind:ghostty
+@test "ghostty common config has no macOS-only keys" {
+  run grep -q 'macos-' "$XDG_CONFIG_HOME/ghostty/config.ghostty"
+  assert_failure
+}
+
+
+# --- tmux ---
+
+# bats test_tags=kind:tmux
+@test "tmux config uses tmux-256color" {
+  run grep -q 'default-terminal.*tmux-256color' "$XDG_CONFIG_HOME/tmux/tmux.conf.local"
+  assert_success
+}
+
+# bats test_tags=kind:tmux
+@test "tmux config has ghostty CSI-u" {
+  run grep -q 'extended-keys-format csi-u' "$XDG_CONFIG_HOME/tmux/tmux.conf.local"
+  assert_success
+}
+
+# bats test_tags=kind:tmux
+@test "tmux config has passthrough" {
+  run grep -q 'allow-passthrough on' "$XDG_CONFIG_HOME/tmux/tmux.conf.local"
+  assert_success
+}
+
+# bats test_tags=kind:tmux
+@test "tmux config has ghostty terminal features" {
+  run grep -q 'xterm-ghostty:RGB:clipboard:extkeys' "$XDG_CONFIG_HOME/tmux/tmux.conf.local"
+  assert_success
+}
+
+# bats test_tags=kind:tmux
+@test "tmux config has no extended-keys version guard" {
+  run grep -q '%if.*3\\.5' "$XDG_CONFIG_HOME/tmux/tmux.conf.local"
+  assert_failure
+}
+
+# bats test_tags=kind:tmux
+@test "tmux config has XDG resurrect dir" {
+  run grep -q '@resurrect-dir.*XDG_DATA_HOME' "$XDG_CONFIG_HOME/tmux/tmux.conf.local"
+  assert_success
+}
+
+# bats test_tags=kind:tmux
+@test "tmux config has no xterm* wildcard overclaims" {
+  run grep -qF ',xterm*:' "$XDG_CONFIG_HOME/tmux/tmux.conf.local"
+  assert_failure
+}
+
+# --- SSH ---
+
+# bats test_tags=kind:ssh
+@test "ssh config forwards terminal metadata" {
+  run grep -q 'SendEnv.*COLORTERM.*TERM_PROGRAM' "$XDG_CONFIG_HOME/ssh/config.d/common.conf"
+  assert_success
+}
+
+# bats test_tags=kind:ssh
+@test "ssh config does not override TERM globally" {
+  run grep -q 'SetEnv TERM=' "$XDG_CONFIG_HOME/ssh/config.d/common.conf"
+  assert_failure
 }

@@ -40,10 +40,9 @@ packages = [
   "@juicesharp/rpiv-workflow",
   "@juicesharp/rpiv-pi",
   "@tintinweb/pi-subagents",
-  "@ogulcancelik/pi-herdr",
   "pi-observational-memory"
 ]
-skills = ["herdr"]
+skills = []
 
 [ai.base.agents.pi.profiles.minimal]
 compaction = {keep_recent_tokens = 4000, reserve_tokens = 4096}

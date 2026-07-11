@@ -218,9 +218,6 @@ setup() {
     .filesystem.defaultDenyRead == true and
     (.filesystem.allowWrite | index("**") == null) and
     (.filesystem.allowWrite | index(".*/**") == null) and
-    (.filesystem.allowWrite | index("~/.config/herdr/**") != null) and
-    (.filesystem.allowWrite | index("~/.local/share/herdr") == null) and
-    (.filesystem.allowWrite | index("~/.local/share/herdr/**") == null) and
     (.filesystem.denyRead | index("~/.ssh/id_*") != null) and
     (.filesystem.denyRead | index("~/.config/colima/**") == null) and
     (.filesystem.denyRead | index("~/.config/colima/**/id_*") != null) and
@@ -243,7 +240,7 @@ setup() {
     (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
     .ssh.allowedHosts == ["github.com"] and
     .ssh.inheritDeny == true and
-    (.network.allowUnixSockets | index("~/.config/herdr") != null) and
+    (.network.allowUnixSockets | index("~/.local/share/tmux") != null) and
     (.filesystem.denyWrite | index("~/.config/pi/**") == null) and
     (.filesystem.denyWrite | index("~/.config/pi/profiles/core/**") == null) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/.models.json*") != null) and
@@ -327,7 +324,7 @@ setup() {
     (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow"))
   ' "{{ $greywallDir }}/learned/pi.json"
   assert_success
-  run jq -e ".network.allowUnixSockets | index(\"~/.config/herdr\") != null" "{{ $greywallDir }}/learned/pi.json"
+  run jq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/pi.json"
   assert_success
   run jq -e '.filesystem.denyWrite | index("~/.config/pi/**") == null' "{{ $greywallDir }}/learned/pi.json"
   assert_success
@@ -346,7 +343,7 @@ setup() {
     (.network.forwardPorts // [] | map(tostring) | index("19432") != null)
   ' "{{ $greywallDir }}/learned/opencode.json"
   assert_success
-  run jq -e ".network.allowUnixSockets | index(\"~/.config/herdr\") != null" "{{ $greywallDir }}/learned/opencode.json"
+  run jq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/opencode.json"
   assert_success
 }
 

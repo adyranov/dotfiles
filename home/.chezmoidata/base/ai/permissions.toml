@@ -432,7 +432,7 @@ managed_config_dirs = [
   "~/.config/ghostty/**",
   "~/.config/git/**",
   "~/.config/greywall/**",
-  "~/.config/herdr/**",
+  "~/.config/tmux/**", # managed via exact_tmux
   "~/.config/iterm2/**",
   "~/.config/k9s/**",
   "~/.config/lazygit/**",
@@ -450,7 +450,7 @@ managed_config_dirs = [
   "~/.config/rpiv-web-tools/**",
   "~/.config/shell/**",
   "~/.config/ssh/**",
-  "~/.config/tmux/**",
+  "~/.config/ssh/**",
   "~/.config/wget/**",
   "~/.config/yazi/**",
   "~/.config/zsh/**",
@@ -555,11 +555,12 @@ sandbox_write_specific = [
   "~/.local/share/opencode/**",
   "~/.local/share/pi-lens/**",
   "~/.local/share/ssh/**",
-  "~/.local/src/**"
+  "~/.local/src/**",
+  "~/.local/share/tmux/**"
 ]
 
 [ai.base.permissions.network]
-allow_unix_sockets = ["~/.config/herdr"]
+allow_unix_sockets = ["~/.local/share/tmux"]
 
 [ai.base.permissions.network.hosts]
 ai_providers = [

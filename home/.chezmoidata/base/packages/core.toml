@@ -13,7 +13,6 @@ fzf = {}
 git-delta = {bin = "delta", completion = {generate = "delta --generate-completion zsh"}}
 glow = {completion = true, manager = "mise", package = "github:charmbracelet/glow"}
 gnupg = {bin = "gpg"}
-herdr = {manager = "mise"}
 greyproxy = {disabled = [
   "ephemeral"
 ], manager = "mise", package = "github:GreyhavenHQ/greyproxy"}

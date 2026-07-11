@@ -31,6 +31,7 @@ setup() {
   assert_success
 }
 
+
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode.json shares is disabled" {
   run jq -e '.share == "disabled"' "$HOME/.config/opencode/opencode.json"
@@ -324,10 +325,12 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory slim config uses auto multiplexer" {
+@test "opencode factory slim config uses auto multiplexer with main_pane_size" {
   run jq -e '.multiplexer.type == "auto"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
-  run jq -e '.multiplexer | has("main_pane_size") | not' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e '.multiplexer.layout == "main-vertical"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.multiplexer.main_pane_size == 60' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 
@@ -382,26 +385,6 @@ EOF
   assert_symlink_to "$target" "$link"
 }
 
-
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "opencode herdr skill library exists" {
-  assert_file_exists "$HOME/.config/agents/libraries/skills/herdr/herdr/SKILL.md"
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory profile herdr skill symlink resolves" {
-  link="$HOME/.config/opencode/profiles/factory/skills/herdr"
-  target="$HOME/.config/agents/libraries/skills/herdr/herdr"
-  assert_symlink_to "$target" "$link"
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "opencode global herdr skill symlink resolves" {
-  link="$HOME/.config/agents/skills/herdr"
-  target="$HOME/.config/agents/libraries/skills/herdr/herdr"
-  assert_symlink_to "$target" "$link"
-}
 
 # bats test_tags=toolchain:opencode,kind:config
 
@@ -462,13 +445,6 @@ EOF
   done
 }
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory slim config orchestrator has herdr and release-smoke-test skills" {
-  run jq -e '.presets.managed.orchestrator.skills | index("herdr")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-  assert_success
-  run jq -e '.presets.managed.orchestrator.skills | index("release-smoke-test")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-  assert_success
-}
-
 # bats test_tags=toolchain:opencode,kind:model,tier:routing
 @test "opencode factory slim all agents have non-empty models" {
   run jq -e '
