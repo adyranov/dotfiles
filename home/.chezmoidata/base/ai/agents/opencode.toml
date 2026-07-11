@@ -10,6 +10,7 @@ deny = ["~/.local/share/opencode/auth.json"]
 extends = "minimal"
 plugins = ["@plannotator/opencode", "./plugins/caveman/plugin.js"]
 instructions = ["AGENTS.md", "OPENCODE.md", "CAVEMAN.md"]
+plannotator = {workflow = "plan-agent", planning_agents = ["plan"]}
 
 [ai.base.agents.opencode.profiles.core.mcp_servers.engram]
 type = "local"
@@ -20,8 +21,10 @@ enabled = true
 extends = "core"
 default_agent = "orchestrator"
 plugins = ["oh-my-opencode-slim"]
-disabled_agents = ["build", "explore", "general", "plan", "scout"]
-plannotator_planning_agents = ["orchestrator"]
+disabled_agents = ["build", "explore", "general", "scout"]
+plannotator = {workflow = "plan-agent", planning_agents = [
+  "plan"
+], plan_only = true}
 skills_paths = ["~/.config/opencode/profiles/factory/skills"]
 
 [ai.base.agents.opencode.profiles.minimal]
@@ -47,7 +50,7 @@ allow_write = [
 ]
 
 [ai.base.agents.opencode.settings]
-autoupdate = "notify"
+autoupdate = false
 share = "disabled"
 snapshot = true
 

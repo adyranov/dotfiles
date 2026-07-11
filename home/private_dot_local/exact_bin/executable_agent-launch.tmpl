@@ -122,6 +122,10 @@ preflight_update() {
       plugins=$(jq -r '.plugin[] | (if type == "string" then . else .[0] end)' "$config_file" 2>/dev/null) || return 0
       missing=0
       for plugin in $plugins; do
+        # Skip local file plugins — no npm cache
+        case $plugin in
+          ./*|../*|file://*) continue ;;
+        esac
         case "${plugin##*/}" in
           *@*) cache_dir="$CACHE_HOME/opencode/packages/${plugin}" ;;
           *)   cache_dir="$CACHE_HOME/opencode/packages/${plugin}@latest" ;;

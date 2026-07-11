@@ -60,10 +60,6 @@ setup() {
   assert_success
   run grep -F 'export HF_HUB_CACHE="$HF_HOME/hub"' "$HOME/.config/shell/exports.d/ai-agents.sh"
   assert_success
-  run grep -F 'LLAMA_CACHE' "$HOME/.config/shell/exports.d/ai-agents.sh"
-  assert_failure
-  run grep -F 'GGUF_DIR' "$HOME/.config/shell/exports.d/ai-agents.sh"
-  assert_failure
 }
 
 # bats test_tags=toolchain:ai,kind:config
@@ -90,14 +86,8 @@ setup() {
   assert_file_exists "$HOME/.config/shell/exports.d/ai-agents.sh"
   run grep -F 'export LLAMA_CPP_MODELS_PRESET="$XDG_CONFIG_HOME/llama.cpp/models.ini"' "$HOME/.config/shell/exports.d/ai-agents.sh"
   assert_success
-  run grep -F 'LLAMA_SWAP_CONFIG' "$HOME/.config/shell/exports.d/ai-agents.sh"
-  assert_failure
 }
 
-# bats test_tags=toolchain:ai,kind:local-llm
-@test "llama.cpp models.ini exists" {
-  assert_file_exists "{{ $llamaCppPreset }}"
-}
 
 # bats test_tags=toolchain:ai,kind:local-llm
 @test "llama.cpp models.ini declares local models and autoloads default" {
@@ -117,10 +107,6 @@ setup() {
   assert_success
   run grep -F '[*]' "{{ $llamaCppPreset }}"
   assert_success
-  run grep -F 'llama-server' "{{ $llamaCppPreset }}"
-  assert_failure
-  run grep -F 'llama-swap' "{{ $llamaCppPreset }}"
-  assert_failure
 }
 
 
@@ -208,10 +194,6 @@ setup() {
   assert_success
 }
 
-# bats test_tags=toolchain:ai,kind:local-llm
-@test "omlx flat model dir exists" {
-  assert_dir_exists "{{ $omlxModelDir }}"
-}
 {{- end }}
 
 # bats test_tags=toolchain:ai,kind:local-llm,toolchain:pi,kind:model

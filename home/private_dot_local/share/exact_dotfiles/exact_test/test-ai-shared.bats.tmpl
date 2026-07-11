@@ -40,42 +40,24 @@ setup() {
 }
 
 # bats test_tags=kind:config
-@test "rpiv advisor config has guidance" {
-  run jq -e '.guidance.promptSnippet | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-advisor/advisor.json"
+@test "all rpiv configs have guidance" {
+  for cfg in rpiv-advisor/advisor rpiv-ask-user-question/config rpiv-todo/config; do
+    run jq -e '.guidance.promptSnippet | length > 0' "{{ .chezmoi.homeDir }}/.config/${cfg}.json"
+    assert_success
+    run jq -e '.guidance.promptGuidelines | length > 0' "{{ .chezmoi.homeDir }}/.config/${cfg}.json"
+    assert_success
+  done
+  run jq -e '(.guidance.web_search.promptGuidelines | length > 0) and (.guidance.web_fetch.promptGuidelines | length > 0)' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
   assert_success
-  run jq -e '.guidance.promptGuidelines | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-advisor/advisor.json"
+  run jq -e 'any(.guidance.web_search.promptGuidelines[]; contains("plan or final answer"))' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
   assert_success
-}
-
-# bats test_tags=kind:config
-@test "rpiv web-tools config has per-tool guidance and interceptor" {
-  run jq -e '
-    (.guidance.web_search.promptGuidelines | length > 0) and
-    (.guidance.web_fetch.promptGuidelines | length > 0) and
-    (.guidance.web_search.promptGuidelines | any(index("plan or final answer"))) and
-    (.guidance.web_fetch.promptGuidelines | any(index("plan or final answer"))) and
-    .interceptors.github.enabled == true
-  ' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
+  run jq -e 'any(.guidance.web_fetch.promptGuidelines[]; contains("plan or final answer"))' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
   assert_success
-}
-
-# bats test_tags=kind:config
-@test "rpiv ask-user-question config has guidance" {
-  run jq -e '.guidance.promptSnippet | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-ask-user-question/config.json"
-  assert_success
-  run jq -e '.guidance.promptGuidelines | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-ask-user-question/config.json"
+  run jq -e '.interceptors.github.enabled == true' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
   assert_success
   run jq -r '.guidance.promptGuidelines | join(" ")' "{{ .chezmoi.homeDir }}/.config/rpiv-ask-user-question/config.json"
   assert_success
   assert_output --partial "material ambiguity"
-}
-
-# bats test_tags=kind:config
-@test "rpiv todo config has guidance" {
-  run jq -e '.guidance.promptSnippet | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-todo/config.json"
-  assert_success
-  run jq -e '.guidance.promptGuidelines | length > 0' "{{ .chezmoi.homeDir }}/.config/rpiv-todo/config.json"
-  assert_success
 }
 # bats test_tags=toolchain:ai,kind:symlink
 @test "shared caveman skill directory symlink resolves" {

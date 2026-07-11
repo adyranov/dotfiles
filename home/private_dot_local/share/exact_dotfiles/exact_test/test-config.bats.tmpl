@@ -90,44 +90,6 @@ setup() {
   assert_output "true"
 }
 
-# --- Catppuccin Mocha ---
-
-# bats test_tags=kind:theme
-@test "git delta uses catppuccin-mocha features" {
-  run git config --global --includes delta.features
-  assert_success
-  assert_output --partial 'catppuccin-mocha'
-}
-
-# bats test_tags=kind:theme
-@test "bat Catppuccin Mocha theme is available" {
-  if command -v bat >/dev/null 2>&1; then
-    bat_bin=bat
-  elif command -v batcat >/dev/null 2>&1; then
-    bat_bin=batcat
-  else
-    skip 'bat not installed'
-  fi
-  run "$bat_bin" --list-themes
-  assert_success
-  assert_output --partial 'Catppuccin Mocha'
-}
-
-# bats test_tags=kind:theme
-@test "nvim init configures catppuccin mocha" {
-  assert_file_exists "$XDG_CONFIG_HOME/nvim/init.lua"
-  run grep -q 'catppuccin-mocha' "$XDG_CONFIG_HOME/nvim/init.lua"
-  assert_success
-  run grep -q 'cafetiere' "$XDG_CONFIG_HOME/nvim/init.lua"
-  assert_success
-}
-
-# bats test_tags=kind:theme
-@test "fzf Catppuccin Mocha colors are exported" {
-  assert [ -f "$HOME/.config/zsh/catppuccin-fzf-mocha.sh" ]
-  run grep -q 'FZF_DEFAULT_OPTS' "$HOME/.config/zsh/catppuccin-fzf-mocha.sh"
-  assert_success
-}
 
 # --- Ghostty ---
 

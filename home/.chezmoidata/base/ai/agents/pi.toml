@@ -35,6 +35,7 @@ skills = ["karpathy-guidelines"]
 [ai.base.agents.pi.profiles.factory]
 extends = "core"
 compaction = {keep_recent_tokens = 20000, reserve_tokens = 16384}
+plannotator = {planning = "big", executing = "medium", plan_only = true}
 packages = [
   "@juicesharp/rpiv-i18n",
   "@juicesharp/rpiv-workflow",

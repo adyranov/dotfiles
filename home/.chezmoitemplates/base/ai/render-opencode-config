@@ -16,7 +16,7 @@
 {{- range $id, $m := $localModels -}}
 {{-   $modelEntry := dict
         "name" (get $m "name" | default $id)
-        "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "context_output" | default 8192))
+        "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "max_output" | default 8192))
       -}}
 {{-   if get $m "reasoning" -}}
 {{-     $_ := set $modelEntry "reasoning" true -}}
@@ -49,7 +49,7 @@
 {{- /* compaction */ -}}
 {{- $compaction := dict
   "auto" $s.compaction.auto
-  "prune" true
+  "prune" false
   "reserved" $s.compaction.reserved
   "tail_turns" 6
 -}}
@@ -102,10 +102,24 @@
 {{- $profileData := includeTemplate "base/ai/resolve-profile" (dict "agentData" $opencode "profile" $profile) | mustFromJson -}}
 {{- $plugins := $profileData.plugins | default list -}}
 {{- $renderedPlugins := list -}}
+{{- $hasPlannotator := false -}}
+{{- $plannotatorWorkflow := "" -}}
+{{- $plannotatorPlanningAgents := list -}}
+{{- $plannotatorPlanDir := ".plannotator/" -}}
+{{- $plannotatorPlanOnly := false -}}
 {{- range $plugin := $plugins -}}
 {{-   if and (kindIs "string" $plugin) (eq $plugin "@plannotator/opencode") -}}
-{{- $planningAgents := get $profileData "plannotator_planning_agents" | default (list "plan") -}}
-{{-     $renderedPlugins = append $renderedPlugins (list "@plannotator/opencode@latest" (dict "workflow" "plan-agent" "planningAgents" $planningAgents)) -}}
+{{-     $hasPlannotator = true -}}
+{{-     $plannotatorCfg := get $profileData "plannotator" | default dict -}}
+{{-     $plannotatorWorkflow = get $plannotatorCfg "workflow" | default "plan-agent" -}}
+{{-     $plannotatorPlanningAgents = get $plannotatorCfg "planning_agents" | default (list "plan") -}}
+{{-     $plannotatorPlanDir = get $plannotatorCfg "plan_dir" | default ".plannotator/" | trimSuffix "/" | printf "%s/" -}}
+{{-     $plannotatorPlanOnly = get $plannotatorCfg "plan_only" | default false -}}
+{{-     $plannotatorOpts := dict "workflow" $plannotatorWorkflow -}}
+{{-     if eq $plannotatorWorkflow "plan-agent" -}}
+{{-       $_ := set $plannotatorOpts "planningAgents" $plannotatorPlanningAgents -}}
+{{-     end -}}
+{{-     $renderedPlugins = append $renderedPlugins (list "@plannotator/opencode@latest" $plannotatorOpts) -}}
 {{-   else -}}
 {{-     $renderedPlugins = append $renderedPlugins $plugin -}}
 {{-   end -}}
@@ -141,22 +155,16 @@
 {{-   $_ := set $agentConfig "disable" true -}}
 {{-   $_ := set $agentOverrides $agent $agentConfig -}}
 {{- end -}}
-{{- /* ── Plannotator: configure plan agent prompt and permissions if plugin active ── */ -}}
-{{- $hasPlannotator := false -}}
-{{- $plannotatorPlanningAgents := list -}}
-{{- range $p := $renderedPlugins -}}
-{{-   if and (kindIs "slice" $p) (hasPrefix "@plannotator/opencode" (index $p 0)) -}}
-{{-     $hasPlannotator = true -}}
-{{-     $plannotatorPlanningAgents = get (index $p 1) "planningAgents" | default (list "plan") -}}
-{{-   end -}}
-{{- end -}}
-{{- if $hasPlannotator -}}
+{{- /* ── Plannotator: configure only declared plan-agent workflow ── */ -}}
+{{- if and $hasPlannotator (eq $plannotatorWorkflow "plan-agent") (gt (len $plannotatorPlanningAgents) 0) -}}
 {{-   range $agentName := $plannotatorPlanningAgents -}}
 {{-     if hasKey $agentOverrides $agentName -}}
 {{-       $agentCfg := get $agentOverrides $agentName -}}
-{{-       $planningPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "planning" "submit_tool" "submit_plan" "advisor_tool" "" "platform_note" "") -}}
+{{-       $planningPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "planning" "submit_tool" "submit_plan" "advisor_tool" "" "platform_note" "" "plan_dir" $plannotatorPlanDir "plan_only" $plannotatorPlanOnly) -}}
+{{-       $editGlob := printf "%s**" $plannotatorPlanDir -}}
+{{-       $editPermissions := dict "*" "deny" $editGlob "allow" -}}
 {{-       $_ := set $agentCfg "prompt" $planningPrompt -}}
-{{-       $_ := set $agentCfg "permission" (dict "edit" (dict ".plannotator/**" "allow" "*" "deny") "bash" "deny") -}}
+{{-       $_ := set $agentCfg "permission" (dict "edit" $editPermissions "bash" "deny") -}}
 {{-     end -}}
 {{-   end -}}
 {{- end -}}

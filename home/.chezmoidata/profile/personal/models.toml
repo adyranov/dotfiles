@@ -9,13 +9,13 @@ engine = "llamacpp"
 "qwen3.5-9b" = {name = "Qwen3.5 9B", reasoning = true, context_window = 65536, max_output = 8192, gguf = {repo = "unsloth/Qwen3.5-9B-GGUF", file = "Qwen3.5-9B-UD-Q6_K_XL.gguf"}, sampling = {min_p = 0.0, presence_penalty = 1.5, repetition_penalty = 1.0, temperature = 1.0, top_k = 20, top_p = 0.95}}
 
 [ai.profile.personal.models.council]
-alpha = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "high"}
+alpha = {provider = "openai-codex", model = "gpt-5.6-sol", thinking = "high"}
 beta = {provider = "opencode-go", model = "glm-5.2", thinking = "high"}
 gamma = {provider = "opencode-go", model = "deepseek-v4-pro", thinking = "high"}
 
 [ai.profile.personal.models.providers.openai-codex]
 enabled = true
-models = ["gpt-5.6-luna"]
+models = ["gpt-5.6-luna", "gpt-5.6-sol"]
 
 [ai.profile.personal.models.providers.opencode-go]
 enabled = true
@@ -30,5 +30,5 @@ default = "medium"
 small = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "off"}
 medium = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "high"}
 big = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "high"}
-oracle = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "high"}
+oracle = {provider = "openai-codex", model = "gpt-5.6-sol", thinking = "high"}
 visual = {provider = "opencode-go", model = "minimax-m3", thinking = "low"}

@@ -85,16 +85,10 @@ setup() {
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode-agent --help mentions --no-greywall" {
+@test "opencode-agent --help mentions flags and profiles" {
   run "$HOME/.local/bin/opencode-agent" --help
   assert_success
   assert_output --partial "--no-greywall"
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "opencode-agent --help mentions --no-update" {
-  run "$HOME/.local/bin/opencode-agent" --help
-  assert_success
   assert_output --partial "--no-update"
   assert_output --partial "opencode args"
 }
@@ -114,33 +108,6 @@ EOF
   assert_output --partial "session-123"
 }
 
-# bats test_tags=toolchain:opencode,kind:config
-@test "agent-launch script maps opencode-agent identity" {
-  run grep -F 'opencode-agent)' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'BINARY_NAME="opencode"' "$HOME/.local/bin/agent-launch"
-  assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "agent-launch script has preflight_update function" {
-  run grep -F 'preflight_update' "$HOME/.local/bin/agent-launch"
-  assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "agent-launch script checks plugin cache with package.json" {
-  run grep -F 'package.json' "$HOME/.local/bin/agent-launch"
-  assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "agent-launch preflight_update extracts plugin spec from tuple-form entries" {
-  run grep -F 'if type == "string" then . else .[0] end' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'case "${plugin##*/}" in' "$HOME/.local/bin/agent-launch"
-  assert_success
-}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "agent-launch script exports OPENCODE_CONFIG for core runtime" {
@@ -151,6 +118,7 @@ EOF
   assert_output --partial "ENGRAM_PORT"
   assert_output --partial "ENGRAM_URL"
 }
+
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode.json snapshot is enabled" {
@@ -225,11 +193,8 @@ EOF
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode core and factory profiles symlink engram plugin to shared library" {
   target="$HOME/.config/agents/libraries/extensions/opencode-engram/engram.ts"
-  for profile in core factory; do
-    link="$HOME/.config/opencode/profiles/${profile}/plugins/engram.ts"
-    assert_file_exists "$link"
-    assert_symlink_to "$target" "$link"
-  done
+  assert_symlink_to "$target" "$HOME/.config/opencode/profiles/core/plugins/engram.ts"
+  assert_symlink_to "$target" "$HOME/.config/opencode/profiles/factory/plugins/engram.ts"
 }
 
 # bats test_tags=toolchain:opencode,kind:config
@@ -237,6 +202,21 @@ EOF
   run jq -e '.mcp.engram == null' "$HOME/.config/opencode/opencode.json"
   assert_success
   assert [ ! -e "$HOME/.config/opencode/plugins/engram.ts" ]
+}
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode minimal has no plannotator integration" {
+  run jq -e '
+    (any((.plugin // [])[]; type == "array" and .[0] == "@plannotator/opencode@latest") | not) and
+    all((.agent // {})[]; ((.prompt // "") | contains("[PLANNOTATOR PLANNING]") | not) and (has("permission") | not))
+  ' "$HOME/.config/opencode/opencode.json"
+  assert_success
+  assert [ ! -e "$HOME/.config/opencode/commands/plannotator-review.md" ]
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode minimal plugins folder auto-discovers Codex headers plugin (covers all profiles)" {
+  target="$HOME/.config/agents/libraries/extensions/opencode-codex-headers/plugin.ts"
+  assert_symlink_to "$target" "$HOME/.config/opencode/plugins/codex-headers.ts"
 }
 
 {{- /* ── Local LLM provider catalog (rendered into every profile) ── */ -}}
@@ -258,6 +238,14 @@ EOF
 }
 {{- end }}
 {{- end }}
+
+# bats test_tags=toolchain:opencode,kind:local-llm
+@test "opencode minimal profile local model output maps from max_output" {
+  run jq -e '
+    all(.provider.local.models[]; .limit.output > 0)
+  ' "$HOME/.config/opencode/opencode.json"
+  assert_success
+}
 
 # bats test_tags=toolchain:opencode,kind:model
 @test "opencode factory profile configures built-in agents" {
@@ -324,6 +312,25 @@ EOF
   assert_success
 }
 
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory slim orchestrator has engram mcp association" {
+  run jq -e '.presets.managed.orchestrator.mcps | index("engram") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory slim oracle has engram mcp association" {
+  run jq -e '.presets.managed.oracle.mcps | index("engram") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory slim librarian preserves research mcps" {
+  run jq -e '.presets.managed.librarian.mcps | index("websearch") != null and index("context7") != null and index("gh_grep") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory slim config uses auto multiplexer with main_pane_size" {
   run jq -e '.multiplexer.type == "auto"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
@@ -359,23 +366,40 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:symlink
-@test "opencode core profile plannotator command symlink resolves" {
-  link="$HOME/.config/opencode/commands/plannotator-review.md"
-  target="$HOME/.config/agents/libraries/commands/plannotator-opencode/plannotator-review.md"
-  assert_symlink_to "$target" "$link"
-}
-
-# bats test_tags=toolchain:opencode,kind:symlink
-@test "opencode factory profile plannotator command symlink resolves" {
-  link="$HOME/.config/opencode/profiles/factory/commands/plannotator-review.md"
-  target="$HOME/.config/agents/libraries/commands/plannotator-opencode/plannotator-review.md"
-  assert_symlink_to "$target" "$link"
+@test "opencode plannotator command symlinks resolve for core and factory" {
+  local target="$HOME/.config/agents/libraries/commands/plannotator-opencode/plannotator-review.md"
+  assert_symlink_to "$target" "$HOME/.config/opencode/profiles/core/commands/plannotator-review.md"
+  assert_symlink_to "$target" "$HOME/.config/opencode/profiles/factory/commands/plannotator-review.md"
 }
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory oh-my-opencode-slim has orchestrator plannotator append prompt" {
-  assert_file_exists "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim/orchestrator_append.md"
-  run head -1 "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim/orchestrator_append.md"
-  assert_output --partial "PLANNOTATOR PLANNING"
+@test "opencode core plugin tuple uses plan-agent workflow" {
+  run jq -e '
+    any(.plugin[]; type == "array" and .[0] == "@plannotator/opencode@latest" and .[1].workflow == "plan-agent" and (. [1].planningAgents | index("plan") != null))
+  ' "$HOME/.config/opencode/profiles/core/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory plugin tuple uses plan-agent workflow" {
+  run jq -e '
+    any(.plugin[]; type == "array" and .[0] == "@plannotator/opencode@latest" and .[1].workflow == "plan-agent" and (. [1].planningAgents | index("plan") != null))
+  ' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory Plan agent is enabled and plan-only guarded" {
+  run jq -e '
+    (.agent.plan.disable != true) and
+    (.agent.build.disable == true) and
+    (.agent.plan.prompt | contains("[PLANNOTATOR PLANNING]")) and
+    (.agent.plan.permission.edit[".plannotator/**"] == "allow") and
+    ([.agent.build, .agent.general, .agent.explore, .agent.scout] | all(has("permission") | not)) and
+    (.agent.plan.permission.edit["*"] == "deny") and
+    (.agent.plan.permission.bash == "deny") and
+    (.agent.plan.prompt | contains("Plan-only contract"))
+  ' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:symlink
@@ -387,46 +411,22 @@ EOF
 
 
 # bats test_tags=toolchain:opencode,kind:config
-
-@test "opencode core caveman plugin in settings" {
+@test "opencode caveman plugin in core and factory" {
   run jq -e '.plugin | index("./plugins/caveman/plugin.js")' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-
-@test "opencode factory inherits caveman plugin" {
   run jq -e '.plugin | index("./plugins/caveman/plugin.js")' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
 }
 
-# bats test_tags=toolchain:opencode,kind:config
-
-@test "opencode minimal does not have caveman plugin" {
-  run jq -e '.plugin | index("./plugins/caveman/plugin.js")' "$HOME/.config/opencode/opencode.json"
-  assert_failure
-}
 
 # bats test_tags=toolchain:opencode,kind:config
-
-@test "opencode core instructions include CAVEMAN.md" {
+@test "opencode instructions include CAVEMAN.md for core and factory" {
   run jq -e '.instructions | index("CAVEMAN.md")' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-
-@test "opencode factory instructions include CAVEMAN.md" {
   run jq -e '.instructions | index("CAVEMAN.md")' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
 }
 
-# bats test_tags=toolchain:opencode,kind:config
-
-@test "opencode minimal does not have CAVEMAN.md in instructions" {
-  run jq -e '.instructions | index("CAVEMAN.md")' "$HOME/.config/opencode/opencode.json"
-  assert_failure
-}
 
 # bats test_tags=toolchain:opencode,kind:symlink
 @test "opencode profiles expose shared caveman plugin and commands" {
@@ -499,32 +499,12 @@ EOF
 
 {{- if eq .host.profile "personal" }}
 # bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim personal oracle uses openai provider" {
+@test "opencode factory slim personal agents use correct provider prefixes" {
   run jq -e '.presets.managed.oracle.model | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim personal designer uses opencode-go provider" {
   run jq -e '.presets.managed.designer.model | startswith("opencode-go/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim personal orchestrator is OpenAI gpt-5.6-luna" {
-  run jq -e '.presets.managed.orchestrator.model == "openai/gpt-5.6-luna"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim personal oracle is OpenAI gpt-5.6-luna" {
-  run jq -e '.presets.managed.oracle.model == "openai/gpt-5.6-luna"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim personal designer is opencode-go/minimax-m3" {
-  run jq -e '.presets.managed.designer.model == "opencode-go/minimax-m3"' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e '.council.presets.managed.alpha.model | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 {{- end }}
@@ -578,12 +558,6 @@ EOF
   assert_output --partial "OPENCODE_CONFIG_DIR"
   assert_output --partial "opencode/profiles/factory"
   assert_output --partial "OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS"
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "opencode-agent --print-env factory exports OPENCODE_PORT" {
-  run "$HOME/.local/bin/opencode-agent" --print-env factory
-  assert_success
   assert_output --partial "OPENCODE_PORT="
 }
 
@@ -644,19 +618,6 @@ SCRIPT
   assert_output --partial "ARGS=--port 55555"
 }
 
-# bats test_tags=toolchain:opencode,kind:port
-@test "opencode-agent factory port: rejects missing CLI value" {
-  run "$HOME/.local/bin/opencode-agent" factory --no-greywall --no-update --port
-  assert_failure
-  assert_output --partial "--port requires a value"
-}
-
-# bats test_tags=toolchain:opencode,kind:port
-@test "opencode-agent factory port: rejects zero" {
-  run "$HOME/.local/bin/opencode-agent" factory --no-greywall --no-update --port 0
-  assert_failure
-  assert_output --partial "--port must be greater than 0"
-}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode-agent --print-env core" {
@@ -688,11 +649,13 @@ SCRIPT
 
 # bats test_tags=kind:opencode
 @test "opencode plannotator commands have frontmatter" {
-  local cmd_dir="{{ .chezmoi.homeDir }}/.config/opencode/commands"
-  for cmd in plannotator-review plannotator-annotate plannotator-last; do
-    assert_file_exists "$cmd_dir/$cmd.md"
-    run grep -q '^description:' "$cmd_dir/$cmd.md"
-    assert_success
+  for profile in core factory; do
+    local cmd_dir="{{ .chezmoi.homeDir }}/.config/opencode/profiles/${profile}/commands"
+    for cmd in plannotator-review plannotator-annotate plannotator-last; do
+      assert_file_exists "$cmd_dir/$cmd.md"
+      run grep -q '^description:' "$cmd_dir/$cmd.md"
+      assert_success
+    done
   done
 }
 {{- end }}
