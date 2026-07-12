@@ -55,6 +55,84 @@ setup() {
   assert_success
 }
 
+{{- if not .host.restricted }}
+# bats test_tags=kind:sudo
+@test "sudo keepalive authenticates once across chezmoi scripts" {
+  mock_bin="$BATS_TEST_TMPDIR/bin"
+  log="$BATS_TEST_TMPDIR/sudo.log"
+  credential="$BATS_TEST_TMPDIR/credential"
+  parent_gone="$BATS_TEST_TMPDIR/parent-gone"
+  helper="$BATS_TEST_TMPDIR/sudo-keep-alive"
+  runner="$BATS_TEST_TMPDIR/run-helpers"
+  mkdir "$mock_bin"
+
+  cat >"$mock_bin/sudo" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  '-n -v')
+    if [ -f "$MOCK_CREDENTIAL" ]; then
+      printf 'validated\n' >>"$MOCK_LOG"
+      if [ "$(grep -c '^validated$' "$MOCK_LOG")" -ge 2 ]; then
+        : >"$MOCK_PARENT_GONE"
+      fi
+      exit 0
+    fi
+    printf 'rejected\n' >>"$MOCK_LOG"
+    exit 1
+    ;;
+  '-v')
+    printf 'prompted\n' >>"$MOCK_LOG"
+    : >"$MOCK_CREDENTIAL"
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+
+  cat >"$mock_bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+
+  cat >"$mock_bin/ps" <<'EOF'
+#!/usr/bin/env bash
+if [ -f "$MOCK_PARENT_GONE" ]; then
+  printf 'changed process start\n'
+else
+  printf 'mock process start\n'
+fi
+EOF
+
+  cat >"$helper" <<'EOF'
+{{ includeTemplate "base/helpers/sudo-keep-alive" . }}
+EOF
+
+  cat >"$runner" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+CHEZMOI=1 bash "$MOCK_HELPER"
+CHEZMOI=1 bash "$MOCK_HELPER"
+for _ in {1..100}; do
+  [ "$(grep -c '^validated$' "$MOCK_LOG")" -ge 2 ] && exit 0
+  /bin/sleep 0.01
+done
+exit 1
+EOF
+
+  chmod +x "$mock_bin/ps" "$mock_bin/sudo" "$mock_bin/sleep" "$runner"
+  run env \
+    MOCK_CREDENTIAL="$credential" \
+    MOCK_PARENT_GONE="$parent_gone" \
+    MOCK_HELPER="$helper" \
+    MOCK_LOG="$log" \
+    PATH="$mock_bin:$PATH" \
+    bash "$runner"
+
+  assert_success
+  assert_equal "$(grep -c '^prompted$' "$log")" 1
+  assert [ "$(grep -c '^validated$' "$log")" -ge 2 ]
+}
+{{- end }}
+
 {{- end }}
 # bats test_tags=kind:shell
 @test "~/.local/bin is in PATH" {
