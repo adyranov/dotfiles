@@ -14,15 +14,11 @@
     {{- $manager := index $pkg "manager" }}
     {{- $suiteTag := index $suiteByManager $manager | default "suite:packages" -}}
     {{- $tags := list $suiteTag "suite:packages" (printf "mgr:%s" $manager) (printf "toolchain:%s" $toolchain) (printf "pkg:%s" $id) -}}
-
+{{- if index $pkg "test" -}}
 # bats test_tags={{ $tags | join "," }}
 @test "{{ $id }}{{ if $version }} ({{ $version }}){{ end }}" {
-    {{- if index $pkg "test" }}
     run {{ index $pkg "test" }}
     assert_success
-    {{- else }}
-    skip "no test defined"
-    {{- end }}
 }
-
+{{ end }}
 {{ end -}}

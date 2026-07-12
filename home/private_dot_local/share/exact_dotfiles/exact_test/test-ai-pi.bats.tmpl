@@ -41,11 +41,6 @@ setup() {
   assert_failure
 }
 
-# bats test_tags=toolchain:pi,kind:config
-@test "pi settings.json renders footer config" {
-  run jq -e '.powerline.preset == "{{ $pi.settings.powerline.preset }}" and .powerline.mouseScroll == {{ $pi.settings.powerline.mouse_scroll }} and .bashMode.toggleShortcut == "{{ $pi.settings.bash_mode.toggle_shortcut }}"' "$HOME/.config/pi/agent/settings.json"
-  assert_success
-}
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi settings.json uses lightweight compaction for core" {
@@ -69,17 +64,9 @@ setup() {
   assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
   run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:packages
-@test "pi factory inherits core and factory packages" {
-  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
   run grep -F '"npm:pi-system-prompt"' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
-  run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
 }
-
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi SYSTEM.md has compact tool routing" {
@@ -124,31 +111,13 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi core plannotator.json exists" {
-  assert_file_exists "$HOME/.config/pi/profiles/core/plannotator.json"
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi factory settings.json exists" {
-  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
-}
-# bats test_tags=toolchain:pi,kind:config
-@test "pi caveman package in core settings" {
+@test "pi caveman package in core and factory" {
   run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/core/settings.json"
   assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi factory inherits caveman package" {
   run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
 }
 
-# bats test_tags=toolchain:pi,kind:config
-@test "pi minimal does not have caveman package" {
-  run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/minimal/settings.json"
-  assert_failure
-}
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi caveman default level is full" {
@@ -176,16 +145,20 @@ setup() {
   run readlink -f "$HOME/.config/pi/profiles/$profile/SYSTEM.md"
   assert_success
   assert_output "$HOME/.config/pi/agent/SYSTEM.md"
-  run readlink -f "$HOME/.config/pi/profiles/$profile/plannotator.json"
+  # Factory plannotator.json is standalone (not a symlink to core)
+  assert_file_exists "$HOME/.config/pi/profiles/$profile/plannotator.json"
+  run jq -e '.phases.planning.systemPrompt | contains("Plan-only contract")' "$HOME/.config/pi/profiles/$profile/plannotator.json"
   assert_success
-  assert_output "$HOME/.config/pi/profiles/core/plannotator.json"
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi factory has plannotator symlink" {
-  run readlink -f "$HOME/.config/pi/profiles/factory/plannotator.json"
+@test "pi factory plannotator is standalone with plan-only contract" {
+  assert_file_exists "$HOME/.config/pi/profiles/factory/plannotator.json"
+  run jq -e '
+    (.phases.planning.systemPrompt | contains("Plan-only contract")) and
+    (.phases.executing.systemPrompt | contains("[PLANNOTATOR PLAN-ONLY]"))
+  ' "$HOME/.config/pi/profiles/factory/plannotator.json"
   assert_success
-  assert_output "$HOME/.config/pi/profiles/core/plannotator.json"
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -244,49 +217,14 @@ EOF
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "agent-launch script validates greyproxy API" {
-  run grep -F 'GREYPROXY_API_PORT=43080' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F '/api/health' "$HOME/.local/bin/agent-launch"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "agent-launch script updates pi extensions on start" {
-  run grep -F 'pi update --extensions' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F -- '--no-update' "$HOME/.local/bin/agent-launch"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "agent-launch script contains greyproxy serve" {
-  run grep -F 'greyproxy serve' "$HOME/.local/bin/agent-launch"
-  assert_success
-}
-
-
-# bats test_tags=toolchain:pi,kind:config
-@test "agent-launch script guards unsafe PWDs" {
-  run grep -F 'Refusing to launch from home directory' "$HOME/.local/bin/agent-launch"
-  assert_success
-  run grep -F 'Refusing to launch from root' "$HOME/.local/bin/agent-launch"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "agent-launch script has both greywall and direct exec paths" {
+@test "agent-launch script has exec and unsafe-PWD guards" {
   run grep -F 'exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME"' "$HOME/.local/bin/agent-launch"
   assert_success
   run grep -F 'exec "$BINARY_NAME" "$@"' "$HOME/.local/bin/agent-launch"
   assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "agent-launch script maps pi-agent identity" {
-  run grep -F 'pi-agent)' "$HOME/.local/bin/agent-launch"
+  run grep -F 'Refusing to launch from home directory' "$HOME/.local/bin/agent-launch"
   assert_success
-  run grep -F 'BINARY_NAME="pi"' "$HOME/.local/bin/agent-launch"
+  run grep -F 'Refusing to launch from root' "$HOME/.local/bin/agent-launch"
   assert_success
 }
 

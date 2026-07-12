@@ -15,7 +15,7 @@
 -}}
 
 {{- /* MCP/skills per agent */ -}}
-{{- $starMcps := list -}}
+{{- $engramMcps := list "engram" -}}
 {{- $librarianMcps := list "websearch" "context7" "gh_grep" -}}
 {{- $emptyMcps := list -}}
 {{- $orchestratorSkills := list "codemap" "clonedeps" "deepwork" "reflect" "release-smoke-test" "oh-my-opencode-slim" "worktrees" -}}
@@ -39,10 +39,10 @@
 {{-   end -}}
 
 {{-   if eq $agent "orchestrator" -}}
-{{-     $_ := set $cfg "mcps" $starMcps -}}
+{{-     $_ := set $cfg "mcps" $engramMcps -}}
 {{-     $_ := set $cfg "skills" $orchestratorSkills -}}
 {{-   else if eq $agent "oracle" -}}
-{{-     $_ := set $cfg "mcps" $emptyMcps -}}
+{{-     $_ := set $cfg "mcps" $engramMcps -}}
 {{-     $_ := set $cfg "skills" $oracleSkills -}}
 {{-   else if eq $agent "librarian" -}}
 {{-     $_ := set $cfg "mcps" $librarianMcps -}}
@@ -88,7 +88,7 @@
   "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"
   "preset" "managed"
   "setDefaultAgent" true
-  "autoUpdate" false
+  "autoUpdate" true
   "multiplexer" $multiplexer
   "presets" $presets
   "council" $council

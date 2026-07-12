@@ -22,7 +22,8 @@ setup() {
   run jq -e '
     .yoloMode == false and
     .permissionReviewLog == true and
-    .permission["*"] == "allow"
+    .permission["*"] == "allow" and
+    .permission.bash["*"] == "allow"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
 }
@@ -37,17 +38,6 @@ setup() {
   assert_success
 }
 
-# bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system: bash defaults to allow" {
-  run jq -e '.permission.bash["*"] == "allow"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system: default is allow (all tools accessible)" {
-  run jq -e '.permission["*"] == "allow"' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
 
 {{- if .toolchains.cloud }}
 # bats test_tags=toolchain:pi,kind:permission,toolchain:cloud
@@ -138,11 +128,6 @@ setup() {
   assert_success
 }
 
-# bats test_tags=toolchain:opencode,kind:permission
-@test "opencode.json bash defaults to allow" {
-  run jq -e '.permission.bash["*"] == "allow"' "$HOME/.config/opencode/opencode.json"
-  assert_success
-}
 
 # bats test_tags=toolchain:opencode,kind:permission
 @test "opencode.json path permissions block key secrets" {

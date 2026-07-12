@@ -8,12 +8,16 @@
 {{- $submit := dig "submit_tool" "plannotator_submit_plan" . -}}
 {{- $advisor := dig "advisor_tool" "advisor" . -}}
 {{- $platformNote := dig "platform_note" "" . -}}
+{{- $planDir := dig "plan_dir" ".plannotator/" . -}}
+{{- $planOnly := dig "plan_only" false . -}}
 {{- $phase := dig "phase" "" . -}}
 
 {{- if eq $phase "planning" -}}
 [PLANNOTATOR PLANNING]
-No code edits. Only create/edit markdown plan files under `.plannotator/` in workspace.
-Goal: resolve ambiguity first, then submit one concise action plan.
+No code edits. Only create/edit markdown plan files under `{{ $planDir }}` in workspace.
+{{- if $planOnly }}Plan-only contract: revise only plan files; never implement checklist items, delegate implementation, switch agents, or edit code. Approval means summarize plan state and stop. Denial means revise same plan file and resubmit.
+{{- end }}Goal: resolve ambiguity first, then submit one concise action plan.
+Name plan as `{{ $planDir }}YYYY/MM/DD/short-plan-description.md` with current zero-padded ISO date and lowercase kebab-case slug. Append `-2`, `-3` on same-day collision.
 Question phase first: inspect enough context, then ask user questions until scope, constraints, risks, success criteria, and apply/render expectations are clear.
 Ask only directly; repeat until material ambiguity is resolved. Do not present final plan while material ambiguity remains.
 {{ $platformNote }}Use web search/fetch for current external facts; cite URLs in plan when used.
@@ -21,6 +25,11 @@ Keep one current plan with: context, decisions, approach, files, reuse, exact st
 Final plan: concise, decisive, no fluff, no unresolved options.
 Submit with `{{ $submit }}`.
 {{- else if eq $phase "executing" -}}
+{{- if $planOnly -}}
+[PLANNOTATOR PLAN-ONLY]
+Plan approval does not authorize implementation.
+Continue only by revising the plan file under `{{ $planDir }}`. Do not edit code, run implementation commands, delegate work, switch agents, or execute checklist items. Summarize plan state and stop.
+{{- else -}}
 [PLANNOTATOR EXECUTING]
 Execute approved plan ${planFilePath}.
 Remaining:
@@ -30,6 +39,7 @@ Do not edit rendered dotfiles, run apply/sync, or bypass sandbox. Ask user to ap
 Ask user for new scope/risk choices.
 {{ if $advisor }}Use `{{ $advisor }}` before risky pivots.
 {{ end }}After step n, say `[DONE:n]`.
+{{- end }}
 {{- else if eq $phase "reviewing" -}}
 [PLANNOTATOR REVIEWING]
 Review feedback. Preserve plan filename.

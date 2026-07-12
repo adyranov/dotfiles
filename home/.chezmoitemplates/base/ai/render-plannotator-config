@@ -16,7 +16,12 @@
 {{- $agentSection := printf "ai.agents.%s" $agent -}}
 {{- $agentData := includeTemplate "base/helpers/load-section" (dict "root" $root "section" $agentSection "required" true) | mustFromJson -}}
 {{- $defaults := index $tiers $tiers.default -}}
-{{- $cfg := get (index $agentData.profiles $profile) "plannotator" | default dict -}}
+
+{{- /* Read plannotator config from resolved profile */ -}}
+{{- $resolved := includeTemplate "base/ai/resolve-profile" (dict "agentData" $agentData "profile" $profile) | mustFromJson -}}
+{{- $cfg := get $resolved "plannotator" | default dict -}}
+{{- $planDir := get $cfg "plan_dir" | default ".plannotator/" | trimSuffix "/" | printf "%s/" -}}
+{{- $planOnly := get $cfg "plan_only" | default false -}}
 
 {{- $planningCat := get $cfg "planning" | default "big" -}}
 {{- $executingCat := get $cfg "executing" | default "medium" -}}
@@ -30,8 +35,8 @@
 {{- end -}}
 
 {{- /* Phase prompts (shared across agents) */ -}}
-{{- $planningPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "planning" "platform_note" $platformNote) -}}
-{{- $executingPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "executing") -}}
+{{- $planningPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "planning" "platform_note" $platformNote "plan_dir" $planDir "plan_only" $planOnly) -}}
+{{- $executingPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "executing" "plan_dir" $planDir "plan_only" $planOnly) -}}
 {{- $reviewingPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "reviewing") -}}
 
 {{- /* Planning-phase active tools */ -}}
