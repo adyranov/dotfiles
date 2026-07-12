@@ -21,7 +21,7 @@ enabled = true
 extends = "core"
 default_agent = "orchestrator"
 plugins = ["oh-my-opencode-slim"]
-disabled_agents = ["build", "explore", "general", "scout"]
+disabled_agents = ["explore", "general", "scout"]
 plannotator = {workflow = "plan-agent", planning_agents = [
   "plan"
 ], plan_only = true}

@@ -1,16 +1,41 @@
+{{- /* Keep sudo's terminal-scoped timestamp valid for this chezmoi run.
+  Chezmoi executes scripts serially as direct children of one CHEZMOI=1 process.
+  Each inclusion may start a refresher; duplicates are harmless and avoid shared
+  state, locks, stale PID files, and cleanup races.
+*/ -}}
 {{- if not .host.restricted }}
-_chezmoi_sudo_keepalive_pid=""
-if ! sudo -n true 2>/dev/null; then
-  echo "🔐 Refreshing sudo credentials…"
-  sudo -v
-  _chezmoi_sudo_keepalive() {
-    while true; do
-      sudo -n true
-      sleep 60
-    done
-  }
-  _chezmoi_sudo_keepalive &
-  _chezmoi_sudo_keepalive_pid=$!
+_sudo_keepalive_process_start() {
+  ps -o lstart= -p "$1" 2>/dev/null || true
+}
+
+if [ "${CHEZMOI:-}" != 1 ]; then
+  printf 'sudo keepalive: expected chezmoi script environment\n' >&2
+  exit 1
 fi
-trap 'if [ -n "${_chezmoi_sudo_keepalive_pid:-}" ]; then kill "$_chezmoi_sudo_keepalive_pid" >/dev/null 2>&1 || true; fi' EXIT
-{{- end }}
+
+_sudo_keepalive_parent=$PPID
+_sudo_keepalive_parent_start="$(_sudo_keepalive_process_start "$_sudo_keepalive_parent")"
+if [ -z "$_sudo_keepalive_parent_start" ]; then
+  printf 'sudo keepalive: cannot identify chezmoi process\n' >&2
+  exit 1
+fi
+
+if ! sudo -n -v 2>/dev/null; then
+  printf '[sudo] Authentication required for chezmoi update\n' >&2
+  sudo -v
+fi
+
+(
+  exec </dev/null >/dev/null 2>&1
+
+  while :; do
+    sleep 60
+    [ "$(_sudo_keepalive_process_start "$_sudo_keepalive_parent")" = \
+      "$_sudo_keepalive_parent_start" ] || exit 0
+    sudo -n -v || exit 0
+  done
+) &
+
+unset -f _sudo_keepalive_process_start
+unset _sudo_keepalive_parent _sudo_keepalive_parent_start
+{{- end -}}

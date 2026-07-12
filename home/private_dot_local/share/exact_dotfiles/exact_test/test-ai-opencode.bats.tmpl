@@ -391,10 +391,10 @@ EOF
 @test "opencode factory Plan agent is enabled and plan-only guarded" {
   run jq -e '
     (.agent.plan.disable != true) and
-    (.agent.build.disable == true) and
+    (.agent.build.disable != true) and
     (.agent.plan.prompt | contains("[PLANNOTATOR PLANNING]")) and
     (.agent.plan.permission.edit[".plannotator/**"] == "allow") and
-    ([.agent.build, .agent.general, .agent.explore, .agent.scout] | all(has("permission") | not)) and
+    ([.agent.general, .agent.explore, .agent.scout] | all(has("permission") | not)) and
     (.agent.plan.permission.edit["*"] == "deny") and
     (.agent.plan.permission.bash == "deny") and
     (.agent.plan.prompt | contains("Plan-only contract"))
