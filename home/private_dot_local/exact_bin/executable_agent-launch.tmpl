@@ -19,8 +19,14 @@ case "$SELF" in
     GREYWALL_PROFILE="opencode"
     CONFIG_SUBDIR="opencode"
     ;;
+  omp-agent)
+    AGENT_NAME="omp"
+    BINARY_NAME="omp"
+    GREYWALL_PROFILE="omp"
+    CONFIG_SUBDIR="omp"
+    ;;
   agent-launch)
-    printf 'Error: call via a symlink (pi-agent, opencode-agent), not directly.\n' >&2
+    printf 'Error: call via a symlink (pi-agent, opencode-agent, omp-agent), not directly.\n' >&2
     exit 1
     ;;
   *)
@@ -72,6 +78,11 @@ profile_dir() {
         *)            die "Unknown profile: $1" ;;
       esac
       ;;
+    omp)
+      # OMP uses PI_CODING_AGENT_DIR as the single config root (no named profile).
+      # Config is canonical at $HOME/.config/omp (not XDG-relative).
+      printf '%s\n' "$HOME/.config/omp"
+      ;;
   esac
 }
 
@@ -97,10 +108,19 @@ print_env() {
         printf 'export OPENCODE_PORT="%s"\n' "${OPENCODE_PORT:-$(pick_high_port)}"
       fi
       ;;
+    omp)
+      printf "# OMP env — canonical config root, no named profile\n"
+      printf "# Scrub inherited Pi, OpenCode, and OMP vars\n"
+      printf "for __v in \$(env | awk -F= '/^(PI_|OPENCODE_)/ { print \$1 }'); do unset \"\$__v\"; done 2>/dev/null || :\n"
+      printf "unset OMP_PROFILE\n"
+      printf 'export PI_CODING_AGENT_DIR="%s"\n' "$HOME/.config/omp"
+      ;;
   esac
-  printf 'export ENGRAM_DATA_DIR="%s"\n' "${ENGRAM_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/engram}"
-  printf 'export ENGRAM_PORT="%s"\n' "${ENGRAM_PORT:-7437}"
-  printf 'export ENGRAM_URL="http://127.0.0.1:%s"\n' "${ENGRAM_PORT:-7437}"
+  if [ "$AGENT_NAME" != "omp" ]; then
+    printf 'export ENGRAM_DATA_DIR="%s"\n' "${ENGRAM_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/engram}"
+    printf 'export ENGRAM_PORT="%s"\n' "${ENGRAM_PORT:-7437}"
+    printf 'export ENGRAM_URL="http://127.0.0.1:%s"\n' "${ENGRAM_PORT:-7437}"
+  fi
 }
 
 # ── Agent-specific: preflight update ──
@@ -141,6 +161,11 @@ preflight_update() {
         ok "Dependencies: cached"
       fi
       ;;
+    omp)
+      # OMP is a standalone compiled binary; no preflight needed.
+      # Extensions disabled via config and --no-extensions flag.
+      ok "Binary: standalone (no preflight needed)"
+      ;;
   esac
 }
 
@@ -165,6 +190,16 @@ set_runtime_env() {
         dim "Background subagents: enabled"
         dim "OpenCode port: $OPENCODE_PORT"
       fi
+      dim "Config:  $dir"
+      ;;
+    omp)
+      # Scrub all inherited vars that could redirect OMP to Pi/OpenCode state
+      for _v in $(env | awk -F= '/^(PI_|OPENCODE_)/ { print $1 }'); do
+        unset "$_v"
+      done
+      unset OMP_PROFILE
+      # Canonical OMP config root at $HOME/.config/omp
+      export PI_CODING_AGENT_DIR="$dir"
       dim "Config:  $dir"
       ;;
   esac
@@ -221,13 +256,47 @@ Commands:
   --print-env [prof]  print env vars for profile
 EOF
       ;;
+    omp)
+      cat <<'EOF'
+Usage: omp-agent [omp args...]
+       omp-agent --print-env [profile]
+       omp-agent --help
+
+Configuration:
+  Managed config root at $HOME/.config/omp (canonical, not XDG-relative).
+  PI_CODING_AGENT_DIR is set to this root; no named profile is active.
+  --profile, --alias, and Pi profile names are rejected.
+  Sandbox via greywall is mandatory — no --no-greywall bypass.
+
+Safety:
+  Scrubs inherited PI_*, OPENCODE_*, and OMP_PROFILE env vars.
+  Sets only PI_CODING_AGENT_DIR for OMP.
+  Injects managed --config <security.yml> and --no-extensions with precedence.
+  Rejects extension/plugin injection flags and management subcommands.
+  Fails closed: requires readable $HOME/.config/omp/security.yml.
+
+Args:
+  omp args            forwarded to omp
+
+Commands:
+  --print-env [prof]  print env vars for the config root
+  --help              this message
+EOF
+      ;;
   esac
   exit 0
 }
 
 # ── Shared: profile list ──
 list_profiles() {
-  printf '%s\n' core factory minimal
+  case "$AGENT_NAME" in
+    omp)
+      printf 'OMP uses a single configuration root (no named profiles).\n'
+      ;;
+    *)
+      printf '%s\n' core factory minimal
+      ;;
+  esac
 }
 
 # ── Shared: PWD guard ──
@@ -357,17 +426,71 @@ esac
 # ── Dispatch: option parsing ──
 no_greywall=false
 no_update=false
-profile="core"
+if [ "$AGENT_NAME" = "omp" ]; then
+  profile="default"
+else
+  profile="core"
+fi
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --) shift; break ;;
-    --no-greywall) no_greywall=true; shift ;;
+    --no-greywall)
+      if [ "$AGENT_NAME" = "omp" ]; then
+        die "OMP: --no-greywall rejected (sandbox is mandatory)"
+      fi
+      no_greywall=true; shift ;;
     --no-update) no_update=true; shift ;;
-    core|default|factory|minimal) profile="$1"; shift ;;
+    core|default|factory|minimal)
+      if [ "$AGENT_NAME" = "omp" ]; then
+        die "OMP: profile '$1' rejected (single config root, no named profiles)"
+      fi
+      profile="$1"
+      shift
+      ;;
     *) break ;;
   esac
 done
+
+# OMP: reject unsafe overrides, management subcommands, enforce single config root
+if [ "$AGENT_NAME" = "omp" ]; then
+  # Reject CLI overrides in remaining args
+  for _arg do
+    case "$_arg" in
+      --profile|--profile=*)
+        die "OMP: --profile rejected (single config root, no named profiles)" ;;
+      --yolo|--auto-approve|--plan-yolo)
+        die "OMP: unsafe approval flag '$_arg' rejected" ;;
+      --config|--config=*)
+        die "OMP: --config overlay rejected (config is managed)" ;;
+      --approval-mode|--approval-mode=*)
+        die "OMP: --approval-mode override rejected" ;;
+      --api-key|--api-key=*)
+        die "OMP: --api-key rejected (use interactive authentication)" ;;
+      --alias|--alias=*)
+        die "OMP: --alias requires --profile; both rejected" ;;
+      -e|--extension|--extension=*)
+        die "OMP: extension injection flag '$_arg' rejected (extensions managed via security.yml)" ;;
+      --hook|--hook=*)
+        die "OMP: hook injection flag '$_arg' rejected (hooks managed via security.yml)" ;;
+      --plugin-dir|--plugin-dir=*)
+        die "OMP: plugin dir flag '$_arg' rejected (plugins managed via security.yml)" ;;
+    esac
+  done
+  unset _arg
+
+  # Reject management subcommands that cannot safely receive injected --config/--no-extensions
+  for _cmd do
+    case "$_cmd" in
+      init|setup|install|completion|doctor|update|manage|system|migrate|reset|uninstall)
+        die "OMP: management subcommand '$_cmd' rejected (use binary directly, not omp-agent)" ;;
+    esac
+    break  # only check first positional arg
+  done
+  unset _cmd
+
+  profile="default"
+fi
 
 # Factory OpenCode: keep --port and OPENCODE_PORT aligned for oh-my-opencode-slim
 if [ "$AGENT_NAME" = "opencode" ] && [ "$profile" = "factory" ]; then
@@ -397,6 +520,18 @@ if [ "$AGENT_NAME" = "opencode" ] && [ "$profile" = "factory" ]; then
   fi
   unset _port _next_is_port _arg
 fi
+
+# OMP: inject managed flags with precedence; fail closed on missing security
+if [ "$AGENT_NAME" = "omp" ]; then
+  _omp_security="$HOME/.config/omp/security.yml"
+  if [ ! -r "$_omp_security" ]; then
+    die "OMP: required security config not found or not readable: $_omp_security"
+  fi
+  # Inject managed flags after remaining user args so they take precedence
+  set -- "$@" --no-extensions --config "$_omp_security"
+  unset _omp_security
+fi
+
 # ── Launch ──
 pwd_guard
 
@@ -414,13 +549,13 @@ if [ "$no_greywall" = true ]; then
   exec "$BINARY_NAME" "$@"
 fi
 
-dim "Launch: greywall --profile $GREYWALL_PROFILE -- $BINARY_NAME ..."
-
 # Engram daemon must start before proxy env is set — its curl health-check
 # must reach localhost directly, not through the (not-yet-running) greyproxy.
-ensure_engram
-
-export PLANNOTATOR_REMOTE=1
+# OMP uses its own hindsight memory; skip shared Engram.
+if [ "$AGENT_NAME" != "omp" ]; then
+  ensure_engram
+  export PLANNOTATOR_REMOTE=1
+fi
 
 # ── Proxy / CA env (force all agent traffic through Greyproxy) ──
 export HTTP_PROXY="http://127.0.0.1:43051"
@@ -439,4 +574,5 @@ unset _CA
 
 ensure_greyproxy
 
+dim "Launch: greywall --profile $GREYWALL_PROFILE -- $BINARY_NAME ..."
 exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" "$@"

@@ -66,6 +66,14 @@ Prebuilt images are also published to GHCR and Docker Hub:
   LLM gateway (configured under `[ai.profile.<profile>.models.catalog.local]`)
   as the `local` provider in `opencode.json`, so any catalog model can be
   selected with `--model local/<id>` or routed from a persona override.
+- OMP (oh-my-pi) is a standalone agent installed via mise GitHub backend,
+  pinned to `16.4.8`. `omp-agent` uses the shared `agent-launch` dispatcher with
+  a dedicated `omp` identity. It scrubs inherited `PI_*` and `OPENCODE_*` env
+  vars, sets `PI_CODING_AGENT_DIR` to the XDG config root
+  (`~/.config/omp`), rejects unsafe flags and `--profile`/`--config` overrides,
+  and injects `--no-extensions`. Chezmoi manages OMP's legacy `~/.omp` root
+  symlink into the XDG root. Auth is managed independently via `omp /login`.
+  The Greywall policy denies Pi/OpenCode/RPIV state and unrelated auth stores.
 
   For multi-agent workflows, start `tmux` from your project worktree, then
   `opencode-agent factory` inside the tmux session. oh-my-opencode-slim
@@ -162,7 +170,7 @@ See examples in `home/.chezmoidata/base/`, `home/.chezmoidata/os/<distro>/`, and
   - Enable specific: `WITH_DOCKER=true WITH_KUBERNETES=true`
   - Disable specific: `WITHOUT_JAVA=true WITHOUT_NODE=true`
   - Disable all then opt-in: `WITHOUT_TOOLCHAINS=true WITH_PYTHON=true`
-  - AI agents (nested under `ai`): `WITH_PI=true`, `WITHOUT_PI=true`
+  - AI agents (nested under `ai`): `WITH_PI=true`, `WITHOUT_PI=true`, `WITH_OMP=true`, `WITHOUT_OMP=true`
 - Environment detection:
   - Ephemeral/container environments are auto-detected and tagged as `ephemeral`.
   - Non-interactive sessions set `.host.interactive = false` (treated as `headless` in package rules).
@@ -376,6 +384,7 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 | [AIPerf](https://github.com/ai-dynamo/aiperf)                      | LLM endpoint benchmarking     | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
 | [opencode](https://opencode.ai)                                   | AI coding agent (terminal)    | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
 | [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) | Coding agent                  | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
+| [omp](https://omp.sh)                                             | oh-my-pi coding agent         | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
 | [rtk](https://github.com/rtk-ai/rtk)                              | AI agent toolkit              | `mise ✅` (macOS: `system`)   | ✅    | ✅     | ✅     | ✅   |
 
 ## 🧰 GUI Apps (macOS)

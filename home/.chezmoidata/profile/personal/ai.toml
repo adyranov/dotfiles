@@ -1,2 +1,9 @@
+[ai.profile.personal.agents.omp.security]
+disabled_providers = [
+  "claude",
+  "gemini",
+  "github-copilot"
+]
+
 [ai.profile.personal.credentials]
 inject = ["BRAVE_SEARCH_API_KEY"]

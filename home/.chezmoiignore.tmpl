@@ -27,15 +27,22 @@ Library
 .local/share/dotfiles/test/test-ai-*.bats
 {{- end }}
 {{- /* Per-agent toolchains: stop managing (and --remove can prune) the whole agent tree. */ -}}
-{{- if not .toolchains.pi }}
+{{- if not (get .toolchains "pi" | default false) }}
 .config/pi/**
 .local/bin/pi-agent
 {{- end }}
-{{- if not .toolchains.opencode }}
+{{- if not (get .toolchains "opencode" | default false) }}
 .config/opencode/**
 .local/bin/opencode-agent
 {{- end }}
-{{- if and (not .toolchains.pi) (not .toolchains.opencode) }}
+{{- if not (get .toolchains "omp" | default false) }}
+.config/omp/**
+.local/bin/omp-agent
+{{- end }}
+{{- $hasPi := get .toolchains "pi" | default false -}}
+{{- $hasOc := get .toolchains "opencode" | default false -}}
+{{- $hasOmp := get .toolchains "omp" | default false -}}
+{{- if and (not $hasPi) (not $hasOc) (not $hasOmp) }}
 .local/bin/agent-launch
 {{- end }}
 .gitkeep

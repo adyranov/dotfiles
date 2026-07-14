@@ -1,0 +1,6 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* Modify template for learned OMP Greywall profile.
+  Preserve Greywall learned/bundled baseline so profile drift checks stay stable.
+  Append OMP overlays and shared credentials deterministically. */ -}}
+{{- $rawStdin := get .chezmoi "stdin" | default "" | trim -}}
+{{- includeTemplate "base/ai/merge-greywall-learned-profile" (dict "root" . "agent" "omp" "stdin" $rawStdin) -}}

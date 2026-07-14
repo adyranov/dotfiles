@@ -1,0 +1,43 @@
+# Managed security overlay for OMP — rendered from layered data.
+# Injected via --config after user args; overrides user-facing config.
+# Do not edit directly.
+{{- $s := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.omp.security" "required" true) | mustFromJson }}
+tools:
+  approvalMode: {{ $s.tools.approval_mode }}
+  discoveryMode: {{ $s.tools.discovery_mode }}
+
+mcp:
+  enableProjectConfig: {{ $s.mcp.enable_project_config }}
+  discoveryMode: {{ $s.mcp.discovery_mode }}
+
+task:
+  isolation:
+    mode: {{ $s.task.isolation.mode }}
+  maxConcurrency: {{ $s.task.max_concurrency }}
+  maxRecursionDepth: {{ $s.task.max_recursion_depth }}
+
+skills:
+  enabled: {{ $s.skills.enabled }}
+  enableSkillCommands: {{ $s.skills.enable_skill_commands }}
+  enableCodexUser: {{ $s.skills.enable_codex_user }}
+  enableClaudeUser: {{ $s.skills.enable_claude_user }}
+  enableClaudeProject: {{ $s.skills.enable_claude_project }}
+  enablePiUser: {{ $s.skills.enable_pi_user }}
+  enablePiProject: {{ $s.skills.enable_pi_project }}
+  enableAgentsUser: {{ $s.skills.enable_agents_user }}
+  enableAgentsProject: {{ $s.skills.enable_agents_project }}
+
+commands:
+  enableClaudeUser: {{ $s.commands.enable_claude_user }}
+  enableClaudeProject: {{ $s.commands.enable_claude_project }}
+  enableOpencodeUser: {{ $s.commands.enable_opencode_user }}
+  enableOpencodeProject: {{ $s.commands.enable_opencode_project }}
+
+disabledProviders:
+{{- range $s.disabled_providers }}
+  - {{ . }}
+{{- end }}
+
+startup:
+  checkUpdate: {{ $s.startup.check_update }}
+  setupWizard: {{ $s.startup.setup_wizard }}

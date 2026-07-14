@@ -1,0 +1,375 @@
+#!/usr/bin/env bats
+
+# bats file_tags=suite:ai
+
+load 'common-helper'
+
+setup() {
+  common_setup
+  AGENTS_MD="${HOME}/.config/agents/AGENTS.md"
+  OMP_DIR="$HOME/.config/omp"
+  SECURITY_FILE="$OMP_DIR/security.yml"
+  GREYWALL_FILE="$HOME/.config/greywall/learned/omp.json"
+}
+
+{{- if (get .toolchains "omp" | default false) }}
+
+{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
+{{- $creds := includeTemplate "base/ai/render-credentials" . | mustFromJson }}
+{{- $ompCreds := includeTemplate "base/ai/render-credentials" (dict "root" . "agent" "omp") | mustFromJson }}
+
+# ── Helpers ──
+
+# assert_yq EXPR FILE — compact yq -e + assert_success
+assert_yq() { run yq -e "$1" "$2"; assert_success; }
+
+# assert_jq EXPR FILE — compact jq -e + assert_success for JSON artifacts
+assert_jq() { run jq -e "$1" "$2"; assert_success; }
+
+# assert_rejected ARGS... — launcher must reject a managed-boundary override
+assert_rejected() {
+  run "$HOME/.local/bin/omp-agent" "$@"
+  assert_failure
+  assert_output --partial "rejected"
+}
+
+# setup_mock_bins DIR — create curl/nc/greyproxy stubs for dispatch tests
+setup_mock_bins() {
+  local d="$1"
+  cat > "$d/curl" <<'EOF'
+#!/usr/bin/env sh
+exit 0
+EOF
+  cat > "$d/nc" <<'EOF'
+#!/usr/bin/env sh
+exit 0
+EOF
+  cat > "$d/greyproxy" <<'EOF'
+#!/usr/bin/env sh
+echo "greyproxy 1.0.0"
+EOF
+  chmod +x "$d/curl" "$d/nc" "$d/greyproxy"
+}
+
+# make_test_home — isolated HOME with the managed security overlay present
+make_test_home() {
+  local d
+  d="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
+  mkdir -p "$d/.config/omp"
+  touch "$d/.config/omp/security.yml"
+  printf '%s\n' "$d"
+}
+
+# ── Package / Pin ──
+
+# bats test_tags=toolchain:omp,kind:package
+@test "omp binary is installed at pinned version 16.4.8" {
+  run mise ls github:can1357/oh-my-pi 2>/dev/null
+  assert_success
+  assert_output --partial "16.4.8"
+  run omp --version
+  assert_success
+  assert_output --regexp "16\.4\.8"
+}
+
+# bats test_tags=toolchain:omp,kind:package
+@test "omp binary is on PATH" {
+  run command -v omp
+  assert_success
+}
+
+# ── Symlinks ──
+
+# bats test_tags=toolchain:omp,kind:symlink
+@test "omp-agent symlink resolves to agent-launch and is executable" {
+  run readlink -f "$HOME/.local/bin/omp-agent"
+  assert_success
+  assert_output "$HOME/.local/bin/agent-launch"
+  assert_file_executable "$HOME/.local/bin/omp-agent"
+}
+
+# bats test_tags=toolchain:omp,kind:symlink
+@test "omp AGENTS.md fans out to global AGENTS.md" {
+  run readlink -f "$OMP_DIR/AGENTS.md"
+  assert_success
+  assert_output "$AGENTS_MD"
+}
+
+# bats test_tags=toolchain:omp,kind:symlink
+@test "omp legacy root symlink resolves to XDG root" {
+  run readlink -f "$HOME/.omp"
+  assert_success
+  assert_output "$OMP_DIR"
+}
+
+# ── Launcher boundaries ──
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "omp-agent management flags show greywall and single config root" {
+  run "$HOME/.local/bin/omp-agent" --help
+  assert_success
+  assert_output --partial "greywall"
+  assert_output --partial ".config/omp"
+  run "$HOME/.local/bin/omp-agent" --help --no-greywall
+  assert_success
+  assert_output --partial "greywall"
+  run "$HOME/.local/bin/omp-agent" --list --no-greywall
+  assert_success
+}
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "omp-agent rejects unsafe overrides and positional profile names" {
+  run "$HOME/.local/bin/omp-agent" --no-greywall
+  assert_failure
+  assert_rejected --profile work
+  assert_rejected --yolo
+  assert_rejected --auto-approve
+  assert_rejected --plan-yolo
+  assert_rejected --approval-mode yolo
+  assert_rejected --config /tmp/evil.yaml
+  assert_rejected --api-key sk-abc
+  assert_rejected --alias work
+  assert_rejected core
+  assert_rejected factory
+  assert_rejected minimal
+}
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "omp-agent --print-env scrubs injected vars and does not leak OMP_PROFILE" {
+  run env PI_CODING_AGENT_DIR=/evil PI_CODING_AGENT_SESSION_DIR=/evil PI_PROFILE=evil \
+    PI_ARBITRARY=should-scrub \
+    OPENCODE_CONFIG=/evil OPENCODE_PORT=/evil \
+    OMP_PROFILE=should-not-appear \
+    "$HOME/.local/bin/omp-agent" --print-env
+  assert_success
+  assert_output --partial "for __v in"
+  assert_output --partial "unset OMP_PROFILE"
+  assert_output --partial "PI_CODING_AGENT_DIR="
+  refute_output --partial "OMP_PROFILE="
+}
+
+# ── Config YAML ──
+
+# bats test_tags=toolchain:omp,kind:config
+@test "omp config.yml has declarative routing, appearance, and compaction settings" {
+  assert_yq 'has("modelRoles") and has("compaction") and has("memory") and .memory.backend == "local" and .theme.dark == "dark-catppuccin" and .theme.light == "light-catppuccin" and .symbolPreset == "nerd" and .providers.webSearch == "auto" and (has("tools") | not) and (has("mcp") | not) and (has("task") | not) and (has("skills") | not)' "$OMP_DIR/config.yml"
+  assert_yq '.compaction.enabled == true' "$OMP_DIR/config.yml"
+  assert_yq '.compaction.strategy == "snapcompact"' "$OMP_DIR/config.yml"
+  assert_yq '.compaction.reserveTokens == 16384' "$OMP_DIR/config.yml"
+  assert_yq '.compaction.keepRecentTokens == 20000' "$OMP_DIR/config.yml"
+}
+
+# ── Model roles ──
+
+# bats test_tags=toolchain:omp,kind:model,tier:routing
+@test "omp config.yml has provider-qualified modelRoles for all tiers" {
+  for role in default plan slow advisor smol tiny task commit; do
+    run yq -e ".modelRoles | has(\"${role}\")" "$OMP_DIR/config.yml"
+    assert_success "missing role: $role"
+    run yq -r ".modelRoles.${role}" "$OMP_DIR/config.yml"
+    assert_success
+    [ -n "$output" ]
+    case "$output" in
+      */*:*) ;;
+      *) false ;;
+    esac
+  done
+}
+
+# ── Security overlay ──
+
+# bats test_tags=toolchain:omp,kind:config
+@test "omp security.yml exists with approval mode, discovery auto, and task isolation" {
+  assert_file_exists "$SECURITY_FILE"
+  assert_yq '.tools.approvalMode == "yolo" and .tools.discoveryMode == "auto"' "$SECURITY_FILE"
+  assert_yq '.task.isolation.mode == "auto"' "$SECURITY_FILE"
+  assert_yq '.task.maxConcurrency == 4' "$SECURITY_FILE"
+}
+
+# bats test_tags=toolchain:omp,kind:config
+@test "omp security.yml enables local skills and disables cross-agent sources" {
+  assert_yq '.skills.enabled == true and .skills.enableSkillCommands == true and (.skills.enablePiUser == false) and (.skills.enablePiProject == false) and (.skills.enableAgentsUser == false) and (.skills.enableAgentsProject == false) and (.commands.enableClaudeUser == false) and (.commands.enableOpencodeUser == false)' "$SECURITY_FILE"
+}
+
+# bats test_tags=toolchain:omp,kind:config
+@test "omp security.yml configures MCP, startup, and disabledProviders per profile" {
+  assert_yq '.mcp.enableProjectConfig == false and .mcp.discoveryMode == true and (.disabledProviders | type == "!!seq")' "$SECURITY_FILE"
+  assert_yq '.disabledProviders | length > 0' "$SECURITY_FILE"
+  assert_yq '.startup.checkUpdate == false and .startup.setupWizard == false' "$SECURITY_FILE"
+{{- if eq .host.profile "personal" }}
+  assert_yq '(.disabledProviders | map(select(. == "openai-codex")) | length == 0) and (.disabledProviders | map(select(. == "opencode-go")) | length == 0) and (.disabledProviders | map(select(. == "openrouter")) | length == 0)' "$SECURITY_FILE"
+{{- end }}
+{{- if eq .host.profile "work" }}
+  assert_yq '(.disabledProviders | map(select(. == "github-copilot")) | length == 0) and (.disabledProviders | map(select(. == "openai-codex")) | length == 1) and (.disabledProviders | map(select(. == "opencode-go")) | length == 1) and (.disabledProviders | map(select(. == "openrouter")) | length == 1)' "$SECURITY_FILE"
+{{- end }}
+}
+
+# ── Greywall learned profile ──
+
+# bats test_tags=toolchain:omp,kind:greywall
+@test "omp greywall profile exists with valid schema" {
+  assert_file_exists "$GREYWALL_FILE"
+  assert_jq '.schemaVersion == 1' "$GREYWALL_FILE"
+}
+
+# bats test_tags=toolchain:omp,kind:greywall
+@test "omp greywall enforces allow-read and deny-write for OMP paths" {
+  assert_file_exists "$GREYWALL_FILE"
+  assert_jq '.filesystem.allowRead | index("~/.config/omp/**") != null' "$GREYWALL_FILE"
+  assert_jq '(.filesystem.allowRead | index("~/.config/pi/**") | not)' "$GREYWALL_FILE"
+  assert_jq '(.filesystem.allowRead | index("~/.config/opencode/**") | not)' "$GREYWALL_FILE"
+  # OMP root is not deny-written (managed overlay)
+  assert_jq '.filesystem.denyWrite | index("~/.config/omp/**") == null' "$GREYWALL_FILE"
+  # config.yml is allow-writable (modify-managed)
+  assert_jq '(.filesystem.allowWrite | index("~/.config/omp/config.yml") != null) or (.filesystem.allowWrite | index("~/.config/omp/**") != null)' "$GREYWALL_FILE"
+  assert_jq '.filesystem.denyWrite | index("~/.config/omp/config.yml") | not' "$GREYWALL_FILE"
+  # security.yml is deny-write (enforced overlay)
+  assert_jq '.filesystem.denyWrite | index("~/.config/omp/security.yml") != null' "$GREYWALL_FILE"
+}
+
+# bats test_tags=toolchain:omp,kind:greywall
+@test "omp greywall credentials and network include secrets, sockets, and ports" {
+  assert_file_exists "$GREYWALL_FILE"
+  assert_jq '.credentials.inject == []' "$GREYWALL_FILE"
+  assert_jq '.credentials.secrets | length > 0' "$GREYWALL_FILE"
+  assert_jq '.network.allowUnixSockets | index("~/.local/share/tmux") != null' "$GREYWALL_FILE"
+  assert_jq '(.network.forwardPorts // []) | index(7437) != null' "$GREYWALL_FILE"
+}
+
+# ── Credentials renderer ──
+
+# bats test_tags=toolchain:omp,kind:credentials
+@test "global and omp credentials render correctly" {
+  {{- $g := $creds }}
+  run jq -e 'has("inject") and has("secrets") and has("ignore")' <<< '{{ $g | toJson }}'
+  assert_success
+  run jq -e '.ignore | length > 0' <<< '{{ $g | toJson }}'
+  assert_success
+  {{- $c := $ompCreds }}
+  run jq -e '.inject == []' <<< '{{ $c | toJson }}'
+  assert_success
+  run jq -e '.secrets | length > 0' <<< '{{ $c | toJson }}'
+  assert_success
+}
+
+# ── Isolation / Auth ──
+
+# bats test_tags=toolchain:omp,kind:isolation
+@test "omp config root does not overlap Pi/OpenCode and does not manage auth files" {
+  assert [ "$OMP_DIR" != "$HOME/.config/pi" ]
+  assert [ "$OMP_DIR" != "$HOME/.config/opencode" ]
+  assert [ ! -f "$OMP_DIR/keys.yaml" ]
+  assert [ ! -f "$OMP_DIR/auth.json" ]
+}
+
+# ── Agent launcher script ──
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "omp-agent agent-launch script dispatches via greywall --profile omp" {
+  run grep -F 'greywall --profile "$GREYWALL_PROFILE"' "$HOME/.local/bin/agent-launch"
+  assert_success
+  run grep -F 'AGENT_NAME="omp"' "$HOME/.local/bin/agent-launch"
+  assert_success
+  run grep -F 'BINARY_NAME="omp"' "$HOME/.local/bin/agent-launch"
+  assert_success
+}
+
+# ── Full dispatch ──
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "omp-agent full dispatch: greywall --profile omp with --no-extensions and --config" {
+  local mockdir
+  local test_home
+  mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  test_home="$(make_test_home)"
+  setup_mock_bins "$mockdir"
+
+  cat >"$mockdir/greywall" <<'SCRIPT'
+#!/usr/bin/env sh
+echo "GREYWALL_CALLED=true"
+echo "GREYWALL_PROFILE=$2"
+shift 3
+[ "${1:-}" = "--" ] && shift
+echo "OMP_PATH=$1"
+shift
+echo "OMP_ARGS=$*"
+exit 0
+SCRIPT
+
+  cat >"$mockdir/omp" <<'SCRIPT'
+#!/usr/bin/env sh
+echo "OMP_RECEIVED_ARGS=$*"
+SCRIPT
+  chmod +x "$mockdir/greywall" "$mockdir/omp"
+
+  run env PATH="$mockdir:$PATH" XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
+    "$HOME/.local/bin/omp-agent" -c session-abc
+  assert_success
+  assert_output --partial "GREYWALL_CALLED=true"
+  assert_output --partial "GREYWALL_PROFILE=omp"
+  assert_output --partial "--no-extensions"
+  assert_output --partial "security.yml"
+  assert_output --partial "session-abc"
+}
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "omp-agent full dispatch: missing security overlay fails closed" {
+  local mockdir
+  local test_home
+  mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  test_home="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
+  setup_mock_bins "$mockdir"
+
+  cat >"$mockdir/greywall" <<'SCRIPT'
+#!/usr/bin/env sh
+shift 2
+[ "${1:-}" = "--" ] && shift
+exec "$@"
+SCRIPT
+
+  cat >"$mockdir/omp" <<'SCRIPT'
+#!/usr/bin/env sh
+echo "OMP_RECEIVED_ARGS=$*"
+SCRIPT
+  chmod +x "$mockdir/greywall" "$mockdir/omp"
+
+  run env PATH="$mockdir:$PATH" XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
+    "$HOME/.local/bin/omp-agent" -c session-abc
+  assert_failure
+}
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "omp-agent full dispatch: env isolation scrubs injected PI_* and OPENCODE_*" {
+  local mockdir
+  local test_home
+  mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  test_home="$(make_test_home)"
+  setup_mock_bins "$mockdir"
+
+  cat >"$mockdir/greywall" <<'SCRIPT'
+#!/usr/bin/env sh
+shift 2
+[ "${1:-}" = "--" ] && shift
+exec "$@"
+SCRIPT
+
+  cat >"$mockdir/omp" <<'SCRIPT'
+#!/usr/bin/env sh
+echo "PI_ARBITRARY=[${PI_ARBITRARY:-unset}]"
+echo "OPENCODE_CONFIG=[${OPENCODE_CONFIG:-unset}]"
+echo "OPENCODE_PORT=[${OPENCODE_PORT:-unset}]"
+SCRIPT
+  chmod +x "$mockdir/greywall" "$mockdir/omp"
+
+  run env PATH="$mockdir:$PATH" PI_CODING_AGENT_DIR=/leak PI_ARBITRARY=bad \
+    OPENCODE_CONFIG=/leak OPENCODE_PORT=9999 \
+    XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
+    "$HOME/.local/bin/omp-agent" -c session-abc
+  assert_success
+  assert_output --partial "PI_ARBITRARY=[unset]"
+  assert_output --partial "OPENCODE_CONFIG=[unset]"
+  assert_output --partial "OPENCODE_PORT=[unset]"
+  refute_output --partial "PI_CODING_AGENT_DIR=/leak"
+}
+
+{{- end }}
