@@ -1,0 +1,5 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* OMP config — managed modelRoles/compaction merged from tier data.
+  User-owned keys (theme, symbolPreset, setupVersion, etc.) are preserved.
+  Managed sections are overwritten on next apply. Do not edit modelRoles or compaction. */ -}}
+{{- includeTemplate "base/ai/render-omp-config" (dict "root" . "chezmoi" .chezmoi) -}}

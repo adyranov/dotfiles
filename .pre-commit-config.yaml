@@ -31,6 +31,7 @@ repos:
         name: Check XML
       - id: check-yaml
         name: Check YAML
+        exclude: modify_.*\.ya?ml$
       - id: detect-private-key
         name: Detect Private Key
       - id: end-of-file-fixer
@@ -61,11 +62,13 @@ repos:
       - id: yamlfmt
         name: Format YAML
         types: [yaml]
+        exclude: modify_.*\.ya?ml$
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.38.0
     hooks:
       - id: yamllint
         name: Lint YAML
+        exclude: modify_.*\.ya?ml$
   - repo: https://github.com/pappasam/toml-sort
     rev: v0.24.4
     hooks:

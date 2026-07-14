@@ -1,0 +1,32 @@
+# OMP runtime databases and native/cache state
+*.db*
+gpu_cache.json
+last-changelog-version
+terminal-sessions/
+terminal-sessions/**
+
+# Runtime directories
+sessions/
+sessions/**
+blobs/
+blobs/**
+memory/
+memory/**
+logs/
+logs/**
+cache/
+cache/**
+natives/
+natives/**
+plugins/
+plugins/**
+extensions/
+extensions/**
+
+# Runtime metadata
+.mcp.json
+trust.json
+state.json
+mcp-cache.json
+.caveman-active
+.lock

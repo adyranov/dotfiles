@@ -1,0 +1,100 @@
+[ai.base.agents.omp]
+
+[ai.base.agents.omp.sandbox.network]
+hosts = ["api.openai.com", "auth.openai.com", "opencode.ai"]
+
+[ai.base.agents.omp.sandbox.paths]
+allow_read = [
+  "~/.config/omp/**",
+  "~/.config/agents/**"
+]
+allow_write = [
+  "~/.config/omp",
+  "~/.config/omp/**",
+  # DB sidecars and runtime state
+  "~/.config/omp/agent.db",
+  "~/.config/omp/agent.db-wal",
+  "~/.config/omp/agent.db-shm",
+  # Session/sandbox runtime dirs
+  "~/.local/share/omp",
+  "~/.local/share/omp/**",
+  "/tmp/agents/omp",
+  "/tmp/agents/omp/**"
+]
+deny_read = [
+  "~/.config/pi/**",
+  "~/.config/opencode/**",
+  "~/.config/rpiv-*/**",
+  "~/.local/share/opencode/**",
+  "~/.local/share/pi-lens/**",
+  "~/.config/greywall/**",
+  "~/.local/share/plannotator/**",
+  "~/.local/share/engram/**",
+  "~/.config/age/**",
+  "~/.ssh/**",
+  "~/.gnupg/**",
+  "~/.password-store/**",
+  "~/.config/gh/hosts.yml",
+  "~/.config/git/credentials",
+  "**/.env",
+  "**/.env.*"
+]
+deny_write = [
+  "~/.config/pi/**",
+  "~/.config/opencode/**",
+  "~/.config/agents/**",
+  "~/.config/greywall/**",
+  "~/.config/omp/security.yml"
+]
+
+[ai.base.agents.omp.security]
+disabled_providers = [
+  "claude",
+  "gemini",
+  "github-copilot",
+  "openai-codex",
+  "opencode-go",
+  "openrouter"
+]
+
+[ai.base.agents.omp.security.commands]
+enable_claude_user = false
+enable_claude_project = false
+enable_opencode_user = false
+enable_opencode_project = false
+
+[ai.base.agents.omp.security.mcp]
+enable_project_config = false
+discovery_mode = true
+
+[ai.base.agents.omp.security.skills]
+enabled = true
+enable_skill_commands = true
+enable_codex_user = false
+enable_claude_user = false
+enable_claude_project = false
+enable_pi_user = false
+enable_pi_project = false
+enable_agents_user = false
+enable_agents_project = false
+
+[ai.base.agents.omp.security.startup]
+check_update = false
+setup_wizard = false
+
+[ai.base.agents.omp.security.task]
+max_concurrency = 4
+max_recursion_depth = 3
+
+[ai.base.agents.omp.security.task.isolation]
+mode = "auto"
+
+[ai.base.agents.omp.security.tools]
+approval_mode = "yolo"
+discovery_mode = "auto"
+
+[ai.base.agents.omp.settings]
+theme_dark = "dark-catppuccin"
+theme_light = "light-catppuccin"
+symbol_preset = "nerd"
+web_search = "auto"

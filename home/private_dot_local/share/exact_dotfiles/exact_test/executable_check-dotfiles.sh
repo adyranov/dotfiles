@@ -18,7 +18,7 @@ fi
 # ----- Constants & defaults ---------------------------------------------------
 
 PACKAGE_SUITES=(test-system-packages.bats test-mise-packages.bats test-helm-plugins.bats test-krew-plugins.bats)
-AI_SUITES=(test-ai-shared.bats test-ai-pi.bats test-ai-opencode.bats test-ai-local-llm.bats test-ai-permissions.bats)
+AI_SUITES=(test-ai-shared.bats test-ai-pi.bats test-ai-opencode.bats test-ai-omp.bats test-ai-local-llm.bats test-ai-permissions.bats)
 ALL_SUITES=("${PACKAGE_SUITES[@]}" test-config.bats "${AI_SUITES[@]}")
 
 detectJobs() {
@@ -55,6 +55,7 @@ suiteAlias() {
   ai-shared) echo test-ai-shared.bats ;;
   ai-pi) echo test-ai-pi.bats ;;
   ai-opencode) echo test-ai-opencode.bats ;;
+  ai-omp) echo test-ai-omp.bats ;;
   ai-local-llm | ai-llm) echo test-ai-local-llm.bats ;;
   ai-permissions | ai-perms) echo test-ai-permissions.bats ;;
   all) printf '%s\n' "${ALL_SUITES[@]}" ;;

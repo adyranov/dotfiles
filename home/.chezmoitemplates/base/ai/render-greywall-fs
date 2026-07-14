@@ -4,6 +4,7 @@
     {{ includeTemplate "base/ai/render-greywall-fs" (dict "root" . "agent" "pi") | mustFromJson }}
   Output: JSON { allowRead, allowWrite, denyRead, denyWrite }
   Resolves path groups from ai.permissions.filesystem.paths, then appends agent-specific raw paths.
+  When agent is provided, both allow and deny lists are extended from agent sandbox.paths.
 */ -}}
 {{- $root := index . "root" -}}
 {{- $agent := dig "agent" "" . -}}
@@ -17,6 +18,8 @@
 {{-   $agentPaths := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" $agentSection "required" false) | mustFromJson) -}}
 {{-   $allowRead = concat $allowRead (index $agentPaths "allow_read" | default list) | uniq | sortAlpha -}}
 {{-   $allowWrite = concat $allowWrite (index $agentPaths "allow_write" | default list) | uniq | sortAlpha -}}
+{{-   $denyRead = concat $denyRead (index $agentPaths "deny_read" | default list) | uniq | sortAlpha -}}
+{{-   $denyWrite = concat $denyWrite (index $agentPaths "deny_write" | default list) | uniq | sortAlpha -}}
 {{- end -}}
 {{- dict
   "allowRead" $allowRead
