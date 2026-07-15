@@ -164,7 +164,7 @@ EOF
 @test "opencode core plan agent has inline plannotator prompt and restricted permissions" {
   run jq -e '.agent.plan.prompt | contains("PLANNOTATOR PLANNING")' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
-  run jq -e '.agent.plan.permission.edit == {".plannotator/**": "allow", "*": "deny"}' "$HOME/.config/opencode/profiles/core/opencode.json"
+  run jq -e '.agent.plan.permission.edit == {"docs/plans/**": "allow", "*": "deny"}' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
   run jq -e '.agent.plan.permission.bash == "deny"' "$HOME/.config/opencode/profiles/core/opencode.json"
   assert_success
@@ -276,10 +276,11 @@ EOF
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode {{ $qProfile }} quota-toast personal enabledProviders" {
   run jq -e '
+    (.enabledProviders | index("deepseek") != null) and
     (.enabledProviders | index("openai") != null) and
     (.enabledProviders | index("opencode-go") != null) and
-    (.enabledProviders | index("openrouter") == null) and
-    (.enabledProviders | length) == 2
+    (.enabledProviders | index("openrouter") != null) and
+    (.enabledProviders | length) == 4
   ' "$HOME/.config/{{ $qPath }}"
   assert_success
 }
@@ -397,7 +398,7 @@ EOF
     (.presets.managed.{{ $agent }}.model | length) >= 2 and
     (.presets.managed.{{ $agent }}.model[0].id | length > 0) and
     (.presets.managed.{{ $agent }}.model[1].id | length > 0) and
-    (.presets.managed.{{ $agent }}.model[1].id | startswith("openai/") or startswith("opencode-go/"))
+    (.presets.managed.{{ $agent }}.model[1].id | startswith("openai/") or startswith("opencode-go/") or startswith("openrouter/") or startswith("deepseek/"))
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
@@ -407,10 +408,9 @@ EOF
 @test "opencode factory slim personal council fallbacks have resolved remote IDs" {
   run jq -e '
     all(.council.presets.managed[]; (.model | type) == "array") and
-    all(.council.presets.managed[]; (.model | length) >= 2) and
+    all(.council.presets.managed[]; (.model | length) >= 1) and
     all(.council.presets.managed[]; (.model[0].id | length > 0)) and
-    all(.council.presets.managed[]; (.model[1].id | length > 0)) and
-    all(.council.presets.managed[]; (.model[1].id | startswith("openai/") or startswith("opencode-go/")))
+    all(.council.presets.managed[]; (.model[-1].id | startswith("openai/") or startswith("opencode-go/") or startswith("openrouter/") or startswith("deepseek/")))
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
@@ -433,10 +433,14 @@ EOF
 @test "opencode factory slim personal fallback uses different remote provider than primary" {
   run jq -e '
     all(.presets.managed[];
-      (.model[0].id | split("/")[0]) != (.model[1].id | split("/")[0])
+      if (.model | length) >= 2 then
+        (.model[0].id | split("/")[0]) != (.model[1].id | split("/")[0])
+      else true end
     ) and
     all(.council.presets.managed[];
-      (.model[0].id | split("/")[0]) != (.model[1].id | split("/")[0])
+      if (.model | length) >= 2 then
+        (.model[0].id | split("/")[0]) != (.model[1].id | split("/")[0])
+      else true end
     )
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
@@ -593,16 +597,11 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory Plan agent is enabled and plan-only guarded" {
+@test "opencode factory planning agents disabled, plannotator annotation-only" {
   run jq -e '
-    (.agent.plan.disable != true) and
-    (.agent.build.disable != true) and
-    (.agent.plan.prompt | contains("[PLANNOTATOR PLANNING]")) and
-    (.agent.plan.permission.edit[".plannotator/**"] == "allow") and
-    ([.agent.general, .agent.explore, .agent.scout] | all(has("permission") | not)) and
-    (.agent.plan.permission.edit["*"] == "deny") and
-    (.agent.plan.permission.bash == "deny") and
-    (.agent.plan.prompt | contains("Plan-only contract"))
+    (.agent.plan.disable == true) and
+    (.agent.build.disable == true) and
+    ([.agent.general, .agent.explore, .agent.scout] | all(has("permission") | not))
   ' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
 }
@@ -679,7 +678,7 @@ EOF
 @test "opencode factory slim personal agents use correct provider prefixes" {
   run jq -e '.presets.managed.oracle.model[0].id | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
-  run jq -e '.presets.managed.designer.model[0].id | startswith("opencode-go/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e '.presets.managed.designer.model[0].id | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
   run jq -e '.council.presets.managed.alpha.model[0].id | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success

@@ -9,3 +9,4 @@ sessions/**
 state.json
 mcp-cache.json
 auth.json
+skills/

@@ -365,6 +365,34 @@ ensure_greyproxy() {
   die "greyproxy did not become ready (see $GREYPROXY_LOG)"
 }
 
+sync_permanent_rules() {
+  # Read network rules from rendered greywall.json and push as permanent rules
+  # to greyproxy. This ensures hosts survive session expiry (temporary rules
+  # expire after ttl_seconds; permanent rules persist in SQLite).
+  local config dest api
+  config="${XDG_CONFIG_HOME:-$HOME/.config}/greywall/greywall.json"
+  [ -f "$config" ] || { warn "$config not found, skipping rule sync"; return 0; }
+
+  command -v jq >/dev/null 2>&1 || { warn "jq not found, skipping rule sync"; return 0; }
+
+  api="http://127.0.0.1:${GREYPROXY_API_PORT}/api/rules"
+  info "Greyproxy: syncing permanent rules..."
+
+  # Use container_pattern '*' so rules apply to all agents (pi, opencode, omp)
+  # rather than being scoped to a single binary name.
+  jq -r '.network.rules[]?.destination // empty' "$config" 2>/dev/null \
+    | sort -u \
+    | while read -r dest; do
+        [ -z "$dest" ] && continue
+        curl -s -X POST "$api" \
+          -H 'Content-Type: application/json' \
+          -d "{\"destination_pattern\":\"$dest\",\"port_pattern\":\"443\",\"rule_type\":\"permanent\",\"container_pattern\":\"*\"}" \
+          >/dev/null 2>&1
+      done
+
+  ok "Greyproxy: permanent rules synced"
+}
+
 # ── Shared: engram daemon ──
 engram_ready() {
   curl --silent --fail --max-time 1 \
@@ -554,7 +582,6 @@ fi
 # OMP uses its own hindsight memory; skip shared Engram.
 if [ "$AGENT_NAME" != "omp" ]; then
   ensure_engram
-  export PLANNOTATOR_REMOTE=1
 fi
 
 # ── Proxy / CA env (force all agent traffic through Greyproxy) ──
@@ -573,6 +600,7 @@ fi
 unset _CA
 
 ensure_greyproxy
+sync_permanent_rules
 
 dim "Launch: greywall --profile $GREYWALL_PROFILE -- $BINARY_NAME ..."
 exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" "$@"

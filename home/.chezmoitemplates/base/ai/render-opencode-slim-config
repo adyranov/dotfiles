@@ -34,13 +34,17 @@
 {{-   $cfg := dict -}}
 {{-   $rawFallbacks := get $route "fallbacks" | default list -}}
 {{-   if or (not (kindIs "slice" $rawFallbacks)) (eq (len $rawFallbacks) 0) -}}
-{{-     $_ := set $cfg "model" (includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root)) -}}
+{{-     $models := list -}}
+{{-     $primaryId := includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root) -}}
+{{-     $primaryEntry := dict "id" $primaryId -}}
 {{-     if hasKey $route "thinking" -}}
 {{-       $thinking := $route.thinking -}}
 {{-       if ne $thinking "off" -}}
-{{-         $_ := set $cfg "variant" $thinking -}}
+{{-         $_ := set $primaryEntry "variant" $thinking -}}
 {{-       end -}}
 {{-     end -}}
+{{-     $models = append $models $primaryEntry -}}
+{{-     $_ := set $cfg "model" $models -}}
 {{-   else -}}
 {{-     $models := list -}}
 {{-     $primaryId := includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root) -}}
@@ -115,13 +119,17 @@
 {{-   $cfg := dict -}}
 {{-   $rawFallbacks := get $route "fallbacks" | default list -}}
 {{-   if or (not (kindIs "slice" $rawFallbacks)) (eq (len $rawFallbacks) 0) -}}
-{{-     $_ := set $cfg "model" (includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root)) -}}
+{{-     $models := list -}}
+{{-     $primaryId := includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root) -}}
+{{-     $primaryEntry := dict "id" $primaryId -}}
 {{-     if hasKey $route "thinking" -}}
 {{-       $thinking := $route.thinking -}}
 {{-       if ne $thinking "off" -}}
-{{-         $_ := set $cfg "variant" $thinking -}}
+{{-         $_ := set $primaryEntry "variant" $thinking -}}
 {{-       end -}}
 {{-     end -}}
+{{-     $models = append $models $primaryEntry -}}
+{{-     $_ := set $cfg "model" $models -}}
 {{-   else -}}
 {{-     $models := list -}}
 {{-     $primaryId := includeTemplate "base/ai/render-opencode-model-id" (dict "route" $route "root" $root) -}}

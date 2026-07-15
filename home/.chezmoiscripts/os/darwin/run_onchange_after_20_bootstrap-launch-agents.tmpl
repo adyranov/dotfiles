@@ -10,6 +10,15 @@
 {{- $script_files = concat $script_files (list (include $path)) -}}
 {{- end }}
 
+{{- /* Also track LaunchAgent-referenced scripts in ~/.local/bin */ -}}
+{{- $agent_scripts := list
+    "private_dot_local/exact_bin/executable_openurl-bridge.sh.tmpl"
+    "private_dot_local/exact_bin/executable_open.tmpl"
+-}}
+{{- range $path := $agent_scripts }}
+{{- $script_files = concat $script_files (list (include $path)) -}}
+{{- end }}
+
 # Hash: LaunchAgents={{ $launch_agent_files | join "" | sha256sum }}
 # Hash: Scripts={{ $script_files | join "" | sha256sum }}
 

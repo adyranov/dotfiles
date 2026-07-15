@@ -13,7 +13,7 @@ deny = [
 [ai.base.agents.pi.profiles.core]
 extends = "minimal"
 compaction = {keep_recent_tokens = 8000, reserve_tokens = 8192}
-plannotator = {executing = "medium", planning = "big"}
+plannotator = {executing = "medium", plan_dir = "docs/plans/", planning = "big"}
 packages = [
   "@ff-labs/pi-fff",
   "pi-lens",
@@ -35,7 +35,7 @@ skills = ["karpathy-guidelines"]
 [ai.base.agents.pi.profiles.factory]
 extends = "core"
 compaction = {keep_recent_tokens = 20000, reserve_tokens = 16384}
-plannotator = {planning = "big", executing = "medium", plan_only = true}
+plannotator = {executing = "medium", plan_dir = "docs/plans/", plan_only = true, planning = "big"}
 packages = [
   "@juicesharp/rpiv-i18n",
   "@juicesharp/rpiv-workflow",
