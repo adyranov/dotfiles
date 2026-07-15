@@ -59,8 +59,9 @@ Prebuilt images are also published to GHCR and Docker Hub:
   `--no-update` to skip the dependency cache preflight).
   Runtime profiles: `opencode-agent` or `opencode-agent core` for the daily driver
   with context pruning and notification plugins, `opencode-agent minimal` for a
-  lightweight stack (no plugins, no subagents), and `opencode-agent factory` for
-  slim multi-agent orchestration with background subagents, worktrees, and planning.
+  lightweight stack (no subagents; includes local utility plugins), and
+  `opencode-agent factory` for slim multi-agent orchestration with background
+  subagents, worktrees, and planning.
   Core uses the default OpenCode config location; factory uses a profile overlay
   (`~/.config/opencode/profiles/factory/`). Every profile also exposes the local
   LLM gateway (configured under `[ai.profile.<profile>.models.catalog.local]`)
@@ -84,6 +85,18 @@ Prebuilt images are also published to GHCR and Docker Hub:
   focus events, CSI-u extended keys, and OSC-52 passthrough for OpenCode/Pi.
   Plugins: `tmux-yank` (WSL2 clipboard fallback), `tmux-resurrect`,
   `tmux-continuum` (save-only, no auto-restore), `tmux-open`.
+
+  All profiles include `@slkiser/opencode-quota` (latest; follows OpenCode
+  plugin auto-update resolution). Shared quota settings live in the default
+  OpenCode config and are symlinked into core/factory. Personal monitors
+  OpenAI/Codex and OpenCode Go; work monitors GitHub Copilot. Toasts are off;
+  sidebar and compact status are on. No system-prompt injection.
+  Prerequisites: Node >=20, OpenCode >=1.4.3.
+
+  OMO model fallback chains are optional, remote-only (no `provider=local`).
+  Personal profile configures cross-provider chains (OpenAI Codex ↔ OpenCode
+  Go). Work profile is primary-only (GitHub Copilot strings, no fallback
+  arrays).
 
 ### Local LLM serving
 

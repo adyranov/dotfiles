@@ -47,16 +47,6 @@ deny_write = [
   "~/.config/omp/security.yml"
 ]
 
-[ai.base.agents.omp.security]
-disabled_providers = [
-  "claude",
-  "gemini",
-  "github-copilot",
-  "openai-codex",
-  "opencode-go",
-  "openrouter"
-]
-
 [ai.base.agents.omp.security.commands]
 enable_claude_user = false
 enable_claude_project = false
@@ -98,3 +88,4 @@ theme_dark = "dark-catppuccin"
 theme_light = "light-catppuccin"
 symbol_preset = "nerd"
 web_search = "auto"
+providers = ["azure", "openai-codex", "anthropic", "zai", "kimi-code", "openrouter", "github-copilot", "cursor", "devin", "google-antigravity", "google-gemini-cli", "openai-codex-device", "xai-oauth", "gitlab-duo", "gitlab-duo-workflow", "alibaba-coding-plan", "aimlapi", "zhipu-coding-plan", "umans", "qwen-portal", "sakana", "minimax-code", "minimax-code-cn", "xiaomi", "xiaomi-token-plan-sgp", "xiaomi-token-plan-ams", "xiaomi-token-plan-cn", "firepass", "deepseek", "moonshot", "cerebras", "fireworks", "together", "nvidia", "huggingface", "perplexity", "qianfan", "venice", "synthetic", "nanogpt", "wafer-serverless", "coreweave", "vercel-ai-gateway", "cloudflare-ai-gateway", "litellm", "kilo", "zenmux", "opencode-zen", "opencode-go", "tavily", "kagi", "parallel", "ollama", "ollama-cloud", "lm-studio", "llama.cpp", "vllm", "openai", "google", "google-vertex", "xai", "groq", "mistral", "minimax", "amazon-bedrock"]

@@ -201,6 +201,7 @@ setup() {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
   run jq -e '
     .filesystem.defaultDenyRead == true and
+    .filesystem.allowGitConfig == true and
     (.filesystem.allowWrite | index("**") == null) and
     (.filesystem.allowWrite | index(".*/**") == null) and
     (.filesystem.denyRead | index("~/.ssh/id_*") != null) and
@@ -306,7 +307,8 @@ setup() {
     (.filesystem.allowWrite | index("~/.config/pi/profiles/core/**") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/**") != null) and
     (.filesystem.allowRead | index("~/.config/pi/**") != null) and
-    (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow"))
+    (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow")) and
+    ($global[0].filesystem.allowGitConfig == true)
   ' "{{ $greywallDir }}/learned/pi.json"
   assert_success
   run jq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/pi.json"
@@ -325,7 +327,8 @@ setup() {
     (.credentials == $global[0].credentials) and
     (.filesystem.allowWrite | index("~/.local/share/opencode") != null) and
     (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
-    (.network.forwardPorts // [] | map(tostring) | index("19432") != null)
+    (.network.forwardPorts // [] | map(tostring) | index("19432") != null) and
+    ($global[0].filesystem.allowGitConfig == true)
   ' "{{ $greywallDir }}/learned/opencode.json"
   assert_success
   run jq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/opencode.json"

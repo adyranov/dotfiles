@@ -23,20 +23,10 @@ opencode-caveman-config = {repository = "caveman", source = "src/hooks/caveman-c
 opencode-engram = {repo = "Gentleman-Programming/engram", ref = "main", source = "plugin/opencode/engram.ts", target = "libraries/extensions/opencode-engram/engram.ts"}
 
 [ai.base.libraries.repositories]
-caveman = {repo = "JuliusBrussee/caveman", ref = "v1.9.1"}
+caveman = {repo = "JuliusBrussee/caveman"}
 
 [ai.base.libraries.skills]
 caveman = {repository = "caveman", type = "file", source = "skills/caveman/SKILL.md"}
-karpathy = {repo = "multica-ai/andrej-karpathy-skills@main", include = [
-  "karpathy-guidelines"
-]}
-"oh-my-opencode-slim" = {repo = "alvinunreal/oh-my-opencode-slim", prefix = "src/skills", include = [
-  "simplify",
-  "codemap",
-  "clonedeps",
-  "deepwork",
-  "reflect",
-  "release-smoke-test",
-  "oh-my-opencode-slim",
-  "worktrees"
-]}
+compound-engineering = {repo = "EveryInc/compound-engineering-plugin", tag_prefix = "compound-engineering-", prefix = "skills"}
+karpathy = {repo = "multica-ai/andrej-karpathy-skills@main"}
+"oh-my-opencode-slim" = {repo = "alvinunreal/oh-my-opencode-slim", prefix = "src/skills"}

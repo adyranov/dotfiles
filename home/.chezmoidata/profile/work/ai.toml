@@ -1,11 +1,2 @@
-[ai.profile.work.agents.omp.security]
-disabled_providers = [
-  "claude",
-  "gemini",
-  "openai-codex",
-  "opencode-go",
-  "openrouter"
-]
-
 [ai.profile.work.credentials]
 inject = ["BRAVE_SEARCH_API_KEY"]

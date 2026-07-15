@@ -6,10 +6,13 @@
     source          — file path inside repo (required when type = "file")
     stripComponents — int, default 1 (archive only)
     include         — list of glob patterns (archive only)
+    exclude         — list of glob patterns to exclude (archive only)
     exact           — bool, emits `exact = true`
     refreshPeriod   — string, default "168h" (only honored when @ref is set)
     memo            — optional dict for caching gitHubTags lookups across calls
-  Without @ref, the latest git tag is used; repos with no tags will error. */ -}}
+    tagPrefix       — string, filter tags by prefix before picking latest (no @ref only)
+  Without @ref, the latest git tag is used (optionally filtered by tagPrefix);
+  repos with no matching tags will error. */ -}}
 {{- $type := .type -}}
 {{- if and (ne $type "archive") (ne $type "file") -}}
 {{-   fail (printf "base/github/external: unknown type %q (want \"archive\" or \"file\")" $type) -}}
@@ -20,21 +23,52 @@
 {{- if gt (len $repoParts) 1 -}}{{- $ref = index $repoParts 1 -}}{{- end -}}
 {{- if not $ref -}}
 {{-   $tags := list -}}
+{{- /* Fetch tags via GitHub API with ?per_page=100 to avoid pagination issues. */ -}}
 {{-   if index . "memo" -}}
 {{-     $memo := index . "memo" -}}
 {{-     if hasKey $memo $repoName -}}
 {{-       $tags = index $memo $repoName -}}
 {{-     else -}}
-{{-       $tags = gitHubTags $repoName -}}
+{{-       $url := printf "https://api.github.com/repos/%s/tags?per_page=100" $repoName -}}
+{{-       $token := env "GITHUB_TOKEN" | default "" -}}
+{{-       if $token -}}
+{{-         $tags = output "curl" "-s" "-H" (printf "Authorization: Bearer %s" $token) $url | fromJson -}}
+{{-       else -}}
+{{-         $tags = output "curl" "-s" $url | fromJson -}}
+{{-       end -}}
+{{-       if not (kindIs "slice" $tags) -}}
+{{-         fail (printf "base/github/external: failed to fetch tags for %s" $repoName) -}}
+{{-       end -}}
 {{-       $_ := set $memo $repoName $tags -}}
 {{-     end -}}
 {{-   else -}}
-{{-     $tags = gitHubTags $repoName -}}
+{{-     $url := printf "https://api.github.com/repos/%s/tags?per_page=100" $repoName -}}
+{{-     $token := env "GITHUB_TOKEN" | default "" -}}
+{{-     if $token -}}
+{{-       $tags = output "curl" "-s" "-H" (printf "Authorization: Bearer %s" $token) $url | fromJson -}}
+{{-     else -}}
+{{-       $tags = output "curl" "-s" $url | fromJson -}}
+{{-     end -}}
+{{-     if not (kindIs "slice" $tags) -}}
+{{-       fail (printf "base/github/external: failed to fetch tags for %s" $repoName) -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $tagPrefix := get . "tagPrefix" | default "" -}}
+{{-   if $tagPrefix -}}
+{{-     $filtered := list -}}
+{{-     range $tag := $tags -}}
+{{-       if hasPrefix $tagPrefix $tag.name -}}
+{{-         $filtered = append $filtered $tag -}}
+{{-       end -}}
+{{-     end -}}
+{{-     $tags = $filtered -}}
 {{-   end -}}
 {{-   if not (gt (len $tags) 0) -}}
-{{-     fail (printf "base/github/external: %s has no git tags; pin a branch with @ref" $repoName) -}}
+{{-     $msg := printf "base/github/external: %s has no matching tags" $repoName -}}
+{{-     if $tagPrefix -}}{{- $msg = printf "%s with prefix %q" $msg $tagPrefix -}}{{- end -}}
+{{-     fail (printf "%s; pin a branch with @ref" $msg) -}}
 {{-   end -}}
-{{-   $ref = (index $tags 0).Name -}}
+{{-   $ref = (index $tags 0).name -}}
 {{- end -}}
 {{- $isTag := not (gt (len $repoParts) 1) -}}
 ["{{ .target }}"]
@@ -48,6 +82,9 @@
     stripComponents = {{ default 1 (index . "stripComponents") }}
 {{-   if index . "include" }}
     include = [{{ range $i, $p := index . "include" }}{{ if $i }}, {{ end }}"{{ $p }}"{{ end }}]
+{{-   end }}
+{{-   if index . "exclude" }}
+    exclude = [{{ range $i, $p := index . "exclude" }}{{ if $i }}, {{ end }}"{{ $p }}"{{ end }}]
 {{-   end }}
 {{- else if eq $type "file" }}
     type = "file"

@@ -1,0 +1,44 @@
+{{- /* Render quota-toast config for @slkiser/opencode-quota plugin */ -}}
+{{- /* enabledProviders derived from merged model providers filtered by opencode_quota */ -}}
+{{- $root := .root -}}
+{{- $providers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.providers" "required" false) | mustFromJson -}}
+{{- $enabledProviders := list -}}
+{{- range $id, $p := $providers -}}
+{{-   if get $p "enabled" | default false -}}
+{{-     $quota := get $p "opencode_quota" | default "" -}}
+{{-     if $quota -}}
+{{-       $enabledProviders = append $enabledProviders $quota -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- $cfg := dict
+  "enabled" true
+  "minIntervalMs" 300000
+  "requestTimeoutMs" 12000
+  "formatStyle" "allWindows"
+  "percentDisplayMode" "remaining"
+  "onlyCurrentModel" false
+  "showSessionTokens" true
+  "enableToast" false
+  "tuiSidebarPanel" (dict
+    "enabled" true
+    "formatStyle" "allWindows"
+  )
+  "tuiCompactStatus" (dict
+    "enabled" true
+    "homeBottom" true
+    "sessionPrompt" true
+    "suppressWhenNativeProviderQuota" true
+  )
+  "maintainerAnnouncements" (dict
+    "enabled" true
+    "home" true
+  )
+  "pricingSnapshot" (dict
+    "source" "auto"
+    "autoRefresh" 7
+  )
+  "enabledProviders" $enabledProviders
+  "opencodeGoWindows" (list "rolling" "weekly" "monthly")
+-}}
+{{- $cfg | toPrettyJson -}}

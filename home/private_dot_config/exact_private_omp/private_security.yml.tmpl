@@ -1,7 +1,23 @@
 # Managed security overlay for OMP — rendered from layered data.
 # Injected via --config after user args; overrides user-facing config.
 # Do not edit directly.
-{{- $s := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.omp.security" "required" true) | mustFromJson }}
+{{ $s := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.omp.security" "required" true) | mustFromJson }}
+{{- /* Derive disabledProviders from ai.agents.omp.settings.providers static universe */ -}}
+{{- $ompSettings := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.omp.settings" "required" true) | mustFromJson -}}
+{{- $allProviders := get $ompSettings "providers" | default list -}}
+{{- $providers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.providers" "required" false) | mustFromJson -}}
+{{- $enabled := list -}}
+{{- range $id, $p := $providers -}}
+{{-   if and (has $id $allProviders) (get $p "enabled" | default false) -}}
+{{-     $enabled = append $enabled $id -}}
+{{-   end -}}
+{{- end -}}
+{{- $disabled := list -}}
+{{- range $p := $allProviders -}}
+{{-   if not (has $p $enabled) -}}
+{{-     $disabled = append $disabled $p -}}
+{{-   end -}}
+{{- end }}
 tools:
   approvalMode: {{ $s.tools.approval_mode }}
   discoveryMode: {{ $s.tools.discovery_mode }}
@@ -34,7 +50,7 @@ commands:
   enableOpencodeProject: {{ $s.commands.enable_opencode_project }}
 
 disabledProviders:
-{{- range $s.disabled_providers }}
+{{- range $disabled }}
   - {{ . }}
 {{- end }}
 
