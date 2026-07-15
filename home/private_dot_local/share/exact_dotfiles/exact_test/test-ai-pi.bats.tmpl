@@ -100,7 +100,7 @@ setup() {
   assert_success
   run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
   assert_success
-  assert_output --partial ".plannotator/"
+  assert_output --partial "docs/plans/"
 }
 
 # bats test_tags=toolchain:pi,kind:config

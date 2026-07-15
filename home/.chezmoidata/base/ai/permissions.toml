@@ -395,6 +395,13 @@ greywall_config_boundary = [
   "~/Library/Application Support/greywall/**",
   "~/Library/Application Support/greyproxy"
 ]
+greyproxy_data_boundary = [
+  "~/.local/share/greyproxy/greyproxy.db",
+  "~/.local/share/greyproxy/greyproxy.db-*",
+  "~/.local/share/greyproxy/settings.json",
+  "~/.local/share/greyproxy/ca-key.pem",
+  "~/.local/share/greyproxy/session.key"
+]
 colima_private_keys = [
   "~/.config/colima/**/id_*",
   "~/.config/colima/**/*_rsa",
@@ -520,6 +527,8 @@ sandbox_write_base = [
   ".",
   "/dev/fd/**",
   "/proc/self/fd/**",
+  "/tmp/greywall-open-url",
+  "/tmp/greywall-open-url/**",
   "~/.agents",
   "~/.cache/chezmoi",
   "~/.cache/chezmoi/**",
@@ -557,6 +566,10 @@ sandbox_write_specific = [
   "~/.local/share/ssh/**",
   "~/.local/src/**",
   "~/.local/share/tmux/**"
+]
+agent_scratch = [
+  "/tmp/compound-engineering",
+  "/tmp/compound-engineering/**"
 ]
 
 [ai.base.permissions.network]
@@ -606,7 +619,23 @@ ai_providers = [
   "models.github.ai",
   "opencode.ai",
   "openrouter.ai",
+  "api-docs.deepseek.com",
+  "chatgpt.com",
+  "docs.ai21.com",
+  "docs.sambanova.ai",
+  "docs.siliconflow.cn",
+  "docs.voyageai.com",
+  "docs.z.ai",
+  "help.openai.com",
+  "jina.ai",
+  "learn.chatgpt.com",
+  "openai.com",
+  "platform.claude.com",
+  "platform.kimi.ai",
+  "platform.minimax.io",
+  "platform.moonshot.ai",
   "platform.openai.com",
+  "platform.stepfun.ai",
   "router.huggingface.co"
 ]
 github = [
@@ -624,6 +653,10 @@ github = [
   "pkg-npm.githubusercontent.com",
   "raw.githubusercontent.com",
   "registry.gitlab.com",
+  "gist.githubusercontent.com",
+  "github.blog",
+  "github.github.io",
+  "monaspace.githubnext.com",
   "release-assets.githubusercontent.com"
 ]
 registries = [
@@ -706,16 +739,28 @@ docs_frameworks = [
   "angular.dev",
   "astro.build",
   "biomejs.dev",
+  "bun.com",
   "bun.sh",
   "claude.ai",
   "cloud.google.com",
   "code.claude.com",
   "context7.com",
+  "deepwiki.com",
   "deno.land",
+  "developer.apple.com",
   "developer.hashicorp.com",
   "developer.mozilla.org",
+  "developers.cloudflare.com",
   "developers.openai.com",
   "doc.rust-lang.org",
+  "docs.brew.sh",
+  "docs.renovatebot.com",
+  "formulae.brew.sh",
+  "ghostty.org",
+  "man.archlinux.org",
+  "man7.org",
+  "mise-versions.jdx.dev",
+  "www.chezmoi.io",
   "docs.anthropic.com",
   "docs.aws.amazon.com",
   "docs.claude.com",
@@ -768,8 +813,11 @@ search = [
   "stackexchange.com",
   "stackoverflow.com",
   "superuser.com",
+  "arxiv.org",
+  "google.com",
   "www.bing.com",
   "www.google.com",
+  "www.swebench.com",
   "www.typescriptlang.org"
 ]
 agent_search_providers = [
@@ -791,30 +839,39 @@ agent_search_providers = [
   "google.serper.dev",
   "help.kagi.com",
   "kagi.com",
+  "mcp.context7.com",
   "mcp.exa.ai",
+  "mcp.grep.app",
   "mcp.kagi.com",
   "search.parallel.ai",
   "serpapi.com"
 ]
 infra_schema = [
   "*.schemastore.org",
+  "marketplace.visualstudio.com",
   "netlify.com",
+  "open-vsx.org",
+  "pre-commit.com",
+  "releases.astral.sh",
   "schemastore.org",
+  "semgrep.dev",
   "supabase.com"
 ]
 
 [ai.base.permissions.network.localhost]
 allow_outbound = true
-forward_ports = [7437, 19432]
+forward_ports = [7437]
 
 [ai.base.permissions.sandbox]
 allow_read_paths = [
+  "agent_scratch",
   "sandbox_read_base",
   "managed_config_dirs",
   "managed_local_dirs",
   "sandbox_macos"
 ]
 allow_write_paths = [
+  "agent_scratch",
   "sandbox_write_base",
   "sandbox_write_specific",
   "managed_config_dirs",
@@ -840,7 +897,8 @@ deny_read_paths = [
   "shell_history",
   "db_client_secrets",
   "colima_private_keys",
-  "macos_keychain"
+  "macos_keychain",
+  "greyproxy_data_boundary"
 ]
 deny_write_paths = [
   "project_secrets",

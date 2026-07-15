@@ -1,0 +1,32 @@
+#!/usr/bin/env sh
+set -eu
+
+BRIDGE_DIR="/tmp/greywall-open-url"
+
+# Inside greywall (detected via ALL_PROXY): write URL to a unique bridge file
+case "${ALL_PROXY:-}" in
+    *43052)
+        url=""
+        for arg in "$@"; do
+            case "$arg" in
+                http://*|https://*)
+                    url="$arg"
+                    break
+                    ;;
+                -*) continue ;;
+                *) continue ;;
+            esac
+        done
+        if [ -n "$url" ]; then
+            mkdir -p "$BRIDGE_DIR"
+            # Unique filename per call (PID + counter handles rapid successive calls)
+            i=0
+            while [ -f "$BRIDGE_DIR/$$-$i.url" ]; do i=$((i+1)); done
+            echo "$url" > "$BRIDGE_DIR/$$-$i.url"
+            exit 0
+        fi
+        ;;
+esac
+
+# Outside greywall: pass through to real open
+exec /usr/bin/open "$@"

@@ -1,6 +1,10 @@
 [ai.base.models.catalog.local]
 port = 8321
 
+[ai.base.models.providers.deepseek]
+api_key_env = "DEEPSEEK_API_KEY"
+auth_keys = ["deepseek"]
+
 [ai.base.models.providers.github-copilot]
 auth_keys = []
 opencode_quota = "copilot"
@@ -13,7 +17,6 @@ opencode_quota = "openai"
 [ai.base.models.providers.opencode-go]
 api_key_env = "OPENCODE_API_KEY"
 auth_keys = ["opencode-go"]
-opencode_quota = "opencode-go"
 
 [ai.base.models.providers.openrouter]
 api_key_env = "OPENROUTER_API_KEY"

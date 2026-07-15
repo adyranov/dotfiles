@@ -10,7 +10,7 @@ deny = ["~/.local/share/opencode/auth.json"]
 extends = "minimal"
 plugins = ["@plannotator/opencode", "./plugins/caveman/plugin.js"]
 instructions = ["AGENTS.md", "OPENCODE.md", "CAVEMAN.md"]
-plannotator = {workflow = "plan-agent", planning_agents = ["plan"]}
+plannotator = {plan_dir = "docs/plans/", planning_agents = ["plan"], workflow = "plan-agent"}
 
 [ai.base.agents.opencode.profiles.core.mcp_servers.engram]
 type = "local"
@@ -21,10 +21,8 @@ enabled = true
 extends = "core"
 default_agent = "orchestrator"
 plugins = ["oh-my-opencode-slim"]
-disabled_agents = ["explore", "general", "scout"]
-plannotator = {workflow = "plan-agent", planning_agents = [
-  "plan"
-], plan_only = true}
+disabled_agents = ["build", "explore", "general", "plan", "scout"]
+plannotator = {plan_dir = "docs/plans/", plan_only = true, workflow = "plan-agent"}
 skills_paths = [
   "~/.config/agents/libraries/skills/compound-engineering",
   "~/.config/agents/libraries/skills/oh-my-opencode-slim"
@@ -37,7 +35,9 @@ plugins = ["@tarquinen/opencode-dcp", "opencode-notify", "@slkiser/opencode-quot
 allow_read = [
   "~/.config/opencode/**",
   "~/.local/share/plannotator",
-  "~/.local/share/plannotator/**"
+  "~/.local/share/plannotator/**",
+  "/tmp/compound-engineering",
+  "/tmp/compound-engineering/**"
 ]
 allow_write = [
   "~/.cache/opencode",
@@ -49,7 +49,11 @@ allow_write = [
   "~/.local/state/opencode",
   "~/.local/state/opencode/**",
   "/tmp/agents/opencode",
-  "/tmp/agents/opencode/**"
+  "/tmp/agents/opencode/**",
+  "/tmp/compound-engineering",
+  "/tmp/compound-engineering/**",
+  "/tmp/greywall-open-url",
+  "/tmp/greywall-open-url/**"
 ]
 
 [ai.base.agents.opencode.settings]

@@ -5,10 +5,7 @@
 {{- $enabledProviders := list -}}
 {{- range $id, $p := $providers -}}
 {{-   if get $p "enabled" | default false -}}
-{{-     $quota := get $p "opencode_quota" | default "" -}}
-{{-     if $quota -}}
-{{-       $enabledProviders = append $enabledProviders $quota -}}
-{{-     end -}}
+{{-     $enabledProviders = append $enabledProviders (get $p "opencode_quota" | default $id) -}}
 {{-   end -}}
 {{- end -}}
 {{- $cfg := dict

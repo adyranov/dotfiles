@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+set -eu
+
+BRIDGE_DIR="/tmp/greywall-open-url"
+
+mkdir -p "$BRIDGE_DIR"
+
+# Process any leftover files from previous run
+for f in "$BRIDGE_DIR"/*.url; do
+    [ -f "$f" ] || continue
+    url=$(cat "$f")
+    [ -n "$url" ] && /usr/bin/open "$url"
+    rm -f "$f"
+done
+
+# Watch for new files
+while true; do
+    for f in "$BRIDGE_DIR"/*.url; do
+        [ -f "$f" ] || continue
+        url=$(cat "$f")
+        [ -n "$url" ] && /usr/bin/open "$url"
+        rm -f "$f"
+    done
+    sleep 1
+done

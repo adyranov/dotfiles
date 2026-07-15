@@ -326,8 +326,10 @@ setup() {
     .schemaVersion == 1 and
     (.credentials == $global[0].credentials) and
     (.filesystem.allowWrite | index("~/.local/share/opencode") != null) and
+    (.filesystem.allowWrite | index("/tmp/compound-engineering") != null) and
     (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
-    (.network.forwardPorts // [] | map(tostring) | index("19432") != null) and
+    (.filesystem.allowRead | index("/tmp/compound-engineering") != null) and
+    (.network.forwardPorts // [] | map(tostring) | index("7437") != null) and
     ($global[0].filesystem.allowGitConfig == true)
   ' "{{ $greywallDir }}/learned/opencode.json"
   assert_success

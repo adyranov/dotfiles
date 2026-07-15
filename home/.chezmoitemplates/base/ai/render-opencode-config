@@ -158,7 +158,7 @@
 {{- /* ── Plannotator: configure only declared plan-agent workflow ── */ -}}
 {{- if and $hasPlannotator (eq $plannotatorWorkflow "plan-agent") (gt (len $plannotatorPlanningAgents) 0) -}}
 {{-   range $agentName := $plannotatorPlanningAgents -}}
-{{-     if hasKey $agentOverrides $agentName -}}
+{{-     if and (hasKey $agentOverrides $agentName) (not (has $agentName $disabledAgents)) -}}
 {{-       $agentCfg := get $agentOverrides $agentName -}}
 {{-       $planningPrompt := includeTemplate "base/ai/render-plannotator-prompts" (dict "phase" "planning" "submit_tool" "submit_plan" "advisor_tool" "" "platform_note" "" "plan_dir" $plannotatorPlanDir "plan_only" $plannotatorPlanOnly) -}}
 {{-       $editGlob := printf "%s**" $plannotatorPlanDir -}}
