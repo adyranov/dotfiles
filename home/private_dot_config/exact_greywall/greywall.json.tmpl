@@ -26,7 +26,7 @@
 -}}
 {{- dict
   "network" $network
-  "filesystem" (dict "defaultDenyRead" true "allowRead" $fs.allowRead "allowWrite" $fs.allowWrite "denyRead" $fs.denyRead "denyWrite" $fs.denyWrite)
+  "filesystem" (dict "defaultDenyRead" true "allowGitConfig" true "allowRead" $fs.allowRead "allowWrite" $fs.allowWrite "denyRead" $fs.denyRead "denyWrite" $fs.denyWrite)
   "command" (dict "deny" $cmdDeny "useDefaults" true)
   "ssh" $ssh
   "credentials" (dict "inject" $creds.inject "secrets" $creds.secrets "ignore" $creds.ignore)

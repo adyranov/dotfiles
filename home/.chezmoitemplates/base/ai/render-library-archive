@@ -18,4 +18,5 @@
     "repo" $repo
     "stripComponents" (add (len (splitList "/" $prefix)) 1)
     "include" $includes
+    "tagPrefix" (get . "tagPrefix" | default "")
     "exact" true) }}

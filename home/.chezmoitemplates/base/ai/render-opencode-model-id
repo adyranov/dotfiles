@@ -2,7 +2,7 @@
   Render an OpenCode-compatible model ID string from a route config entry.
 
   Input: $route (dict with provider/model) or {route: $route, root: $root}
-  When root is provided, aliases are resolved from ai.models.providers metadata.
+  When root is provided, opencode_alias is resolved from ai.models.providers metadata.
   Output: "provider/model" or just "model" if no provider.
 */ -}}
 {{- $route := . -}}
@@ -14,8 +14,7 @@
   {{- if hasKey . "root" -}}
     {{- $providers := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.providers" "required" false) | mustFromJson -}}
     {{- $meta := get $providers $provider | default dict -}}
-    {{- $aliases := get $meta "aliases" | default dict -}}
-    {{- $aliasVal := get $aliases "opencode" | default "" -}}
+    {{- $aliasVal := get $meta "opencode_alias" | default "" -}}
     {{- if $aliasVal -}}{{- $ocProvider = $aliasVal -}}{{- end -}}
   {{- end -}}
   {{- printf "%s/%s" $ocProvider $model -}}

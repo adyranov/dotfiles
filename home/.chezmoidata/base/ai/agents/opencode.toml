@@ -25,10 +25,13 @@ disabled_agents = ["explore", "general", "scout"]
 plannotator = {workflow = "plan-agent", planning_agents = [
   "plan"
 ], plan_only = true}
-skills_paths = ["~/.config/opencode/profiles/factory/skills"]
+skills_paths = [
+  "~/.config/agents/libraries/skills/compound-engineering",
+  "~/.config/agents/libraries/skills/oh-my-opencode-slim"
+]
 
 [ai.base.agents.opencode.profiles.minimal]
-plugins = ["@tarquinen/opencode-dcp", "opencode-notify"]
+plugins = ["@tarquinen/opencode-dcp", "opencode-notify", "@slkiser/opencode-quota"]
 
 [ai.base.agents.opencode.sandbox.paths]
 allow_read = [

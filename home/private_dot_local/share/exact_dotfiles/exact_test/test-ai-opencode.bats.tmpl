@@ -91,6 +91,8 @@ setup() {
   assert_output --partial "--no-greywall"
   assert_output --partial "--no-update"
   assert_output --partial "opencode args"
+  assert_output --partial "core"
+  assert_output --partial "factory"
 }
 
 # bats test_tags=toolchain:opencode,kind:config
@@ -176,12 +178,129 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode factory profile includes key plugins" {
+@test "opencode factory profile includes key plugins without Compound plugin" {
   run jq -e '
     (.plugin | index("oh-my-opencode-slim") != null) and
+    (.plugin | index("compound-engineering@git+https://github.com/EveryInc/compound-engineering-plugin.git") == null) and
     any(.plugin[]; type == "array" and .[0] == "@plannotator/opencode@latest")
   ' "$HOME/.config/opencode/profiles/factory/opencode.json"
   assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode quota plugin registered in all profiles" {
+  run jq -e '
+    .plugin | index("@slkiser/opencode-quota") != null
+  ' "$HOME/.config/opencode/opencode.json"
+  assert_success
+  run jq -e '
+    .plugin | index("@slkiser/opencode-quota") != null
+  ' "$HOME/.config/opencode/profiles/core/opencode.json"
+  assert_success
+  run jq -e '
+    .plugin | index("@slkiser/opencode-quota") != null
+  ' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
+}
+
+{{- /* quota-toast sidecar paths per profile */ -}}
+{{- $quotaProfiles := list "minimal" "core" "factory" -}}
+{{- $quotaPaths := dict
+  "minimal" "opencode/opencode-quota/quota-toast.json"
+  "core" "opencode/profiles/core/opencode-quota/quota-toast.json"
+  "factory" "opencode/profiles/factory/opencode-quota/quota-toast.json"
+-}}
+
+{{- range $qProfile := list "minimal" }}
+{{-   $qPath := index $quotaPaths $qProfile }}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode {{ $qProfile }} quota-toast config file exists" {
+  assert_file_exists "$HOME/.config/{{ $qPath }}"
+  run jq -e '.enabled == true' "$HOME/.config/{{ $qPath }}"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode {{ $qProfile }} quota-toast stable settings" {
+  run jq -e '
+    .minIntervalMs == 300000 and
+    .requestTimeoutMs == 12000 and
+    .formatStyle == "allWindows" and
+    .percentDisplayMode == "remaining" and
+    .onlyCurrentModel == false and
+    .showSessionTokens == true and
+    .enableToast == false
+  ' "$HOME/.config/{{ $qPath }}"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode {{ $qProfile }} quota-toast sidebar and compact status" {
+  run jq -e '
+    .tuiSidebarPanel.enabled == true and
+    .tuiSidebarPanel.formatStyle == "allWindows" and
+    .tuiCompactStatus.enabled == true and
+    .tuiCompactStatus.homeBottom == true and
+    .tuiCompactStatus.sessionPrompt == true and
+    .tuiCompactStatus.suppressWhenNativeProviderQuota == true
+  ' "$HOME/.config/{{ $qPath }}"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode {{ $qProfile }} quota-toast announcements and pricing" {
+  run jq -e '
+    .maintainerAnnouncements.enabled == true and
+    .maintainerAnnouncements.home == true and
+    .pricingSnapshot.source == "auto" and
+    .pricingSnapshot.autoRefresh == 7
+  ' "$HOME/.config/{{ $qPath }}"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode {{ $qProfile }} quota-toast opencode windows" {
+  run jq -e '
+    (.opencodeGoWindows | index("rolling") != null) and
+    (.opencodeGoWindows | index("weekly") != null) and
+    (.opencodeGoWindows | index("monthly") != null)
+  ' "$HOME/.config/{{ $qPath }}"
+  assert_success
+}
+{{- end }}
+
+{{- range $qProfile := $quotaProfiles }}
+{{-   $qPath := index $quotaPaths $qProfile }}
+{{-   if eq $.host.profile "personal" }}
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode {{ $qProfile }} quota-toast personal enabledProviders" {
+  run jq -e '
+    (.enabledProviders | index("openai") != null) and
+    (.enabledProviders | index("opencode-go") != null) and
+    (.enabledProviders | index("openrouter") == null) and
+    (.enabledProviders | length) == 2
+  ' "$HOME/.config/{{ $qPath }}"
+  assert_success
+}
+{{-   end }}
+{{-   if eq $.host.profile "work" }}
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode {{ $qProfile }} quota-toast work enabledProviders" {
+  run jq -e '
+    (.enabledProviders | index("copilot") != null) and
+    (.enabledProviders | length) == 1
+  ' "$HOME/.config/{{ $qPath }}"
+  assert_success
+}
+{{-   end }}
+{{- end }}
+
+# bats test_tags=toolchain:opencode,kind:symlink
+@test "opencode core and factory quota sidecars link to default config" {
+  target="$HOME/.config/opencode/opencode-quota/quota-toast.json"
+  assert_symlink_to "$target" "$HOME/.config/opencode/profiles/core/opencode-quota/quota-toast.json"
+  assert_symlink_to "$target" "$HOME/.config/opencode/profiles/factory/opencode-quota/quota-toast.json"
 }
 
 # bats test_tags=toolchain:opencode,kind:config
@@ -265,15 +384,91 @@ EOF
   assert_success
 }
 
+{{- if eq .host.profile "personal" }}
 # bats test_tags=toolchain:opencode,kind:model
-@test "opencode factory slim configures managed agents" {
+# Personal: tier routes include fallbacks, so .model is an array.
+{{- range $agent, $tier := $ocSlimAgentCategories }}
+{{-   $route := index $ocTiers $tier }}
+{{-   if and $route (ne $agent "council") (hasKey $route "fallbacks") }}
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim {{ $agent }} personal chain has fallback with resolved remote ID" {
   run jq -e '
-    (.presets.managed.orchestrator.model | length > 0) and
-    (.presets.managed.oracle.model | length > 0) and
-    (.council.presets.managed.alpha.model | length > 0)
+    (.presets.managed.{{ $agent }}.model | type) == "array" and
+    (.presets.managed.{{ $agent }}.model | length) >= 2 and
+    (.presets.managed.{{ $agent }}.model[0].id | length > 0) and
+    (.presets.managed.{{ $agent }}.model[1].id | length > 0) and
+    (.presets.managed.{{ $agent }}.model[1].id | startswith("openai/") or startswith("opencode-go/"))
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
+{{-   end }}
+{{- end }}
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim personal council fallbacks have resolved remote IDs" {
+  run jq -e '
+    all(.council.presets.managed[]; (.model | type) == "array") and
+    all(.council.presets.managed[]; (.model | length) >= 2) and
+    all(.council.presets.managed[]; (.model[0].id | length > 0)) and
+    all(.council.presets.managed[]; (.model[1].id | length > 0)) and
+    all(.council.presets.managed[]; (.model[1].id | startswith("openai/") or startswith("opencode-go/")))
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim personal chains have per-entry variant where thinking non-off" {
+  run jq -e '
+    any(.presets.managed[]; any(.model[]; has("variant"))) and
+    any(.presets.managed[]; any(.model[]; has("variant") | not)) and
+    all(.presets.managed[].model[]; if has("variant") then (.variant | length > 0) else true end)
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '
+    all(.council.presets.managed[].model[]; has("variant") and (.variant | length > 0))
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim personal fallback uses different remote provider than primary" {
+  run jq -e '
+    all(.presets.managed[];
+      (.model[0].id | split("/")[0]) != (.model[1].id | split("/")[0])
+    ) and
+    all(.council.presets.managed[];
+      (.model[0].id | split("/")[0]) != (.model[1].id | split("/")[0])
+    )
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+{{- end }}
+
+{{- if eq .host.profile "work" }}
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+# Work: no fallbacks configured — agents emit singular .model string, no .models.
+@test "opencode factory slim work agents have singular string model (no fallback chain)" {
+  run jq -e '
+    all(.presets.managed[]; (.model | type) == "string") and
+    all(.presets.managed[]; has("models") | not) and
+    all(.presets.managed[]; .model | startswith("github-copilot/"))
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '
+    all(.council.presets.managed[]; (.model | type) == "string") and
+    all(.council.presets.managed[]; has("models") | not) and
+    all(.council.presets.managed[]; .model | startswith("github-copilot/"))
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:opencode,kind:model,tier:routing
+@test "opencode factory slim work agents have no local/fallback provider in model" {
+  run jq -e '
+    all(.presets.managed[]; (.model | startswith("local/") | not))
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+{{- end }}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode factory profile marks plan and build as primary agents" {
@@ -307,8 +502,10 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:config
-@test "opencode slim oracle has simplify skill" {
-  run jq -e '.presets.managed.oracle.skills | index("simplify") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+@test "opencode slim orchestrator owns Compound brainstorming skills" {
+  run jq -e '.presets.managed.orchestrator.skills | index("ce-brainstorm") != null and index("ce-ideate") != null and index("ce-plan") != null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+  run jq -e '.presets.managed.oracle.skills | index("simplify") != null and index("ce-brainstorm") == null' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 
@@ -344,15 +541,23 @@ EOF
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode oh-my-opencode-slim skill library is linked" {
   assert_file_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/simplify/SKILL.md"
-  assert_file_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/release-smoke-test/SKILL.md"
+  assert_file_exists "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/loop-engineering/SKILL.md"
 }
 
-# bats test_tags=toolchain:opencode,kind:symlink
-@test "opencode factory profile skill symlink resolves" {
-  link="$HOME/.config/opencode/profiles/factory/skills/simplify"
-  assert_symlink_to "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/simplify" "$link"
-  link="$HOME/.config/opencode/profiles/factory/skills/release-smoke-test"
-  assert_symlink_to "$HOME/.config/agents/libraries/skills/oh-my-opencode-slim/release-smoke-test" "$link"
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode Compound skill library is linked" {
+  assert_file_exists "$HOME/.config/agents/libraries/skills/compound-engineering/ce-brainstorm/SKILL.md"
+  assert_file_exists "$HOME/.config/agents/libraries/skills/compound-engineering/ce-plan/SKILL.md"
+  assert_file_exists "$HOME/.config/agents/libraries/skills/compound-engineering/lfg/SKILL.md"
+}
+
+# bats test_tags=toolchain:opencode,kind:config
+@test "opencode factory config skills.paths contains both library roots" {
+  run jq -e '
+    (.skills.paths | index("~/.config/agents/libraries/skills/compound-engineering") != null) and
+    (.skills.paths | index("~/.config/agents/libraries/skills/oh-my-opencode-slim") != null)
+  ' "$HOME/.config/opencode/profiles/factory/opencode.json"
+  assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:symlink
@@ -446,53 +651,25 @@ EOF
 }
 # bats test_tags=toolchain:opencode,kind:config
 # bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim all agents have non-empty models" {
+@test "opencode factory slim all agents have non-empty model" {
   run jq -e '
-    all(
-      .presets.managed[];
-      (.model | length > 0)
-    )
-  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-  assert_success
-}
-
-{{- range $agent, $tier := $ocSlimAgentCategories }}
-{{- $route := index $ocTiers $tier }}
-{{- if and $route (ne $agent "council") }}
-
-# bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim {{ $agent }} routes to {{ $tier }} tier model" {
-  run jq -e '.presets.managed.{{ $agent }}.model | length > 0' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-  assert_success
-}
-{{- end }}
-{{- end }}
-
-# bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim all councilors have non-empty models" {
-  run jq -e '
-    all(
-      .council.presets.managed[];
-      (.model | length > 0)
-    )
+    all(.presets.managed[]; (.model | length > 0))
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim council councillors are diverse (not all same model)" {
+@test "opencode factory slim all councilors have non-empty model" {
   run jq -e '
-    ([.council.presets.managed[] | .model] | unique | length) >= 2
+    all(.council.presets.managed[]; (.model | length > 0))
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim council has alpha beta gamma councillors" {
+@test "opencode factory slim council councillors models are diverse" {
   run jq -e '
-    .council.presets.managed.alpha.model and
-    .council.presets.managed.beta.model and
-    .council.presets.managed.gamma.model
+    ([.council.presets.managed[] | if (.model | type) == "string" then .model else .model[0].id end] | unique | length) >= 2
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
@@ -500,34 +677,24 @@ EOF
 {{- if eq .host.profile "personal" }}
 # bats test_tags=toolchain:opencode,kind:model,tier:routing
 @test "opencode factory slim personal agents use correct provider prefixes" {
-  run jq -e '.presets.managed.oracle.model | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e '.presets.managed.oracle.model[0].id | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
-  run jq -e '.presets.managed.designer.model | startswith("opencode-go/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e '.presets.managed.designer.model[0].id | startswith("opencode-go/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
-  run jq -e '.council.presets.managed.alpha.model | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e '.council.presets.managed.alpha.model[0].id | startswith("openai/")' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 {{- end }}
 
 {{- if eq .host.profile "work" }}
 # bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim work routes use only github-copilot provider" {
+@test "opencode factory slim work agents use only github-copilot provider" {
   run jq -e '
-    all(
-      .presets.managed[];
-      (.model | startswith("github-copilot/"))
-    )
+    all(.presets.managed[]; (.model | startswith("github-copilot/")))
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
-}
-
-# bats test_tags=toolchain:opencode,kind:model,tier:routing
-@test "opencode factory slim work council routes use only github-copilot provider" {
   run jq -e '
-    all(
-      .council.presets.managed[];
-      (.model | startswith("github-copilot/"))
-    )
+    all(.council.presets.managed[]; (.model | startswith("github-copilot/")))
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
@@ -637,14 +804,6 @@ SCRIPT
   assert_output --partial "opencode/opencode.json"
   assert_output --partial "OPENCODE_CONFIG_DIR"
   assert_output --partial "opencode"
-}
-
-# bats test_tags=toolchain:opencode,kind:config
-@test "opencode-agent help mentions profiles" {
-  run "$HOME/.local/bin/opencode-agent" --help
-  assert_success
-  assert_output --partial "core"
-  assert_output --partial "factory"
 }
 
 # bats test_tags=kind:opencode

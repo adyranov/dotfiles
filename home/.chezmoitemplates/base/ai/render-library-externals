@@ -16,12 +16,15 @@
     "target" (printf "libraries/skills/%s/%s/SKILL.md" $alias $alias)
     "repo" $repo
     "source" $source
+    "tagPrefix" (get $skill "tag_prefix" | default "")
     "exact" true) }}
 {{-   else if eq $type "archive" -}}
 {{-     $prefix := get $skill "prefix" | default "skills" -}}
 {{-     $includes := get $skill "include" | default list -}}
-{{-     if eq (len $includes) 0 -}}{{- fail (printf "skills.%s: include is required for archive type" $alias) -}}{{- end -}}
-{{-     range $sub := $includes -}}
+{{-     $excludes := get $skill "exclude" | default list -}}
+{{-     $hasIncludes := gt (len $includes) 0 -}}
+{{-     if $hasIncludes -}}
+{{-       range $sub := $includes -}}
 {{ includeTemplate "base/github/external" (dict
     "type" "archive"
     "memo" $memo
@@ -29,7 +32,28 @@
     "repo" $repo
     "stripComponents" (add (len (splitList "/" $prefix)) 2)
     "include" (list (printf "*/%s/%s/**" $prefix $sub))
+    "tagPrefix" (get $skill "tag_prefix" | default "")
     "exact" true) }}
+{{-       end -}}
+{{-     else -}}
+{{-       $excludePatterns := list -}}
+{{-       range $ex := $excludes -}}
+{{-         $excludePatterns = append $excludePatterns (printf "*/%s/%s/**" $prefix $ex) -}}
+{{-       end -}}
+{{-       $archiveArgs := dict
+    "type" "archive"
+    "memo" $memo
+    "target" (printf "libraries/skills/%s" $alias)
+    "repo" $repo
+    "stripComponents" (add (len (splitList "/" $prefix)) 1)
+    "include" (list (printf "*/%s/**" $prefix))
+    "tagPrefix" (get $skill "tag_prefix" | default "")
+    "exact" true
+-}}
+{{-       if gt (len $excludePatterns) 0 -}}
+{{-         $_ := set $archiveArgs "exclude" $excludePatterns -}}
+{{-       end -}}
+{{ includeTemplate "base/github/external" $archiveArgs }}
 {{-     end -}}
 {{-   else -}}
 {{-     fail (printf "skills.%s: unsupported type %q" $alias $type) -}}
@@ -52,6 +76,7 @@
     "target" $targetRoot
     "prefix" (get $entry "prefix")
     "files" (get $entry "files")
+    "tagPrefix" (get $entry "tag_prefix" | default "")
     "label" $label) }}
 {{-     else if $hasSource -}}
 {{-       $source := get $entry "source" | default "" -}}
@@ -68,6 +93,7 @@
     "target" $target
     "repo" $repo
     "source" $source
+    "tagPrefix" (get $entry "tag_prefix" | default "")
     "exact" true) }}
 {{-     else -}}
 {{-       fail (printf "%s: files or source is required" $label) -}}

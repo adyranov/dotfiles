@@ -55,6 +55,30 @@
 {{-       fail (printf "resolve-enabled-auth-providers: tier %q references %s but provider/model not enabled" $tierName $ref) -}}
 {{-     end -}}
 {{-   end -}}
+{{-   if hasKey $route "fallbacks" -}}
+{{-     $fallbacks := get $route "fallbacks" -}}
+{{-     if not (kindIs "slice" $fallbacks) -}}
+{{-       fail (printf "resolve-enabled-auth-providers: tier %q fallbacks must be a list" $tierName) -}}
+{{-     end -}}
+{{-     range $idx, $fallback := $fallbacks -}}
+{{-       if not (kindIs "map" $fallback) -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] must be a route map" $tierName $idx) -}}
+{{-       end -}}
+{{-       if hasKey $fallback "fallbacks" -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] cannot nest fallbacks" $tierName $idx) -}}
+{{-       end -}}
+{{-       if not (and (hasKey $fallback "provider") (hasKey $fallback "model")) -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] missing provider/model" $tierName $idx) -}}
+{{-       end -}}
+{{-       if eq (get $fallback "provider") "local" -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] cannot use local provider" $tierName $idx) -}}
+{{-       end -}}
+{{-       $fallbackRef := printf "%s/%s" $fallback.provider $fallback.model -}}
+{{-       if not (has $fallbackRef $enabledModels) -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] references %s but provider/model not enabled" $tierName $idx $fallbackRef) -}}
+{{-       end -}}
+{{-     end -}}
+{{-   end -}}
 {{- end -}}
 {{- $councilMap := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.council" "required" false) | mustFromJson -}}
 {{- range $name, $route := $councilMap -}}
@@ -63,6 +87,30 @@
 {{-     $ref := printf "%s/%s" $route.provider $route.model -}}
 {{-     if not (has $ref $enabledModels) -}}
 {{-       fail (printf "resolve-enabled-auth-providers: council entry %q references %s but provider/model not enabled" $name $ref) -}}
+{{-     end -}}
+{{-   end -}}
+{{-   if hasKey $route "fallbacks" -}}
+{{-     $fallbacks := get $route "fallbacks" -}}
+{{-     if not (kindIs "slice" $fallbacks) -}}
+{{-       fail (printf "resolve-enabled-auth-providers: council entry %q fallbacks must be a list" $name) -}}
+{{-     end -}}
+{{-     range $idx, $fallback := $fallbacks -}}
+{{-       if not (kindIs "map" $fallback) -}}
+{{-         fail (printf "resolve-enabled-auth-providers: council entry %q fallback[%d] must be a route map" $name $idx) -}}
+{{-       end -}}
+{{-       if hasKey $fallback "fallbacks" -}}
+{{-         fail (printf "resolve-enabled-auth-providers: council entry %q fallback[%d] cannot nest fallbacks" $name $idx) -}}
+{{-       end -}}
+{{-       if not (and (hasKey $fallback "provider") (hasKey $fallback "model")) -}}
+{{-         fail (printf "resolve-enabled-auth-providers: council entry %q fallback[%d] missing provider/model" $name $idx) -}}
+{{-       end -}}
+{{-       if eq (get $fallback "provider") "local" -}}
+{{-         fail (printf "resolve-enabled-auth-providers: council entry %q fallback[%d] cannot use local provider" $name $idx) -}}
+{{-       end -}}
+{{-       $fallbackRef := printf "%s/%s" $fallback.provider $fallback.model -}}
+{{-       if not (has $fallbackRef $enabledModels) -}}
+{{-         fail (printf "resolve-enabled-auth-providers: council entry %q fallback[%d] references %s but provider/model not enabled" $name $idx $fallbackRef) -}}
+{{-       end -}}
 {{-     end -}}
 {{-   end -}}
 {{- end -}}

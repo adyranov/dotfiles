@@ -156,9 +156,9 @@ preflight_update() {
         fi
       done
       if [ "$missing" -gt 0 ]; then
-        warn "Dependencies: $missing plugin(s) need install — startup may be slow"
+        warn "Plugins: $missing uncached (normal; opencode-agent factory startup resolves packages)"
       else
-        ok "Dependencies: cached"
+        ok "Plugins: cached"
       fi
       ;;
     omp)

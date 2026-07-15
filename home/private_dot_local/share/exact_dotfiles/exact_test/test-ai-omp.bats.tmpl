@@ -197,10 +197,16 @@ make_test_home() {
   assert_yq '.disabledProviders | length > 0' "$SECURITY_FILE"
   assert_yq '.startup.checkUpdate == false and .startup.setupWizard == false' "$SECURITY_FILE"
 {{- if eq .host.profile "personal" }}
+  # enabled providers: openai-codex, opencode-go, openrouter — must NOT be disabled
   assert_yq '(.disabledProviders | map(select(. == "openai-codex")) | length == 0) and (.disabledProviders | map(select(. == "opencode-go")) | length == 0) and (.disabledProviders | map(select(. == "openrouter")) | length == 0)' "$SECURITY_FILE"
+  # representative built-in providers that are not enabled must be disabled
+  assert_yq '(.disabledProviders | map(select(. == "anthropic")) | length == 1) and (.disabledProviders | map(select(. == "google")) | length == 1) and (.disabledProviders | map(select(. == "github-copilot")) | length == 1)' "$SECURITY_FILE"
 {{- end }}
 {{- if eq .host.profile "work" }}
-  assert_yq '(.disabledProviders | map(select(. == "github-copilot")) | length == 0) and (.disabledProviders | map(select(. == "openai-codex")) | length == 1) and (.disabledProviders | map(select(. == "opencode-go")) | length == 1) and (.disabledProviders | map(select(. == "openrouter")) | length == 1)' "$SECURITY_FILE"
+  # enabled providers: github-copilot — must NOT be disabled
+  assert_yq '(.disabledProviders | map(select(. == "github-copilot")) | length == 0)' "$SECURITY_FILE"
+  # representative built-in providers that are not enabled must be disabled
+  assert_yq '(.disabledProviders | map(select(. == "anthropic")) | length == 1) and (.disabledProviders | map(select(. == "google")) | length == 1) and (.disabledProviders | map(select(. == "openai-codex")) | length == 1)' "$SECURITY_FILE"
 {{- end }}
 }
 
@@ -234,6 +240,19 @@ make_test_home() {
   assert_jq '.credentials.secrets | length > 0' "$GREYWALL_FILE"
   assert_jq '.network.allowUnixSockets | index("~/.local/share/tmux") != null' "$GREYWALL_FILE"
   assert_jq '(.network.forwardPorts // []) | index(7437) != null' "$GREYWALL_FILE"
+}
+
+# bats test_tags=toolchain:omp,kind:greywall
+@test "omp greywall learned profile inherits allowGitConfig from base" {
+  local BASE_GREYWALL="$HOME/.config/greywall/greywall.json"
+  assert_file_exists "$GREYWALL_FILE"
+  assert_file_exists "$BASE_GREYWALL"
+  # Confirms learned profile does not override allowGitConfig (inherits from base)
+  run jq -e '(.filesystem | has("allowGitConfig") | not)' "$GREYWALL_FILE"
+  assert_success
+  # Confirms base config has the flag enabled
+  run jq -e '.filesystem.allowGitConfig == true' "$BASE_GREYWALL"
+  assert_success
 }
 
 # ── Credentials renderer ──

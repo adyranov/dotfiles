@@ -3,14 +3,17 @@ port = 8321
 
 [ai.base.models.providers.github-copilot]
 auth_keys = []
+opencode_quota = "copilot"
 
 [ai.base.models.providers.openai-codex]
-aliases = {opencode = "openai"}
 auth_keys = []
+opencode_alias = "openai"
+opencode_quota = "openai"
 
 [ai.base.models.providers.opencode-go]
 api_key_env = "OPENCODE_API_KEY"
 auth_keys = ["opencode-go"]
+opencode_quota = "opencode-go"
 
 [ai.base.models.providers.openrouter]
 api_key_env = "OPENROUTER_API_KEY"

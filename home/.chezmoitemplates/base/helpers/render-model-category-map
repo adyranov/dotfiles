@@ -5,7 +5,7 @@
     root  — chezmoi data root (required)
     field — category field to render, usually "agents" or "skills" (default: "agents")
 
-  Output: JSON dict of mappedName → {model, thinking, fallbackModels?},
+  Output: JSON dict of mappedName → {model, thinking},
   where model is "provider/model" when provider is set.
 */ -}}
 {{- $root := .root -}}
@@ -26,9 +26,6 @@
 {{-   range $name := $names -}}
 {{-     $model := includeTemplate "base/ai/render-pi-model-ref" $route -}}
 {{-     $config := dict "model" $model "thinking" $route.thinking -}}
-{{-     if hasKey $route "fallback" -}}
-{{-       $_ := set $config "fallbackModels" $route.fallback -}}
-{{-     end -}}
 {{-     $result = merge $result (dict $name $config) -}}
 {{-   end -}}
 {{- end -}}
