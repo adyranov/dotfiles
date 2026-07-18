@@ -8,31 +8,44 @@ engine = "llamacpp"
 "qwen3-coder-30b-a3b" = {name = "Qwen3 Coder 30B-A3B", reasoning = false, context_window = 32768, max_output = 8192, gguf = {repo = "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF", file = "Qwen3-Coder-30B-A3B-Instruct-UD-IQ3_XXS.gguf"}, sampling = {temperature = 0.7, top_p = 0.8, top_k = 20, min_p = 0.0, repetition_penalty = 1.05}}
 "qwen3.5-9b" = {name = "Qwen3.5 9B", reasoning = true, context_window = 65536, max_output = 8192, gguf = {repo = "unsloth/Qwen3.5-9B-GGUF", file = "Qwen3.5-9B-UD-Q6_K_XL.gguf"}, sampling = {min_p = 0.0, presence_penalty = 1.5, repetition_penalty = 1.0, temperature = 1.0, top_k = 20, top_p = 0.95}}
 
-[ai.profile.personal.models.council]
-alpha = {provider = "openai-codex", model = "gpt-5.6-sol", thinking = "high", fallbacks = [{provider = "openrouter", model = "anthropic/claude-sonnet-5", thinking = "high"}]}
-beta = {provider = "openai-codex", model = "gpt-5.6-terra", thinking = "high", fallbacks = [{provider = "openrouter", model = "z-ai/glm-5.2", thinking = "high"}]}
-gamma = {provider = "deepseek", model = "deepseek-v4-pro", thinking = "high"}
+[ai.profile.personal.models.presets]
 
-[ai.profile.personal.models.providers.deepseek]
-enabled = true
-models = ["deepseek-v4-flash", "deepseek-v4-pro"]
+[ai.profile.personal.models.presets.balanced.council]
+# 2 councillors — cross-provider fallbacks for fault tolerance
+alpha = {provider = "openai-codex", model = "gpt-5.6-terra", thinking = "high", fallbacks = [{provider = "deepseek", model = "deepseek-v4-pro", thinking = "high"}]}
+gamma = {provider = "deepseek", model = "deepseek-v4-pro", thinking = "high", fallbacks = [{provider = "openai-codex", model = "gpt-5.6-terra", thinking = "high"}]}
 
-[ai.profile.personal.models.providers.openai-codex]
-enabled = true
-models = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+[ai.profile.personal.models.presets.balanced.tiers]
+small = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "off", fallbacks = [{provider = "deepseek", model = "deepseek-v4-flash", thinking = "off"}]}
+medium = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "high", fallbacks = [{provider = "deepseek", model = "deepseek-v4-flash", thinking = "high"}]}
+big = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "high", fallbacks = [{provider = "deepseek", model = "deepseek-v4-pro", thinking = "high"}]}
+oracle = {provider = "openai-codex", model = "gpt-5.6-terra", thinking = "high", fallbacks = [{provider = "deepseek", model = "deepseek-v4-pro", thinking = "max"}]}
+visual = {provider = "openai-codex", model = "gpt-5.6-terra", thinking = "medium", fallbacks = [{provider = "deepseek", model = "deepseek-v4-pro", thinking = "medium"}]}
 
-[ai.profile.personal.models.providers.opencode-go]
-enabled = true
-models = ["deepseek-v4-flash"]
+[ai.profile.personal.models.presets.deepseek.council]
+alpha = {provider = "deepseek", model = "deepseek-v4-pro", thinking = "high"}
+gamma = {provider = "deepseek", model = "deepseek-v4-flash", thinking = "high"}
 
-[ai.profile.personal.models.providers.openrouter]
-enabled = true
-models = ["anthropic/claude-sonnet-5", "google/gemini-3-flash", "z-ai/glm-5.2"]
+[ai.profile.personal.models.presets.deepseek.tiers]
+small = {provider = "deepseek", model = "deepseek-v4-flash", thinking = "off"}
+medium = {provider = "deepseek", model = "deepseek-v4-flash", thinking = "high"}
+big = {provider = "deepseek", model = "deepseek-v4-pro", thinking = "high"}
+oracle = {provider = "deepseek", model = "deepseek-v4-pro", thinking = "max"}
+visual = {provider = "deepseek", model = "deepseek-v4-pro", thinking = "medium"}
 
-[ai.profile.personal.models.tiers]
-default = "medium"
-small = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "off", fallbacks = [{provider = "deepseek", model = "deepseek-v4-flash", thinking = "off"}, {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "off"}]}
-medium = {provider = "opencode-go", model = "deepseek-v4-flash", thinking = "high", fallbacks = [{provider = "deepseek", model = "deepseek-v4-flash", thinking = "high"}, {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "medium"}]}
-big = {provider = "openai-codex", model = "gpt-5.6-terra", thinking = "medium", fallbacks = [{provider = "deepseek", model = "deepseek-v4-pro", thinking = "high"}]}
-oracle = {provider = "openai-codex", model = "gpt-5.6-sol", thinking = "high", fallbacks = [{provider = "deepseek", model = "deepseek-v4-pro", thinking = "max"}]}
-visual = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "low", fallbacks = [{provider = "openrouter", model = "google/gemini-3-flash", thinking = "low"}]}
+[ai.profile.personal.models.presets.openai.council]
+alpha = {provider = "openai-codex", model = "gpt-5.6-terra", thinking = "high"}
+gamma = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "high"}
+
+[ai.profile.personal.models.presets.openai.tiers]
+small = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "off"}
+medium = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "medium"}
+big = {provider = "openai-codex", model = "gpt-5.6-luna", thinking = "high"}
+oracle = {provider = "openai-codex", model = "gpt-5.6-terra", thinking = "high"}
+visual = {provider = "openai-codex", model = "gpt-5.6-terra", thinking = "medium"}
+
+[ai.profile.personal.models.providers]
+deepseek = {enabled = true, models = ["deepseek-v4-flash", "deepseek-v4-pro"]}
+openai-codex = {enabled = true, models = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]}
+opencode-go = {enabled = true, models = ["deepseek-v4-flash"]}
+openrouter = {enabled = true, models = ["anthropic/claude-sonnet-5", "z-ai/glm-5.2"]}

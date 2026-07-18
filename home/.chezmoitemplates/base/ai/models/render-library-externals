@@ -1,0 +1,91 @@
+{{- /* Render shared AI library externals. */ -}}
+{{- $libraries := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.libraries" "required" true) | mustFromJson -}}
+{{- $repositories := get $libraries "repositories" | default dict -}}
+
+{{- $skills := get $libraries "skills" | default dict -}}
+{{- range $alias, $skill := $skills -}}
+{{-   $repo := includeTemplate "base/ai/models/render-library-repo" (dict "entry" $skill "repositories" $repositories "label" (printf "skills.%s" $alias)) -}}
+{{-   $type := get $skill "type" | default "archive" -}}
+{{-   if eq $type "file" -}}
+{{-     $source := get $skill "source" | default "" -}}
+{{-     if not $source -}}{{- fail (printf "skills.%s: source is required for file type" $alias) -}}{{- end -}}
+{{ includeTemplate "base/github/external" (dict
+    "type" "file"
+    "target" (printf "libraries/skills/%s/%s/SKILL.md" $alias $alias)
+    "repo" $repo
+    "source" $source
+    "exact" true) }}
+{{-   else if eq $type "archive" -}}
+{{-     $prefix := get $skill "prefix" | default "skills" -}}
+{{-     $includes := get $skill "include" | default list -}}
+{{-     $excludes := get $skill "exclude" | default list -}}
+{{-     $hasIncludes := gt (len $includes) 0 -}}
+{{-     if $hasIncludes -}}
+{{-       range $sub := $includes -}}
+{{ includeTemplate "base/github/external" (dict
+    "type" "archive"
+    "target" (printf "libraries/skills/%s/%s" $alias $sub)
+    "repo" $repo
+    "stripComponents" (add (len (splitList "/" $prefix)) 2)
+    "include" (list (printf "*/%s/%s/**" $prefix $sub))
+    "exact" true) }}
+{{-       end -}}
+{{-     else -}}
+{{-       $excludePatterns := list -}}
+{{-       range $ex := $excludes -}}
+{{-         $excludePatterns = append $excludePatterns (printf "*/%s/%s/**" $prefix $ex) -}}
+{{-       end -}}
+{{-       $archiveArgs := dict
+    "type" "archive"
+    "target" (printf "libraries/skills/%s" $alias)
+    "repo" $repo
+    "stripComponents" (add (len (splitList "/" $prefix)) 1)
+    "include" (list (printf "*/%s/**" $prefix))
+    "exact" true
+-}}
+{{-       if gt (len $excludePatterns) 0 -}}
+{{-         $_ := set $archiveArgs "exclude" $excludePatterns -}}
+{{-       end -}}
+{{ includeTemplate "base/github/external" $archiveArgs }}
+{{-     end -}}
+{{-   else -}}
+{{-     fail (printf "skills.%s: unsupported type %q" $alias $type) -}}
+{{-   end -}}
+{{- end -}}
+
+{{- range $kind := list "commands" "extensions" -}}
+{{-   $entries := get $libraries $kind | default dict -}}
+{{-   range $alias, $entry := $entries -}}
+{{-     $label := printf "%s.%s" $kind $alias -}}
+{{-     $repo := includeTemplate "base/ai/models/render-library-repo" (dict "entry" $entry "repositories" $repositories "label" $label) -}}
+{{-     $targetRoot := printf "libraries/%s/%s" $kind $alias -}}
+{{-     $hasFiles := hasKey $entry "files" -}}
+{{-     $hasSource := hasKey $entry "source" -}}
+{{-     if and $hasFiles $hasSource -}}{{- fail (printf "%s: use files or source, not both" $label) -}}{{- end -}}
+{{-     if $hasFiles -}}
+{{ includeTemplate "base/ai/models/render-library-archive" (dict
+    "repo" $repo
+    "target" $targetRoot
+    "prefix" (get $entry "prefix")
+    "files" (get $entry "files")
+    "label" $label) }}
+{{-     else if $hasSource -}}
+{{-       $source := get $entry "source" | default "" -}}
+{{-       if not $source -}}{{- fail (printf "%s: source cannot be empty" $label) -}}{{- end -}}
+{{-       $target := get $entry "target" | default "" -}}
+{{-       if not $target -}}
+{{-         $filename := index (splitList "/" $source) (sub (len (splitList "/" $source)) 1) -}}
+{{-         if eq $kind "commands" -}}{{- $filename = printf "%s.md" $alias -}}{{- end -}}
+{{-         $target = printf "%s/%s" $targetRoot $filename -}}
+{{-       end -}}
+{{ includeTemplate "base/github/external" (dict
+    "type" "file"
+    "target" $target
+    "repo" $repo
+    "source" $source
+    "exact" true) }}
+{{-     else -}}
+{{-       fail (printf "%s: files or source is required" $label) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}

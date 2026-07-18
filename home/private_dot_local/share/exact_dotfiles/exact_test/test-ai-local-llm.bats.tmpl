@@ -12,7 +12,7 @@ setup() {
 
 {{- if .toolchains.ai }}
 {{- $catalog := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.catalog" "required" true) | mustFromJson }}
-{{- $resolved := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson }}
+{{- $resolved := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson }}
 {{- $swapConfig := "$HOME/.config/llama-swap/config.yaml" }}
 {{- $llamaCppPreset := "$HOME/.config/llama.cpp/models.ini" }}
 {{- $modelsJson := "$HOME/.config/pi/agent/models.json" }}
@@ -210,8 +210,8 @@ setup() {
   assert_success
 }
 {{ if .toolchains.pi }}
-{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
-{{- $enabledAuth := includeTemplate "base/ai/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson -}}
+{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
+{{- $enabledAuth := includeTemplate "base/ai/auth/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson -}}
 {{- $hasExplicitEnabled := $enabledAuth.has_enabled_data -}}
 
 # bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model

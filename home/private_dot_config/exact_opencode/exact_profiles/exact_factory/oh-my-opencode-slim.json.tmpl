@@ -1,2 +1,103 @@
 {{- /* oh-my-opencode-slim plugin config for factory profile */ -}}
-{{ includeTemplate "base/ai/render-opencode-slim-config" (dict "root" .) }}
+{{- /* Render oh-my-opencode-slim plugin config from managed tier data */ -}}
+{{- $root := . -}}
+
+{{- $presetsConfig := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.presets" "required" true) | mustFromJson -}}
+
+{{- /* Mapping: slim agent to tier */ -}}
+{{- $agentMap := dict
+  "orchestrator" "big"
+  "oracle" "oracle"
+  "librarian" "small"
+  "explorer" "small"
+  "designer" "visual"
+  "fixer" "medium"
+-}}
+
+{{- /* MCP/skills per agent */ -}}
+{{- $engramMcps := list "engram" -}}
+{{- $librarianMcps := list "websearch" "context7" "gh_grep" -}}
+{{- $emptyMcps := list -}}
+{{- $orchestratorSkills := list "deepwork" "reflect" "loop-engineering" "oh-my-opencode-slim" "worktrees" "ce-brainstorm" "ce-ideate" "ce-plan" -}}
+{{- $oracleSkills := list "simplify" "ce-pov" "ce-doc-review" "ce-code-review" -}}
+{{- $designerSkills := list "ce-polish" "ce-test-browser" -}}
+{{- $fixerSkills := list "ce-work" "ce-debug" "ce-simplify-code" "ce-resolve-pr-feedback" -}}
+{{- $emptySkills := list -}}
+
+{{- /*  Build per-preset agent configs  */ -}}
+{{- $allPresets := dict -}}
+{{- $allCouncilPresets := dict -}}
+{{- $activePreset := "balanced" -}}
+{{- $council := dict "default_preset" "balanced" "presets" (dict) -}}
+{{-   $activePreset = get $presetsConfig "default" | default "balanced" -}}
+{{-   range $presetName, $_ := $presetsConfig -}}
+{{-     if eq $presetName "default" -}}{{- continue -}}{{- end -}}
+{{-     $presetData := index $presetsConfig $presetName -}}
+{{-     $tiers := index $presetData "tiers" -}}
+{{-     $councilMap := index $presetData "council" -}}
+{{-     $presetAgents := dict -}}
+{{-     range $agent, $tier := $agentMap -}}
+{{-       $route := index $tiers $tier -}}
+{{-       if not $route -}}
+{{-         fail (printf "render-opencode-slim-config: preset %q has no route for tier %q (mapped by slim agent %q)" $presetName $tier $agent) -}}
+{{-       end -}}
+{{-       $models := includeTemplate "base/ai/models/render-route-model-list" (dict "route" $route "root" $root "label" $agent) | mustFromJson -}}
+{{-       $cfg := dict "model" $models -}}
+
+{{-       if eq $agent "orchestrator" -}}
+{{-         $_ := set $cfg "mcps" $engramMcps -}}
+{{-         $_ := set $cfg "skills" $orchestratorSkills -}}
+{{-       else if eq $agent "oracle" -}}
+{{-         $_ := set $cfg "mcps" $engramMcps -}}
+{{-         $_ := set $cfg "skills" $oracleSkills -}}
+{{-       else if eq $agent "librarian" -}}
+{{-         $_ := set $cfg "mcps" $librarianMcps -}}
+{{-         $_ := set $cfg "skills" $emptySkills -}}
+{{-       else if eq $agent "designer" -}}
+{{-         $_ := set $cfg "mcps" $emptyMcps -}}
+{{-         $_ := set $cfg "skills" $designerSkills -}}
+{{-       else if eq $agent "fixer" -}}
+{{-         $_ := set $cfg "mcps" $emptyMcps -}}
+{{-         $_ := set $cfg "skills" $fixerSkills -}}
+{{-       else -}}
+{{-         $_ := set $cfg "mcps" $emptyMcps -}}
+{{-         $_ := set $cfg "skills" $emptySkills -}}
+{{-       end -}}
+
+{{-       $_ := set $presetAgents $agent $cfg -}}
+{{-     end -}}
+
+{{- /*  Build council councillors for this preset  */ -}}
+{{-     $councillors := dict -}}
+{{-     range $name, $route := $councilMap -}}
+{{-       if not (kindIs "map" $route) -}}{{- continue -}}{{- end -}}
+{{-       if not (and (hasKey $route "provider") (hasKey $route "model")) -}}
+{{-         fail (printf "render-opencode-slim-config: council entry %q missing provider/model" $name) -}}
+{{-       end -}}
+{{-       $models := includeTemplate "base/ai/models/render-route-model-list" (dict "route" $route "root" $root "label" (printf "council.%s" $name)) | mustFromJson -}}
+{{-       $cfg := dict "model" $models -}}
+{{-       $_ := set $councillors $name $cfg -}}
+{{-     end -}}
+{{-     if eq (len $councillors) 0 -}}
+{{-       fail (printf "render-opencode-slim-config: preset %q has no council councillors" $presetName) -}}
+{{-     end -}}
+
+{{-     $_ := set $allPresets $presetName $presetAgents -}}
+{{-     $_ := set $allCouncilPresets $presetName $councillors -}}
+{{-   end -}}
+{{-   $council = dict "default_preset" $activePreset "presets" $allCouncilPresets -}}
+
+
+{{- $multiplexer := dict "type" "auto" "layout" "main-vertical" "main_pane_size" 60 -}}
+
+{{- $result := dict
+  "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"
+  "preset" $activePreset
+  "setDefaultAgent" true
+  "autoUpdate" true
+  "multiplexer" $multiplexer
+  "presets" $allPresets
+  "council" $council
+-}}
+
+{{- $result | toPrettyJson -}}

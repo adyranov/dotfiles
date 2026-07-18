@@ -1,0 +1,19 @@
+{{- $t := .task -}}
+
+run: |
+  set -euxo pipefail
+  TP_SIZE="$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l | tr -d ' ')"
+  sglang serve \
+    --model-path {{ $t.model }} \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --context-length {{ $t.max_model_len }} \
+    --mem-fraction-static {{ $t.gpu_memory_utilization }} \
+    --tp-size "$TP_SIZE" \
+{{- if hasKey $t "sglang_args" }}{{ range $arg := $t.sglang_args }}
+    {{ $arg }} \
+{{- end }}{{ end }}
+{{- if get $t "trust_remote_code" | default false }}
+    --trust-remote-code \
+{{- end }}
+    2>&1 | tee ~/server.log

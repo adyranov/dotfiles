@@ -1,10 +1,12 @@
 {{- /* format/mise — Outputs TOML tool entries for mise.toml.
-  Args (dict): packages — dict of id → package info. */ -}}
+  Args (dict): packages — dict of id → package info.
+  Supports `extras` field for pipx packages. */ -}}
 {{- $packages := .packages -}}
 {{- range $id := sortAlpha (keys $packages) }}
     {{- $pkg := index $packages $id }}
     {{- $name := index $pkg "package" }}
     {{- $version := index $pkg "pin" | default "latest" }}
+    {{- $extras := index $pkg "extras" | default "" }}
     {{- $platforms := index $pkg "platforms" }}
     {{- if gt (len $platforms) 0 }}
     {{- $platformParts := list -}}
@@ -17,6 +19,8 @@
         {{- $platformParts = append $platformParts (printf "%s = {%s}" $platform ($optParts | join ", ")) -}}
     {{- end }}
 "{{ $name }}" = {version = "{{ $version }}", platforms = { {{- $platformParts | join ", " -}} }}
+    {{- else if ne $extras "" }}
+'{{ $name }}' = {version = '{{ $version }}', extras = '{{ $extras }}'}
     {{- else }}
 '{{ $name }}' = '{{ $version }}'
     {{- end }}

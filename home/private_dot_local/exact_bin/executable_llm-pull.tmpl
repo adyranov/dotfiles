@@ -1,5 +1,5 @@
 {{- $catalog := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.catalog" "required" true) | mustFromJson -}}
-{{- $resolved := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- $resolved := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson -}}
 {{- $profile := get $catalog "local" | default dict -}}
 #!/usr/bin/env sh
 # llm-pull — Download local LLM weights configured in this chezmoi profile.

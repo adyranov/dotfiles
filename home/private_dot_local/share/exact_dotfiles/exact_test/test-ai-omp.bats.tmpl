@@ -14,9 +14,9 @@ setup() {
 
 {{- if (get .toolchains "omp" | default false) }}
 
-{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
-{{- $creds := includeTemplate "base/ai/render-credentials" . | mustFromJson }}
-{{- $ompCreds := includeTemplate "base/ai/render-credentials" (dict "root" . "agent" "omp") | mustFromJson }}
+{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
+{{- $creds := includeTemplate "base/ai/auth/render-credentials" . | mustFromJson }}
+{{- $ompCreds := includeTemplate "base/ai/auth/render-credentials" (dict "root" . "agent" "omp") | mustFromJson }}
 
 # ── Helpers ──
 

@@ -8,3 +8,15 @@ common_setup() {
   # shellcheck source=/dev/null
   source "$HOME"/.config/shell/exports.sh
 }
+
+# Parse strict JSON and JSONC with one test command. JSONC comments are only
+# stripped at line start; generated configs keep comments on their own lines.
+jsoncJq() {
+  local file="${!#}"
+  if [[ $file == *.jsonc ]]; then
+    local -a args=("${@:1:$#-1}")
+    sed -E '/^[[:space:]]*\/\//d' "$file" | jq "${args[@]}"
+  else
+    jq "$@"
+  fi
+}

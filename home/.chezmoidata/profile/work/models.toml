@@ -9,24 +9,20 @@ omlx_memory_guard_gb = 21
 "qwen3-coder-30b-a3b" = {name = "Qwen 3 Coder 30B-A3B", reasoning = false, context_window = 32768, max_output = 4096, gguf = {repo = "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF", file = "Qwen3-Coder-30B-A3B-Instruct-UD-IQ3_XXS.gguf"}, mlx = {repo = "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit"}, sampling = {min_p = 0.0, repetition_penalty = 1.05, temperature = 0.4, top_k = 20, top_p = 0.9}}
 "qwen3.5-9b" = {name = "Qwen3.5 9B", reasoning = true, context_window = 65536, max_output = 4096, mlx = {repo = "mlx-community/Qwen3.5-9B-OptiQ-4bit"}, sampling = {min_p = 0.0, presence_penalty = 0.0, repetition_penalty = 1.0, temperature = 0.6, top_k = 20, top_p = 0.95}}
 
-[ai.profile.work.models.council]
+[ai.profile.work.models.presets]
+
+[ai.profile.work.models.presets.balanced.council]
+# councillors — 3 for work (has github-copilot diversity)
 alpha = {provider = "github-copilot", model = "claude-opus-4.8", thinking = "high"}
 beta = {provider = "github-copilot", model = "claude-sonnet-5", thinking = "high"}
 gamma = {provider = "github-copilot", model = "gpt-5.4-mini", thinking = "high"}
 
-[ai.profile.work.models.providers.github-copilot]
-enabled = true
-models = [
-  "claude-opus-4.8",
-  "claude-sonnet-5",
-  "gemini-3-flash",
-  "gpt-5.4-mini"
-]
-
-[ai.profile.work.models.tiers]
-default = "medium"
+[ai.profile.work.models.presets.balanced.tiers]
 small = {provider = "github-copilot", model = "gpt-5.4-mini", thinking = "low"}
 medium = {provider = "github-copilot", model = "claude-sonnet-5", thinking = "medium"}
 big = {provider = "github-copilot", model = "claude-sonnet-5", thinking = "high"}
 oracle = {provider = "github-copilot", model = "claude-opus-4.8", thinking = "high"}
 visual = {provider = "github-copilot", model = "gemini-3-flash", thinking = "low"}
+
+[ai.profile.work.models.providers]
+github-copilot = {enabled = true, models = ["claude-opus-4.8", "claude-sonnet-5", "gemini-3-flash", "gpt-5.4-mini"]}

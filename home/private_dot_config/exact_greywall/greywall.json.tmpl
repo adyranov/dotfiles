@@ -1,12 +1,12 @@
 {{- /* Greywall kernel sandbox config — derived from shared AI path policy and package command policy.
   Level 1 (sandbox): deny-all default with allow + deny lists.
-  Level 2 (agent permissions): handled by pi-permission-system / opencode.json permission object. */ -}}
-{{- $cmdPolicies := includeTemplate "base/ai/collect-policies" (dict "root" .) | mustFromJson -}}
+  Level 2 (agent permissions): handled by pi-permission-system / opencode.jsonc permission object. */ -}}
+{{- $cmdPolicies := includeTemplate "base/ai/security/collect-policies" (dict "root" .) | mustFromJson -}}
 {{- $cmdDeny := index $cmdPolicies "deny" | default list -}}
 {{- $greyproxy := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.sandbox.greyproxy" "required" true) | mustFromJson) -}}
-{{- $fs := (includeTemplate "base/ai/render-greywall-fs" (dict "root" .) | mustFromJson) -}}
-{{- $networkRules := (includeTemplate "base/ai/render-network-rules" (dict "root" .) | mustFromJson) -}}
-{{- $creds := (includeTemplate "base/ai/render-credentials" . | mustFromJson) -}}
+{{- $fs := (includeTemplate "base/ai/security/render-greywall-fs" (dict "root" .) | mustFromJson) -}}
+{{- $networkRules := (includeTemplate "base/ai/security/render-network-rules" (dict "root" .) | mustFromJson) -}}
+{{- $creds := (includeTemplate "base/ai/auth/render-credentials" . | mustFromJson) -}}
 {{- $netPolicy := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.network" "required" false) | mustFromJson) -}}
 {{- $localhost := index $netPolicy "localhost" | default dict -}}
 {{- $network := dict

@@ -1,42 +1,33 @@
 [packages.base.ai]
-
-[packages.base.ai.aiperf]
-manager = "mise"
-package = "pipx:aiperf"
-version = "aiperf --help"
-
-[packages.base.ai.engram]
-bin = "engram"
-manager = "mise"
-package = "github:Gentleman-Programming/engram"
-version = "engram version"
-
-[packages.base.ai.engram.platforms]
-linux-arm64 = {asset_pattern = "engram_*_linux_arm64.tar.gz"}
-linux-x64 = {asset_pattern = "engram_*_linux_amd64.tar.gz"}
-macos-arm64 = {asset_pattern = "engram_*_darwin_arm64.tar.gz"}
-macos-x64 = {asset_pattern = "engram_*_darwin_amd64.tar.gz"}
-
-[packages.base.ai.hf]
-completion = {generate = "env _HF_COMPLETE=source_zsh hf"}
-manager = "mise"
-package = "pipx:huggingface_hub"
-version = "hf version"
-
-[packages.base.ai.hf.policy]
-deny = [
-  "hf auth *",
-  "hf repo create *",
-  "hf repo delete *",
-  "hf repo upload *",
-  "hf upload *"
-]
-
-[packages.base.ai.llamacpp]
-bin = "llama-server"
-manager = "mise"
-package = "github:ggml-org/llama.cpp"
-
-[packages.base.ai.rtk]
-manager = "mise"
-package = "github:rtk-ai/rtk"
+aiperf = {manager = "mise", package = "pipx:aiperf", version = "aiperf --help"}
+engram = {bin = "engram", manager = "mise", package = "github:Gentleman-Programming/engram", version = "engram version", platforms = {linux-arm64 = {asset_pattern = "engram_*_linux_arm64.tar.gz"}, linux-x64 = {asset_pattern = "engram_*_linux_amd64.tar.gz"}, macos-arm64 = {asset_pattern = "engram_*_darwin_arm64.tar.gz"}, macos-x64 = {asset_pattern = "engram_*_darwin_amd64.tar.gz"}}}
+hf = {completion = {generate = "env _HF_COMPLETE=zsh_source hf"}, manager = "mise", package = "pipx:huggingface_hub", version = "hf version", policy = {deny = ["hf auth *", "hf repo create *", "hf repo delete *", "hf repo upload *", "hf upload *"]}}
+llamacpp = {bin = "llama-server", manager = "mise", package = "github:ggml-org/llama.cpp"}
+rtk = {manager = "mise", package = "github:rtk-ai/rtk"}
+runpod = {manager = "mise", package = "pipx:runpod", test = "runpod --help", completion = {generate = "env _RUNPOD_COMPLETE=zsh_source runpod"}, policy = {deny = [
+  "runpod pod create *",
+  "runpod pod sync *",
+  "runpod project start *",
+  "runpod project deploy *",
+  "runpod ssh add-key *",
+  "runpod exec *"
+]}}
+skypilot = {bin = "sky", completion = {generate = "env _SKY_COMPLETE=zsh_source sky"}, manager = "mise", package = "pipx:skypilot", extras = "runpod,vast,lambda", policy = {deny = [
+  "sky check",
+  "sky down *",
+  "sky exec * --secret *",
+  "sky jobs cancel *",
+  "sky jobs launch *",
+  "sky jobs launch * --secret *",
+  "sky jobs pool apply *",
+  "sky jobs pool down *",
+  "sky launch *",
+  "sky launch * --secret *",
+  "sky logs * --sync-down *",
+  "sky serve down *",
+  "sky serve up *",
+  "sky start *",
+  "sky storage delete *",
+  "sky volumes apply *",
+  "sky volumes delete *"
+]}}

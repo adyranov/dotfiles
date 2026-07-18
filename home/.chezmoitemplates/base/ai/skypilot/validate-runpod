@@ -1,0 +1,19 @@
+{{- /* Validates RunPod volume and infrastructure configuration for SkyPilot tasks */ -}}
+{{- $runpod := .runpod | default dict -}}
+{{- $caller := .caller | default "validate-runpod" -}}
+{{- if $runpod.enabled -}}
+  {{- $volName := $runpod.volume_name | default "" -}}
+  {{- $infra := $runpod.infra | default "" -}}
+  {{- if or (not $volName) (eq $volName "") (eq $volName "REPLACE_ME") -}}
+    {{- fail (printf "base/ai/skypilot/%s: skypilot.runpod.volume_name must be set to a real RunPod Network Volume name when enabled" $caller) -}}
+  {{- end -}}
+  {{- if gt (len $volName) 30 -}}
+    {{- fail (printf "base/ai/skypilot/%s: skypilot.runpod.volume_name exceeds 30 character maximum" $caller) -}}
+  {{- end -}}
+  {{- if or (not $infra) (eq $infra "") (eq $infra "runpod/REPLACE_ZONE") -}}
+    {{- fail (printf "base/ai/skypilot/%s: skypilot.runpod.infra must be set to a real RunPod zone (e.g. runpod/US-TX) when enabled" $caller) -}}
+  {{- end -}}
+  {{- if ne ($runpod.mount_path | default "") "/workspace" -}}
+    {{- fail (printf "base/ai/skypilot/%s: skypilot.runpod.mount_path must be /workspace because model paths are rooted there" $caller) -}}
+  {{- end -}}
+{{- end -}}

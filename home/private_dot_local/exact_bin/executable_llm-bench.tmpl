@@ -1,4 +1,4 @@
-{{- $local := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- $local := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson -}}
 {{- $omlx := eq $local.engine "omlx" -}}
 #!/usr/bin/env sh
 # llm-bench — Benchmark local LLMs using native engine tools (no server required).

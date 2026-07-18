@@ -1,0 +1,53 @@
+{{- /*
+  Resolve a model tier route into a JSON list of {id, variant?} entries.
+
+  Args (dict):
+    route  — tier/council route map with provider, model, thinking, fallbacks
+    root   — chezmoi root data
+    label  — human label for error messages (e.g. "orchestrator", "council.alpha")
+
+  Returns: JSON array of model entries, e.g. [{"id":"openai/gpt-5","variant":"high"}]
+*/ -}}
+{{- $route := .route -}}
+{{- $root := .root -}}
+{{- $label := .label | default "unknown" -}}
+{{- $models := list -}}
+
+{{- $rawFallbacks := get $route "fallbacks" | default list -}}
+{{- $allRoutes := concat (list $route) $rawFallbacks -}}
+
+{{- range $idx, $r := $allRoutes -}}
+{{-   $isFallback := gt $idx 0 -}}
+{{-   if $isFallback -}}
+{{-     $fbIdx := sub $idx 1 -}}
+{{-     if not (kindIs "map" $r) -}}
+{{-       fail (printf "render-route-model-list: %s fallback[%d] is not a map" $label $fbIdx) -}}
+{{-     end -}}
+{{-     if not (and (hasKey $r "provider") (hasKey $r "model")) -}}
+{{-       fail (printf "render-route-model-list: %s fallback[%d] missing provider/model" $label $fbIdx) -}}
+{{-     end -}}
+{{-     if hasKey $r "fallbacks" -}}
+{{-       fail (printf "render-route-model-list: %s fallback[%d] has nested fallbacks" $label $fbIdx) -}}
+{{-     end -}}
+{{-     if eq (get $r "provider") "local" -}}
+{{-       fail (printf "render-route-model-list: %s fallback[%d] uses provider=local" $label $fbIdx) -}}
+{{-     end -}}
+{{-   end -}}
+
+{{-   $id := includeTemplate "base/ai/agents/opencode/render-opencode-model-id" (dict "route" $r "root" $root) -}}
+{{-   if not $id -}}
+{{-     if $isFallback -}}
+{{-       fail (printf "render-route-model-list: %s fallback[%d] resolved to empty ID" $label (sub $idx 1)) -}}
+{{-     else -}}
+{{-       fail (printf "render-route-model-list: %s primary route resolved to empty ID" $label) -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $entry := dict "id" $id -}}
+{{-   if hasKey $r "thinking" -}}
+{{-     if ne $r.thinking "off" -}}
+{{-       $_ := set $entry "variant" $r.thinking -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $models = append $models $entry -}}
+{{- end -}}
+{{- $models | toJson -}}

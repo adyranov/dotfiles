@@ -1,0 +1,31 @@
+{{- $t := .task -}}
+{{- $hasFlags := hasKey $t "run_flags" -}}
+{{- if hasKey $t "downloads" }}
+
+setup: |
+  set -euxo pipefail
+  {{- range $dl := $t.downloads }}
+
+  mkdir -p /workspace/ComfyUI/models/{{ $dl.target_dir }}
+  if [ ! -f "/workspace/ComfyUI/models/{{ $dl.target_dir }}/{{ $dl.target_file }}" ]; then
+    hf download {{ $dl.repo }} {{ $dl.file }} \
+      --local-dir /workspace/ComfyUI/models/{{ $dl.target_dir }}
+    src="/workspace/ComfyUI/models/{{ $dl.target_dir }}/{{ $dl.file }}"
+    dst="/workspace/ComfyUI/models/{{ $dl.target_dir }}/{{ $dl.target_file }}"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+  {{- end }}
+{{- end }}
+
+run: |
+  set -euxo pipefail
+  cd /workspace/ComfyUI
+  python main.py \
+    --listen 127.0.0.1 \
+    --port 8188 \
+{{- if $hasFlags }}{{ range $flag := $t.run_flags }}
+    {{ $flag }} \
+{{- end }}{{ end }}
+    2>&1 | tee ~/server.log

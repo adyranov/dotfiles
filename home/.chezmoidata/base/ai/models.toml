@@ -1,82 +1,20 @@
+[ai.base.models.catalog]
+
 [ai.base.models.catalog.local]
 port = 8321
 
-[ai.base.models.providers.deepseek]
-api_key_env = "DEEPSEEK_API_KEY"
-auth_keys = ["deepseek"]
+# Tier descriptions (actual model routes set in profile presets):
+# small  — Fast lookup, search, and discovery.
+# medium — Implementation, revision, and bookkeeping.
+# big    — Planning, review, deep analysis, and architecture.
+# oracle — Rare escalation, adjudication, and final review.
+# visual — Visual and frontend design.
+[ai.base.models.presets]
+default = "balanced"
 
-[ai.base.models.providers.github-copilot]
-auth_keys = []
-opencode_quota = "copilot"
-
-[ai.base.models.providers.openai-codex]
-auth_keys = []
-opencode_alias = "openai"
-opencode_quota = "openai"
-
-[ai.base.models.providers.opencode-go]
-api_key_env = "OPENCODE_API_KEY"
-auth_keys = ["opencode-go"]
-
-[ai.base.models.providers.openrouter]
-api_key_env = "OPENROUTER_API_KEY"
-auth_keys = ["openrouter"]
-
-[ai.base.models.tiers]
-default = "medium"
-
-[ai.base.models.tiers.big]
-description = "Planning, review, deep analysis, and architecture."
-agents = [
-  "artifact-code-reviewer",
-  "artifact-coverage-reviewer",
-  "artifacts-analyzer",
-  "claim-verifier",
-  "codebase-analyzer",
-  "codebase-pattern-finder",
-  "diff-auditor",
-  "integration-scanner",
-  "peer-comparator",
-  "scope-tracer",
-  "slice-verifier"
-]
-skills = [
-  "annotate-guidance",
-  "architecture-review",
-  "blueprint",
-  "code-review",
-  "design",
-  "plan",
-  "pr-triage",
-  "validate"
-]
-
-[ai.base.models.tiers.medium]
-description = "Implementation, revision, and bookkeeping."
-skills = [
-  "annotate-inline",
-  "changelog",
-  "commit",
-  "create-handoff",
-  "implement",
-  "migrate-to-guidance",
-  "resume-handoff",
-  "revise"
-]
-
-[ai.base.models.tiers.oracle]
-description = "Rare escalation, adjudication, and final review."
-
-[ai.base.models.tiers.small]
-description = "Fast lookup, search, and discovery."
-agents = [
-  "artifacts-locator",
-  "codebase-locator",
-  "precedent-locator",
-  "web-search-researcher"
-]
-skills = ["discover", "explore", "research"]
-
-[ai.base.models.tiers.visual]
-description = "Visual and frontend design."
-skills = ["frontend-design"]
+[ai.base.models.providers]
+deepseek = {api_key_env = "DEEPSEEK_API_KEY", auth_keys = ["deepseek"]}
+github-copilot = {opencode_quota = "copilot"}
+openai-codex = {opencode_alias = "openai", opencode_quota = "openai"}
+opencode-go = {api_key_env = "OPENCODE_API_KEY", auth_keys = ["opencode-go"]}
+openrouter = {api_key_env = "OPENROUTER_API_KEY", auth_keys = ["openrouter"]}

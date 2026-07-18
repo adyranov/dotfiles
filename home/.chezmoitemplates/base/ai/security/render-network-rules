@@ -1,0 +1,60 @@
+{{- /* render-network-rules — Build sorted, deduped Greywall network rules from base + optional agent overlay.
+  Usage: {{ includeTemplate "base/ai/security/render-network-rules" (dict "root" .) | mustFromJson }}
+  Or with agent overlay: {{ includeTemplate "base/ai/security/render-network-rules" (dict "root" . "agent" "pi") | mustFromJson }}
+  Output: JSON array of { destination, port, action }.
+  Default port = 443 (owned by this helper; data files must not repeat it).
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $agent := dig "agent" "" . -}}
+{{- $networkPolicy := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.network" "required" false) | mustFromJson) -}}
+{{- $defaultPort := "443" -}}
+{{- $networkEntries := list -}}
+{{- range $hosts := (index $networkPolicy "hosts" | default dict) -}}
+{{-   range $host := $hosts -}}
+{{-     $networkEntries = append $networkEntries (dict "host" $host "port" $defaultPort) -}}
+{{-   end -}}
+{{- end -}}
+{{- range (index $networkPolicy "allow" | default list) -}}
+{{-   $networkEntries = append $networkEntries (dict "host" .host "port" (.port | toString)) -}}
+{{- end -}}
+{{- /* Merge agent-specific overlay if requested */ -}}
+{{- if ne $agent "" -}}
+{{-   $agentSection := printf "ai.agents.%s.sandbox.network" $agent -}}
+{{-   $agentNetwork := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" $agentSection "required" false) | mustFromJson) -}}
+{{-   range $host := (index $agentNetwork "hosts" | default list) -}}
+{{-     $networkEntries = append $networkEntries (dict "host" $host "port" $defaultPort) -}}
+{{-   end -}}
+{{-   range (index $agentNetwork "allow" | default list) -}}
+{{-     $networkEntries = append $networkEntries (dict "host" .host "port" (.port | toString)) -}}
+{{-   end -}}
+{{- end -}}
+{{- /* Build sorted, deduped rules */ -}}
+{{- $networkRuleMap := dict -}}
+{{- range $entry := $networkEntries -}}
+{{-   $host := $entry.host -}}
+{{-   $port := $entry.port -}}
+{{-   $baseHost := trimPrefix "*." $host -}}
+{{-   $parts := splitList "." $baseHost -}}
+{{-   $partCount := len $parts -}}
+{{-   $sld := "" -}}
+{{-   if ge $partCount 2 -}}
+{{-     $sld = index $parts (sub $partCount 2) -}}
+{{-   else -}}
+{{-     $sld = index $parts 0 -}}
+{{-   end -}}
+{{-   $groupRank := "0" -}}
+{{-   $subKey := "" -}}
+{{-   if hasPrefix "*." $host -}}
+{{-     $groupRank = "2" -}}
+{{-   else if gt $partCount 2 -}}
+{{-     $groupRank = "1" -}}
+{{-     $subKey = slice $parts 0 (sub $partCount 2) | reverse | join "." -}}
+{{-   end -}}
+{{-   $sortKey := printf "%s\t%s\t%s\t%s\t%s" $sld $groupRank $subKey $host $port -}}
+{{-   $_ := set $networkRuleMap $sortKey (dict "destination" $host "port" $port "action" "allow") -}}
+{{- end -}}
+{{- $networkRules := list -}}
+{{- range $sortKey := (keys $networkRuleMap | sortAlpha) -}}
+{{-   $networkRules = append $networkRules (index $networkRuleMap $sortKey) -}}
+{{- end -}}
+{{- $networkRules | toJson -}}

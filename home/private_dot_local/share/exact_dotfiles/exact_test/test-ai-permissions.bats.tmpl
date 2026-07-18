@@ -12,14 +12,14 @@ setup() {
 
 {{- if .toolchains.pi }}
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
-{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
+{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
 {{- $agentDeny := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) }}
-{{- $denyPaths := includeTemplate "base/ai/expand-path-groups" (dict "root" . "groups" (index $agentDeny "deny_paths" | default list)) | mustFromJson }}
+{{- $denyPaths := includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (index $agentDeny "deny_paths" | default list)) | mustFromJson }}
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi permission-system config renders secure defaults" {
   assert_file_exists "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  run jq -e '
+  run jsoncJq -e '
     .yoloMode == false and
     .permissionReviewLog == true and
     .permission["*"] == "allow" and
@@ -30,7 +30,7 @@ setup() {
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi permission-system config protects key sensitive paths" {
-  run jq -e '
+  run jsoncJq -e '
     .permission.path["**/.env"] == "deny" and
     .permission.path["~/.ssh/**"] == "deny" and
     .permission.path["~/.config/pi/agent/auth.json"] == "deny"
@@ -42,7 +42,7 @@ setup() {
 {{- if .toolchains.cloud }}
 # bats test_tags=toolchain:pi,kind:permission,toolchain:cloud
 @test "pi permission-system: cloud toolchain rules" {
-  run jq -e '
+  run jsoncJq -e '
     .permission.bash["az * delete*"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
@@ -52,7 +52,7 @@ setup() {
 {{- if .toolchains.docker }}
 # bats test_tags=toolchain:pi,kind:permission,toolchain:docker
 @test "pi permission-system: docker toolchain rules" {
-  run jq -e '
+  run jsoncJq -e '
     .permission.bash["docker * system prune *"] == "deny" and
     .permission.bash["docker * run * --privileged *"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
@@ -63,7 +63,7 @@ setup() {
 {{- if .toolchains.iac }}
 # bats test_tags=toolchain:pi,kind:permission,toolchain:iac
 @test "pi permission-system: iac toolchain rules" {
-  run jq -e '
+  run jsoncJq -e '
     .permission.bash["tofu * destroy *"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
   assert_success
@@ -73,7 +73,7 @@ setup() {
 {{- if .toolchains.kubernetes }}
 # bats test_tags=toolchain:pi,kind:permission,toolchain:kubernetes
 @test "pi permission-system: kubernetes toolchain rules" {
-  run jq -e '
+  run jsoncJq -e '
     .permission.bash["kubectl * delete *"] == "deny" and
     .permission.bash["helm * upgrade *"] == "deny"
   ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
@@ -83,7 +83,7 @@ setup() {
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi permission-system config: mcp and skills allowed by default" {
-  run jq -e '
+  run jsoncJq -e '
     # With default "*" = "allow", mcp and skill are allowed without explicit sub-namespaces
     .permission["*"] == "allow" and
     (.permission.mcp == null or .permission.mcp == "allow") and
@@ -95,7 +95,7 @@ setup() {
 {{- if .toolchains.ai }}
 # bats test_tags=toolchain:pi,kind:permission,toolchain:ai
 @test "pi permission-system: AI package rules" {
-  run jq -e '
+  run jsoncJq -e '
     .permission.bash["hf auth *"] == "deny" and
     .permission.bash["hf repo delete *"] == "deny" and
     .permission.bash["hf upload *"] == "deny"
@@ -108,44 +108,44 @@ setup() {
 # --- OpenCode permission tests ---
 
 {{- if .toolchains.opencode }}
-{{- $ocTiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
+{{- $ocTiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
 
 # bats test_tags=toolchain:opencode,kind:permission
 @test "opencode.json permission defaults" {
-  run jq -e '
+  run jsoncJq -e '
     .permission["*"] == "allow" and
     .permission.doom_loop == "deny" and
     .permission.bash["*"] == "allow" and
     .permission.read != null and
     .permission.edit != null
-  ' "$HOME/.config/opencode/opencode.json"
+  ' "$HOME/.config/opencode/opencode.jsonc"
   assert_success
 }
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode.json autoupdate stays non-mutating" {
-  run jq -e '.autoupdate != true' "$HOME/.config/opencode/opencode.json"
+  run jsoncJq -e '.autoupdate != true' "$HOME/.config/opencode/opencode.jsonc"
   assert_success
 }
 
 
 # bats test_tags=toolchain:opencode,kind:permission
 @test "opencode.json path permissions block key secrets" {
-  run jq -e '
+  run jsoncJq -e '
     .permission.read["**/.env"] == "deny" and
     .permission.read["**/.npmrc"] == "deny" and
     .permission.edit["**/.env"] == "deny"
-  ' "$HOME/.config/opencode/opencode.json"
+  ' "$HOME/.config/opencode/opencode.jsonc"
   assert_success
 }
 
 
 # bats test_tags=toolchain:opencode,kind:permission
 @test "opencode.json edit denies infra config" {
-  run jq -e '
+  run jsoncJq -e '
     .permission.edit["~/.ssh/**"] == "deny" and
     .permission.edit["**/.env"] == "deny"
-  ' "$HOME/.config/opencode/opencode.json"
+  ' "$HOME/.config/opencode/opencode.jsonc"
   assert_success
 }
 {{- end }}
@@ -157,14 +157,14 @@ setup() {
 {{-   $permAgents = append $permAgents (dict "name" "pi" "config" "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json" "tag" "toolchain:pi") -}}
 {{- end }}
 {{- if .toolchains.opencode -}}
-{{-   $permAgents = append $permAgents (dict "name" "opencode" "config" "$HOME/.config/opencode/opencode.json" "tag" "toolchain:opencode") -}}
+{{-   $permAgents = append $permAgents (dict "name" "opencode" "config" "$HOME/.config/opencode/opencode.jsonc" "tag" "toolchain:opencode") -}}
 {{- end -}}
 
 {{- range $agent := $permAgents }}
 
 # bats test_tags={{ $agent.tag }},kind:permission
 @test "{{ $agent.name }} bash: core deny rules" {
-  run jq -e '
+  run jsoncJq -e '
     .permission.bash["git * push --force*"] == "deny" and
     .permission.bash["rm -rf /*"] == "deny" and
     .permission.bash["sudo *"] == "deny" and
@@ -185,7 +185,7 @@ setup() {
 {{- end }}
 {{- if ne .host.type "ephemeral" }}
 {{- $agentDeny := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) }}
-{{- $denyPaths := includeTemplate "base/ai/expand-path-groups" (dict "root" . "groups" (index $agentDeny "deny_paths" | default list)) | mustFromJson }}
+{{- $denyPaths := includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (index $agentDeny "deny_paths" | default list)) | mustFromJson }}
 
 {{- if eq .host.distro.family "darwin" }}
 # bats test_tags=kind:greywall
@@ -199,7 +199,7 @@ setup() {
 # bats test_tags=kind:greywall
 @test "greywall.json is deployed from ai permissions" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e '
+  run jsoncJq -e '
     .filesystem.defaultDenyRead == true and
     .filesystem.allowGitConfig == true and
     (.filesystem.allowWrite | index("**") == null) and
@@ -248,7 +248,7 @@ setup() {
 # bats test_tags=kind:greywall,kind:permission
 @test "greywall allows pi agent auth: in allowRead, not in denyRead" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e '
+  run jsoncJq -e '
     (.filesystem.allowRead | index("~/.config/pi/**") != null) and
     (.filesystem.denyRead | index("~/.config/pi/agent/auth.json") == null) and
     (.filesystem.denyRead | index("~/.config/pi/profiles/core/auth.json") == null) and
@@ -260,7 +260,7 @@ setup() {
 # bats test_tags=kind:greywall,kind:permission
 @test "greywall deny-wins: SSH managed root allowed but identity/environment denied" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e '
+  run jsoncJq -e '
     (.filesystem.denyRead | index("~/.ssh/identity") != null) and
     (.filesystem.denyRead | index("~/.ssh/environment") != null) and
     (.filesystem.denyWrite | index("~/.ssh/identity") != null) and
@@ -274,7 +274,7 @@ setup() {
 # bats test_tags=kind:greywall,kind:permission
 @test "greywall allows opencode auth: in allowRead, not in denyRead" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e '
+  run jsoncJq -e '
     (.filesystem.denyRead | index("~/.config/gh/hosts.yml") != null) and
     (.filesystem.allowRead | index("~/.local/share/opencode/**") != null) and
     (.filesystem.denyRead | index("~/.local/share/opencode/auth.json") == null) and
@@ -288,7 +288,7 @@ setup() {
 # bats test_tags=kind:greywall,toolchain:ai
 @test "greywall command policy includes AI package denies" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e '
+  run jsoncJq -e '
     (.command.allow | not) and
     (.command.deny | index("hf auth *") != null) and
     (.command.deny | index("sudo *") != null) and
@@ -300,7 +300,7 @@ setup() {
 # bats test_tags=kind:greywall
 @test "greywall pi profile allows managed additions" {
   assert_file_exists "{{ $greywallDir }}/learned/pi.json"
-  run jq -e --slurpfile global "{{ $greywallDir }}/greywall.json" '
+  run jsoncJq -e --slurpfile global "{{ $greywallDir }}/greywall.json" '
     .schemaVersion == 1 and
     (.credentials == $global[0].credentials) and
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions/**") != null) and
@@ -311,18 +311,18 @@ setup() {
     ($global[0].filesystem.allowGitConfig == true)
   ' "{{ $greywallDir }}/learned/pi.json"
   assert_success
-  run jq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/pi.json"
+  run jsoncJq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/pi.json"
   assert_success
-  run jq -e '.filesystem.denyWrite | index("~/.config/pi/**") == null' "{{ $greywallDir }}/learned/pi.json"
+  run jsoncJq -e '.filesystem.denyWrite | index("~/.config/pi/**") == null' "{{ $greywallDir }}/learned/pi.json"
   assert_success
-  run jq -e '.filesystem.denyWrite | index("~/.config/pi/profiles/core/**") == null' "{{ $greywallDir }}/learned/pi.json"
+  run jsoncJq -e '.filesystem.denyWrite | index("~/.config/pi/profiles/core/**") == null' "{{ $greywallDir }}/learned/pi.json"
   assert_success
 }
 
 # bats test_tags=kind:greywall
 @test "greywall opencode profile allows shared and sandbox paths" {
   assert_file_exists "{{ $greywallDir }}/learned/opencode.json"
-  run jq -e --slurpfile global "{{ $greywallDir }}/greywall.json" '
+  run jsoncJq -e --slurpfile global "{{ $greywallDir }}/greywall.json" '
     .schemaVersion == 1 and
     (.credentials == $global[0].credentials) and
     (.filesystem.allowWrite | index("~/.local/share/opencode") != null) and
@@ -333,14 +333,14 @@ setup() {
     ($global[0].filesystem.allowGitConfig == true)
   ' "{{ $greywallDir }}/learned/opencode.json"
   assert_success
-  run jq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/opencode.json"
+  run jsoncJq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/opencode.json"
   assert_success
 }
 
 # bats test_tags=kind:greywall
 @test "greywall global policy includes shared network hosts" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e '
+  run jsoncJq -e '
     (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
     (.network.rules[] | select(.destination == "api.github.com" and (.port | tostring) == "443" and .action == "allow")) and
     (.network.rules[] | select(.destination == "registry.npmjs.org" and (.port | tostring) == "443" and .action == "allow")) and
@@ -351,24 +351,24 @@ setup() {
 
 # bats test_tags=toolchain:pi,toolchain:opencode,kind:greywall
 @test "greywall base config allows engram loopback outbound" {
-  run jq -e '.network.allowLocalOutbound == true' "{{ $greywallDir }}/greywall.json"
+  run jsoncJq -e '.network.allowLocalOutbound == true' "{{ $greywallDir }}/greywall.json"
   assert_success
-  run jq -e '(.network.forwardPorts // []) | index(7437) != null' "{{ $greywallDir }}/greywall.json"
+  run jsoncJq -e '(.network.forwardPorts // []) | index(7437) != null' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
 
 # bats test_tags=kind:greywall
 @test "greywall pi learned profile is valid JSON" {
   assert_file_exists "{{ $greywallDir }}/learned/pi.json"
-  run jq -e '.schemaVersion == 1' "{{ $greywallDir }}/learned/pi.json"
+  run jsoncJq -e '.schemaVersion == 1' "{{ $greywallDir }}/learned/pi.json"
   assert_success
 }
 
-{{ $enabledAuth := includeTemplate "base/ai/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson }}
+{{ $enabledAuth := includeTemplate "base/ai/auth/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson }}
 # bats test_tags=kind:greywall
 @test "greywall credentials inject enabled API keys" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jq -e --argjson expected '{{ $enabledAuth.enabled_api_key_envs | sortAlpha | toJson }}' '
+  run jsoncJq -e --argjson expected '{{ $enabledAuth.enabled_api_key_envs | sortAlpha | toJson }}' '
     . as $root |
     all($expected[]; . as $k | ($root.credentials.inject | index($k) != null)) and
     all($expected[]; . as $k | ($root.credentials.secrets | index($k) | not))

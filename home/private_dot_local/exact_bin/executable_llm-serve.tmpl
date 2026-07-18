@@ -1,4 +1,4 @@
-{{- $local := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- $local := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson -}}
 {{- $omlx := eq $local.engine "omlx" -}}
 {{- $engineLabel := ternary "omlx" "llama.cpp" $omlx -}}
 {{- $omlxMemoryGuardGb := $local.omlx_memory_guard_gb | int -}}

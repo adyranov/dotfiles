@@ -1,0 +1,29 @@
+{{- /* render-greywall-fs — Build Greywall filesystem policy from base + optional agent overlay.
+  Usage:
+    {{ includeTemplate "base/ai/security/render-greywall-fs" (dict "root" .) | mustFromJson }}
+    {{ includeTemplate "base/ai/security/render-greywall-fs" (dict "root" . "agent" "pi") | mustFromJson }}
+  Output: JSON { allowRead, allowWrite, denyRead, denyWrite }
+  Resolves path groups from ai.permissions.filesystem.paths, then appends agent-specific raw paths.
+  When agent is provided, both allow and deny lists are extended from agent sandbox.paths.
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $agent := dig "agent" "" . -}}
+{{- $sandbox := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.sandbox" "required" true) | mustFromJson) -}}
+{{- $allowRead := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $sandbox "allow_read_paths" | default list)) | mustFromJson -}}
+{{- $allowWrite := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $sandbox "allow_write_paths" | default list)) | mustFromJson -}}
+{{- $denyRead := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $sandbox "deny_read_paths" | default list)) | mustFromJson -}}
+{{- $denyWrite := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $sandbox "deny_write_paths" | default list)) | mustFromJson -}}
+{{- if ne $agent "" -}}
+{{-   $agentSection := printf "ai.agents.%s.sandbox.paths" $agent -}}
+{{-   $agentPaths := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" $agentSection "required" false) | mustFromJson) -}}
+{{-   $allowRead = concat $allowRead (index $agentPaths "allow_read" | default list) | uniq | sortAlpha -}}
+{{-   $allowWrite = concat $allowWrite (index $agentPaths "allow_write" | default list) | uniq | sortAlpha -}}
+{{-   $denyRead = concat $denyRead (index $agentPaths "deny_read" | default list) | uniq | sortAlpha -}}
+{{-   $denyWrite = concat $denyWrite (index $agentPaths "deny_write" | default list) | uniq | sortAlpha -}}
+{{- end -}}
+{{- dict
+  "allowRead" $allowRead
+  "allowWrite" $allowWrite
+  "denyRead" $denyRead
+  "denyWrite" $denyWrite
+| toJson -}}
