@@ -1,0 +1,20 @@
+# ~/.config/zsh/functions.d/skyl
+# Launch SkyPilot tasks from the YAML library (~/.config/skypilot/).
+# Usage: skyl text/qwen3.5-27b [--dry-run] [other sky launch flags]
+# Tab completion completes .yaml files under ~/.config/skypilot/.
+
+skyl() {
+  if (( $# == 0 )); then
+    print -u2 'usage: skyl <category/task> [sky launch flags]'
+    return 1
+  fi
+  local yaml="$1"
+  shift
+  [[ "$yaml" != *.yaml ]] && yaml="${yaml}.yaml"
+  sky launch "$HOME/.config/skypilot/$yaml" "$@"
+}
+
+_skyl() {
+  _arguments '1:yaml:_files -W ~/.config/skypilot -g "**/*.yaml"'
+}
+compdef _skyl skyl

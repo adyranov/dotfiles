@@ -55,6 +55,7 @@
         "manager" $pkgMgr
         "package" $pkgName
         "pin" (printf "%s" (index $pkg "pin" | default ""))
+        "extras" (printf "%s" (index $pkg "extras" | default ""))
         "version" $pkgVersion
         "test" $pkgTest
         "platforms" (index $pkg "platforms" | default dict)

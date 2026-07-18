@@ -1,0 +1,91 @@
+{{- /*
+  SkyPilot task dispatcher.
+
+  Usage in a .yaml.tmpl file:
+    {{- includeTemplate "base/ai/skypilot/task" (dict "root" . "id" "<category>/<task-name>") -}}
+
+  Loads layered skypilot.tasks data, finds entry by id, dispatches by kind.
+*/ -}}
+
+{{- $taskId := index . "id" | default "" -}}
+
+{{- $task := index . "task" -}}
+{{- if not $task -}}
+  {{- if not $taskId -}}
+    {{- fail "base/ai/skypilot/task: id is required when task is not provided" -}}
+  {{- end -}}
+  {{- $allTasks := includeTemplate "base/helpers/load-section" (dict
+        "root" .root
+        "section" "skypilot.tasks"
+        "required" true
+      ) | mustFromJson -}}
+  {{- $task = index $allTasks $taskId -}}
+  {{- if not $task -}}
+    {{- fail (printf "base/ai/skypilot/task: unknown id '%s'" $taskId) -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $runpod := dict -}}
+{{- if hasKey . "runpod" -}}
+  {{- $runpod = index . "runpod" -}}
+{{- else -}}
+  {{- $runpod = includeTemplate "base/helpers/load-section" (dict
+        "root" .root
+        "section" "skypilot.runpod"
+        "required" false
+      ) | mustFromJson -}}
+{{- end -}}
+
+{{- includeTemplate "base/ai/skypilot/validate-runpod" (dict "runpod" $runpod "caller" "task") -}}
+
+{{- $kind := $task.kind | default "" -}}
+{{- if not (or (eq $kind "sglang") (eq $kind "comfyui")) -}}
+  {{- fail (printf "base/ai/skypilot/task: unknown kind '%s' for id '%s'" $kind $taskId) -}}
+{{- end -}}
+
+{{- range $c := $task.comments }}
+# {{ $c }}
+{{- end }}
+
+name: {{ $task.name }}
+
+resources:
+{{- if eq $kind "sglang" }}
+  image_id: {{ index $task "image_id" | default "docker:lmsysorg/sglang:latest-cu129" }}
+{{- else if eq $kind "comfyui" }}
+  image_id: {{ index $task "image_id" | default "docker:runpod/comfyui:cuda12.8" }}
+{{- end }}
+  accelerators: {{ $task.accelerators | toJson }}
+  use_spot: true
+  job_recovery:
+    strategy: FAILOVER
+  disk_size: {{ $task.disk_size }}
+{{ if $runpod.enabled -}}
+  infra: {{ $runpod.infra }}
+{{ end -}}
+{{ if $runpod.enabled -}}
+{{ "\n" }}volumes:
+  {{ $runpod.mount_path }}: {{ $runpod.volume_name }}
+{{ end -}}
+{{ $hasEnvs := or $runpod.enabled (hasKey $task "envs") -}}
+{{ if $hasEnvs -}}
+{{ "\n" }}envs:
+{{ if $runpod.enabled -}}
+{{ includeTemplate "base/ai/skypilot/hf-cache-envs" (dict "mount_path" $runpod.mount_path) }}
+{{ end -}}
+{{ if hasKey $task "envs" -}}
+{{ range $k, $v := $task.envs -}}
+  {{ $k }}: {{ $v }}
+{{ end -}}
+{{ end -}}
+{{ end -}}
+{{- $handlerOutput := "" -}}
+{{- if eq $kind "sglang" -}}
+{{-   $handlerOutput = includeTemplate "base/ai/skypilot/sglang" (dict "task" $task) -}}
+{{- else if eq $kind "comfyui" -}}
+{{-   $handlerOutput = includeTemplate "base/ai/skypilot/comfyui" (dict "task" $task) -}}
+{{- end -}}
+{{ "\n" }}{{ $handlerOutput | trim }}
+
+secrets:
+  HF_TOKEN: null

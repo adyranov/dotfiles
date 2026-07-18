@@ -85,8 +85,9 @@ ehthumbs.db
 *.swp
 *.swo
 *~
-# Plannotator plan workspace
+# Plans
 .plannotator/
+docs/plans/
 
 # Local Pi runtime state
 .atl/

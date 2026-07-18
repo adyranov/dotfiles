@@ -3,4 +3,4 @@
   Preserve Greywall learned/bundled baseline so profile drift checks stay stable.
   Append OpenCode overlays and shared credentials deterministically. */ -}}
 {{- $rawStdin := get .chezmoi "stdin" | default "" | trim -}}
-{{- includeTemplate "base/ai/merge-greywall-learned-profile" (dict "root" . "agent" "opencode" "stdin" $rawStdin) -}}
+{{- includeTemplate "base/ai/security/merge-greywall-learned-profile" (dict "root" . "agent" "opencode" "stdin" $rawStdin) -}}

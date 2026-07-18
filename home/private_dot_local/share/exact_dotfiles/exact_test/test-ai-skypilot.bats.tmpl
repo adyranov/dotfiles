@@ -1,0 +1,52 @@
+#!/usr/bin/env bats
+
+# bats file_tags=suite:ai,toolchain:ai
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+{{- if .toolchains.ai }}
+@test "skypilot SGLang task renders cache, trust, and serve command" {
+  run chezmoi execute-template 2>/dev/null <<'TMPL'
+{{ "{{" }} $runpod := fromJson `{"enabled":true,"volume_name":"test-vol","infra":"runpod/test-zone","mount_path":"/workspace"}`{{ "}}" }}
+{{ "{{" }} $task := fromJson `{"kind":"sglang","name":"test","comments":["test"],"accelerators":{"A100-80GB":1},"disk_size":30,"model":"test/model","max_model_len":32768,"gpu_memory_utilization":0.95,"trust_remote_code":true,"sglang_args":["--tool-call-parser","qwen3"]}`{{ "}}" }}
+{{ "{{" }} includeTemplate "base/ai/skypilot/task" (dict "root" . "task" $task "id" "test/test" "runpod" $runpod){{ "}}" }}
+TMPL
+  assert_success
+  assert_output --partial 'infra: runpod/test-zone'
+  assert_output --partial 'HF_HUB_CACHE: /workspace/.cache/huggingface/hub'
+  assert_output --partial 'sglang serve'
+  assert_output --partial '--trust-remote-code'
+  assert_output --partial '--tool-call-parser'
+  refute_output --partial '--download-dir'
+}
+
+@test "skypilot ComfyUI setup uses hf CLI and safe rename" {
+  run chezmoi execute-template 2>/dev/null <<'TMPL'
+{{ "{{" }} $runpod := fromJson `{"enabled":true,"volume_name":"test-vol","infra":"runpod/test-zone","mount_path":"/workspace"}`{{ "}}" }}
+{{ "{{" }} $task := fromJson `{"kind":"comfyui","name":"test","comments":["test"],"accelerators":{"L40S":1},"disk_size":50,"downloads":[{"repo":"test/repo","file":"subdir/model.safetensors","target_dir":"checkpoints","target_file":"model.safetensors"}]}`{{ "}}" }}
+{{ "{{" }} includeTemplate "base/ai/skypilot/task" (dict "root" . "task" $task "id" "test/test" "runpod" $runpod){{ "}}" }}
+TMPL
+  assert_success
+  assert_output --partial 'hf download test/repo subdir/model.safetensors'
+  assert_output --partial 'if [ "$src" != "$dst" ]; then'
+  assert_output --partial 'mv "$src" "$dst"'
+}
+
+@test "skypilot rejects unsafe enabled RunPod settings" {
+  for setting in \
+    '{"enabled":true,"volume_name":"REPLACE_ME","infra":"runpod/test-zone","mount_path":"/workspace"}' \
+    '{"enabled":true,"volume_name":"my-volume","infra":"runpod/REPLACE_ZONE","mount_path":"/workspace"}' \
+    '{"enabled":true,"volume_name":"my-volume","infra":"runpod/test-zone","mount_path":"/mnt/models"}'; do
+    run chezmoi execute-template 2>/dev/null <<TMPL
+{{ "{{" }} $runpod := fromJson \`$setting\`{{ "}}" }}
+{{ "{{" }} $task := fromJson \`{"kind":"sglang","name":"test","comments":["test"],"accelerators":{"A100-80GB":1},"disk_size":30,"model":"test/model","max_model_len":32768,"gpu_memory_utilization":0.95}\`{{ "}}" }}
+{{ "{{" }} includeTemplate "base/ai/skypilot/task" (dict "root" . "task" $task "id" "test/test" "runpod" $runpod){{ "}}" }}
+TMPL
+    [ "$status" -ne 0 ]
+  done
+}
+{{- end }}

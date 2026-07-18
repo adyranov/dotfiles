@@ -1,0 +1,33 @@
+# SkyPilot config — managed by chezmoi
+# https://docs.skypilot.co/en/latest/reference/config.html
+
+allowed_clouds:
+  - aws
+  - gcp
+  - kubernetes
+  - lambda
+  - nebius
+  - runpod
+  - vast
+
+# Cloud credentials are configured separately from chezmoi.
+# RunPod:  run `runpod config` (API key from runpod.io/console/user/settings)
+# Vast.ai: set `VAST_AI_ACCOUNT_KEY` and `VAST_AI_API_KEY` env vars
+# Lambda:  set `LAMBDA_CLOUD_API_KEY` env var
+# Nebius:  run `nebius iam access-key create` or set env vars
+# AWS/GCP: run `aws configure` / `gcloud auth login`
+#
+# sky launch + SSH tunnel: bind to 127.0.0.1 (no public ports).
+# Access remote port with:
+#   ssh -L <local_port>:127.0.0.1:<remote_port> <cluster>
+
+provision:
+  install_conda: false
+  ssh_timeout: 30
+
+nvidia_gpus:
+  disable_ecc: true
+
+docker:
+  run_options:
+    - --shm-size=8g

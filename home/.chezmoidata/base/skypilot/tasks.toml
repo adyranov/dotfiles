@@ -1,0 +1,131 @@
+# SkyPilot task catalog — 9 cloud-only tasks (all request >=48GB VRAM)
+# kind = "sglang" | "comfyui"
+#
+# RunPod Network Volume — disabled by default (safe default). To enable:
+# 1. Create a RunPod Network Volume (name <=30 chars, e.g. "skypilot-cache")
+# in the RunPod console: https://runpod.io/console/user/storage
+# 2. Set volume_name and infra to match your volume's zone (runpod/<ZONE>)
+# 3. Set enabled = true
+# Requires native SkyPilot `volumes:` — same RunPod zone as the GPU pod.
+# Supports HF_HOME / model caches on persistent storage.
+# Overrides: os/<distro>/skypilot.toml, profile/<name>/skypilot.toml
+
+[skypilot.base.runpod]
+enabled = false
+volume_name = "REPLACE_ME"
+infra = "runpod/REPLACE_ZONE"
+mount_path = "/workspace"
+
+[skypilot.base.tasks."agentic/ministral-3-14b-bf16"]
+kind = "sglang"
+comments = ["mistralai/Ministral-3-14B-Instruct-2512 | L40S/RTXA6000/RTX5090 | 32K | Agent tier, Mistral 3 architecture, native tool calling"]
+name = "ministral-3-14b-bf16"
+accelerators = {"L40S" = 1, "RTXA6000" = 1, "RTX5090" = 1, "A100-80GB" = 1}
+disk_size = 60
+model = "mistralai/Ministral-3-14B-Instruct-2512"
+max_model_len = 32768
+gpu_memory_utilization = 0.92
+trust_remote_code = true
+sglang_args = ["--cuda-graph-backend-prefill=disabled"]
+
+[skypilot.base.tasks."coding/qwen3-coder-30b-a3b-awq"]
+kind = "sglang"
+comments = ["QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ (community AWQ/INT4 SM80+) | L40S/RTXA6000/RTX5090 | 32K | Coding tier, Qwen tool calls"]
+name = "qwen3-coder-30b-a3b-awq"
+accelerators = {"L40S" = 1, "RTXA6000" = 1, "RTX5090" = 1}
+disk_size = 60
+model = "QuantTrio/Qwen3-Coder-30B-A3B-Instruct-AWQ"
+max_model_len = 32768
+gpu_memory_utilization = 0.88
+trust_remote_code = true
+sglang_args = ["--cuda-graph-backend-prefill=disabled", "--tool-call-parser", "qwen3_coder"]
+
+[skypilot.base.tasks."image/flux1-dev-comfyui"]
+kind = "comfyui"
+comments = ["FLUX.1-dev FP8 | Comfy-Org/flux1-dev + black-forest-labs/FLUX.1-dev + comfyanonymous/flux_text_encoders | L40S/RTXA6000/RTX5090 | 50 GB | --highvram | HF gated, FLUX license"]
+name = "flux1-dev-comfyui"
+accelerators = {"L40S" = 1, "RTXA6000" = 1, "RTX5090" = 1}
+disk_size = 60
+run_flags = ["--highvram"]
+downloads = [
+  {repo = "Comfy-Org/flux1-dev", file = "flux1-dev-fp8.safetensors", target_dir = "checkpoints", target_file = "flux1-dev-fp8.safetensors"},
+  {repo = "black-forest-labs/FLUX.1-dev", file = "ae.safetensors", target_dir = "vae", target_file = "ae.safetensors"},
+  {repo = "comfyanonymous/flux_text_encoders", file = "clip_l.safetensors", target_dir = "text_encoders", target_file = "clip_l.safetensors"},
+  {repo = "comfyanonymous/flux_text_encoders", file = "t5xxl_fp8_e4m3fn.safetensors", target_dir = "text_encoders", target_file = "t5xxl_fp8_e4m3fn.safetensors"}
+]
+
+[skypilot.base.tasks."reasoning/qwen3-32b-awq"]
+kind = "sglang"
+comments = ["Qwen/Qwen3-32B-AWQ | L40S/RTXA6000/RTX5090 | 32K | Reasoning tier, qwen3 parser"]
+name = "qwen3-32b-awq"
+accelerators = {"L40S" = 1, "RTXA6000" = 1, "RTX5090" = 1}
+disk_size = 60
+model = "Qwen/Qwen3-32B-AWQ"
+max_model_len = 32768
+gpu_memory_utilization = 0.92
+trust_remote_code = true
+sglang_args = ["--cuda-graph-backend-prefill=disabled", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3"]
+
+[skypilot.base.tasks."text/nemotron-3-nano-30b-a3b-nvfp4"]
+kind = "sglang"
+comments = ["nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4 | RTX5090/L40S/RTXA6000 | 32K | High-confidence SGLang MoE, 30B total / 3B active, NVFP4"]
+name = "nemotron-3-nano-30b-a3b-nvfp4"
+accelerators = {"RTX5090" = 1, "L40S" = 1, "RTXA6000" = 1}
+disk_size = 60
+model = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4"
+max_model_len = 32768
+gpu_memory_utilization = 0.92
+trust_remote_code = true
+sglang_args = ["--cuda-graph-backend-prefill=disabled"]
+
+[skypilot.base.tasks."text/qwen3.5-27b-fp8"]
+kind = "sglang"
+comments = ["Qwen/Qwen3.5-27B-FP8 | L40S/RTXA6000/A100-80GB/RTX5090 | 32K | Dense FP8 via Marlin on SM80, Apache 2.0"]
+name = "qwen3.5-27b-fp8"
+accelerators = {"L40S" = 1, "RTXA6000" = 1, "A100-80GB" = 1, "RTX5090" = 2}
+disk_size = 60
+model = "Qwen/Qwen3.5-27B-FP8"
+max_model_len = 32768
+gpu_memory_utilization = 0.92
+trust_remote_code = true
+sglang_args = ["--cuda-graph-backend-prefill=disabled", "--reasoning-parser", "qwen3", "--tool-call-parser", "qwen3"]
+
+[skypilot.base.tasks."video/ltx-2.3-22b-dev-comfyui"]
+kind = "comfyui"
+comments = ["LTX 2.3 22B FP8 | Lightricks/LTX-2.3-fp8 + Comfy-Org/ltx-2 | A100-80GB/RTXPRO6000 | $0.50/hr"]
+name = "ltx-2.3-22b-dev-comfyui"
+accelerators = {"A100-80GB" = 1, "RTXPRO6000" = 1}
+disk_size = 60
+run_flags = ["--highvram"]
+downloads = [
+  {repo = "Lightricks/LTX-2.3-fp8", file = "ltx-2.3-22b-dev-fp8.safetensors", target_dir = "checkpoints", target_file = "ltx-2.3-22b-dev-fp8.safetensors"},
+  {repo = "Comfy-Org/ltx-2", file = "split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors", target_dir = "text_encoders", target_file = "gemma_3_12B_it_fp8_scaled.safetensors"}
+]
+
+[skypilot.base.tasks."video/wan2.2-14b-i2v-comfyui"]
+kind = "comfyui"
+comments = ["Wan 2.2 14B FP8 I2V | Comfy-Org/Wan_2.2_ComfyUI_Repackaged | A100-80GB/RTXPRO6000 | $0.50/hr"]
+name = "wan2.2-14b-i2v-comfyui"
+accelerators = {"A100-80GB" = 1, "RTXPRO6000" = 1}
+disk_size = 60
+run_flags = ["--highvram"]
+downloads = [
+  {repo = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged", file = "split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors", target_dir = "diffusion_models", target_file = "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors"},
+  {repo = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged", file = "split_files/diffusion_models/wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors", target_dir = "diffusion_models", target_file = "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors"},
+  {repo = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged", file = "split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors", target_dir = "text_encoders", target_file = "umt5_xxl_fp8_e4m3fn_scaled.safetensors"},
+  {repo = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged", file = "split_files/vae/wan_2.1_vae.safetensors", target_dir = "vae", target_file = "wan_2.1_vae.safetensors"}
+]
+
+[skypilot.base.tasks."video/wan2.2-14b-t2v-comfyui"]
+kind = "comfyui"
+comments = ["Wan 2.2 14B FP8 T2V | Comfy-Org/Wan_2.2_ComfyUI_Repackaged | A100-80GB/RTXPRO6000 | $0.50/hr"]
+name = "wan2.2-14b-t2v-comfyui"
+accelerators = {"A100-80GB" = 1, "RTXPRO6000" = 1}
+disk_size = 60
+run_flags = ["--highvram"]
+downloads = [
+  {repo = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged", file = "split_files/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors", target_dir = "diffusion_models", target_file = "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors"},
+  {repo = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged", file = "split_files/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors", target_dir = "diffusion_models", target_file = "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"},
+  {repo = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged", file = "split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors", target_dir = "text_encoders", target_file = "umt5_xxl_fp8_e4m3fn_scaled.safetensors"},
+  {repo = "Comfy-Org/Wan_2.2_ComfyUI_Repackaged", file = "split_files/vae/wan_2.1_vae.safetensors", target_dir = "vae", target_file = "wan_2.1_vae.safetensors"}
+]

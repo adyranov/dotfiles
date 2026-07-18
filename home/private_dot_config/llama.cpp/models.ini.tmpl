@@ -1,4 +1,4 @@
-{{- $local := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- $local := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson -}}
 {{- if eq $local.engine "llamacpp" -}}
 {{- $modelIds := keys $local.models | sortAlpha -}}
 {{- if and $local.default_model (hasKey $local.models $local.default_model) -}}

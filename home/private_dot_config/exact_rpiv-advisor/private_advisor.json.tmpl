@@ -1,4 +1,4 @@
-{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson -}}
+{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson -}}
 {{- $adv := get $tiers "oracle" -}}
 {{- $modelKey := get $adv "model" -}}
 {{- if get $adv "provider" -}}

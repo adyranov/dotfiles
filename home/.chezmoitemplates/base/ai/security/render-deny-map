@@ -1,0 +1,21 @@
+{{- /* render-deny-map — Convert deny/ask pattern lists to a {*: allow, <p>: deny|ask, ...} map.
+  Usage:
+    {{ includeTemplate "base/ai/security/render-deny-map" (dict "deny" $denyList) | mustFromJson }}
+    {{ includeTemplate "base/ai/security/render-deny-map" (dict "deny" $denyList "ask" $askList) | mustFromJson }}
+    {{ includeTemplate "base/ai/security/render-deny-map" (dict "deny" $denyList "exclude" $excludeList) | mustFromJson }}
+  Output: JSON object with "*" = "allow" and each pattern = "deny" or "ask".
+  If exclude list given, patterns in it are NOT added (sets only "*").
+*/ -}}
+{{- $deny := dig "deny" list . -}}
+{{- $ask := dig "ask" list . -}}
+{{- $exclude := dig "exclude" list . -}}
+{{- $result := dict "*" "allow" -}}
+{{- range $p := $deny -}}
+{{-   if not (has $p $exclude) -}}
+{{-     $_ := set $result $p "deny" -}}
+{{-   end -}}
+{{- end -}}
+{{- range $p := $ask -}}
+{{-   $_ := set $result $p "ask" -}}
+{{- end -}}
+{{- $result | toJson -}}

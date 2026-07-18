@@ -2,83 +2,35 @@
   Args (dict):
     type            — "archive" | "file" (required)
     target          — destination key (required)
-    repo            — "owner/repo" or "owner/repo@ref" to pin a branch (required)
+    repo            — "owner/repo@ref" where ref is a tag, branch, or commit (required)
     source          — file path inside repo (required when type = "file")
     stripComponents — int, default 1 (archive only)
     include         — list of glob patterns (archive only)
     exclude         — list of glob patterns to exclude (archive only)
     exact           — bool, emits `exact = true`
-    refreshPeriod   — string, default "168h" (only honored when @ref is set)
-    memo            — optional dict for caching gitHubTags lookups across calls
-    tagPrefix       — string, filter tags by prefix before picking latest (no @ref only)
-  Without @ref, the latest git tag is used (optionally filtered by tagPrefix);
-  repos with no matching tags will error. */ -}}
+    refreshPeriod   — string; defaults to "168h" for main/master, omitted otherwise
+  Refs are explicit so rendering never requires GitHub API access. */ -}}
 {{- $type := .type -}}
 {{- if and (ne $type "archive") (ne $type "file") -}}
 {{-   fail (printf "base/github/external: unknown type %q (want \"archive\" or \"file\")" $type) -}}
 {{- end -}}
 {{- $repoParts := splitList "@" .repo -}}
-{{- $repoName := index $repoParts 0 -}}
-{{- $ref := "" -}}
-{{- if gt (len $repoParts) 1 -}}{{- $ref = index $repoParts 1 -}}{{- end -}}
-{{- if not $ref -}}
-{{-   $tags := list -}}
-{{- /* Fetch tags via GitHub API with ?per_page=100 to avoid pagination issues. */ -}}
-{{-   if index . "memo" -}}
-{{-     $memo := index . "memo" -}}
-{{-     if hasKey $memo $repoName -}}
-{{-       $tags = index $memo $repoName -}}
-{{-     else -}}
-{{-       $url := printf "https://api.github.com/repos/%s/tags?per_page=100" $repoName -}}
-{{-       $token := env "GITHUB_TOKEN" | default "" -}}
-{{-       if $token -}}
-{{-         $tags = output "curl" "-s" "-H" (printf "Authorization: Bearer %s" $token) $url | fromJson -}}
-{{-       else -}}
-{{-         $tags = output "curl" "-s" $url | fromJson -}}
-{{-       end -}}
-{{-       if not (kindIs "slice" $tags) -}}
-{{-         fail (printf "base/github/external: failed to fetch tags for %s" $repoName) -}}
-{{-       end -}}
-{{-       $_ := set $memo $repoName $tags -}}
-{{-     end -}}
-{{-   else -}}
-{{-     $url := printf "https://api.github.com/repos/%s/tags?per_page=100" $repoName -}}
-{{-     $token := env "GITHUB_TOKEN" | default "" -}}
-{{-     if $token -}}
-{{-       $tags = output "curl" "-s" "-H" (printf "Authorization: Bearer %s" $token) $url | fromJson -}}
-{{-     else -}}
-{{-       $tags = output "curl" "-s" $url | fromJson -}}
-{{-     end -}}
-{{-     if not (kindIs "slice" $tags) -}}
-{{-       fail (printf "base/github/external: failed to fetch tags for %s" $repoName) -}}
-{{-     end -}}
-{{-   end -}}
-{{-   $tagPrefix := get . "tagPrefix" | default "" -}}
-{{-   if $tagPrefix -}}
-{{-     $filtered := list -}}
-{{-     range $tag := $tags -}}
-{{-       if hasPrefix $tagPrefix $tag.name -}}
-{{-         $filtered = append $filtered $tag -}}
-{{-       end -}}
-{{-     end -}}
-{{-     $tags = $filtered -}}
-{{-   end -}}
-{{-   if not (gt (len $tags) 0) -}}
-{{-     $msg := printf "base/github/external: %s has no matching tags" $repoName -}}
-{{-     if $tagPrefix -}}{{- $msg = printf "%s with prefix %q" $msg $tagPrefix -}}{{- end -}}
-{{-     fail (printf "%s; pin a branch with @ref" $msg) -}}
-{{-   end -}}
-{{-   $ref = (index $tags 0).name -}}
+{{- if ne (len $repoParts) 2 -}}
+{{-   fail (printf "base/github/external: repo %q must include an explicit @ref" .repo) -}}
 {{- end -}}
-{{- $isTag := not (gt (len $repoParts) 1) -}}
+{{- $repoName := index $repoParts 0 -}}
+{{- $ref := index $repoParts 1 -}}
+{{- if or (not $repoName) (not $ref) -}}
+{{-   fail (printf "base/github/external: invalid repo %q" .repo) -}}
+{{- end -}}
+{{- $refreshPeriod := get . "refreshPeriod" | default "" -}}
+{{- if and (not $refreshPeriod) (or (eq $ref "main") (eq $ref "master")) -}}
+{{-   $refreshPeriod = "168h" -}}
+{{- end -}}
 ["{{ .target }}"]
 {{- if eq $type "archive" }}
     type = "archive"
-{{-   if $isTag }}
-    url = "https://github.com/{{ $repoName }}/archive/refs/tags/{{ $ref }}.tar.gz"
-{{-   else }}
     url = "https://github.com/{{ $repoName }}/archive/{{ $ref }}.tar.gz"
-{{-   end }}
     stripComponents = {{ default 1 (index . "stripComponents") }}
 {{-   if index . "include" }}
     include = [{{ range $i, $p := index . "include" }}{{ if $i }}, {{ end }}"{{ $p }}"{{ end }}]
@@ -90,8 +42,8 @@
     type = "file"
     url = "https://raw.githubusercontent.com/{{ $repoName }}/{{ $ref }}/{{ .source }}"
 {{- end }}
-{{- if not $isTag }}
-    refreshPeriod = "{{ default "168h" (index . "refreshPeriod") }}"
+{{- if $refreshPeriod }}
+    refreshPeriod = "{{ $refreshPeriod }}"
 {{- end }}
 {{- if index . "exact" }}
     exact = true

@@ -101,7 +101,7 @@ print_env() {
       printf 'export PI_CODING_AGENT_SESSION_DIR="%s/sessions"\n' "$dir"
       ;;
     opencode)
-      printf 'export OPENCODE_CONFIG="%s/opencode.json"\n' "$dir"
+      printf 'export OPENCODE_CONFIG="%s/opencode.jsonc"\n' "$dir"
       printf 'export OPENCODE_CONFIG_DIR="%s"\n' "$dir"
       if [ "$profile" = "factory" ]; then
         printf 'export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true\n'
@@ -123,43 +123,44 @@ print_env() {
   fi
 }
 
+# ── Throttle: return 0 if stamp is younger than max_age seconds ──
+# Usage: throttle_check <stamp_file> <max_age_seconds>
+throttle_check() {
+  stamp="$1"
+  max_age="${2:-86400}"
+  [ -f "$stamp" ] || return 1
+  stamp_mtime=$(stat -f %m "$stamp" 2>/dev/null || true)
+  case "$stamp_mtime" in
+    ''|*[!0-9]*) stamp_mtime=$(stat -c %Y "$stamp" 2>/dev/null || true) ;;
+  esac
+  case "$stamp_mtime" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  stamp_age=$(($(date +%s) - stamp_mtime))
+  [ "${stamp_age:-0}" -lt "$max_age" ]
+}
+
 # ── Agent-specific: preflight update ──
 preflight_update() {
   dir="$1"
   case "$AGENT_NAME" in
     pi)
+      stamp="$CACHE_HOME/pi/.extensions-refresh-stamp"
+      if throttle_check "$stamp"; then
+        ok "Extensions: updated within 24h, skipping refresh"
+        return 0
+      fi
       info "Extensions: updating..."
       if pi update --extensions; then
+        mkdir -p "$(dirname "$stamp")" && touch "$stamp" 2>/dev/null || true
         ok "Extensions: updated"
       else
         warn "Extensions: update failed; continuing"
       fi
       ;;
     opencode)
-      config_file="$dir/opencode.json"
-      [ -f "$config_file" ] || return 0
-      command -v jq >/dev/null 2>&1 || return 0
-      plugins=$(jq -r '.plugin[] | (if type == "string" then . else .[0] end)' "$config_file" 2>/dev/null) || return 0
-      missing=0
-      for plugin in $plugins; do
-        # Skip local file plugins — no npm cache
-        case $plugin in
-          ./*|../*|file://*) continue ;;
-        esac
-        case "${plugin##*/}" in
-          *@*) cache_dir="$CACHE_HOME/opencode/packages/${plugin}" ;;
-          *)   cache_dir="$CACHE_HOME/opencode/packages/${plugin}@latest" ;;
-        esac
-        if [ ! -f "$cache_dir/package.json" ]; then
-          warn "Plugin cache: $plugin (not installed)"
-          missing=$((missing + 1))
-        fi
-      done
-      if [ "$missing" -gt 0 ]; then
-        warn "Plugins: $missing uncached (normal; opencode-agent factory startup resolves packages)"
-      else
-        ok "Plugins: cached"
-      fi
+      # OpenCode resolves package plugins on launch; no custom npm cache updater.
+      ok "Plugins: resolved by OpenCode"
       ;;
     omp)
       # OMP is a standalone compiled binary; no preflight needed.
@@ -182,7 +183,7 @@ set_runtime_env() {
       dim "Sessions:   $sdir"
       ;;
     opencode)
-      export OPENCODE_CONFIG="$dir/opencode.json"
+      export OPENCODE_CONFIG="$dir/opencode.jsonc"
       export OPENCODE_CONFIG_DIR="$dir"
       if [ "$profile" = "factory" ]; then
         export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
@@ -246,7 +247,7 @@ Profiles:
 
 Options:
   --no-greywall       run opencode directly without greywall sandbox
-  --no-update         skip dependency preflight check
+  --no-update         skip preflight check
 
 Args:
   opencode args       forwarded to opencode, for example to continue a session

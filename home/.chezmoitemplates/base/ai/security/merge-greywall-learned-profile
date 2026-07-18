@@ -1,0 +1,85 @@
+{{- /* merge-greywall-learned-profile — DRY merge for Greywall learned agent profiles.
+  Args:
+    root: template data root
+    agent: agent name ("pi", "opencode", "omp")
+    stdin: raw JSON from stdin (optional; empty string = first-run skeleton)
+
+  Output: merged JSON with agent path/network/credentials overlays + forwardPorts
+  from base localhost config.
+*/ -}}
+{{- $root := .root -}}
+{{- $agent := .agent -}}
+{{- $rawStdin := get . "stdin" | default "" | trim -}}
+{{- $baseSource := `{"schemaVersion": 1, "filesystem": {"allowRead": [], "allowWrite": []}, "network": {"rules": []}}` -}}
+{{- if ne $rawStdin "" -}}
+{{-   $baseSource = $rawStdin -}}
+{{- end -}}
+{{- $base := $baseSource | fromJsonc -}}
+
+{{- /* Agent-specific overlay */ -}}
+{{- $agentSection := printf "ai.agents.%s" $agent -}}
+{{- $agentData := includeTemplate "base/helpers/load-section" (dict "root" $root "section" $agentSection "required" true) | mustFromJson -}}
+{{- $agentPaths := dig "sandbox" "paths" dict $agentData -}}
+{{- $allowReadAdditions := index $agentPaths "allow_read" | default list -}}
+{{- $allowWriteAdditions := index $agentPaths "allow_write" | default list -}}
+{{- $denyReadAdditions := index $agentPaths "deny_read" | default list -}}
+{{- $denyWriteAdditions := index $agentPaths "deny_write" | default list -}}
+
+{{- $base = setValueAtPath "filesystem.allowRead" (concat (dig "filesystem" "allowRead" (list) $base) $allowReadAdditions | uniq | sortAlpha) $base -}}
+{{- $base = setValueAtPath "filesystem.allowWrite" (concat (dig "filesystem" "allowWrite" (list) $base) $allowWriteAdditions | uniq | sortAlpha) $base -}}
+{{- $base = setValueAtPath "filesystem.denyRead" (concat (dig "filesystem" "denyRead" (list) $base) $denyReadAdditions | uniq | sortAlpha) $base -}}
+{{- $base = setValueAtPath "filesystem.denyWrite" (concat (dig "filesystem" "denyWrite" (list) $base) $denyWriteAdditions | uniq | sortAlpha) $base -}}
+{{- if eq $agent "omp" -}}
+{{- /* OMP config is modify-managed; remove the stale pre-modify deny entry. */ -}}
+{{-   $filteredDenyWrite := list -}}
+{{-   range $path := (dig "filesystem" "denyWrite" (list) $base) -}}
+{{-     if ne $path "~/.config/omp/config.yml" -}}
+{{-       $filteredDenyWrite = append $filteredDenyWrite $path -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $base = setValueAtPath "filesystem.denyWrite" $filteredDenyWrite $base -}}
+{{- end -}}
+
+{{- /* Network rules */ -}}
+{{- $agentNetwork := dig "sandbox" "network" dict $agentData -}}
+{{- $baseRules := dig "network" "rules" (list) $base -}}
+{{- $ruleMap := dict -}}
+{{- range $rule := $baseRules -}}
+{{-   $dest := $rule.destination | toString -}}
+{{-   if not (contains "*" $dest) -}}
+{{-     $_ := set $ruleMap (printf "%s\t%s\t%s" $dest ($rule.port | toString) ($rule.action | default "allow")) $rule -}}
+{{-   end -}}
+{{- end -}}
+{{- range $host := (index $agentNetwork "hosts" | default list) -}}
+{{-   $_ := set $ruleMap (printf "%s\t443\tallow" $host) (dict "destination" $host "port" "443" "action" "allow") -}}
+{{- end -}}
+{{- range $entry := (index $agentNetwork "allow" | default list) -}}
+{{-   $_ := set $ruleMap (printf "%s\t%s\tallow" $entry.host ($entry.port | toString)) (dict "destination" $entry.host "port" ($entry.port | toString) "action" "allow") -}}
+{{- end -}}
+{{- $networkRules := list -}}
+{{- range $key := (keys $ruleMap | sortAlpha) -}}
+{{-   $networkRules = append $networkRules (index $ruleMap $key) -}}
+{{- end -}}
+{{- $base = setValueAtPath "network.rules" $networkRules $base -}}
+
+{{- /* Forward ports from base localhost config */ -}}
+{{- $netPolicy := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.network" "required" false) | mustFromJson -}}
+{{- $localhost := dig "localhost" dict $netPolicy -}}
+{{- $forwardPorts := dig "forward_ports" (list) $localhost -}}
+{{- if gt (len $forwardPorts) 0 -}}
+{{-   $base = setValueAtPath "network.forwardPorts" $forwardPorts $base -}}
+{{- end -}}
+{{- $allowOutbound := dig "allow_outbound" false $localhost -}}
+{{- $allowUnixSockets := dig "allow_unix_sockets" (list) $netPolicy -}}
+{{- if gt (len $allowUnixSockets) 0 -}}
+{{-   $base = setValueAtPath "network.allowUnixSockets" $allowUnixSockets $base -}}
+{{- end -}}
+{{- if $allowOutbound -}}
+{{-   $base = setValueAtPath "network.allowLocalOutbound" true $base -}}
+{{- end -}}
+
+{{- /* Credentials */ -}}
+{{- $creds := includeTemplate "base/ai/auth/render-credentials" (dict "root" $root "agent" $agent) | mustFromJson -}}
+{{- $_ := set $base "credentials" (dict "inject" $creds.inject "secrets" $creds.secrets "ignore" $creds.ignore) -}}
+
+{{- $base | toPrettyJson -}}

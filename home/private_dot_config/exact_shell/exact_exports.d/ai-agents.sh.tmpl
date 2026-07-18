@@ -1,4 +1,4 @@
-{{- $resolved := includeTemplate "base/helpers/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- $resolved := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson -}}
 # AI coding agents (passive XDG redirections; no-ops when the tool is absent).
 # Default/core profile: ~/.config/pi/agent/
 export PI_CODING_AGENT_DIR="$XDG_CONFIG_HOME/pi/agent"
@@ -10,6 +10,7 @@ export ENGRAM_URL="http://127.0.0.1:${ENGRAM_PORT}"
 
 export HF_HOME="$XDG_DATA_HOME/huggingface"
 export HF_HUB_CACHE="$HF_HOME/hub"
+export SKYPILOT_GLOBAL_CONFIG="$XDG_CONFIG_HOME/skypilot/config.yaml"
 export LLM_SERVE_PORT="{{ index $resolved "port" | default 8321 }}"
 {{- if eq $resolved.engine "llamacpp" }}
 export LLAMA_CPP_MODELS_PRESET="$XDG_CONFIG_HOME/llama.cpp/models.ini"

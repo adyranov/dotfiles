@@ -1,12 +1,12 @@
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson -}}
-{{- $cmdPolicies := includeTemplate "base/ai/collect-policies" (dict "root" .) | mustFromJson -}}
+{{- $cmdPolicies := includeTemplate "base/ai/security/collect-policies" (dict "root" .) | mustFromJson -}}
 {{- $cmdDeny := index $cmdPolicies "deny" | default list -}}
 {{- $cmdAsk := index $cmdPolicies "ask" | default list -}}
-{{- $agentPerms := includeTemplate "base/ai/collect-agent-permissions" (dict "root" . "agentData" $pi) | mustFromJson -}}
+{{- $agentPerms := includeTemplate "base/ai/security/collect-agent-permissions" (dict "root" . "agentData" $pi) | mustFromJson -}}
 {{- $piInfrastructureReadPaths := index $agentPerms "infra_read" -}}
 {{- $denyPaths := index $agentPerms "deny" -}}
-{{- $bash := includeTemplate "base/ai/render-deny-map" (dict "deny" $cmdDeny "ask" $cmdAsk) | mustFromJson -}}
-{{- $path := includeTemplate "base/ai/render-deny-map" (dict "deny" $denyPaths) | mustFromJson -}}
+{{- $bash := includeTemplate "base/ai/security/render-deny-map" (dict "deny" $cmdDeny "ask" $cmdAsk) | mustFromJson -}}
+{{- $path := includeTemplate "base/ai/security/render-deny-map" (dict "deny" $denyPaths) | mustFromJson -}}
 {{- $permission := dict "*" "allow" "bash" $bash "path" $path -}}
 {{- dict
   "$schema" "https://raw.githubusercontent.com/gotgenes/pi-permission-system/main/schemas/permissions.schema.json"

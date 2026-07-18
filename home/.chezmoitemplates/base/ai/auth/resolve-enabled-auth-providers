@@ -1,0 +1,120 @@
+{{- /* Resolve provider-derived model/auth data from merged ai.models.providers.
+  Shape kept backward-compatible for existing tests:
+    providers: enabled auth keys
+    has_enabled_data: any provider has explicit enabled
+  Extra fields avoid consumers reloading provider metadata.
+*/ -}}
+{{- $root := .root -}}
+{{- $providers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.providers" "required" false) | mustFromJson -}}
+{{- $enabledAuthKeys := list -}}
+{{- $enabledModels := list -}}
+{{- $enabledApiKeyEnvs := list -}}
+{{- $disabledAuthKeys := list -}}
+{{- $implicitDisabledAuthKeys := list -}}
+{{- $apiKeyMap := dict -}}
+{{- $authEntries := dict -}}
+{{- $hasEnabledData := false -}}
+{{- range $id, $p := $providers -}}
+  {{- $envVar := get $p "api_key_env" | default "" -}}
+  {{- $authKeys := get $p "auth_keys" | default list -}}
+  {{- range $ak := $authKeys -}}
+    {{- if $envVar -}}{{- $_ := set $apiKeyMap $ak $envVar -}}{{- end -}}
+  {{- end -}}
+
+  {{- if hasKey $p "enabled" -}}
+    {{- $hasEnabledData = true -}}
+    {{- if get $p "enabled" -}}
+      {{- $enabledAuthKeys = concat $enabledAuthKeys $authKeys -}}
+      {{- if $envVar -}}{{- $enabledApiKeyEnvs = append $enabledApiKeyEnvs $envVar -}}{{- end -}}
+      {{- range $m := get $p "models" | default list -}}
+        {{- $enabledModels = append $enabledModels (printf "%s/%s" $id $m) -}}
+      {{- end -}}
+      {{- if $envVar -}}
+        {{- range $ak := $authKeys -}}
+          {{- $_ := set $authEntries $ak (dict "type" "api_key" "key" (printf "$%s" $envVar)) -}}
+        {{- end -}}
+      {{- end -}}
+    {{- else -}}
+      {{- $disabledAuthKeys = concat $disabledAuthKeys $authKeys -}}
+    {{- end -}}
+  {{- else -}}
+    {{- $implicitDisabledAuthKeys = concat $implicitDisabledAuthKeys $authKeys -}}
+  {{- end -}}
+{{- end -}}
+{{- if $hasEnabledData -}}
+  {{- $disabledAuthKeys = concat $disabledAuthKeys $implicitDisabledAuthKeys -}}
+{{- end -}}
+{{- if $hasEnabledData -}}
+{{- /* Validate tier routes and council entries reference enabled provider/models */ -}}
+{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" $root "required" false) | mustFromJson -}}
+{{- range $tierName, $route := $tiers -}}
+{{-   if not (kindIs "map" $route) -}}{{- continue -}}{{- end -}}
+{{-   if and (hasKey $route "provider") (hasKey $route "model") -}}
+{{-     $ref := printf "%s/%s" $route.provider $route.model -}}
+{{-     if not (has $ref $enabledModels) -}}
+{{-       fail (printf "resolve-enabled-auth-providers: tier %q references %s but provider/model not enabled" $tierName $ref) -}}
+{{-     end -}}
+{{-   end -}}
+{{-   if hasKey $route "fallbacks" -}}
+{{-     $fallbacks := get $route "fallbacks" -}}
+{{-     if not (kindIs "slice" $fallbacks) -}}
+{{-       fail (printf "resolve-enabled-auth-providers: tier %q fallbacks must be a list" $tierName) -}}
+{{-     end -}}
+{{-     range $idx, $fallback := $fallbacks -}}
+{{-       if not (kindIs "map" $fallback) -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] must be a route map" $tierName $idx) -}}
+{{-       end -}}
+{{-       if hasKey $fallback "fallbacks" -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] cannot nest fallbacks" $tierName $idx) -}}
+{{-       end -}}
+{{-       if not (and (hasKey $fallback "provider") (hasKey $fallback "model")) -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] missing provider/model" $tierName $idx) -}}
+{{-       end -}}
+{{-       if eq (get $fallback "provider") "local" -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] cannot use local provider" $tierName $idx) -}}
+{{-       end -}}
+{{-       $fallbackRef := printf "%s/%s" $fallback.provider $fallback.model -}}
+{{-       if not (has $fallbackRef $enabledModels) -}}
+{{-         fail (printf "resolve-enabled-auth-providers: tier %q fallback[%d] references %s but provider/model not enabled" $tierName $idx $fallbackRef) -}}
+{{-       end -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- /* Validate every preset route; old top-level ai.models.council is gone. */ -}}
+{{- $presets := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.presets" "required" false) | mustFromJson -}}
+{{- range $presetName, $preset := $presets -}}
+{{-   if ne $presetName "default" -}}
+{{-     range $group := list "tiers" "council" -}}
+{{-       $routes := get $preset $group | default dict -}}
+{{-       range $name, $route := $routes -}}
+{{-         if not (kindIs "map" $route) -}}{{- continue -}}{{- end -}}
+{{-         if not (and (hasKey $route "provider") (hasKey $route "model")) -}}
+{{-           fail (printf "resolve-enabled-auth-providers: %s/%s route %q missing provider/model" $presetName $group $name) -}}
+{{-         end -}}
+{{-         $ref := printf "%s/%s" $route.provider $route.model -}}
+{{-         if not (has $ref $enabledModels) -}}{{- fail (printf "resolve-enabled-auth-providers: %s/%s route %q references %s but provider/model not enabled" $presetName $group $name $ref) -}}{{- end -}}
+{{-         if hasKey $route "fallbacks" -}}
+{{-           $fallbacks := get $route "fallbacks" -}}
+{{-           if not (kindIs "slice" $fallbacks) -}}{{- fail (printf "resolve-enabled-auth-providers: %s/%s route %q fallbacks must be a list" $presetName $group $name) -}}{{- end -}}
+{{-           range $idx, $fallback := $fallbacks -}}
+{{-             if not (and (kindIs "map" $fallback) (hasKey $fallback "provider") (hasKey $fallback "model")) -}}{{- fail (printf "resolve-enabled-auth-providers: %s/%s route %q fallback[%d] missing provider/model" $presetName $group $name $idx) -}}{{- end -}}
+{{-             if hasKey $fallback "fallbacks" -}}{{- fail (printf "resolve-enabled-auth-providers: %s/%s route %q fallback[%d] cannot nest fallbacks" $presetName $group $name $idx) -}}{{- end -}}
+{{-             if eq (get $fallback "provider") "local" -}}{{- fail (printf "resolve-enabled-auth-providers: %s/%s route %q fallback[%d] cannot use local provider" $presetName $group $name $idx) -}}{{- end -}}
+{{-             $fallbackRef := printf "%s/%s" $fallback.provider $fallback.model -}}
+{{-             if not (has $fallbackRef $enabledModels) -}}{{- fail (printf "resolve-enabled-auth-providers: %s/%s route %q fallback[%d] references %s but provider/model not enabled" $presetName $group $name $idx $fallbackRef) -}}{{- end -}}
+{{-           end -}}
+{{-         end -}}
+{{-       end -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- end -}}
+{{- dict
+  "providers" ($enabledAuthKeys | uniq)
+  "enabled_models" ($enabledModels | uniq)
+  "enabled_api_key_envs" ($enabledApiKeyEnvs | uniq | sortAlpha)
+  "has_enabled_data" $hasEnabledData
+  "api_key_map" $apiKeyMap
+  "auth_entries" $authEntries
+  "disabled_auth_keys" ($disabledAuthKeys | uniq)
+| toJson -}}

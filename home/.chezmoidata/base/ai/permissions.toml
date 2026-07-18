@@ -187,6 +187,8 @@ cert_key_binaries = [
 cloud_creds = [
   "~/.aws/**",
   "~/.azure/**",
+  "~/.config/runpod/**",
+  "~/.runpod/**",
   "~/.config/containers/auth.json",
   "~/.config/docker/config.json",
   "~/.config/gcloud/**",
@@ -201,6 +203,8 @@ cloud_creds = [
 cloud_creds_broad = [
   "**/.aws/**",
   "**/.azure/**",
+  "**/.config/runpod/**",
+  "**/.runpod/**",
   "**/.boto",
   "**/.config/gcloud/**",
   "**/.docker/config.json",
@@ -723,7 +727,8 @@ containers = [
   "production.cloudflare.docker.com",
   "public.ecr.aws",
   "quay.io",
-  "registry-1.docker.io"
+  "registry-1.docker.io",
+  "us-docker.pkg.dev"
 ]
 js_cdns = [
   "cdn.jsdelivr.net",
@@ -856,6 +861,11 @@ infra_schema = [
   "schemastore.org",
   "semgrep.dev",
   "supabase.com"
+]
+ai_skypilot = [
+  "*.skypilot.co",
+  "docs.skypilot.co",
+  "skypilot.co"
 ]
 
 [ai.base.permissions.network.localhost]

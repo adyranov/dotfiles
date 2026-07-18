@@ -1,9 +1,35 @@
 {{- /* chezmoi:modify-template */ -}}
-Include {{ .host.home }}/.config/ssh/config
-
 {{- $stdin := get .chezmoi "stdin" | default "" -}}
-{{- if regexMatch "(?m)^#### dotfiles:unmodified" $stdin }}
-{{ regexFind "(?s)#### dotfiles:unmodified.*" $stdin }}
-{{- else }}
-{{ print "#### dotfiles:unmodified\n" }}
-{{- end -}}
+{{- $home := .host.home -}}
+{{- $xdg := printf "Include %s/.config/ssh/config" $home -}}
+{{- $sky := "Include ~/.sky/generated/ssh/*" -}}
+{{- $markerBegin := "# >>> chezmoi:managed ssh-config >>>" -}}
+{{- $markerEnd := "# <<< chezmoi:managed ssh-config <<<" -}}
+
+{{- /* 1. Remove any prior chezmoi managed block */ -}}
+{{- $re := printf "(?s)%s.*?%s\n*" $markerBegin $markerEnd -}}
+{{- $remaining := regexReplaceAll $re $stdin "" -}}
+
+{{- /* 2. Remove legacy dotfiles:unmodified marker */ -}}
+{{- $remaining = replace "#### dotfiles:unmodified" "" $remaining -}}
+
+{{- /* 3. Remove SkyPilot preamble comment */ -}}
+{{- $remaining = replace "# Added by SkyPilot for ssh config of all clusters" "" $remaining -}}
+
+{{- /* 4. Remove duplicate canonical include lines */ -}}
+{{- $remaining = replace $sky "" $remaining -}}
+{{- $remaining = replace $xdg "" $remaining -}}
+
+{{- /* 5. Collapse runs of 3+ consecutive newlines to 2, trim leading/trailing newlines */ -}}
+{{- $remaining = regexReplaceAll "\n{3,}" $remaining "\n\n" -}}
+{{- $remaining = trim $remaining -}}
+
+{{- /* 6. Emit canonical block at top */ -}}
+{{ $markerBegin }}
+{{ $sky }}
+{{ $xdg }}
+{{ $markerEnd -}}
+{{- if $remaining }}
+
+{{ $remaining -}}
+{{ end -}}

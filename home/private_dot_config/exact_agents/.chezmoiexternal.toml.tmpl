@@ -1,4 +1,3 @@
 {{- if .toolchains.ai -}}
-{{- $tagMemo := dict -}}
-{{ includeTemplate "base/ai/render-library-externals" (dict "root" . "tagMemo" $tagMemo) }}
+{{ includeTemplate "base/ai/models/render-library-externals" (dict "root" .) }}
 {{- end -}}

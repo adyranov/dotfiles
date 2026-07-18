@@ -1,5 +1,5 @@
 .gitignore
-.oh-my-opencode-slim
+.oh-my-opencode-slim/
 dcp.jsonc
 logs/
 npm/

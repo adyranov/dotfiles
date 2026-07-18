@@ -1,2 +1,30 @@
-{{- $modelsJson := includeTemplate "base/ai/render-pi-models-json" (dict "root" .) -}}
-{{- $modelsJson -}}
+{{- /* Render Pi models.json with only local provider. Remote providers use Pi built-in models; no catalog restriction. */ -}}
+{{- $root := . -}}
+{{- $providers := dict -}}
+
+{{- $resolved := includeTemplate "base/ai/models/load-local-models" (dict "root" $root) | mustFromJson -}}
+{{- $localModels := get $resolved "models" | default dict -}}
+{{- $localModelList := list -}}
+{{- range $id, $m := $localModels -}}
+{{-   $localModelList = append $localModelList (dict
+        "id" $id
+        "name" (get $m "name" | default $id)
+        "reasoning" (get $m "reasoning" | default false)
+        "input" (list "text")
+        "contextWindow" (get $m "context_window" | default 128000)
+        "maxTokens" (get $m "context_output" | default 8192)
+        "cost" (dict "input" 0 "output" 0 "cacheRead" 0 "cacheWrite" 0)
+      ) -}}
+{{- end -}}
+{{- $port := get $resolved "port" | default 8321 -}}
+{{- if $localModelList -}}
+{{-   $_ := set $providers "local" (dict
+        "baseUrl" (printf "http://127.0.0.1:%v/v1" $port)
+        "api" "openai-completions"
+        "apiKey" "local"
+        "models" $localModelList
+      ) -}}
+{{- end -}}
+
+
+{{- dict "providers" $providers | toPrettyJson -}}

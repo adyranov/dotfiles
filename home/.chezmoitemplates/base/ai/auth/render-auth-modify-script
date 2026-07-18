@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Normalize {{ .name }} auth.json for managed API-key providers.
+{{- $resolved := includeTemplate "base/ai/auth/resolve-enabled-auth-providers" (dict "root" .root) | mustFromJson }}
+{{- $mode := get . "mode" | default "env_ref" }}
+{{- if eq $mode "remove" }}
+# OpenCode auto-discovers API key env vars; remove managed auth entries.
+set -euo pipefail
+
+jq -Rs '
+  . as $input
+  | (if ($input | gsub("[[:space:]]"; "") | length) == 0 then {} else ($input | fromjson) end)
+{{- range $ak, $_ := $resolved.api_key_map }}
+  | del(.["{{ $ak }}"])
+{{- end }}
+'
+{{- else }}
+# Pi stores env var references; add enabled managed auth entries.
+set -euo pipefail
+
+jq -Rs '
+  . as $input
+  | {{ $resolved.api_key_map | toJson }} as $env_map
+  | (if ($input | gsub("[[:space:]]"; "") | length) == 0 then {} else ($input | fromjson) end) as $orig
+  | reduce ($orig | keys[]) as $k ({}; .[$k] = (
+      if $orig[$k].type == "api_key" and (($orig[$k].key // "") | tostring | startswith("$")) then
+        $orig[$k]
+      elif $orig[$k].type == "api_key" and $env_map[$k] != null then
+        {"type": "api_key", "key": ("$" + $env_map[$k])}
+      else
+        $orig[$k]
+      end
+    ))
+{{- range $ak := $resolved.disabled_auth_keys }}
+  | del(.["{{ $ak }}"])
+{{- end }}
+{{- if gt (len $resolved.auth_entries) 0 }}
+  | . * {{ $resolved.auth_entries | toJson }}
+{{- end }}
+'
+{{- end }}

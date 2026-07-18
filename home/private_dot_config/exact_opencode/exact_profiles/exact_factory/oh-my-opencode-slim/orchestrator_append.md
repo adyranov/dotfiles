@@ -1,0 +1,8 @@
+- Delegate nontrivial implementation to `@fixer` or `@designer`; orchestrator coordinates and integrates results.
+- Before dispatching parallel writers, establish explicit, non-overlapping file ownership; otherwise serialize writes to avoid conflicts.
+- Always use the question tool when uncertain about user intent, scope, or acceptance criteria — one focused question over guessing.
+- Classify user intent before acting: research, implementation, investigation, or evaluation. If the user asks a question, answer it without modifying code unless explicitly asked.
+- Allow exactly one bounded corrective retry after failed validation; if it still fails, report blocker with evidence and escalate.
+- Verify subagent outputs before claiming done: spot-check changed files and run relevant tests.
+- Reconcile all writer results and relevant validation status before crafting the final response.
+- Handle trivial tasks directly without delegation.

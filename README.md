@@ -43,60 +43,63 @@ Prebuilt images are also published to GHCR and Docker Hub:
 - **Generated tests**: Bats specs render from the same data so package and config
   checks stay aligned with what chezmoi applies.
 
-### AI agents
+### AI tooling
 
-- The `ai` toolchain gates nested agents such as Pi, plus model routing, skills,
-  permissions, and sandbox configuration.
-- Pi command policy defaults to allow with deny-list restrictions. The deny list
-  covers dangerous commands (sudo, rm -rf, destructive git/docker/kubectl, etc.).
-  Greywall enforces the host-level filesystem/network/process sandbox.
-- Greywall provides the host filesystem/network/process sandbox; Pi permission
-  prompts are a higher-level agent guard.
-- Pi uses runtime profiles: `pi-agent` or `pi-agent core` (daily driver with Plannotator, permission system, catppuccin), `pi-agent minimal`
-  (stripped: no Plannotator, no MCP servers, no subagents), and `pi-agent factory` for the full rpiv-pi stack. Sessions are isolated per profile.
-- Opencode is managed as a first-class agent: `opencode-agent` launches
-  opencode inside a Greywall sandbox (or `--no-greywall` for direct use,
-  `--no-update` to skip the dependency cache preflight).
-  Runtime profiles: `opencode-agent` or `opencode-agent core` for the daily driver
-  with context pruning and notification plugins, `opencode-agent minimal` for a
-  lightweight stack (no subagents; includes local utility plugins), and
-  `opencode-agent factory` for slim multi-agent orchestration with background
-  subagents, worktrees, and planning.
-  Core uses the default OpenCode config location; factory uses a profile overlay
-  (`~/.config/opencode/profiles/factory/`). Every profile also exposes the local
-  LLM gateway (configured under `[ai.profile.<profile>.models.catalog.local]`)
-  as the `local` provider in `opencode.json`, so any catalog model can be
-  selected with `--model local/<id>` or routed from a persona override.
-- OMP (oh-my-pi) is a standalone agent installed via mise GitHub backend,
-  pinned to `16.4.8`. `omp-agent` uses the shared `agent-launch` dispatcher with
-  a dedicated `omp` identity. It scrubs inherited `PI_*` and `OPENCODE_*` env
-  vars, sets `PI_CODING_AGENT_DIR` to the XDG config root
-  (`~/.config/omp`), rejects unsafe flags and `--profile`/`--config` overrides,
-  and injects `--no-extensions`. Chezmoi manages OMP's legacy `~/.omp` root
-  symlink into the XDG root. Auth is managed independently via `omp /login`.
-  The Greywall policy denies Pi/OpenCode/RPIV state and unrelated auth stores.
+The `ai` toolchain gates shared model routing, skills, permissions, sandbox
+configuration, cloud inference tools, and the nested `pi`, `opencode`, and `omp`
+agent toolchains. Command policy uses default-allow deny lists; Greywall is the
+host-level filesystem, network, and process sandbox. Agent permission prompts
+are an additional guard, not a sandbox replacement.
 
-  For multi-agent workflows, start `tmux` from your project worktree, then
-  `opencode-agent factory` inside the tmux session. oh-my-opencode-slim
-  automatically opens each subagent in a dedicated tmux pane
-  (`multiplexer.type=auto`, `layout=main-vertical`, `main_pane_size=60`).
-  Tmux socket is stored at `~/.local/share/tmux/tmux-UID/default` via
-  `TMUX_TMPDIR`. Native terminal features: `tmux-256color`, RGB, clipboard,
-  focus events, CSI-u extended keys, and OSC-52 passthrough for OpenCode/Pi.
-  Plugins: `tmux-yank` (WSL2 clipboard fallback), `tmux-resurrect`,
-  `tmux-continuum` (save-only, no auto-restore), `tmux-open`.
+#### Pi
 
-  All profiles include `@slkiser/opencode-quota` (latest; follows OpenCode
-  plugin auto-update resolution). Shared quota settings live in the default
-  OpenCode config and are symlinked into core/factory. Personal monitors
-  OpenAI/Codex and OpenCode Go; work monitors GitHub Copilot. Toasts are off;
-  sidebar and compact status are on. No system-prompt injection.
-  Prerequisites: Node >=20, OpenCode >=1.4.3.
+- `pi-agent` or `pi-agent core` runs the daily profile with Plannotator,
+  permission checks, and Catppuccin.
+- `pi-agent minimal` removes Plannotator, MCP servers, and subagents.
+- `pi-agent factory` adds the rpiv-pi workflow stack. Sessions are isolated per
+  profile.
 
-  OMO model fallback chains are optional, remote-only (no `provider=local`).
-  Personal profile configures cross-provider chains (OpenAI Codex ↔ OpenCode
-  Go). Work profile is primary-only (GitHub Copilot strings, no fallback
-  arrays).
+#### OpenCode
+
+- `opencode-agent` defaults to `core`; `--no-greywall` runs it without the
+  Greywall sandbox.
+- `minimal` uses `~/.config/opencode/opencode.jsonc` with base plugins and
+  built-in agents. `core` uses
+  `~/.config/opencode/profiles/core/opencode.jsonc` and adds daily-driver
+  integrations. `factory` uses
+  `~/.config/opencode/profiles/factory/opencode.jsonc` and adds
+  oh-my-opencode-slim multi-agent orchestration.
+- Every profile exposes the local LLM gateway as `local/<id>`. Catalog and
+  engine data live under `[ai.profile.<profile>.models.catalog.local]`.
+- Factory workflows can run inside `tmux`; oh-my-opencode-slim opens subagents
+  in separate panes and supports worktree-based execution.
+- All profiles include `@slkiser/opencode-quota`. Personal profiles monitor
+  OpenAI/Codex, OpenCode Go, DeepSeek, and OpenRouter; work profiles monitor
+  GitHub Copilot. Quota toasts are disabled.
+- Personal routing uses OpenCode Go and OpenAI Codex primary routes with
+  DeepSeek fallbacks. Work routing uses GitHub Copilot without fallback arrays.
+  oh-my-opencode-slim fallback chains are remote-only; `provider=local` is not
+  allowed in fallback entries.
+
+Prerequisites: Node >=20 and OpenCode >=1.4.3.
+
+#### OMP
+
+OMP (oh-my-pi) is installed through the mise GitHub backend and pinned to
+`16.4.8`. `omp-agent` uses the shared launcher with mandatory Greywall
+sandboxing, rejects alternate profiles and config roots, and injects
+`--no-extensions`. Its XDG root is `~/.config/omp`; the legacy `~/.omp` path is
+a managed symlink. Authenticate separately with `omp /login`.
+
+#### Cloud inference
+
+SkyPilot task YAMLs and RunPod settings are managed under
+`~/.config/skypilot/` and `~/.config/runpod/` when the `ai` toolchain is enabled.
+Run `runpod config` before using RunPod, then launch catalog tasks with
+`skyl <category/task> [sky launch flags]`. Persistent RunPod volumes are opt-in
+under `[skypilot.base.runpod]` in
+`home/.chezmoidata/base/skypilot/tasks.toml`; the volume and GPU pod must use the
+same RunPod zone.
 
 ### Local LLM serving
 
@@ -129,13 +132,19 @@ evaluate alternatives for the current machine.
 
 ### Editor extensions
 
-- VS Code and Cursor share settings/keybindings defined in `.chezmoidata/base/editors.toml` and rendered via `editors/vscode/` templates.
-- Extensions are installed by `common/run_onchange_after_36_install-editor-extensions.sh.tmpl` (re-runs when the extension or settings list changes).
+- VS Code and Cursor share settings/keybindings defined in
+  `home/.chezmoidata/base/editors.toml` and rendered through editor templates.
+- Extensions are installed by
+  `home/.chezmoiscripts/common/run_onchange_after_36_install-editor-extensions.sh.tmpl`
+  when the extension or settings list changes.
 
 ### XDG-first layout
 
 - Exports file: shell environment is centralized in `~/.config/shell/exports.sh` (assembled from modular `exports.d/` fragments) to enforce XDG base directories across tools.
-- An XDG migration planner (`before/run_onchange_before_05_xdg-migration-plan.sh.tmpl`) prints suggested `mv` commands when legacy dotfile paths are detected — it never modifies files itself.
+- An XDG migration planner
+  (`home/.chezmoiscripts/before/run_onchange_before_05_xdg-migration-plan.sh.tmpl`)
+  prints suggested `mv` commands when legacy dotfile paths are detected; it
+  never modifies files itself.
 - Smart completions: Zsh completions for kubectl, mise, tofu, etc., are automatically generated and synced with tool versions via `run_onchange` hashing.
 - Moved dotfiles: bash/zsh history and sessions, npm cache/prefix, cargo/rustup, gradle, krew, pass, wget, readline, less, svn, git excludes, asdf files, and more are redirected under the XDG tree.
 - Atuin is the default Zsh history backend. Legacy zsh history can be imported manually with `HISTFILE=... atuin import zsh`.
@@ -144,12 +153,19 @@ evaluate alternatives for the current machine.
 
 ### Catppuccin Mocha theming
 
-A unified **Catppuccin Mocha** color scheme is applied across all terminal tools. Theme assets are fetched automatically via per-tool `.chezmoiexternal.toml.tmpl` files with a weekly refresh period. Themed tools include: bat, btop, delta (git), fzf, ghostty, k9s, lazygit, LS_COLORS (vivid), tmux, yazi, zsh-syntax-highlighting, and atuin.
+A unified **Catppuccin Mocha** color scheme is applied across all terminal
+tools. Per-tool `.chezmoiexternal.toml.tmpl` files track upstream default
+branches and refresh them weekly without GitHub API tag lookups. Themed
+tools include: bat, btop, delta (git), fzf, ghostty, k9s, lazygit, LS_COLORS
+(vivid), tmux, yazi, zsh-syntax-highlighting, and atuin.
 
 ### macOS Launch Agents
 
 - Managed agents live under `home/private_Library/LaunchAgents` (rendered to `~/Library/LaunchAgents`).
-- Launch agents are reloaded by `home/.chezmoiscripts/os/darwin/run_onchange_after_20_bootstrap-launch-agents.tmpl` (after macOS defaults in `run_onchange_after_10_configure-darwin.tmpl`).
+- Launch agents are reloaded by
+  `home/.chezmoiscripts/os/darwin/run_onchange_after_20_bootstrap-launch-agents.tmpl`
+  after macOS defaults in
+  `home/.chezmoiscripts/os/darwin/run_onchange_after_10_configure-darwin.tmpl`.
 - Non-macOS hosts ignore `home/private_Library/**` via template guards so Linux/WSL environments stay clean.
 
 See examples in `home/.chezmoidata/base/`, `home/.chezmoidata/os/<distro>/`, and `home/.chezmoidata/profile/<profile>/`.
@@ -164,7 +180,8 @@ See examples in `home/.chezmoidata/base/`, `home/.chezmoidata/os/<distro>/`, and
 - Filter by tag: `check-dotfiles --tag toolchain:kubernetes`.
 - Filter by test name regex: `check-dotfiles --filter 'git config'`.
 - List all discovered tests: `check-dotfiles --list`.
-- Bats and its plugins (`bats-assert`, `bats-support`, `bats-file`) are managed by chezmoi via `.chezmoiexternal.toml.tmpl` and persist in the test directory.
+- Bats and its plugins (`bats-assert`, `bats-support`, `bats-file`) track their
+  upstream default branches via `.chezmoiexternal.toml.tmpl`.
 
 ## 🧑‍💻 Development
 
@@ -172,7 +189,9 @@ See examples in `home/.chezmoidata/base/`, `home/.chezmoidata/os/<distro>/`, and
 - Bootstrap development environment: `mise run bootstrap` (installs `pre-commit` and `commit-msg` Git hooks).
 - Run linting/validations: `mise run lint` (runs the `pre-commit` stage with `PRE_COMMIT_COLOR=never` for readable status labels; commit messages are checked by the installed `commit-msg` hook).
 - Build test containers: `mise run build-containers`.
-- Project layout follows chezmoi conventions. See `home/` for source state, `home/.chezmoidata/**` for data-driven packages, and `home/.chezmoitemplates/{common,os}/**` for reusable templates.
+- Project layout follows chezmoi conventions. See `home/` for source state,
+  `home/.chezmoidata/**` for layered data, and
+  `home/.chezmoitemplates/{base,os}/**` for reusable templates.
 - Line endings are enforced via `.gitattributes` (LF for Unix tooling, CRLF for Windows scripts). Keep new files consistent with these defaults.
 - Maintainers: see `AGENTS.md` for contributor guidelines and CI expectations.
 
@@ -183,7 +202,8 @@ See examples in `home/.chezmoidata/base/`, `home/.chezmoidata/os/<distro>/`, and
   - Enable specific: `WITH_DOCKER=true WITH_KUBERNETES=true`
   - Disable specific: `WITHOUT_JAVA=true WITHOUT_NODE=true`
   - Disable all then opt-in: `WITHOUT_TOOLCHAINS=true WITH_PYTHON=true`
-  - AI agents (nested under `ai`): `WITH_PI=true`, `WITHOUT_PI=true`, `WITH_OMP=true`, `WITHOUT_OMP=true`
+  - AI agents (nested under `ai`): `WITH_PI=true`, `WITH_OPENCODE=true`, or
+    `WITH_OMP=true`; each also supports the corresponding `WITHOUT_*` variable.
 - Environment detection:
   - Ephemeral/container environments are auto-detected and tagged as `ephemeral`.
   - Non-interactive sessions set `.host.interactive = false` (treated as `headless` in package rules).
@@ -204,7 +224,8 @@ Use the helper to build and test local validation containers:
 Notes:
 
 - Supports parallel builds when `parallel` is installed; otherwise runs sequentially (the script hints how to install it).
-- Pass `GITHUB_TOKEN` to enable authenticated fetches during container builds.
+- `GITHUB_TOKEN` is optional for authenticated fetches during container builds;
+  ordinary `chezmoi diff` and `chezmoi apply` do not require it.
 
 ## 🤖 CI
 
@@ -219,7 +240,8 @@ Notes:
 - Container cleanup (`.github/workflows/cleanup-containers.yaml`) prunes old untagged container versions from GHCR on a weekly schedule.
 - Lint (`.github/workflows/lint.yaml`) runs `pre-commit` hooks on push and pull requests to `main`.
 - License year update (`.github/workflows/update-license-year.yaml`) automatically bumps the copyright year in `LICENSE` on January 1st.
-- When adding new top-level paths, update the `dorny/paths-filter` sections in the CI workflows so triggers remain accurate.
+- When adding new top-level paths, update the `dorny/paths-filter`
+  configuration in `.github/workflows/ci.yaml` so triggers remain accurate.
 
 ## 🖥 Supported Platforms
 
@@ -238,7 +260,11 @@ Notes:
 
 ## 🧰 Toolchains & Tools
 
-Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the tool is provisioned on all architectures for that OS; `❌ (arch)` flags a missing architecture. The Install column highlights when `mise` is responsible (`mise ✅`), otherwise the native package manager or plugin manager is used.
+This inventory covers user-facing tools; service and support packages are
+omitted. Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means
+the tool is provisioned on all architectures for that OS; `❌ (arch)` flags a
+missing architecture. The Install column highlights when `mise` is responsible
+(`mise ✅`); otherwise the native package manager or plugin manager is used.
 
 ### ☁️ Cloud
 
@@ -272,7 +298,6 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 | [GnuPG](https://gnupg.org/)                              | OpenPGP encryption toolkit      | `system`                               | ✅    | ✅              | ✅     | ✅   |
 | [Greyproxy](https://github.com/GreyhavenHQ/greyproxy)   | Network-level request proxy     | `mise ✅`                              | ✅    | ✅              | ✅     | ✅   |
 | [Greywall](https://github.com/GreyhavenHQ/greywall)     | Filesystem/process sandbox      | `mise ✅`                              | ✅    | ✅              | ✅     | ✅   |
-| [tmux](https://github.com/tmux/tmux)                     | Terminal multiplexer (agent-aware SOTA config) | `system` | ✅ | ✅ | ✅ | ✅ |
 | [hyperfine](https://github.com/sharkdp/hyperfine)        | Command benchmarking            | `mise ✅` (macOS/Arch: `system`)       | ✅    | ✅              | ✅     | ✅   |
 | [jnv](https://github.com/ynqa/jnv)                       | Interactive JSON viewer with jq  | `mise ✅` (macOS/Arch: `system`)       | ✅    | ✅              | ✅     | ✅   |
 | [jq](https://stedolan.github.io/jq/)                     | JSON processor                  | `system`                               | ✅    | ✅              | ✅     | ✅   |
@@ -390,15 +415,21 @@ Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means the too
 | ---------------------------------- | ----------------------- | --------- | ----- | ------ | ------ | ---- |
 | [Rust](https://www.rust-lang.org/) | Rust toolchain (rustup) | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
 
-### 🤖 AI Agents
+### 🤖 AI and inference
 
-| Tool                                                               | Description                   | Install                        | macOS | Ubuntu | Fedora | Arch |
-| ------------------------------------------------------------------ | ----------------------------- | ------------------------------ | ----- | ------ | ------ | ---- |
-| [AIPerf](https://github.com/ai-dynamo/aiperf)                      | LLM endpoint benchmarking     | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
-| [opencode](https://opencode.ai)                                   | AI coding agent (terminal)    | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
-| [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) | Coding agent                  | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
-| [omp](https://omp.sh)                                             | oh-my-pi coding agent         | `mise ✅`                      | ✅    | ✅     | ✅     | ✅   |
-| [rtk](https://github.com/rtk-ai/rtk)                              | AI agent toolkit              | `mise ✅` (macOS: `system`)   | ✅    | ✅     | ✅     | ✅   |
+| Tool                                                                 | Description                       | Install                      | macOS              | Ubuntu | Fedora | Arch |
+| -------------------------------------------------------------------- | --------------------------------- | ---------------------------- | ------------------ | ------ | ------ | ---- |
+| [AIPerf](https://github.com/ai-dynamo/aiperf)                        | LLM endpoint benchmarking         | `mise ✅`                    | ✅                 | ✅     | ✅     | ✅   |
+| [Engram](https://github.com/Gentleman-Programming/engram)            | Agent memory and MCP server       | `mise ✅`                    | ✅                 | ✅     | ✅     | ✅   |
+| [Hugging Face CLI](https://huggingface.co/docs/huggingface_hub/)     | Model download and repository CLI | `mise ✅` (macOS: `system`) | ✅                 | ✅     | ✅     | ✅   |
+| [llama.cpp](https://github.com/ggml-org/llama.cpp)                   | Local GGUF inference server       | `mise ✅` (macOS: `system`) | ✅                 | ✅     | ✅     | ✅   |
+| [oMLX](https://github.com/jundot/omlx)                               | Local Apple Silicon inference     | `system`                     | ✅ / ❌ (x86_64)   | ❌     | ❌     | ❌   |
+| [OMP](https://omp.sh)                                                | oh-my-pi coding agent             | `mise ✅`                    | ✅                 | ✅     | ✅     | ✅   |
+| [OpenCode](https://opencode.ai)                                      | Terminal coding agent             | `mise ✅`                    | ✅                 | ✅     | ✅     | ✅   |
+| [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)  | Terminal coding agent             | `mise ✅`                    | ✅                 | ✅     | ✅     | ✅   |
+| [rtk](https://github.com/rtk-ai/rtk)                                 | AI agent toolkit                  | `mise ✅` (macOS: `system`) | ✅                 | ✅     | ✅     | ✅   |
+| [RunPod](https://www.runpod.io/)                                     | Cloud GPU provider CLI            | `mise ✅`                    | ✅                 | ✅     | ✅     | ✅   |
+| [SkyPilot](https://docs.skypilot.co/)                                | Multi-cloud workload launcher     | `mise ✅`                    | ✅                 | ✅     | ✅     | ✅   |
 
 ## 🧰 GUI Apps (macOS)
 

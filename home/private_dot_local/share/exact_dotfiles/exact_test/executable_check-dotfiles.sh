@@ -18,7 +18,7 @@ fi
 # ----- Constants & defaults ---------------------------------------------------
 
 PACKAGE_SUITES=(test-system-packages.bats test-mise-packages.bats test-helm-plugins.bats test-krew-plugins.bats)
-AI_SUITES=(test-ai-shared.bats test-ai-pi.bats test-ai-opencode.bats test-ai-omp.bats test-ai-local-llm.bats test-ai-permissions.bats)
+AI_SUITES=(test-ai-shared.bats test-ai-pi.bats test-ai-opencode.bats test-ai-omp.bats test-ai-local-llm.bats test-ai-permissions.bats test-ai-skypilot.bats)
 ALL_SUITES=("${PACKAGE_SUITES[@]}" test-config.bats "${AI_SUITES[@]}")
 
 detectJobs() {

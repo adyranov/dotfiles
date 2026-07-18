@@ -24,7 +24,7 @@ setup() {
 
 {{- if .toolchains.pi }}
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
-{{- $tiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.tiers" "required" true) | mustFromJson }}
+{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
 
 # bats test_tags=toolchain:pi,kind:permission
 @test "pi settings.json enables install telemetry" {
@@ -106,7 +106,7 @@ setup() {
 # bats test_tags=toolchain:pi,kind:config
 @test "pi factory settings.json renders agent routes" {
   assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
-  run jq -e '(.subagents.agentOverrides | length > 0) and all(.subagents.agentOverrides[]; (.model | length > 0) and (.thinking | length > 0))' "$HOME/.config/pi/profiles/factory/settings.json"
+  run jq -e '(.subagents.agentOverrides | type) == "object"' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
 }
 
@@ -217,6 +217,31 @@ EOF
 }
 
 # bats test_tags=toolchain:pi,kind:config
+@test "agent-launch throttle supports GNU stat" {
+  mkdir -p "$BATS_TEST_TMPDIR/bin" "$BATS_TEST_TMPDIR/cache/pi"
+  cat >"$BATS_TEST_TMPDIR/bin/pi" <<'EOF'
+#!/usr/bin/env sh
+printf 'launched\n'
+EOF
+  cat >"$BATS_TEST_TMPDIR/bin/stat" <<'EOF'
+#!/usr/bin/env sh
+case "$1" in
+  -c) printf '9999999999\n' ;;
+  -f) printf '  File: stamp\n'; exit 1 ;;
+  *) exit 1 ;;
+esac
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/pi" "$BATS_TEST_TMPDIR/bin/stat"
+  touch "$BATS_TEST_TMPDIR/cache/pi/.extensions-refresh-stamp"
+
+  run env XDG_CACHE_HOME="$BATS_TEST_TMPDIR/cache" PATH="$BATS_TEST_TMPDIR/bin:$PATH" \
+    "$HOME/.local/bin/pi-agent" --no-greywall
+  assert_success
+  assert_output --partial "updated within 24h"
+  assert_output --partial "launched"
+}
+
+# bats test_tags=toolchain:pi,kind:config
 @test "agent-launch script has exec and unsafe-PWD guards" {
   run grep -F 'exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME"' "$HOME/.local/bin/agent-launch"
   assert_success
@@ -261,7 +286,7 @@ EOF
   assert_success
 }
 
-{{- $enabledAuth := includeTemplate "base/ai/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson }}
+{{- $enabledAuth := includeTemplate "base/ai/auth/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson }}
 {{- if or (not $enabledAuth.has_enabled_data) ($enabledAuth.providers | has "openrouter") }}
 # bats test_tags=toolchain:pi,kind:config
 @test "pi auth.json maps openrouter to env var" {

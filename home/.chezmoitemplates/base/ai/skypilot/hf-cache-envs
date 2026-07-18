@@ -1,0 +1,6 @@
+{{- /* Emit the four HF cache env vars pointing at the RunPod volume mount.
+    Expects .mount_path (string, e.g. "/workspace"). */ -}}
+  HF_HOME: {{ .mount_path }}/.cache/huggingface
+  HF_HUB_CACHE: {{ .mount_path }}/.cache/huggingface/hub
+  HF_ASSETS_CACHE: {{ .mount_path }}/.cache/huggingface/assets
+  HF_XET_CACHE: {{ .mount_path }}/.cache/huggingface/xet
