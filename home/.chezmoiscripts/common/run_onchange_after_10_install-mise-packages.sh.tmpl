@@ -3,5 +3,8 @@
 # config hash: {{ includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "mise" "format" "mise") | sha256sum }}
 echo "📦 Ensuring mise packages are installed and up to date..."
 # exports.sh sets NPM_CONFIG_PREFIX for user `npm -g`; mise npm backend needs its own prefix.
+# Pre-install rust so pipx packages that build cryptography from source (no
+# x86_64 macOS wheel since v50) have cargo available during parallel install.
+NPM_CONFIG_PREFIX= mise install rust 2>/dev/null || true
 NPM_CONFIG_PREFIX= mise install
 echo "✅ mise packages ensured."

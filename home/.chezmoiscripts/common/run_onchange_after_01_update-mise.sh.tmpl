@@ -11,6 +11,10 @@ echo "✅ mise toolchains updated."
 {{- else }}
 echo "🔄 Installing mise toolchains..."
 echo "  ↳ Ensuring all required tools are present."
+# Ensure rust is available before the main parallel install: cryptography ≥50
+# dropped x86_64 macOS wheels, so pipx packages that depend on it (runpod,
+# skypilot) must build from source, which needs cargo.
+mise install rust 2>/dev/null || true
 mise install
 echo "✅ mise toolchains installed."
 {{- end }}
