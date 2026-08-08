@@ -16,7 +16,7 @@
 {{- end -}}
 {{- end -}}
 {{ range ($brews | sortAlpha | uniq) }}
-brew "{{ . }}"
+brew "{{ . }}"{{ if eq (sub (len (splitList "/" .)) 1) 2 }}, trusted: true{{ end }}
 {{- end }}
 {{- if .host.interactive -}}
 {{ range ($casks | sortAlpha | uniq) }}

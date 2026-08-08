@@ -10,10 +10,8 @@ if command -v brew >/dev/null 2>&1; then
 {{-   else }}
   brew tap {{ $tap.name | quote }}
 {{-   end }}
-  if brew trust --help >/dev/null 2>&1; then brew trust {{ $tap.name | quote }}; fi
 {{- else }}
   brew tap {{ $tap | quote }}
-  if brew trust --help >/dev/null 2>&1; then brew trust {{ $tap | quote }}; fi
 {{- end }}
 {{- end }}
 fi
