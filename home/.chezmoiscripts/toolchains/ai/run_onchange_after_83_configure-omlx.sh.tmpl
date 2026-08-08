@@ -83,10 +83,10 @@ if "$OMLX_PY" -c 'import xgrammar' >/dev/null 2>&1; then
 fi
 
 echo "Installing xgrammar into omlx venv for structured-output support..."
-"$OMLX_PY" -m pip install --quiet --ignore-installed xgrammar
+"$OMLX_PY" -m pip install --quiet --no-deps xgrammar apache-tvm-ffi || true
 "$OMLX_PY" -c 'import xgrammar' >/dev/null 2>&1 || {
   echo "xgrammar install failed; structured outputs will fall back to prompt injection." >&2
-  exit 1
+  exit 0
 }
 echo "xgrammar installed."
 {{- end }}
