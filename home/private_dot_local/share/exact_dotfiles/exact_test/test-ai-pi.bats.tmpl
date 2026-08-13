@@ -111,11 +111,11 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi caveman package in core and factory" {
+@test "pi caveman package absent from core and factory" {
   run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/core/settings.json"
-  assert_success
+  assert_failure
   run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
+  assert_failure
 }
 
 # bats test_tags=toolchain:pi,kind:packages
@@ -130,9 +130,8 @@ setup() {
 
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi caveman default level is full" {
-  run jq -e '.defaultLevel == "full"' "$HOME/.config/pi/agent/caveman.json"
-  assert_success
+@test "pi caveman config is removed" {
+  assert_file_not_exists "$HOME/.config/pi/agent/caveman.json"
 }
 
 

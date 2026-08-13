@@ -8,8 +8,8 @@ deny = ["~/.local/share/opencode/auth.json"]
 
 [ai.base.agents.opencode.profiles.core]
 extends = "minimal"
-plugins = ["@plannotator/opencode", "@dietrichgebert/ponytail", "./plugins/caveman/plugin.js"]
-instructions = ["AGENTS.md", "OPENCODE.md", "CAVEMAN.md"]
+plugins = ["@plannotator/opencode", "@dietrichgebert/ponytail"]
+instructions = ["AGENTS.md", "OPENCODE.md"]
 plannotator = {plan_dir = "docs/plans/", planning_agents = ["plan"], workflow = "plan-agent"}
 
 [ai.base.agents.opencode.profiles.core.mcp_servers.codegraph]
@@ -25,16 +25,16 @@ enabled = true
 [ai.base.agents.opencode.profiles.factory]
 extends = "core"
 default_agent = "orchestrator"
-plugins = ["oh-my-opencode-slim"]
-disabled_agents = ["build", "explore", "general", "scout"]
-plannotator = {plan_dir = "docs/plans/", workflow = "plan-agent"}
+plugins = ["oh-my-opencode-slim", "./plugins/compound-engineering.js"]
+disabled_agents = ["build", "explore", "general", "plan", "scout"]
+plannotator = {plan_dir = "docs/plans/", workflow = "manual"}
 skills_paths = [
   "~/.config/agents/libraries/skills/compound-engineering",
   "~/.config/agents/libraries/skills/oh-my-opencode-slim"
 ]
 
 [ai.base.agents.opencode.profiles.minimal]
-plugins = ["opencode-notify", "@slkiser/opencode-quota"]
+plugins = ["@slkiser/opencode-quota"]
 
 [ai.base.agents.opencode.sandbox.paths]
 allow_read = [

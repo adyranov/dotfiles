@@ -45,7 +45,7 @@ setup() {
   run jq -e '
     .multiplexer.type == "auto" and
     (.presets.balanced | length > 0) and
-    (.presets.balanced.orchestrator.skills | index("verification-planning") != null) and
+    (.presets.balanced.orchestrator.skills | index("*") != null) and
     .backgroundJobs.wallClockTimeoutMs == 3600000 and
     .backgroundJobs.abortGraceMs == 10000 and
     .fallback.enabled == true and
@@ -71,19 +71,18 @@ setup() {
   assert_success
 }
 
-@test "opencode factory config defaults to orchestrator and keeps plan enabled" {
+@test "opencode factory config defaults to orchestrator and disables plan" {
   run jsoncJq -e '
     (.default_agent == "orchestrator") and
-    (.agent.plan | has("disable") | not)' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
+    (.agent.plan.disable == true)' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
   assert_success
 }
 
-@test "opencode factory plannotator is not plan-only and routes planning to plan" {
+@test "opencode factory plannotator is manual and does not configure plan" {
   run jsoncJq -e '
-    (.plugin | map(select(type == "array" and .[0] == "@plannotator/opencode@latest")) | .[0][1].workflow == "plan-agent") and
-    (.plugin | map(select(type == "array" and .[0] == "@plannotator/opencode@latest")) | .[0][1].planningAgents | index("plan") != null) and
-    (.agent.plan.prompt | contains("docs/plans/")) and
-    (.agent.plan.prompt | contains("Plan-only contract") | not)' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
+    (.plugin | map(select(type == "array" and .[0] == "@plannotator/opencode@latest")) | .[0][1].workflow == "manual") and
+    (.plugin | map(select(type == "array" and .[0] == "@plannotator/opencode@latest")) | .[0][1] | has("planningAgents") | not) and
+    (.agent.plan | has("prompt") | not)' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
   assert_success
 }
 
@@ -111,6 +110,17 @@ setup() {
   done
 }
 
+@test "opencode configs drop the notify plugin and its log" {
+  for file in \
+    "$HOME/.config/opencode/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/core/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/factory/opencode.jsonc"; do
+    run jsoncJq -e '(.plugin // [] | index("opencode-notify") == null)' "$file"
+    assert_success
+  done
+  assert_file_not_exists "$HOME/.opencode-notify.log"
+}
+
 @test "opencode ponytail plugin in core and factory, absent from minimal" {
   run jsoncJq -e '.plugin | index("@dietrichgebert/ponytail") != null' "$HOME/.config/opencode/profiles/core/opencode.jsonc"
   assert_success
@@ -118,6 +128,24 @@ setup() {
   assert_success
   run jsoncJq -e '(.plugin // [] | index("@dietrichgebert/ponytail") == null)' "$HOME/.config/opencode/opencode.jsonc"
   assert_success
+}
+
+@test "opencode core and factory configs drop the caveman plugin" {
+  for file in \
+    "$HOME/.config/opencode/profiles/core/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/factory/opencode.jsonc"; do
+    run jsoncJq -e '(.plugin // [] | index("./plugins/caveman/plugin.js") == null)' "$file"
+    assert_success
+    run jsoncJq -e '(.instructions // [] | index("CAVEMAN.md") == null)' "$file"
+    assert_success
+  done
+}
+
+@test "opencode factory config registers managed compound-engineering plugin" {
+  run jsoncJq -e '.plugin | index("./plugins/compound-engineering.js") != null' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
+  assert_success
+  assert_symlink_to "$HOME/.config/agents/libraries/extensions/compound-engineering/.opencode/plugins/compound-engineering.js" "$HOME/.config/opencode/profiles/factory/plugins/compound-engineering.js"
+  assert_symlink_to "$HOME/.config/agents/libraries/skills/compound-engineering" "$HOME/.config/agents/libraries/extensions/compound-engineering/skills"
 }
 
 @test "opencode core and factory configs enable codegraph MCP, minimal does not" {
@@ -148,6 +176,25 @@ setup() {
     (.presets.balanced.librarian.permission.read != "deny") and
     (.presets.balanced.orchestrator.mcps | index("engram") != null) and
     (.presets.balanced.orchestrator.permission | not)
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+@test "opencode slim balanced preset maps agent skills exactly" {
+  run jq -e '
+    (.presets.balanced.orchestrator.skills == ["*"]) and
+    (.presets.balanced.oracle.skills | index("ce-pov") != null) and
+    (.presets.balanced.oracle.skills | index("ce-code-review") != null) and
+    (.presets.balanced.oracle.skills | index("simplify") == null) and
+    (.presets.balanced.oracle.skills | index("ce-doc-review") == null) and
+    (.presets.balanced.librarian.skills | length == 0) and
+    (.presets.balanced.explorer.skills | length == 0) and
+    (.presets.balanced.designer.skills | index("ce-polish") != null) and
+    (.presets.balanced.designer.skills | index("ce-test-browser") != null) and
+    (.presets.balanced.fixer.skills | index("ce-work") != null) and
+    (.presets.balanced.fixer.skills | index("ce-debug") != null) and
+    (.presets.balanced.fixer.skills | index("ce-simplify-code") != null) and
+    (.presets.balanced.fixer.skills | index("ce-resolve-pr-feedback") == null)
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }

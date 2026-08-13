@@ -32,5 +32,4 @@ run/**
 trust.json
 state.json
 mcp-cache.json
-.caveman-active
 .lock

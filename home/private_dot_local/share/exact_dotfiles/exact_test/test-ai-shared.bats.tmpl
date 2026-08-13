@@ -14,9 +14,9 @@ setup() {
 # bats test_tags=kind:agents-tree
 @test "global AGENTS.md exists and contains abstract workflow" {
   assert_file_exists "$AGENTS_MD"
-  run grep -F "Search and read before editing" "$AGENTS_MD"
+  run grep -F "inspect relevant code, configuration, and callers before editing" "$AGENTS_MD"
   assert_success
-  run grep -F "Treat sandbox and permission denials" "$AGENTS_MD"
+  run grep -F "Treat sandbox, permission, and policy denials" "$AGENTS_MD"
   assert_success
 }
 
@@ -24,6 +24,14 @@ setup() {
 @test "global AGENTS.md stays generic" {
   run grep -ci "chezmoi" "$AGENTS_MD"
   assert_failure
+}
+
+# bats test_tags=kind:agents-tree
+@test "global AGENTS.md carries concise response style" {
+  run grep -F "concise, information-dense English" "$AGENTS_MD"
+  assert_success
+  run grep -F "Include material assumptions, risks, evidence, and requested detail" "$AGENTS_MD"
+  assert_success
 }
 
 
@@ -59,24 +67,20 @@ setup() {
   assert_success
   assert_output --partial "material ambiguity"
 }
+
 # bats test_tags=toolchain:ai,kind:symlink
-@test "shared caveman skill directory symlink resolves" {
-  link="$HOME/.config/agents/skills/caveman"
-  target="$HOME/.config/agents/libraries/skills/caveman/caveman"
-  assert_symlink_to "$target" "$link"
-  assert_file_exists "${link}/SKILL.md"
+@test "shared caveman skill directory is not linked" {
+  assert_file_not_exists "$HOME/.config/agents/skills/caveman"
 }
 
 # bats test_tags=toolchain:ai,kind:symlink
-@test "shared caveman commands resolve via library" {
-  for cmd in caveman caveman-commit caveman-review caveman-compress caveman-stats caveman-help; do
-    assert_file_exists "$HOME/.config/agents/libraries/commands/caveman/${cmd}.md"
-  done
+@test "shared caveman commands are not installed via library" {
+  assert_file_not_exists "$HOME/.config/agents/libraries/commands/caveman"
 }
 
 # bats test_tags=toolchain:ai,kind:symlink
-@test "shared caveman installation instructions resolve" {
-  assert_file_exists "$HOME/.config/agents/libraries/commands/caveman-instructions/caveman-instructions.md"
+@test "shared caveman installation instructions are not installed" {
+  assert_file_not_exists "$HOME/.config/agents/libraries/commands/caveman-instructions"
 }
 
 # --- Shared agent launcher scratch root ---

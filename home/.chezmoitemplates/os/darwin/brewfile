@@ -7,12 +7,12 @@
 {{- range $taps -}}
 {{- if kindIs "map" . -}}
 {{- if .url -}}
-{{- printf "tap \"%s\", \"%s\"\n" .name .url -}}
+{{- printf "tap \"%s\", \"%s\", trusted: true\n" .name .url -}}
 {{- else -}}
-{{- printf "tap \"%s\"\n" .name -}}
+{{- printf "tap \"%s\", trusted: true\n" .name -}}
 {{- end -}}
 {{- else -}}
-{{- printf "tap \"%s\"\n" . -}}
+{{- printf "tap \"%s\", trusted: true\n" . -}}
 {{- end -}}
 {{- end -}}
 {{ range ($brews | sortAlpha | uniq) }}

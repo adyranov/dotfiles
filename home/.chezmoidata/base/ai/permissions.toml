@@ -429,7 +429,6 @@ sandbox_read_base = [
   "~/.pi",
   "~/.pi-lens",
   "~/.omlx",
-  "~/.opencode-notify.log",
   "~/.config",
   "~/.local",
   "~/.local/share"
@@ -546,7 +545,6 @@ sandbox_write_base = [
   "~/.local/share",
   "~/.local/share/dotfiles/**",
   "~/.omlx",
-  "~/.opencode-notify.log",
   "~/.pi",
   "~/.pi-lens",
   "~/.ssh",

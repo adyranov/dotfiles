@@ -1,4 +1,6 @@
 context-mode/
+mcp-cache.json
+models-store.json
 npm/
 sessions/**
 trust.json
