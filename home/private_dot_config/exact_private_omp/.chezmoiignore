@@ -1,6 +1,7 @@
 # OMP runtime databases and native/cache state
 *.db*
 gpu_cache.json
+install-id
 last-changelog-version
 terminal-sessions/
 terminal-sessions/**
@@ -12,6 +13,8 @@ blobs/
 blobs/**
 memory/
 memory/**
+memories/
+memories/**
 logs/
 logs/**
 cache/
@@ -22,11 +25,11 @@ plugins/
 plugins/**
 extensions/
 extensions/**
+run/
+run/**
 
 # Runtime metadata
-.mcp.json
 trust.json
 state.json
 mcp-cache.json
-.caveman-active
 .lock

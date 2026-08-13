@@ -1,12 +1,20 @@
 [ai.base.agents.omp]
 
+[ai.base.agents.omp.mcp_servers.codegraph]
+args = ["serve", "--mcp"]
+command = "codegraph"
+
 [ai.base.agents.omp.sandbox.network]
 hosts = ["api.openai.com", "auth.openai.com", "opencode.ai"]
 
 [ai.base.agents.omp.sandbox.paths]
 allow_read = [
   "~/.config/omp/**",
-  "~/.config/agents/**"
+  "~/.config/agents/**",
+  "~/.local/share/omp",
+  "~/.local/share/omp/**",
+  "/tmp/agents/omp",
+  "/tmp/agents/omp/**"
 ]
 allow_write = [
   "~/.config/omp",
@@ -19,13 +27,15 @@ allow_write = [
   "~/.local/share/omp",
   "~/.local/share/omp/**",
   "/tmp/agents/omp",
-  "/tmp/agents/omp/**"
+  "/tmp/agents/omp/**",
+  # CodeGraph runtime state
+  "**/.codegraph/**"
 ]
 deny_read = [
-  "~/.config/pi/**",
-  "~/.config/opencode/**",
-  "~/.config/rpiv-*/**",
-  "~/.local/share/opencode/**",
+  "~/.config/pi/agent/auth.json",
+  "~/.config/pi/profiles/core/auth.json",
+  "~/.config/pi/profiles/factory/auth.json",
+  "~/.local/share/opencode/auth.json",
   "~/.local/share/pi-lens/**",
   "~/.config/greywall/**",
   "~/.local/share/plannotator/**",
@@ -40,8 +50,10 @@ deny_read = [
   "**/.env.*"
 ]
 deny_write = [
-  "~/.config/pi/**",
-  "~/.config/opencode/**",
+  "~/.config/pi/agent/auth.json",
+  "~/.config/pi/profiles/core/auth.json",
+  "~/.config/pi/profiles/factory/auth.json",
+  "~/.local/share/opencode/auth.json",
   "~/.config/agents/**",
   "~/.config/greywall/**",
   "~/.config/omp/security.yml"
@@ -55,7 +67,6 @@ enable_opencode_project = false
 
 [ai.base.agents.omp.security.mcp]
 enable_project_config = false
-discovery_mode = true
 
 [ai.base.agents.omp.security.skills]
 enabled = true
@@ -65,7 +76,7 @@ enable_claude_user = false
 enable_claude_project = false
 enable_pi_user = false
 enable_pi_project = false
-enable_agents_user = false
+enable_agents_user = true
 enable_agents_project = false
 
 [ai.base.agents.omp.security.startup]
@@ -73,19 +84,21 @@ check_update = false
 setup_wizard = false
 
 [ai.base.agents.omp.security.task]
+eager = "preferred"
 max_concurrency = 4
-max_recursion_depth = 3
+max_recursion_depth = 2
+max_runtime_ms = 900000
 
 [ai.base.agents.omp.security.task.isolation]
+apply = true
+merge = "patch"
 mode = "auto"
 
 [ai.base.agents.omp.security.tools]
 approval_mode = "yolo"
-discovery_mode = "auto"
 
 [ai.base.agents.omp.settings]
 theme_dark = "dark-catppuccin"
 theme_light = "light-catppuccin"
 symbol_preset = "nerd"
-web_search = "auto"
 providers = ["azure", "openai-codex", "anthropic", "zai", "kimi-code", "openrouter", "github-copilot", "cursor", "devin", "google-antigravity", "google-gemini-cli", "openai-codex-device", "xai-oauth", "gitlab-duo", "gitlab-duo-workflow", "alibaba-coding-plan", "aimlapi", "zhipu-coding-plan", "umans", "qwen-portal", "sakana", "minimax-code", "minimax-code-cn", "xiaomi", "xiaomi-token-plan-sgp", "xiaomi-token-plan-ams", "xiaomi-token-plan-cn", "firepass", "deepseek", "moonshot", "cerebras", "fireworks", "together", "nvidia", "huggingface", "perplexity", "qianfan", "venice", "synthetic", "nanogpt", "wafer-serverless", "coreweave", "vercel-ai-gateway", "cloudflare-ai-gateway", "litellm", "kilo", "zenmux", "opencode-zen", "opencode-go", "tavily", "kagi", "parallel", "ollama", "ollama-cloud", "lm-studio", "llama.cpp", "vllm", "openai", "google", "google-vertex", "xai", "groq", "mistral", "minimax", "amazon-bedrock"]

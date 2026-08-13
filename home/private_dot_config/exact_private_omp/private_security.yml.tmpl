@@ -20,17 +20,19 @@
 {{- end }}
 tools:
   approvalMode: {{ $s.tools.approval_mode }}
-  discoveryMode: {{ $s.tools.discovery_mode }}
 
 mcp:
   enableProjectConfig: {{ $s.mcp.enable_project_config }}
-  discoveryMode: {{ $s.mcp.discovery_mode }}
 
 task:
+  eager: {{ $s.task.eager }}
   isolation:
+    apply: {{ $s.task.isolation.apply }}
+    merge: {{ $s.task.isolation.merge }}
     mode: {{ $s.task.isolation.mode }}
   maxConcurrency: {{ $s.task.max_concurrency }}
   maxRecursionDepth: {{ $s.task.max_recursion_depth }}
+  maxRuntimeMs: {{ $s.task.max_runtime_ms }}
 
 skills:
   enabled: {{ $s.skills.enabled }}

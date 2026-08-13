@@ -49,7 +49,7 @@
 {{- /* compaction */ -}}
 {{- $compaction := dict
   "auto" $s.compaction.auto
-  "prune" false
+  "prune" true
   "reserved" $s.compaction.reserved
   "tail_turns" 6
 -}}

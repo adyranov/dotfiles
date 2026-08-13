@@ -1,6 +1,6 @@
 [packages.base.core]
 atuin = {completion = {generate = "atuin gen-completions --shell zsh"}, manager = "mise"}
-bat = {completion = {generate = "bat --completion zsh"}}
+bat = {completion = {generate = "if bat --help 2>&1 | grep -q -- '--completion'; then bat --completion zsh; fi"}}
 btop = {disabled = ["ephemeral"]}
 curl = {}
 direnv = {version = "direnv version"}

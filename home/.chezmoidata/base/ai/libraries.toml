@@ -1,13 +1,4 @@
 [ai.base.libraries.commands]
-caveman = {repository = "caveman", prefix = "src/plugins/opencode/commands", files = [
-  "caveman.md",
-  "caveman-commit.md",
-  "caveman-review.md",
-  "caveman-compress.md",
-  "caveman-stats.md",
-  "caveman-help.md"
-]}
-caveman-instructions = {repository = "caveman", source = "src/rules/caveman-activate.md"}
 plannotator-opencode = {repository = "plannotator", prefix = "apps/opencode-plugin/commands", files = [
   "plannotator-review.md",
   "plannotator-annotate.md",
@@ -15,15 +6,10 @@ plannotator-opencode = {repository = "plannotator", prefix = "apps/opencode-plug
 ]}
 
 [ai.base.libraries.extensions]
-opencode-caveman = {repository = "caveman", prefix = "src/plugins/opencode", files = [
-  "plugin.js",
-  "package.json"
-]}
-opencode-caveman-config = {repository = "caveman", source = "src/hooks/caveman-config.js", target = "libraries/extensions/opencode-caveman/caveman-config.cjs"}
 opencode-engram = {repository = "engram", source = "plugin/opencode/engram.ts", target = "libraries/extensions/opencode-engram/engram.ts"}
+opencode-compound-engineering = {repository = "compound-engineering", source = ".opencode/plugins/compound-engineering.js", target = "libraries/extensions/compound-engineering/.opencode/plugins/compound-engineering.js"}
 
 [ai.base.libraries.repositories]
-caveman = {repo = "JuliusBrussee/caveman", ref = "main"}
 plannotator = {repo = "backnotprop/plannotator", ref = "main"}
 engram = {repo = "Gentleman-Programming/engram", ref = "main"}
 compound-engineering = {repo = "EveryInc/compound-engineering-plugin", ref = "main"}
@@ -31,7 +17,6 @@ karpathy = {repo = "multica-ai/andrej-karpathy-skills", ref = "main"}
 oh-my-opencode-slim = {repo = "alvinunreal/oh-my-opencode-slim", ref = "master"}
 
 [ai.base.libraries.skills]
-caveman = {repository = "caveman", type = "file", source = "skills/caveman/SKILL.md"}
 compound-engineering = {repository = "compound-engineering", prefix = "skills"}
 karpathy = {repository = "karpathy"}
 "oh-my-opencode-slim" = {repository = "oh-my-opencode-slim", prefix = "src/skills"}

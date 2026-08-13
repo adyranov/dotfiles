@@ -111,18 +111,27 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi caveman package in core and factory" {
+@test "pi caveman package absent from core and factory" {
   run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/core/settings.json"
-  assert_success
+  assert_failure
   run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_failure
+}
+
+# bats test_tags=toolchain:pi,kind:packages
+@test "pi ponytail package in core and factory, absent from minimal" {
+  run jq -e '.packages | index("npm:@dietrichgebert/ponytail")' "$HOME/.config/pi/profiles/core/settings.json"
   assert_success
+  run jq -e '.packages | index("npm:@dietrichgebert/ponytail")' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+  run jq -e '.packages | index("npm:@dietrichgebert/ponytail")' "$HOME/.config/pi/agent/settings.json"
+  assert_failure
 }
 
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi caveman default level is full" {
-  run jq -e '.defaultLevel == "full"' "$HOME/.config/pi/agent/caveman.json"
-  assert_success
+@test "pi caveman config is removed" {
+  assert_file_not_exists "$HOME/.config/pi/agent/caveman.json"
 }
 
 
@@ -253,6 +262,57 @@ EOF
   assert_success
 }
 
+# bats test_tags=toolchain:pi,kind:launcher
+# Exercises bootstrap_scratch against a Bats-owned root; it never mutates the
+# live agent scratch directory.
+@test "pi-agent rejects symlinks and normalizes scratch modes" {
+  scratch_root="$BATS_TEST_TMPDIR/agents"
+  mkdir -m 700 -p "$scratch_root"
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  cat >"$BATS_TEST_TMPDIR/bin/curl" <<'EOF'
+#!/usr/bin/env sh
+exit 0
+EOF
+  cat >"$BATS_TEST_TMPDIR/bin/nc" <<'EOF'
+#!/usr/bin/env sh
+exit 0
+EOF
+  cat >"$BATS_TEST_TMPDIR/bin/greyproxy" <<'EOF'
+#!/usr/bin/env sh
+echo "greyproxy 1.0.0"
+EOF
+  cat >"$BATS_TEST_TMPDIR/bin/greywall" <<'EOF'
+#!/usr/bin/env sh
+shift 3
+exec "$@"
+EOF
+  cat >"$BATS_TEST_TMPDIR/bin/pi" <<'EOF'
+#!/usr/bin/env sh
+echo "launched"
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/curl" "$BATS_TEST_TMPDIR/bin/nc" "$BATS_TEST_TMPDIR/bin/greyproxy" "$BATS_TEST_TMPDIR/bin/greywall" "$BATS_TEST_TMPDIR/bin/pi"
+
+  # Symlinked scratch dir must fail closed.
+  ln -s /tmp "$scratch_root/pi"
+  run env AGENT_LAUNCH_TEST_MODE=1 AGENT_LAUNCH_TEST_SCRATCH_ROOT="$scratch_root" PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/pi-agent" minimal --no-update -c session-1
+  assert_failure
+  assert_output --partial "symlink"
+
+  # Existing permissive modes are repaired for the invoking user.
+  rm -f "$scratch_root/pi"
+  mkdir "$scratch_root/pi"
+  chmod 755 "$scratch_root" "$scratch_root/pi"
+  run env AGENT_LAUNCH_TEST_MODE=1 AGENT_LAUNCH_TEST_SCRATCH_ROOT="$scratch_root" PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/pi-agent" minimal --no-update -c session-2
+  assert_success
+  assert_output --partial "launched"
+  mode="$(stat -f %Lp "$scratch_root" 2>/dev/null || true)"
+  case "$mode" in ''|*[!0-9]*) mode="$(stat -c %a "$scratch_root" 2>/dev/null || true)" ;; esac
+  assert_equal "$mode" "700"
+  mode="$(stat -f %Lp "$scratch_root/pi" 2>/dev/null || true)"
+  case "$mode" in ''|*[!0-9]*) mode="$(stat -c %a "$scratch_root/pi" 2>/dev/null || true)" ;; esac
+  assert_equal "$mode" "700"
+}
+
 # bats test_tags=toolchain:pi,kind:config
 @test "pi-agent --print-env minimal" {
   run "$HOME/.local/bin/pi-agent" --print-env minimal
@@ -278,11 +338,37 @@ EOF
 
 # bats test_tags=toolchain:pi,kind:mcp
 # Pi accesses engram via the gentle-engram package (direct daemon client),
-# not via MCP — so no mcpServers entry is expected here.
+# not via MCP — so no engram server is expected here.
 @test "pi mcp.json has no engram server" {
+  run jq -e '.mcpServers | has("engram") | not' "$HOME/.config/pi/profiles/core/mcp.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:mcp
+@test "pi core mcp.json wires codegraph stdio server" {
   run jq -e '
-    .mcpServers == {}
+    .mcpServers.codegraph.command == "codegraph" and
+    (.mcpServers.codegraph.args | index("serve") != null) and
+    (.mcpServers.codegraph.args | index("--mcp") != null) and
+    (.mcpServers.codegraph.args | length) == 2 and
+    (.mcpServers.codegraph.args | index("init")) == null and
+    (.mcpServers.codegraph.args | index("index")) == null and
+    (.mcpServers.codegraph.args | index("sync")) == null
   ' "$HOME/.config/pi/profiles/core/mcp.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:mcp
+@test "pi factory mcp.json inherits codegraph via core symlink" {
+  run readlink -f "$HOME/.config/pi/profiles/factory/mcp.json"
+  assert_success
+  assert_output "$HOME/.config/pi/profiles/core/mcp.json"
+  run jq -e '
+    .mcpServers.codegraph.command == "codegraph" and
+    (.mcpServers.codegraph.args | index("serve") != null) and
+    (.mcpServers.codegraph.args | index("--mcp") != null) and
+    (.mcpServers.codegraph.args | length) == 2
+  ' "$HOME/.config/pi/profiles/factory/mcp.json"
   assert_success
 }
 

@@ -40,6 +40,29 @@
 {{-   $base = setValueAtPath "filesystem.denyWrite" $filteredDenyWrite $base -}}
 {{- end -}}
 
+{{- /* Strip stale broad cross-agent denies from the learned baseline.
+  Deny lists were narrowed to auth files, but merge only appends, so old
+  learned profiles may still carry the broad `~/.config/<other>/**` entries. */ -}}
+{{- $staleDenies := list -}}
+{{- if eq $agent "pi" -}}
+{{-   $staleDenies = list "~/.config/opencode/**" "~/.config/omp/**" "~/.local/share/opencode/**" -}}
+{{- else if eq $agent "opencode" -}}
+{{-   $staleDenies = list "~/.config/pi/**" "~/.config/omp/**" -}}
+{{- else if eq $agent "omp" -}}
+{{-   $staleDenies = list "~/.config/pi/**" "~/.config/opencode/**" "~/.config/rpiv-*/**" "~/.local/share/opencode/**" -}}
+{{- end -}}
+{{- if gt (len $staleDenies) 0 -}}
+{{-   range $field := list "denyRead" "denyWrite" -}}
+{{-     $filtered := list -}}
+{{-     range $path := (index $base.filesystem $field) -}}
+{{-       if not (has $path $staleDenies) -}}
+{{-         $filtered = append $filtered $path -}}
+{{-       end -}}
+{{-     end -}}
+{{-     $base = setValueAtPath (printf "filesystem.%s" $field) $filtered $base -}}
+{{-   end -}}
+{{- end -}}
+
 {{- /* Network rules */ -}}
 {{- $agentNetwork := dig "sandbox" "network" dict $agentData -}}
 {{- $baseRules := dig "network" "rules" (list) $base -}}

@@ -1,9 +1,9 @@
 [packages.base.ai]
 aiperf = {manager = "mise", package = "pipx:aiperf", version = "aiperf --help"}
+codegraph = {manager = "mise", package = "github:colbymchenry/codegraph"}
 engram = {bin = "engram", manager = "mise", package = "github:Gentleman-Programming/engram", version = "engram version", platforms = {linux-arm64 = {asset_pattern = "engram_*_linux_arm64.tar.gz"}, linux-x64 = {asset_pattern = "engram_*_linux_amd64.tar.gz"}, macos-arm64 = {asset_pattern = "engram_*_darwin_arm64.tar.gz"}, macos-x64 = {asset_pattern = "engram_*_darwin_amd64.tar.gz"}}}
 hf = {completion = {generate = "env _HF_COMPLETE=zsh_source hf"}, manager = "mise", package = "pipx:huggingface_hub", version = "hf version", policy = {deny = ["hf auth *", "hf repo create *", "hf repo delete *", "hf repo upload *", "hf upload *"]}}
 llamacpp = {bin = "llama-server", manager = "mise", package = "github:ggml-org/llama.cpp"}
-rtk = {manager = "mise", package = "github:rtk-ai/rtk"}
 runpod = {manager = "mise", package = "pipx:runpod", test = "runpod --help", completion = {generate = "env _RUNPOD_COMPLETE=zsh_source runpod"}, policy = {deny = [
   "runpod pod create *",
   "runpod pod sync *",

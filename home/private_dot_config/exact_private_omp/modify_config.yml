@@ -1,7 +1,7 @@
 {{- /* chezmoi:modify-template */ -}}
-{{- /* OMP config — managed modelRoles/compaction merged from tier data.
-  User-owned keys (theme, symbolPreset, setupVersion, etc.) are preserved.
-  Managed sections are overwritten on next apply. Do not edit modelRoles or compaction. */ -}}
+{{- /* OMP config — managed routing, resilience, and core settings.
+  User-owned keys outside the managed sections are preserved.
+  Managed sections are overwritten on next apply. */ -}}
 {{- /*
   render-omp-config — Shared modify-template body for OMP config.yml.
 
@@ -9,11 +9,11 @@
     root     — chezmoi data root
     chezmoi  — the .chezmoi context (provides stdin for modify-template)
 
-  Parses existing OMP config YAML, renders managed keys (modelRoles and
-  compaction from ai.models.tiers, static memory and settings) and merges
-  over current config. User-owned keys (theme.dark, theme.light,
-  symbolPreset, setupVersion, and future settings) are preserved via
-  mergeOverwrite.
+  Parses existing OMP config YAML, renders managed modelRoles and fallback
+  chains from ai.models.tiers, then applies static compaction, memory,
+  theme, and native advisor settings. Advisor stays opt-in (disabled by
+  default). User-owned keys outside those managed sections are preserved
+  via mergeOverwrite.
 */ -}}
 {{- $current := dict -}}
 {{- $rawStdin := get .chezmoi "stdin" | default "" | trim -}}
@@ -21,48 +21,87 @@
 {{-   $current = fromYaml $rawStdin -}}
 {{-   if not (kindIs "map" $current) -}}{{- $current = dict -}}{{- end -}}
 {{- end -}}
+{{- /* Drop staged incidental blocks that mergeOverwrite would otherwise preserve. */ -}}
+{{- $deferredKeys := list "async" "bashInterceptor" "codexResets" "display" "features" "goal" "lsp" "model" "plan" "provider" "providers" "todo" "tools" "textVerbosity" -}}
+{{- range $key := $deferredKeys -}}
+{{-   if hasKey $current $key -}}{{- $_ := unset $current $key -}}{{- end -}}
+{{- end -}}
+
 
 {{- /* ── Load tier data --- */ -}}
 {{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson -}}
 {{- $settings := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.omp.settings" "required" true) | mustFromJson -}}
-{{- $defaultTier := $tiers.default | default "medium" -}}
-{{- $defaultRoute := index $tiers $defaultTier -}}
+{{- $defaultTier := "big" -}}
+{{- $defaultRoute := get $tiers $defaultTier | default dict -}}
 
-{{- /* Validate default tier */ -}}
+{{- /* Validate orchestrator tier */ -}}
 {{- if or (not $defaultRoute) (not (kindIs "map" $defaultRoute)) -}}
-  {{- fail (printf "omp config: default tier %q missing or not a map" $defaultTier) -}}
+  {{- fail (printf "omp config: orchestrator tier %q missing or not a map" $defaultTier) -}}
 {{- end -}}
 {{- if not (and $defaultRoute.provider $defaultRoute.model) -}}
-  {{- fail (printf "omp config: default tier %q must have provider and model" $defaultTier) -}}
+  {{- fail (printf "omp config: orchestrator tier %q must have provider and model" $defaultTier) -}}
 {{- end -}}
 
-{{- /* ── Build modelRoles --- */ -}}
+{{- /* ── Build model roles and fallback selectors from shared tier data.
+  Each primary and fallback model carries its own thinking variant. */ -}}
 {{- $fmtRef := printf "%s/%s:%s" $defaultRoute.provider $defaultRoute.model ($defaultRoute.thinking | default "high") -}}
 
 {{- $tierKeys := list "big" "oracle" "small" "medium" "visual" -}}
 {{- $tierConfigs := dict -}}
+{{- $tierFallbacks := dict -}}
 {{- range $key := $tierKeys -}}
 {{-   $tier := get $tiers $key | default dict -}}
 {{-   $ref := "" -}}
+{{-   $fallbackRefs := list -}}
 {{-   if $tier -}}
 {{-     if and $tier.provider $tier.model -}}
-{{-       $tThinking := $tier.thinking | default "high" -}}
-{{-       if eq $key "small" -}}
-{{-         $tThinking = $tier.thinking | default "off" -}}
-{{-       end -}}
-{{-       $ref = printf "%s/%s:%s" $tier.provider $tier.model $tThinking -}}
+{{-       $ref = printf "%s/%s:%s" $tier.provider $tier.model ($tier.thinking | default "high") -}}
 {{-     else if or $tier.provider $tier.model -}}
 {{-       fail (printf "omp config: tier %q is partially specified (need provider + model)" $key) -}}
 {{-     end -}}
+{{-     range $idx, $fallback := get $tier "fallbacks" | default list -}}
+{{-       if not (kindIs "map" $fallback) -}}
+{{-         fail (printf "omp config: tier %q fallback[%d] is not a map" $key $idx) -}}
+{{-       end -}}
+{{-       if not (and $fallback.provider $fallback.model) -}}
+{{-         fail (printf "omp config: tier %q fallback[%d] needs provider + model" $key $idx) -}}
+{{-       end -}}
+{{-       $fallbackRefs = append $fallbackRefs (printf "%s/%s:%s" $fallback.provider $fallback.model ($fallback.thinking | default "high")) -}}
+{{-     end -}}
 {{-   end -}}
 {{-   $_ := set $tierConfigs $key $ref -}}
+{{-   $_ := set $tierFallbacks $key $fallbackRefs -}}
+{{- end -}}
+
+{{- $fallbackChains := dict -}}
+{{- if gt (len $tierFallbacks.big) 0 -}}
+{{-   $_ := set $fallbackChains "default" $tierFallbacks.big -}}
+{{-   $_ := set $fallbackChains "plan" $tierFallbacks.big -}}
+{{- end -}}
+{{- if gt (len $tierFallbacks.oracle) 0 -}}
+{{-   $_ := set $fallbackChains "advisor" $tierFallbacks.oracle -}}
+{{-   $_ := set $fallbackChains "oracle" $tierFallbacks.oracle -}}
+{{-   $_ := set $fallbackChains "slow" $tierFallbacks.oracle -}}
+{{- end -}}
+{{- if gt (len $tierFallbacks.small) 0 -}}
+{{-   $_ := set $fallbackChains "smol" $tierFallbacks.small -}}
+{{-   $_ := set $fallbackChains "tiny" $tierFallbacks.small -}}
+{{- end -}}
+{{- if gt (len $tierFallbacks.medium) 0 -}}
+{{-   $_ := set $fallbackChains "commit" $tierFallbacks.medium -}}
+{{-   $_ := set $fallbackChains "task" $tierFallbacks.medium -}}
+{{- end -}}
+{{- if gt (len $tierFallbacks.visual) 0 -}}
+{{-   $_ := set $fallbackChains "designer" $tierFallbacks.visual -}}
+{{-   $_ := set $fallbackChains "vision" $tierFallbacks.visual -}}
 {{- end -}}
 
 {{- $managed := dict
-  "modelRoles" (dict
-    "default" $fmtRef
-    "plan" ($tierConfigs.big | default $fmtRef)
-    "slow" ($tierConfigs.big | default $fmtRef)
+  "advisor" (dict
+    "enabled" false
+    "immuneTurns" 2
+    "subagents" true
+    "syncBacklog" "1"
   )
   "compaction" (dict
     "enabled" true
@@ -73,18 +112,32 @@
   "memory" (dict
     "backend" "local"
   )
-  "providers" (dict
-    "webSearch" $settings.web_search
+  "modelRoles" (dict
+    "default" $fmtRef
+    "plan" ($tierConfigs.big | default $fmtRef)
+    "slow" ($tierConfigs.oracle | default ($tierConfigs.big | default $fmtRef))
   )
+  "retry" (dict
+    "baseDelayMs" 500
+    "enabled" true
+    "fallbackChains" $fallbackChains
+    "fallbackRevertPolicy" "cooldown-expiry"
+    "maxDelayMs" 30000
+    "maxRetries" 3
+    "modelFallback" true
+  )
+  "symbolPreset" $settings.symbol_preset
   "theme" (dict
     "dark" $settings.theme_dark
     "light" $settings.theme_light
   )
-  "symbolPreset" $settings.symbol_preset
 -}}
 
 {{- /* Add optional roles */ -}}
-{{- if $tierConfigs.oracle -}}{{- $_ := set $managed.modelRoles "advisor" $tierConfigs.oracle -}}{{- end -}}
+{{- if $tierConfigs.oracle -}}
+{{-   $_ := set $managed.modelRoles "advisor" $tierConfigs.oracle -}}
+{{-   $_ := set $managed.modelRoles "oracle" $tierConfigs.oracle -}}
+{{- end -}}
 {{- if $tierConfigs.small -}}
 {{-   $_ := set $managed.modelRoles "smol" $tierConfigs.small -}}
 {{-   $_ := set $managed.modelRoles "tiny" $tierConfigs.small -}}

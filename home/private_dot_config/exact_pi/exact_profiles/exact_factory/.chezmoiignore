@@ -3,6 +3,7 @@ git/**
 logs/
 npm/
 mcp-cache.json
+models-store.json
 sessions/**
 state.json
 trust.json
