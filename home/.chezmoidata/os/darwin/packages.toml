@@ -2,7 +2,6 @@
 hf = {manager = "system"}
 llamacpp = {bin = "llama-server", manager = "system", package = "adyranov/tap/llama-cpp"}
 omlx = {exclude_arch = ["amd64"], manager = "system", package = "jundot/omlx/omlx"}
-rtk = {manager = "system"}
 
 [packages.os.darwin.cloud]
 aws = {disabled = ["headless"], manager = "system", package = "awscli"}

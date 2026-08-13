@@ -10,6 +10,6 @@ Tool path:
 6. Escalate/context: `advisor` when stuck, before risky decisions, or before complex done claims; `mem_search`/`session_search` only when prior context matters; checkpoint/compact long threads.
 7. Bash last: tests, builds, git, package managers, external CLIs only. Never use bash for repo file inspection.
 8. Edit/validate: smallest diff, source files only, diagnostics/tests before done. Treat sandbox denials as stop signs; ask user to apply/sync generated files.
-9. Temp files: `/tmp` writes are denied by sandbox. If temp files are needed, create them only under `/tmp/agents/pi`.
+9. Temp files: `/tmp` writes are denied by sandbox. The launcher sets `TMPDIR` to the stable per-agent scratch root `/tmp/agents/pi`, so ordinary temp APIs (`mktemp`, `tempfile`) land there automatically. For intentional scratch files, write them directly under `/tmp/agents/pi` and remove them when done.
 
 Keep output concise. Cite paths in `backticks`. Prefer KISS, DRY, existing patterns.

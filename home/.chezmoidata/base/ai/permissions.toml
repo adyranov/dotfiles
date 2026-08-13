@@ -413,6 +413,10 @@ colima_private_keys = [
   "~/.config/colima/**/key.pem"
 ]
 local_credential_overlaps = ["~/.local/share/mkcert/rootCA-key.pem"]
+pre_commit_cache = [
+  "~/.cache/pre-commit",
+  "~/.cache/pre-commit/**"
+]
 sandbox_read_base = [
   ".",
   "~/.cache/chezmoi",
@@ -571,7 +575,13 @@ sandbox_write_specific = [
   "~/.local/src/**",
   "~/.local/share/tmux/**"
 ]
+# Shared scratch parent for sandboxed processes and the agent launchers that
+# bootstrap it (agent-launch creates /tmp/agents before invoking greywall).
+# Only the exact parent lives in the shared/base profile; each agent's
+# /tmp/agents/<agent> subtree is allow-listed only in its own overlay so the
+# base profile cannot cross-read or cross-write other agents' scratch dirs.
 agent_scratch = [
+  "/tmp/agents",
   "/tmp/compound-engineering",
   "/tmp/compound-engineering/**"
 ]
@@ -668,6 +678,7 @@ registries = [
   "*.golang.org",
   "*.npmjs.org",
   "*.pythonhosted.org",
+  "api.npmjs.org",
   "api.nuget.org",
   "api.pub.dev",
   "api.rubygems.org",
@@ -686,6 +697,7 @@ registries = [
   "libraries.io",
   "*.libraries.io",
   "npmjs.com",
+  "www.npmjs.com",
   "packagist.org",
   "pkg.go.dev",
   "plugins.jetbrains.com",
@@ -740,6 +752,7 @@ js_cdns = [
 ]
 docs_frameworks = [
   "*.modelcontextprotocol.io",
+  "ai.google.dev",
   "ai-sdk.dev",
   "angular.dev",
   "astro.build",
@@ -747,6 +760,7 @@ docs_frameworks = [
   "bun.com",
   "bun.sh",
   "claude.ai",
+  "www.anthropic.com",
   "cloud.google.com",
   "code.claude.com",
   "context7.com",
@@ -771,18 +785,24 @@ docs_frameworks = [
   "docs.claude.com",
   "docs.cloud.google.com",
   "docs.cursor.com",
+  "docs.comfy.org",
   "docs.deno.com",
   "docs.docker.com",
   "docs.github.com",
   "docs.gitlab.com",
   "docs.python.org",
   "docs.rs",
+  "docs.litellm.ai",
   "helm.sh",
   "hono.dev",
   "kubernetes.io",
   "learn.microsoft.com",
   "mise.jdx.dev",
   "modelcontextprotocol.io",
+  "docs.runpod.io",
+  "docs.sglang.ai",
+  "docs.sglang.io",
+  "docs.vllm.ai",
   "models.dev",
   "nextjs.org",
   "nodejs.org",
@@ -810,6 +830,7 @@ search = [
   "api.search.brave.com",
   "api.stackexchange.com",
   "askubuntu.com",
+  "hacker-news.firebaseio.com",
   "docs.greywall.io",
   "duckduckgo.com",
   "news.ycombinator.com",
@@ -823,6 +844,7 @@ search = [
   "www.bing.com",
   "www.google.com",
   "www.swebench.com",
+  "support.apple.com",
   "www.typescriptlang.org"
 ]
 agent_search_providers = [
@@ -878,7 +900,8 @@ allow_read_paths = [
   "sandbox_read_base",
   "managed_config_dirs",
   "managed_local_dirs",
-  "sandbox_macos"
+  "sandbox_macos",
+  "pre_commit_cache"
 ]
 allow_write_paths = [
   "agent_scratch",
@@ -886,7 +909,8 @@ allow_write_paths = [
   "sandbox_write_specific",
   "managed_config_dirs",
   "build_caches",
-  "sandbox_macos"
+  "sandbox_macos",
+  "pre_commit_cache"
 ]
 deny_read_paths = [
   "project_secrets",

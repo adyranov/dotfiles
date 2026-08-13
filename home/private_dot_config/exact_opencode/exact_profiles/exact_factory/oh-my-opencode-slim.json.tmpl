@@ -16,13 +16,17 @@
 
 {{- /* MCP/skills per agent */ -}}
 {{- $engramMcps := list "engram" -}}
-{{- $librarianMcps := list "websearch" "context7" "gh_grep" -}}
+{{- $librarianMcps := list "websearch" "context7" "gh_grep" "codegraph" -}}
+{{- $explorerMcps := list "codegraph" -}}
 {{- $emptyMcps := list -}}
-{{- $orchestratorSkills := list "deepwork" "reflect" "loop-engineering" "oh-my-opencode-slim" "worktrees" "ce-brainstorm" "ce-ideate" "ce-plan" -}}
+{{- $orchestratorSkills := list "deepwork" "reflect" "loop-engineering" "oh-my-opencode-slim" "worktrees" "ce-brainstorm" "ce-ideate" "ce-plan" "verification-planning" -}}
 {{- $oracleSkills := list "simplify" "ce-pov" "ce-doc-review" "ce-code-review" -}}
 {{- $designerSkills := list "ce-polish" "ce-test-browser" -}}
 {{- $fixerSkills := list "ce-work" "ce-debug" "ce-simplify-code" "ce-resolve-pr-feedback" -}}
 {{- $emptySkills := list -}}
+
+{{- /* Read-only research permissions for advisory agents */ -}}
+{{- $researchPermissions := dict "edit" "deny" "bash" "deny" "task" "deny" -}}
 
 {{- /*  Build per-preset agent configs  */ -}}
 {{- $allPresets := dict -}}
@@ -53,6 +57,11 @@
 {{-       else if eq $agent "librarian" -}}
 {{-         $_ := set $cfg "mcps" $librarianMcps -}}
 {{-         $_ := set $cfg "skills" $emptySkills -}}
+{{-         $_ := set $cfg "permission" $researchPermissions -}}
+{{-       else if eq $agent "explorer" -}}
+{{-         $_ := set $cfg "mcps" $explorerMcps -}}
+{{-         $_ := set $cfg "skills" $emptySkills -}}
+{{-         $_ := set $cfg "permission" $researchPermissions -}}
 {{-       else if eq $agent "designer" -}}
 {{-         $_ := set $cfg "mcps" $emptyMcps -}}
 {{-         $_ := set $cfg "skills" $designerSkills -}}
@@ -88,6 +97,14 @@
 {{-   $council = dict "default_preset" $activePreset "presets" $allCouncilPresets -}}
 
 
+{{- $backgroundJobs := dict
+  "wallClockTimeoutMs" 3600000
+  "abortGraceMs" 10000
+-}}
+{{- $fallback := dict
+  "enabled" true
+  "maxRetries" 3
+-}}
 {{- $multiplexer := dict "type" "auto" "layout" "main-vertical" "main_pane_size" 60 -}}
 
 {{- $result := dict
@@ -96,6 +113,8 @@
   "setDefaultAgent" true
   "autoUpdate" true
   "multiplexer" $multiplexer
+  "backgroundJobs" $backgroundJobs
+  "fallback" $fallback
   "presets" $allPresets
   "council" $council
 -}}

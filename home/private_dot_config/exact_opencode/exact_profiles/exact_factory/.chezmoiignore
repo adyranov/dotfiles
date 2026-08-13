@@ -1,6 +1,5 @@
 .gitignore
 .oh-my-opencode-slim/
-dcp.jsonc
 logs/
 npm/
 node_modules/

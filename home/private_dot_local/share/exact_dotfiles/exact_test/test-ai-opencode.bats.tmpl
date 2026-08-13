@@ -42,8 +42,113 @@ setup() {
     assert_success
   done
   assert_file_exists "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
-  run jq -e '.multiplexer.type == "auto" and (.presets.balanced | length > 0)' \
-    "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e '
+    .multiplexer.type == "auto" and
+    (.presets.balanced | length > 0) and
+    (.presets.balanced.orchestrator.skills | index("verification-planning") != null) and
+    .backgroundJobs.wallClockTimeoutMs == 3600000 and
+    .backgroundJobs.abortGraceMs == 10000 and
+    .fallback.enabled == true and
+    .fallback.maxRetries == 3
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+@test "opencode slim research agents are read-only and oracle is unrestricted" {
+  run jq -e '
+    (.presets.balanced.explorer.permission.edit == "deny") and
+    (.presets.balanced.explorer.permission.bash == "deny") and
+    (.presets.balanced.explorer.permission.task == "deny") and
+    (.presets.balanced.explorer.permission.read != "deny") and
+    (.presets.balanced.librarian.permission.edit == "deny") and
+    (.presets.balanced.librarian.permission.bash == "deny") and
+    (.presets.balanced.librarian.permission.task == "deny") and
+    (.presets.balanced.librarian.permission.read != "deny") and
+    (.presets.balanced.oracle.permission.edit != "deny") and
+    (.presets.balanced.oracle.permission.bash != "deny") and
+    (.presets.balanced.oracle.permission.task != "deny")
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+@test "opencode factory config defaults to orchestrator and keeps plan enabled" {
+  run jsoncJq -e '
+    (.default_agent == "orchestrator") and
+    (.agent.plan | has("disable") | not)' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
+  assert_success
+}
+
+@test "opencode factory plannotator is not plan-only and routes planning to plan" {
+  run jsoncJq -e '
+    (.plugin | map(select(type == "array" and .[0] == "@plannotator/opencode@latest")) | .[0][1].workflow == "plan-agent") and
+    (.plugin | map(select(type == "array" and .[0] == "@plannotator/opencode@latest")) | .[0][1].planningAgents | index("plan") != null) and
+    (.agent.plan.prompt | contains("docs/plans/")) and
+    (.agent.plan.prompt | contains("Plan-only contract") | not)' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
+  assert_success
+}
+
+@test "opencode configs render auto-pruning compaction settings" {
+  for file in \
+    "$HOME/.config/opencode/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/core/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/factory/opencode.jsonc"; do
+    run jsoncJq -e '
+      (.compaction.auto == true) and
+      (.compaction.prune == true) and
+      (.compaction.reserved == 10000) and
+      (.compaction.tail_turns == 6)' "$file"
+    assert_success
+  done
+}
+
+@test "opencode configs do not render the DCP plugin" {
+  for file in \
+    "$HOME/.config/opencode/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/core/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/factory/opencode.jsonc"; do
+    run jsoncJq -e '(.plugin // [] | index("@tarquinen/opencode-dcp") == null)' "$file"
+    assert_success
+  done
+}
+
+@test "opencode ponytail plugin in core and factory, absent from minimal" {
+  run jsoncJq -e '.plugin | index("@dietrichgebert/ponytail") != null' "$HOME/.config/opencode/profiles/core/opencode.jsonc"
+  assert_success
+  run jsoncJq -e '.plugin | index("@dietrichgebert/ponytail") != null' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
+  assert_success
+  run jsoncJq -e '(.plugin // [] | index("@dietrichgebert/ponytail") == null)' "$HOME/.config/opencode/opencode.jsonc"
+  assert_success
+}
+
+@test "opencode core and factory configs enable codegraph MCP, minimal does not" {
+  for file in \
+    "$HOME/.config/opencode/profiles/core/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/factory/opencode.jsonc"; do
+    run jsoncJq -e '
+      (.mcp.codegraph.type == "local") and
+      (.mcp.codegraph.command == ["codegraph", "serve", "--mcp"]) and
+      (.mcp.codegraph.enabled == true)' "$file"
+    assert_success
+  done
+  run jsoncJq -e '(.mcp // {} | has("codegraph") | not)' "$HOME/.config/opencode/opencode.jsonc"
+  assert_success
+}
+
+@test "opencode slim research roles allow codegraph and keep read-only denials" {
+  run jq -e '
+    (.presets.balanced.explorer.mcps | index("codegraph") != null) and
+    (.presets.balanced.librarian.mcps | index("codegraph") != null) and
+    (.presets.balanced.explorer.permission.edit == "deny") and
+    (.presets.balanced.explorer.permission.bash == "deny") and
+    (.presets.balanced.explorer.permission.task == "deny") and
+    (.presets.balanced.explorer.permission.read != "deny") and
+    (.presets.balanced.librarian.permission.edit == "deny") and
+    (.presets.balanced.librarian.permission.bash == "deny") and
+    (.presets.balanced.librarian.permission.task == "deny") and
+    (.presets.balanced.librarian.permission.read != "deny") and
+    (.presets.balanced.orchestrator.mcps | index("engram") != null) and
+    (.presets.balanced.orchestrator.permission | not)
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 

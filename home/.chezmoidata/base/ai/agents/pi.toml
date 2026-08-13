@@ -1,6 +1,10 @@
 [ai.base.agents.pi]
 settings = {bash_mode = {toggle_shortcut = "ctrl+shift+b", transcript_max_bytes = 524288, transcript_max_lines = 2000}, powerline = {fixed_editor = true, mouse_scroll = true, preset = "full"}, theme = "catppuccin-mocha"}
 
+[ai.base.agents.pi.mcp_servers.codegraph]
+args = ["serve", "--mcp"]
+command = "codegraph"
+
 [ai.base.agents.pi.permissions.agent]
 allow = []
 ask = []
@@ -20,6 +24,7 @@ packages = [
   "pi-hashline-readmap",
   "pi-mcp-adapter",
   "@plannotator/pi-extension",
+  "@dietrichgebert/ponytail",
   "@juicesharp/rpiv-web-tools",
   "@juicesharp/rpiv-advisor",
   "@juicesharp/rpiv-ask-user-question",
@@ -66,10 +71,16 @@ allow_read = [
   "~/.config/rpiv-web-tools/**",
   "~/.config/rpiv-todo/**",
   "~/.config/rpiv-ask-user-question/**",
+  "~/.cache/pi",
+  "~/.cache/pi/**",
   "~/.local/share/plannotator/**",
+  "/tmp/agents/pi",
+  "/tmp/agents/pi/**",
   "**/node_modules/@earendil-works/pi-coding-agent/**"
 ]
 allow_write = [
+  "~/.cache/pi",
+  "~/.cache/pi/**",
   "~/.config/pi/agent/npm",
   "~/.config/pi/agent/npm/**",
   "~/.config/pi/agent/sessions",
@@ -82,5 +93,13 @@ allow_write = [
   "/tmp/agents/pi/**",
   "~/.local/share/plannotator",
   "~/.local/share/plannotator/**",
-  "~/.pi-lens"
+  "~/.pi-lens",
+  # CodeGraph runtime state
+  "**/.codegraph/**"
+]
+deny_read = [
+  "~/.local/share/opencode/auth.json"
+]
+deny_write = [
+  "~/.local/share/opencode/auth.json"
 ]

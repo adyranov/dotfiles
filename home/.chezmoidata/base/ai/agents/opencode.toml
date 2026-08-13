@@ -8,9 +8,14 @@ deny = ["~/.local/share/opencode/auth.json"]
 
 [ai.base.agents.opencode.profiles.core]
 extends = "minimal"
-plugins = ["@plannotator/opencode", "./plugins/caveman/plugin.js"]
+plugins = ["@plannotator/opencode", "@dietrichgebert/ponytail", "./plugins/caveman/plugin.js"]
 instructions = ["AGENTS.md", "OPENCODE.md", "CAVEMAN.md"]
 plannotator = {plan_dir = "docs/plans/", planning_agents = ["plan"], workflow = "plan-agent"}
+
+[ai.base.agents.opencode.profiles.core.mcp_servers.codegraph]
+type = "local"
+command = ["codegraph", "serve", "--mcp"]
+enabled = true
 
 [ai.base.agents.opencode.profiles.core.mcp_servers.engram]
 type = "local"
@@ -21,21 +26,29 @@ enabled = true
 extends = "core"
 default_agent = "orchestrator"
 plugins = ["oh-my-opencode-slim"]
-disabled_agents = ["build", "explore", "general", "plan", "scout"]
-plannotator = {plan_dir = "docs/plans/", plan_only = true, workflow = "plan-agent"}
+disabled_agents = ["build", "explore", "general", "scout"]
+plannotator = {plan_dir = "docs/plans/", workflow = "plan-agent"}
 skills_paths = [
   "~/.config/agents/libraries/skills/compound-engineering",
   "~/.config/agents/libraries/skills/oh-my-opencode-slim"
 ]
 
 [ai.base.agents.opencode.profiles.minimal]
-plugins = ["@tarquinen/opencode-dcp", "opencode-notify", "@slkiser/opencode-quota"]
+plugins = ["opencode-notify", "@slkiser/opencode-quota"]
 
 [ai.base.agents.opencode.sandbox.paths]
 allow_read = [
   "~/.config/opencode/**",
+  "~/.cache/opencode",
+  "~/.cache/opencode/**",
+  "~/.local/share/opencode",
+  "~/.local/share/opencode/**",
+  "~/.local/state/opencode",
+  "~/.local/state/opencode/**",
   "~/.local/share/plannotator",
   "~/.local/share/plannotator/**",
+  "/tmp/agents/opencode",
+  "/tmp/agents/opencode/**",
   "/tmp/compound-engineering",
   "/tmp/compound-engineering/**"
 ]
@@ -53,7 +66,19 @@ allow_write = [
   "/tmp/compound-engineering",
   "/tmp/compound-engineering/**",
   "/tmp/greywall-open-url",
-  "/tmp/greywall-open-url/**"
+  "/tmp/greywall-open-url/**",
+  # CodeGraph runtime state
+  "**/.codegraph/**"
+]
+deny_read = [
+  "~/.config/pi/agent/auth.json",
+  "~/.config/pi/profiles/core/auth.json",
+  "~/.config/pi/profiles/factory/auth.json"
+]
+deny_write = [
+  "~/.config/pi/agent/auth.json",
+  "~/.config/pi/profiles/core/auth.json",
+  "~/.config/pi/profiles/factory/auth.json"
 ]
 
 [ai.base.agents.opencode.settings]

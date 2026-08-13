@@ -1,0 +1,5 @@
+{{- /* Managed user-level MCP config for OMP — rendered from layered data.
+  Project-level MCP stays disabled via security.yml (mcp.enableProjectConfig). */ -}}
+{{- $omp := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.omp" "required" true) | mustFromJson -}}
+{{- $mcpServers := get $omp "mcp_servers" | default dict -}}
+{{- dict "mcpServers" $mcpServers | toPrettyJson -}}

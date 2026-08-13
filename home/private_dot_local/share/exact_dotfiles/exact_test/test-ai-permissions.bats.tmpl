@@ -212,6 +212,8 @@ setup() {
     (.filesystem.denyWrite | index("**/.env.*") != null) and
     (.filesystem.denyWrite | index("~/.config/greywall/**") != null) and
     (.filesystem.allowWrite | index("~/.config/greywall/**") != null) and
+    (.filesystem.allowRead | index("~/.cache/pre-commit/**") != null) and
+    (.filesystem.allowWrite | index("~/.cache/pre-commit/**") != null) and
     (.filesystem.denyWrite | index("~/Library/Application Support/greywall") != null) and
     (.filesystem.allowWrite | index("~/Library/Application Support/greywall") != null) and
     (.filesystem.denyWrite | index("~/.config/agents/**") == null) and
@@ -238,6 +240,11 @@ setup() {
     (.filesystem.allowWrite | index("~/.config/rpiv-pi/**") != null) and
     (.filesystem.allowWrite | index("~/.local/share/dotfiles/test") != null) and
     (.filesystem.allowWrite | index("~/.local/share/dotfiles/test/**") != null) and
+    # Shared scratch parent only: base profile must not allow other agent scratch dirs
+    (.filesystem.allowRead | index("/tmp/agents") != null) and
+    (.filesystem.allowRead | index("/tmp/agents/**") == null) and
+    (.filesystem.allowWrite | index("/tmp/agents") != null) and
+    (.filesystem.allowWrite | index("/tmp/agents/**") == null) and
     (.filesystem.denyWrite | index("~/.config/pi/agent/auth.json") == null) and
     (.filesystem.denyWrite | index("~/.config/pi/profiles/core/auth.json") == null) and
     (.filesystem.denyWrite | index("~/.config/pi/profiles/factory/auth.json") == null)
@@ -306,7 +313,19 @@ setup() {
     (.filesystem.allowWrite | index("~/.config/pi/agent/sessions/**") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/profiles/core/**") != null) and
     (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/**") != null) and
+    (.filesystem.allowWrite | index("~/.cache/pi/**") != null) and
+    (.filesystem.allowWrite | index("/tmp/agents/pi/**") != null) and
     (.filesystem.allowRead | index("~/.config/pi/**") != null) and
+    (.filesystem.allowRead | index("~/.cache/pi/**") != null) and
+    (.filesystem.allowRead | index("/tmp/agents/pi/**") != null) and
+    (.filesystem.denyRead | index("~/.local/share/opencode/auth.json") != null) and
+    (.filesystem.denyWrite | index("~/.local/share/opencode/auth.json") != null) and
+    (.filesystem.denyRead | index("~/.config/opencode/**") == null) and
+    (.filesystem.denyRead | index("~/.config/omp/**") == null) and
+    (.filesystem.denyRead | index("~/.local/share/opencode/**") == null) and
+    (.filesystem.denyWrite | index("~/.config/opencode/**") == null) and
+    (.filesystem.denyWrite | index("~/.config/omp/**") == null) and
+    (.filesystem.denyWrite | index("~/.local/share/opencode/**") == null) and
     (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow")) and
     ($global[0].filesystem.allowGitConfig == true)
   ' "{{ $greywallDir }}/learned/pi.json"
@@ -325,10 +344,27 @@ setup() {
   run jsoncJq -e --slurpfile global "{{ $greywallDir }}/greywall.json" '
     .schemaVersion == 1 and
     (.credentials == $global[0].credentials) and
-    (.filesystem.allowWrite | index("~/.local/share/opencode") != null) and
+    (.filesystem.allowWrite | index("~/.cache/opencode/**") != null) and
+    (.filesystem.allowWrite | index("~/.local/share/opencode/**") != null) and
+    (.filesystem.allowWrite | index("~/.local/state/opencode/**") != null) and
+    (.filesystem.allowWrite | index("/tmp/agents/opencode/**") != null) and
     (.filesystem.allowWrite | index("/tmp/compound-engineering") != null) and
     (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
+    (.filesystem.allowRead | index("~/.cache/opencode/**") != null) and
+    (.filesystem.allowRead | index("~/.local/share/opencode/**") != null) and
+    (.filesystem.allowRead | index("~/.local/state/opencode/**") != null) and
+    (.filesystem.allowRead | index("/tmp/agents/opencode/**") != null) and
     (.filesystem.allowRead | index("/tmp/compound-engineering") != null) and
+    (.filesystem.denyRead | index("~/.config/pi/agent/auth.json") != null) and
+    (.filesystem.denyRead | index("~/.config/pi/profiles/core/auth.json") != null) and
+    (.filesystem.denyRead | index("~/.config/pi/profiles/factory/auth.json") != null) and
+    (.filesystem.denyWrite | index("~/.config/pi/agent/auth.json") != null) and
+    (.filesystem.denyWrite | index("~/.config/pi/profiles/core/auth.json") != null) and
+    (.filesystem.denyWrite | index("~/.config/pi/profiles/factory/auth.json") != null) and
+    (.filesystem.denyRead | index("~/.config/pi/**") == null) and
+    (.filesystem.denyRead | index("~/.config/omp/**") == null) and
+    (.filesystem.denyWrite | index("~/.config/pi/**") == null) and
+    (.filesystem.denyWrite | index("~/.config/omp/**") == null) and
     (.network.forwardPorts // [] | map(tostring) | index("7437") != null) and
     ($global[0].filesystem.allowGitConfig == true)
   ' "{{ $greywallDir }}/learned/opencode.json"
@@ -337,6 +373,37 @@ setup() {
   assert_success
 }
 
+{{- $codegraphAgents := list -}}
+{{- if .toolchains.pi -}}
+{{-   $codegraphAgents = append $codegraphAgents (dict "name" "pi" "file" (printf "%s/learned/pi.json" $greywallDir) "tag" "toolchain:pi") -}}
+{{- end -}}
+{{- if .toolchains.opencode -}}
+{{-   $codegraphAgents = append $codegraphAgents (dict "name" "opencode" "file" (printf "%s/learned/opencode.json" $greywallDir) "tag" "toolchain:opencode") -}}
+{{- end -}}
+{{- if (get .toolchains "omp" | default false) -}}
+{{-   $codegraphAgents = append $codegraphAgents (dict "name" "omp" "file" (printf "%s/learned/omp.json" $greywallDir) "tag" "toolchain:omp") -}}
+{{- end -}}
+
+{{- range $agent := $codegraphAgents }}
+
+# bats test_tags={{ $agent.tag }},kind:greywall,kind:permission
+@test "{{ $agent.name }} greywall profile allows codegraph runtime state without broad home access" {
+  assert_file_exists "{{ $agent.file }}"
+  run jsoncJq -e '
+    (.filesystem.allowWrite | index("**/.codegraph/**") != null) and
+    (.filesystem.denyWrite | index("**/.codegraph/**") == null) and
+    (.filesystem.allowWrite | index("**") == null) and
+    (.filesystem.allowWrite | index("**/**") == null) and
+    (.filesystem.allowWrite | index("**/*") == null) and
+    (.filesystem.allowWrite | index("~/**") == null) and
+    (.filesystem.allowWrite | index("~/*") == null) and
+    (.filesystem.allowWrite | index("*") == null) and
+    (.filesystem.allowWrite | index("~") == null)
+  ' "{{ $agent.file }}"
+  assert_success
+}
+{{- end }}
+
 # bats test_tags=kind:greywall
 @test "greywall global policy includes shared network hosts" {
   assert_file_exists "{{ $greywallDir }}/greywall.json"
@@ -344,6 +411,20 @@ setup() {
     (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
     (.network.rules[] | select(.destination == "api.github.com" and (.port | tostring) == "443" and .action == "allow")) and
     (.network.rules[] | select(.destination == "registry.npmjs.org" and (.port | tostring) == "443" and .action == "allow")) and
+    (([
+      "ai.google.dev",
+      "api.npmjs.org",
+      "docs.comfy.org",
+      "docs.litellm.ai",
+      "docs.runpod.io",
+      "docs.sglang.ai",
+      "docs.sglang.io",
+      "docs.vllm.ai",
+      "hacker-news.firebaseio.com",
+      "support.apple.com",
+      "www.anthropic.com",
+      "www.npmjs.com"
+    ] - (.network.rules | map(.destination))) | length == 0) and
     ((.network.rules | map(.destination) | index("brave.com")) | not)
   ' "{{ $greywallDir }}/greywall.json"
   assert_success

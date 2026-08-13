@@ -3,6 +3,5 @@
 [packages.base.omp.omp]
 manager = "mise"
 package = "github:can1357/oh-my-pi"
-pin = "16.4.8"
 version = "omp --version"
 completion = {generate = "omp completions zsh"}

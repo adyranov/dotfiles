@@ -78,3 +78,56 @@ setup() {
 @test "shared caveman installation instructions resolve" {
   assert_file_exists "$HOME/.config/agents/libraries/commands/caveman-instructions/caveman-instructions.md"
 }
+
+# --- Shared agent launcher scratch root ---
+
+# bats test_tags=kind:launcher
+@test "agent-launch bootstraps per-agent scratch root and scopes TMPDIR" {
+  local launch="$HOME/.local/bin/agent-launch"
+  assert_file_exists "$launch"
+  run grep -F 'bootstrap_scratch' "$launch"
+  assert_success
+  run grep -F '_agents_root="/tmp/agents"' "$launch"
+  assert_success
+  run grep -F 'scratch_dir="$_agents_root/$AGENT_NAME"' "$launch"
+  assert_success
+  # TMPDIR must be scoped to the greywall invocation, after daemon startup
+  run grep -F 'export TMPDIR="$scratch_dir"' "$launch"
+  assert_success
+  run grep -F 'exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" "$@"' "$launch"
+  assert_success
+}
+
+# bats test_tags=kind:launcher
+@test "agent-launch test scratch override requires explicit BATS markers" {
+  local launch="$HOME/.local/bin/agent-launch"
+  assert_file_exists "$launch"
+  # Override is gated on AGENT_LAUNCH_TEST_MODE=1 AND a non-empty BATS_TEST_TMPDIR
+  run grep -F 'AGENT_LAUNCH_TEST_MODE' "$launch"
+  assert_success
+  run grep -F 'BATS_TEST_TMPDIR' "$launch"
+  assert_success
+  run grep -F 'AGENT_LAUNCH_TEST_SCRATCH_ROOT' "$launch"
+  assert_success
+}
+
+# bats test_tags=kind:launcher
+@test "agent-launch scratch bootstrap fails closed on unsafe paths and enforces exact 0700" {
+  local launch="$HOME/.local/bin/agent-launch"
+  assert_file_exists "$launch"
+  run grep -F 'Scratch dir is a symlink' "$launch"
+  assert_success
+  run grep -F 'Scratch root is a symlink' "$launch"
+  assert_success
+  run grep -F 'Scratch dir resolves outside expected root' "$launch"
+  assert_success
+  run grep -F 'Scratch dir owner mismatch' "$launch"
+  assert_success
+  # Private mode is enforced as an exact 0700 equality, not a loosenable mask
+  run grep -F 'Scratch root is not private' "$launch"
+  assert_success
+  run grep -F 'Scratch dir is not private' "$launch"
+  assert_success
+  run grep -F '-eq $((0700))' "$launch"
+  assert_success
+}

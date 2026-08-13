@@ -366,6 +366,87 @@ ensure_greyproxy() {
   die "greyproxy did not become ready (see $GREYPROXY_LOG)"
 }
 
+# ── Shared: secure per-agent scratch root ──
+# The greywall sandbox allow-lists writes under /tmp/agents/<agent>. Bootstrap
+# that root and scope TMPDIR to the sandboxed launch so agent temp APIs land
+# inside the sandbox instead of the inherited system TMPDIR. Fail closed on
+# symlinked components, foreign ownership, or non-private modes.
+bootstrap_scratch() {
+  if [ "${AGENT_LAUNCH_TEST_MODE:-}" = 1 ] && [ -n "${BATS_TEST_TMPDIR:-}" ]; then
+    _agents_root="${AGENT_LAUNCH_TEST_SCRATCH_ROOT:-}"
+    [ -n "$_agents_root" ] || die "Test scratch root is not configured"
+  else
+    _agents_root="/tmp/agents"
+  fi
+  scratch_dir="$_agents_root/$AGENT_NAME"
+
+  if [ -e "$scratch_dir" ] || [ -L "$scratch_dir" ]; then
+    [ -L "$scratch_dir" ] && die "Scratch dir is a symlink: $scratch_dir"
+    [ -d "$scratch_dir" ] || die "Scratch dir is not a directory: $scratch_dir"
+  else
+    mkdir -m 700 -p "$_agents_root" 2>/dev/null || die "Cannot create scratch root: $_agents_root"
+    [ -L "$_agents_root" ] && die "Scratch root is a symlink: $_agents_root"
+    mkdir -m 700 "$scratch_dir" 2>/dev/null || die "Cannot create scratch dir: $scratch_dir"
+  fi
+
+  [ -L "$_agents_root" ] && die "Scratch root is a symlink: $_agents_root"
+  [ -d "$_agents_root" ] || die "Scratch root is not a directory: $_agents_root"
+
+  # Reject symlinked parents: the resolved path must remain under the root.
+  _root_resolved=$(cd -P -- "$_agents_root" 2>/dev/null && pwd -P) \
+    || die "Cannot resolve scratch root: $_agents_root"
+  _resolved=$(cd -P -- "$scratch_dir" 2>/dev/null && pwd -P) \
+    || die "Cannot resolve scratch dir: $scratch_dir"
+  [ "$_resolved" = "$_root_resolved/$AGENT_NAME" ] \
+    || die "Scratch dir resolves outside expected root: $_resolved"
+
+  # Owner must be the invoking user. Validate-then-fallback because GNU stat
+  # -f %u can succeed with garbage when it shadows BSD stat.
+  _uid=$(id -u)
+  _owner=$(stat -f %u "$_agents_root" 2>/dev/null || true)
+  case "$_owner" in
+    ''|*[!0-9]*) _owner=$(stat -c %u "$_agents_root" 2>/dev/null || true) ;;
+  esac
+  case "$_owner" in
+    ''|*[!0-9]*) die "Cannot determine scratch root owner: $_agents_root" ;;
+  esac
+  [ "$_owner" = "$_uid" ] || die "Scratch root owner mismatch: $_agents_root (owner $_owner)"
+
+  _owner=$(stat -f %u "$scratch_dir" 2>/dev/null || true)
+  case "$_owner" in
+    ''|*[!0-9]*) _owner=$(stat -c %u "$scratch_dir" 2>/dev/null || true) ;;
+  esac
+  case "$_owner" in
+    ''|*[!0-9]*) die "Cannot determine scratch dir owner: $scratch_dir" ;;
+  esac
+  [ "$_owner" = "$_uid" ] || die "Scratch dir owner mismatch: $scratch_dir (owner $_owner)"
+
+  # Existing user-owned scratch directories may have inherited a permissive
+  # mode; normalize them before the exact private-mode check.
+  chmod 700 "$_agents_root" "$scratch_dir" 2>/dev/null \
+    || die "Cannot secure scratch directories"
+
+  _mode=$(stat -f %Lp "$_agents_root" 2>/dev/null || true)
+  case "$_mode" in
+    ''|*[!0-9]*) _mode=$(stat -c %a "$_agents_root" 2>/dev/null || true) ;;
+  esac
+  case "$_mode" in
+    ''|*[!0-9]*) die "Cannot determine scratch root mode: $_agents_root" ;;
+  esac
+  [ "$((0$_mode))" -eq $((0700)) ] || die "Scratch root is not private: $_agents_root (mode $_mode)"
+
+  _mode=$(stat -f %Lp "$scratch_dir" 2>/dev/null || true)
+  case "$_mode" in
+    ''|*[!0-9]*) _mode=$(stat -c %a "$scratch_dir" 2>/dev/null || true) ;;
+  esac
+  case "$_mode" in
+    ''|*[!0-9]*) die "Cannot determine scratch dir mode: $scratch_dir" ;;
+  esac
+  [ "$((0$_mode))" -eq $((0700)) ] || die "Scratch dir is not private: $scratch_dir (mode $_mode)"
+
+  unset _agents_root _root_resolved _resolved _uid _owner _mode
+}
+
 sync_permanent_rules() {
   # Read network rules from rendered greywall.json and push as permanent rules
   # to greyproxy. This ensures hosts survive session expiry (temporary rules
@@ -602,6 +683,13 @@ unset _CA
 
 ensure_greyproxy
 sync_permanent_rules
+
+# Secure per-agent scratch root; TMPDIR is scoped to the sandboxed launch so
+# agent temp APIs write into the allow-listed root instead of inherited TMPDIR.
+bootstrap_scratch
+dim "Scratch: $scratch_dir (TMPDIR scoped to greywall)"
+export TMPDIR="$scratch_dir"
+unset scratch_dir
 
 dim "Launch: greywall --profile $GREYWALL_PROFILE -- $BINARY_NAME ..."
 exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" "$@"
