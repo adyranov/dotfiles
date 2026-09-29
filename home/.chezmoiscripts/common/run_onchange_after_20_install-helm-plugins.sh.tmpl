@@ -2,16 +2,18 @@
 {{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 
-declare -A HELM_PLUGINS=(
+# Bash 3.2-compatible: indexed parallel arrays instead of an associative array
+declare -a HELM_PLUGIN_NAMES=()
+declare -a HELM_PLUGIN_URLS=()
 {{- $packages := splitList " " (includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "helm" "format" "install")) -}}
 {{- range $pkg := $packages -}}
 {{- if ne $pkg "" }}
   {{- $basename := regexReplaceAll ".*\\/([^/]+?)(\\.git)?$" $pkg "${1}" }}
   {{- $name := regexReplaceAll "^helm-" $basename "" }}
-  ["{{ $name }}"]="{{ $pkg }}"
+HELM_PLUGIN_NAMES+=("{{ $name }}")
+HELM_PLUGIN_URLS+=("{{ $pkg }}")
 {{- end -}}
 {{- end }}
-)
 
 echo "☸️  Ensuring Helm plugins..."
 
@@ -22,9 +24,10 @@ while IFS= read -r line; do
 done < <(helm plugin list | awk 'NR>1 {print $1}')
 
 # Install declared plugins
-for name in "${!HELM_PLUGINS[@]}"; do
-    url=${HELM_PLUGINS[$name]}
-    if printf '%s\n' "${installed[@]}" | grep -qx "$name"; then
+for i in "${!HELM_PLUGIN_NAMES[@]}"; do
+    name="${HELM_PLUGIN_NAMES[$i]}"
+    url="${HELM_PLUGIN_URLS[$i]}"
+    if printf '%s\n' ${installed[@]+"${installed[@]}"} | grep -qx "$name"; then
         echo "  ✅ Already installed: $name"
     else
         echo "  ↳ Installing: $name"
@@ -48,8 +51,8 @@ for name in "${!HELM_PLUGINS[@]}"; do
 done
 
 # Remove undeclared plugins
-for name in "${installed[@]}"; do
-    if [[ -z "${HELM_PLUGINS[$name]+x}" ]]; then
+for name in ${installed[@]+"${installed[@]}"}; do
+    if ! printf '%s\n' ${HELM_PLUGIN_NAMES[@]+"${HELM_PLUGIN_NAMES[@]}"} | grep -qx "$name"; then
         echo "  🗑️ Removing undeclared plugin: $name"
         helm plugin uninstall "$name"
     fi

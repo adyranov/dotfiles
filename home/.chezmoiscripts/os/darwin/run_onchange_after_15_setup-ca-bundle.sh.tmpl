@@ -85,8 +85,9 @@ for keychain in "${KEYCHAINS[@]}"; do
     subject="$(openssl x509 -in "$local_cert" -noout -subject 2>/dev/null | sed 's/^subject=//')"
     sha1="$(openssl x509 -in "$local_cert" -noout -fingerprint -sha1 2>/dev/null | awk -F= '{print $2}' | tr -d ':')"
 
-    # Skip explicitly denied certs
-    if [ -n "$denied_fps" ] && echo "$denied_fps" | grep -qi "$sha1" 2>/dev/null; then
+    # Skip explicitly denied certs (empty sha1 from a failed parse must not
+    # match every denied fingerprint)
+    if [ -n "$sha1" ] && [ -n "$denied_fps" ] && echo "$denied_fps" | grep -qi "$sha1" 2>/dev/null; then
       denied_count=$((denied_count + 1))
       printf "  [%03d] ❌ Denied   %s\n" "$((trusted_count + denied_count + expired_count))" "$subject"
       continue

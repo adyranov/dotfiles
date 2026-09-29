@@ -1,45 +1,45 @@
 [packages.base.core]
-atuin = {completion = {generate = "atuin gen-completions --shell zsh"}, manager = "mise"}
-bat = {completion = {generate = "if bat --help 2>&1 | grep -q -- '--completion'; then bat --completion zsh; fi"}}
-btop = {disabled = ["ephemeral"]}
+atuin = { completion = { generate = "atuin gen-completions --shell zsh" }, manager = "mise" }
+bat = { completion = { generate = "if bat --help 2>&1 | grep -q -- '--completion'; then bat --completion zsh; fi" } }
+btop = { disabled = ["ephemeral"] }
 curl = {}
-direnv = {version = "direnv version"}
-difftastic = {manager = "mise", bin = "difft"}
-doggo = {completion = {generate = "doggo completions zsh"}, manager = "mise", package = "github:mr-karan/doggo"}
-dust = {manager = "mise", package = "github:bootandy/dust"}
-eza = {manager = "mise"}
+direnv = { version = "direnv version" }
+difftastic = { manager = "mise", bin = "difft" }
+doggo = { completion = { generate = "doggo completions zsh" }, manager = "mise", package = "github:mr-karan/doggo" }
+dust = { manager = "mise", package = "github:bootandy/dust" }
+eza = { manager = "mise" }
 fd = {}
 fzf = {}
-git-delta = {bin = "delta", completion = {generate = "delta --generate-completion zsh"}}
-glow = {completion = true, manager = "mise", package = "github:charmbracelet/glow"}
-gnupg = {bin = "gpg"}
-greyproxy = {disabled = [
+git-delta = { bin = "delta", completion = { generate = "delta --generate-completion zsh" } }
+glow = { completion = true, manager = "mise", package = "github:charmbracelet/glow" }
+gnupg = { bin = "gpg" }
+greyproxy = { disabled = [
   "ephemeral"
-], manager = "mise", package = "github:GreyhavenHQ/greyproxy"}
-greywall = {disabled = [
+], manager = "mise", package = "github:GreyhavenHQ/greyproxy" }
+greywall = { disabled = [
   "ephemeral"
-], manager = "mise", package = "github:GreyhavenHQ/greywall", completion = true}
-hyperfine = {manager = "mise"}
-jnv = {manager = "mise", package = "github:ynqa/jnv"}
+], manager = "mise", package = "github:GreyhavenHQ/greywall", completion = true }
+hyperfine = { manager = "mise" }
+jnv = { manager = "mise", package = "github:ynqa/jnv" }
 jq = {}
-lazygit = {completion = {generate = "lazygit completion zsh"}, manager = "mise"}
-mkcert = {manager = "mise", policy = {deny = ["mkcert *"]}}
-neovim = {bin = "nvim"}
-openssh-client = {bin = "ssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add"}
-ouch = {manager = "mise", package = "github:ouch-org/ouch"}
-rage = {manager = "mise", package = "github:str4d/rage"}
-ripgrep = {bin = "rg"}
-sd = {manager = "mise"}
-tealdeer = {bin = "tldr"}
-tmux = {version = "tmux -V"}
-topgrade = {completion = {generate = "topgrade --gen-completion zsh"}, manager = "mise", package = "github:topgrade-rs/topgrade", policy = {deny = [
+lazygit = { completion = { generate = "lazygit completion zsh" }, manager = "mise" }
+mkcert = { manager = "mise", policy = { deny = ["mkcert *"] } }
+neovim = { bin = "nvim" }
+openssh-client = { bin = "ssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }
+ouch = { manager = "mise", package = "github:ouch-org/ouch" }
+rage = { manager = "mise", package = "github:str4d/rage" }
+ripgrep = { bin = "rg" }
+sd = { manager = "mise" }
+tealdeer = { bin = "tldr" }
+tmux = { version = "tmux -V" }
+topgrade = { completion = { generate = "topgrade --gen-completion zsh" }, manager = "mise", package = "github:topgrade-rs/topgrade", policy = { deny = [
   "topgrade",
   "topgrade *"
-]}}
-vivid = {manager = "mise"}
+] } }
+vivid = { manager = "mise" }
 wget = {}
-xh = {completion = {generate = "xh --generate complete-zsh"}, manager = "mise", package = "github:ducaale/xh"}
-yazi = {manager = "mise", package = "github:sxyazi/yazi"}
+xh = { completion = { generate = "xh --generate complete-zsh" }, manager = "mise", package = "github:ducaale/xh" }
+yazi = { manager = "mise", package = "github:sxyazi/yazi" }
 zoxide = {}
 
 [packages.base.core.chezmoi]
@@ -80,7 +80,7 @@ deny = [
 ]
 
 [packages.base.core.gh]
-completion = {generate = "gh completion -s zsh"}
+completion = { generate = "gh completion -s zsh" }
 
 [packages.base.core.gh.policy]
 deny = [

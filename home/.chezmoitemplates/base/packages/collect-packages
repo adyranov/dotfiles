@@ -1,12 +1,13 @@
 {{- /* base/packages/collect-packages — Render packages for a single manager.
 
-  Walks layered packages via `base/packages/walk`, normalizes field defaults
-  (`package`, `bin`, `version`, `test`, krew conventions), keeps only entries
-  matching `manager`, and dispatches to a format subtemplate.
+  Walks layered packages via `base/packages/walk` (which resolves the effective
+  manager per host), normalizes field defaults (`package`, `bin`, `version`,
+  `test`, krew conventions), keeps only entries matching `manager`, and
+  dispatches to a format subtemplate.
 
   Args (dict):
     root    — template data root (required)
-    manager — "system" (default) | "mise" | "helm" | "krew"
+    manager — "system" (default) | "brew" | "macports" | "mise" | "helm" | "krew"
     format  — format subtemplate name: "install" (default) | "mise" | "test"
 */ -}}
 {{- $root := .root -}}
@@ -18,7 +19,7 @@
 {{- range $entry := $entries -}}
 {{-   $id := $entry.id -}}
 {{-   $pkg := $entry.pkg -}}
-{{-   $pkgMgr := printf "%s" (index $pkg "manager" | default "system") -}}
+{{-   $pkgMgr := printf "%s" (index $entry "manager" | default "system") -}}
 {{-   if ne $pkgMgr $manager -}}{{- continue -}}{{- end -}}
 
 {{-   $pkgName := printf "%s" (index $pkg "package" | default $id) -}}

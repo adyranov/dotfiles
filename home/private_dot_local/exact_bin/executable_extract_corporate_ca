@@ -22,8 +22,9 @@ EOF
 getCertProp() {
   local cert_file="$1" prop="$2"
   case "$prop" in
-  subject | issuer) openssl x509 -noout -"$prop" -in "$cert_file" 2>/dev/null | sed "s/^$prop=//" ;;
-  fingerprint) openssl x509 -noout -fingerprint -sha256 -in "$cert_file" 2>/dev/null | awk -F= '{print $2}' | tr -d ':' ;;
+  # Optional/informational extraction: tolerate openssl failures (pipefail-safe) and return empty
+  subject | issuer) openssl x509 -noout -"$prop" -in "$cert_file" 2>/dev/null | sed "s/^$prop=//" || true ;;
+  fingerprint) openssl x509 -noout -fingerprint -sha256 -in "$cert_file" 2>/dev/null | awk -F= '{print $2}' | tr -d ':' || true ;;
   esac
 }
 

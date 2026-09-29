@@ -17,7 +17,7 @@ retry() {
 
 if ! pacman -Qi bash >/dev/null 2>&1 || ! pacman -Qi git >/dev/null 2>&1 || ! pacman -Qi curl >/dev/null 2>&1 || ! pacman -Qi unzip >/dev/null 2>&1 || ! pacman -Qi zsh >/dev/null 2>&1 || ! pacman -Qi rage-encryption >/dev/null 2>&1; then
   echo "📦 Installing prerequisites (bash, curl, git, rage-encryption, unzip, zsh)..."
-  retry sudo pacman -Sy --noconfirm bash curl git rage-encryption unzip zsh
+  retry sudo pacman -Syu --noconfirm bash curl git rage-encryption unzip zsh
   echo "  ✅ Prerequisites installed."
 fi
 

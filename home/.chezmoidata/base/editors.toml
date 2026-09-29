@@ -23,5 +23,5 @@ tabSize = 2
 formatOnSave = true
 
 [editors.base.vscode.variants]
-code = {path = "Code"}
-cursor = {path = "Cursor"}
+code = { path = "Code" }
+cursor = { path = "Cursor" }

@@ -1,21 +1,21 @@
 [packages.os.archlinux.core]
-atuin = {manager = "system"}
-bubblewrap = {disabled = ["ephemeral"], bin = "bwrap"}
-difftastic = {manager = "system"}
-doggo = {manager = "system"}
-dust = {manager = "system"}
-eza = {manager = "system"}
-gh = {package = "github-cli"}
-glow = {manager = "system"}
-hyperfine = {manager = "system"}
-jnv = {manager = "system"}
-lazygit = {manager = "system"}
-mkcert = {manager = "system"}
-openssh-client = {package = "openssh"}
-ouch = {manager = "system"}
-rage = {manager = "system", package = "rage-encryption"}
-sd = {manager = "system"}
-socat = {disabled = ["ephemeral"], version = "socat -V"}
-vivid = {manager = "system"}
-xh = {manager = "system"}
-yazi = {manager = "system"}
+atuin = { manager = "system" }
+bubblewrap = { disabled = ["ephemeral"], bin = "bwrap" }
+difftastic = { manager = "system" }
+doggo = { manager = "system" }
+dust = { manager = "system" }
+eza = { manager = "system" }
+gh = { package = "github-cli" }
+glow = { manager = "system" }
+hyperfine = { manager = "system" }
+jnv = { manager = "system" }
+lazygit = { manager = "system" }
+mkcert = { manager = "system" }
+openssh-client = { package = "openssh" }
+ouch = { manager = "system" }
+rage = { manager = "system", package = "rage-encryption" }
+sd = { manager = "system" }
+socat = { disabled = ["ephemeral"], version = "socat -V" }
+vivid = { manager = "system" }
+xh = { manager = "system" }
+yazi = { manager = "system" }

@@ -7,7 +7,7 @@
 #   3. Tool dirs consumed by PATH composition or mise activate
 #   4. Homebrew shell environment (defines HOMEBREW_PREFIX)
 #   5. Drop-in fragments from exports.d/ (order-independent)
-#   6. PATH composition (consumes HOMEBREW_PREFIX and the dirs above)
+#   6. PATH composition (consumes HOMEBREW_PREFIX, MacPorts, and the dirs above)
 #   7. mise activate (must be last; prepends shims to PATH)
 #
 # Per-tool XDG redirections (passive: declared in exports.d/, read by external
@@ -85,7 +85,14 @@ add_to_path() {
 }
 
 {{- if eq .host.distro.family "darwin" }}
+{{- if eq .host.arch "amd64" }}
+add_to_path "/opt/local/libexec/gnubin"
+# Intel ownership policy: MacPorts-owned commands precede Homebrew's.
+add_to_path "/opt/local/sbin"
+add_to_path "/opt/local/bin"
+{{- else }}
 add_to_path "$HOMEBREW_PREFIX/opt/coreutils/libexec/gnubin"
+{{- end }}
 {{- end }}
 add_to_path "$XDG_DATA_HOME/npm/bin"
 add_to_path "$KREW_ROOT/bin"

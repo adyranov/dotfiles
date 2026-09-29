@@ -1,7 +1,7 @@
 [packages.base.docker]
-dive = {manager = "mise", package = "github:wagoodman/dive"}
-docker-buildx = {version = "docker buildx version"}
-lazydocker = {manager = "mise", package = "aqua:jesseduffield/lazydocker"}
+dive = { manager = "mise", package = "github:wagoodman/dive" }
+docker-buildx = { version = "docker buildx version" }
+lazydocker = { manager = "mise", package = "aqua:jesseduffield/lazydocker" }
 
 [packages.base.docker.docker]
 completion = true

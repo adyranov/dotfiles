@@ -1,5 +1,5 @@
 [packages.base.iac]
-sops = {completion = true, manager = "mise"}
+sops = { completion = true, manager = "mise" }
 
 [packages.base.iac.opentofu]
 manager = "mise"

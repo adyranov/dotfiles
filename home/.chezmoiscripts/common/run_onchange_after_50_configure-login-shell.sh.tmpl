@@ -2,6 +2,10 @@
 
 echo "🐚 Configuring login shell..."
 
+# Bash 3.2-safe defaults: avoid set -u failures when SHELL/USER are unset
+current_shell="${SHELL:-}"
+current_user="${USER:-$(id -un 2>/dev/null)}"
+
 for cand in "/usr/local/bin/zsh" "/opt/homebrew/bin/zsh" "/usr/bin/zsh" "/bin/zsh"; do
   if [ -x "$cand" ]; then
     zsh_path="$cand"
@@ -14,7 +18,7 @@ if [ -z "${zsh_path:-}" ]; then
   exit 0
 fi
 
-if [ "$SHELL" = "$zsh_path" ]; then
+if [ "$current_shell" = "$zsh_path" ]; then
   echo "  ✅ Login shell is already $zsh_path."
   exit 0
 fi
@@ -33,7 +37,7 @@ fi
 
 {{ if not .host.restricted -}}
 echo "  🔄 Changing login shell to $zsh_path..."
-if sudo chsh -s "$zsh_path" "$USER"; then
+if sudo chsh -s "$zsh_path" "$current_user"; then
   echo "  🎉 Shell successfully changed to zsh."
 else
   echo "  ⚠️  Failed to change shell to zsh."

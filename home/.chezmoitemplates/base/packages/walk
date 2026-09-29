@@ -2,12 +2,14 @@
 
   Walks every enabled toolchain (core + any flags in `.toolchains` that are true),
   merges base → os.<distro> → profile.<profile> layers per package id, and applies
-  host filters (`os`, `disabled`, `exclude_arch`). The result is emitted as JSON so
-  callers can `mustFromJson` it.
+  host filters (`os`, `disabled`, `exclude_arch`). It then resolves the effective
+  manager: scalar `manager` defaults to "system"; on Darwin only, "system" resolves
+  to "macports" on `amd64` and "brew" otherwise. Unsupported scalar manager values
+  fail the render. The result is emitted as JSON so callers can `mustFromJson` it.
 
   Output shape:
     [
-      { "id": "btop", "pkg": { ...merged TOML... }, "toolchain": "core" },
+      { "id": "btop", "pkg": { ...merged TOML... }, "manager": "system", "toolchain": "core" },
       ...
     ]
 
@@ -76,7 +78,20 @@
 {{-     end -}}
 {{-     if $archExcluded -}}{{- continue -}}{{- end -}}
 
-{{-     $result = append $result (dict "id" $id "pkg" $pkg "basePkg" $basePkg "override" $override "toolchain" $toolName) -}}
+{{-     $manager := printf "%s" (index $pkg "manager" | default "system") -}}
+{{-     $validManagers := list "system" "brew" "macports" "mise" "helm" "krew" "external" -}}
+{{-     if not (has $manager $validManagers) -}}
+{{-       fail (printf "package %s: unsupported manager %q (expected one of: system, brew, macports, mise, helm, krew, external)" $id $manager) -}}
+{{-     end -}}
+{{-     if and (eq $root.host.distro.family "darwin") (eq $manager "system") -}}
+{{-       if eq $root.host.arch "amd64" -}}
+{{-         $manager = "macports" -}}
+{{-       else -}}
+{{-         $manager = "brew" -}}
+{{-       end -}}
+{{-     end -}}
+
+{{-     $result = append $result (dict "id" $id "pkg" $pkg "basePkg" $basePkg "override" $override "toolchain" $toolName "manager" $manager) -}}
 {{-   end -}}
 {{- end -}}
 {{- $result | toJson -}}

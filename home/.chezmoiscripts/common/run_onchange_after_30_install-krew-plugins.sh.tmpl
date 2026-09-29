@@ -1,6 +1,9 @@
 {{- if .toolchains.kubernetes -}}
 {{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
+# Default KREW_ROOT safely under set -u; export so the krew binary uses the same root
+export KREW_ROOT="${KREW_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/krew}"
+
 KREW_PLUGINS=(
 {{- $packages := splitList " " (includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "krew" "format" "install")) -}}
 {{- range $pkg := $packages -}}
@@ -32,7 +35,7 @@ $KREW_ROOT/bin/kubectl-krew update 2>/dev/null
 $KREW_ROOT/bin/kubectl-krew upgrade 2>/dev/null
 
 echo "  🔌 Ensuring plugins..."
-for plugin in "${KREW_PLUGINS[@]}"; do
+for plugin in ${KREW_PLUGINS[@]+"${KREW_PLUGINS[@]}"}; do
     if ! $KREW_ROOT/bin/kubectl-krew list | grep -q "^$plugin$"; then
         echo "    ↳ Installing: $plugin"
         $KREW_ROOT/bin/kubectl-krew install "$plugin" >/dev/null 2>&1
@@ -46,7 +49,7 @@ installed=$($KREW_ROOT/bin/kubectl-krew list 2>/dev/null | tail -n +2 | awk '{pr
 for plugin in $installed; do
     [ "$plugin" = "krew" ] && continue
     found=false
-    for wanted in "${KREW_PLUGINS[@]}"; do
+    for wanted in ${KREW_PLUGINS[@]+"${KREW_PLUGINS[@]}"}; do
         if [ "$plugin" = "$wanted" ]; then
             found=true
             break
