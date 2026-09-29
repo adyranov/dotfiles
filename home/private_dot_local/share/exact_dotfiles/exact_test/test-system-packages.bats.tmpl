@@ -6,4 +6,165 @@ setup() {
   common_setup
 }
 
-{{ includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "system" "format" "test") }}
+{{- $systemMgr := "system" -}}
+{{- if eq .host.distro.family "darwin" -}}
+{{-   if eq .host.arch "amd64" -}}{{- $systemMgr = "macports" -}}{{- else -}}{{- $systemMgr = "brew" -}}{{- end -}}
+{{- end }}
+{{ includeTemplate "base/packages/collect-packages" (dict "root" . "manager" $systemMgr "format" "test") }}
+{{- if eq .host.distro.family "darwin" -}}
+{{- $misePackages := includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "mise" "format" "install") -}}
+{{- $brewPackages := includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "brew" "format" "install") -}}
+{{- $macportsPackages := includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "macports" "format" "install") -}}
+{{- if eq .host.arch "amd64" }}
+# bats test_tags=suite:packages,kind:selector
+@test "Intel Darwin routes Atuin to MacPorts" {
+  assert_equal "{{ contains "atuin" $misePackages }}" "false"
+  assert_equal "{{ contains "atuin" $brewPackages }}" "false"
+  assert_equal "{{ contains "atuin" $macportsPackages }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "Intel MacPorts selects the Darwin overlay package names" {
+  assert_equal "{{ contains "docker-buildx-plugin" $macportsPackages }}" "true"
+  assert_equal "{{ contains "docker-compose-plugin" $macportsPackages }}" "true"
+  assert_equal "{{ contains "gnupg2" $macportsPackages }}" "true"
+  assert_equal "{{ contains "yubikey-manager" $macportsPackages }}" "true"
+  assert_equal "{{ contains "adyranov/tap/llama-cpp" $macportsPackages }}" "false"
+  assert_equal "{{ contains "adyranov/tap/llama-cpp" $brewPackages }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "Intel MacPorts enables FIDO2 support in OpenSSH" {
+  assert_equal "{{ contains "openssh +fido2" $macportsPackages }}" "true"
+  assert_equal "{{ contains "openssh" $brewPackages }}" "false"
+}
+{{- else if eq .host.arch "arm64" }}
+# bats test_tags=suite:packages,kind:selector
+@test "arm64 Homebrew selects plain openssh without FIDO2 variants" {
+  assert_equal "{{ contains "openssh +fido2" $brewPackages }}" "false"
+  assert_equal "{{ contains "openssh" $brewPackages }}" "true"
+  assert_equal "{{ contains "openssh" $macportsPackages }}" "false"
+}
+{{ end }}
+{{ end }}
+{{- /* Synthetic package map so routing assertions do not depend on real package data. */ -}}
+{{- $sel := dict
+  "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "arm64" "interactive" true "restricted" false "type" "workstation" "profile" "personal")
+  "toolchains" (dict)
+  "packages" (dict
+    "base" (dict "core" (dict
+      "brew-only" (dict "manager" "brew")
+      "system-default" (dict "manager" "system")
+      "port-only" (dict "manager" "macports" "exclude_arch" (list "arm64"))
+    ))
+    "os" (dict)
+    "profile" (dict)
+  )
+-}}
+{{- $selArmBrew := includeTemplate "base/packages/collect-packages" (dict "root" $sel "manager" "brew" "format" "install") -}}
+{{- $selArmPort := includeTemplate "base/packages/collect-packages" (dict "root" $sel "manager" "macports" "format" "install") -}}
+{{- $selAmd64 := dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict) "packages" (index $sel "packages") -}}
+{{- $selAmd64Brew := includeTemplate "base/packages/collect-packages" (dict "root" $selAmd64 "manager" "brew" "format" "install") -}}
+{{- $selAmd64Port := includeTemplate "base/packages/collect-packages" (dict "root" $selAmd64 "manager" "macports" "format" "install") -}}
+
+# bats test_tags=suite:packages,kind:selector
+@test "system packages route to Homebrew on arm64" {
+  assert_equal "{{ $selArmBrew }}" "brew-only system-default"
+  assert_equal "{{ $selArmPort }}" ""
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "system packages route to MacPorts on amd64" {
+  assert_equal "{{ $selAmd64Port }}" "port-only system-default"
+  assert_equal "{{ $selAmd64Brew }}" "brew-only"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "unsupported manager value fails template rendering" {
+  run chezmoi execute-template 2>/dev/null <<'TMPL'
+{{ "{{" }}- $root := dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict) "packages" (dict "base" (dict "core" (dict "bad" (dict "manager" "nonsense"))) "os" (dict) "profile" (dict)) -}}
+{{ "{{" }} includeTemplate "base/packages/walk" (dict "root" $root) }}
+TMPL
+  assert_failure
+}
+
+{{- /* Synthetic roots so bootstrap/install rendering is asserted without depending on the host architecture or Darwin package data. */ -}}
+{{- $u2Brew := dict "path" "/opt/homebrew/bin/brew" "base" (dict "casks" (list "Example Cask") "mas" (list (dict "id" 123 "name" "Example"))) "os" (dict) "profile" (dict) -}}
+{{- $u2IntelHost := dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal" -}}
+{{- $u2ArmHost := dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "arm64" "interactive" true "restricted" false "type" "workstation" "profile" "personal" -}}
+{{- $u2PortPkgs := dict "base" (dict "core" (dict "port-only" (dict "manager" "macports" "exclude_arch" (list "arm64")) "mas" (dict "manager" "brew") "llamacpp" (dict "manager" "brew" "package" "adyranov/tap/llama-cpp"))) "os" (dict) "profile" (dict) -}}
+{{- $u2BrewPkgs := dict "base" (dict "core" (dict "mise-only" (dict "manager" "mise"))) "os" (dict) "profile" (dict) -}}
+{{- $u2ArmBrewPkgs := dict "base" (dict "core" (dict "arm-formula" (dict "manager" "brew"))) "os" (dict) "profile" (dict) -}}
+{{- $u2IntelInstall := includeTemplate "os/darwin/install" (dict "host" $u2IntelHost "toolchains" (dict) "packages" $u2PortPkgs "brew" $u2Brew) -}}
+{{- $u2ArmInstall := includeTemplate "os/darwin/install" (dict "host" $u2ArmHost "toolchains" (dict) "packages" $u2PortPkgs "brew" $u2Brew) -}}
+{{- $u2EmptyInstall := includeTemplate "os/darwin/install" (dict "host" $u2IntelHost "toolchains" (dict) "packages" $u2BrewPkgs "brew" $u2Brew) -}}
+{{- $u2IntelBrewfile := includeTemplate "os/darwin/brewfile" (dict "host" $u2IntelHost "toolchains" (dict) "packages" $u2PortPkgs "brew" $u2Brew) -}}
+{{- $u2IntelPort := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $u2IntelHost "toolchains" (dict) "packages" $u2PortPkgs) "manager" "macports" "format" "install") -}}
+{{- $u2ArmBrewfile := includeTemplate "os/darwin/brewfile" (dict "host" $u2ArmHost "toolchains" (dict) "packages" $u2ArmBrewPkgs "brew" $u2Brew) -}}
+{{- $u2IntelBootstrap := includeTemplate "os/darwin/bootstrap" (dict "host" $u2IntelHost "brew" $u2Brew) -}}
+{{- $u2ArmBootstrap := includeTemplate "os/darwin/bootstrap" (dict "host" $u2ArmHost "brew" $u2Brew) }}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "Intel MacPorts install uses the absolute provider path" {
+  assert_equal "{{ contains "sudo /opt/local/bin/port -N install port-only" $u2IntelInstall }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "arm64 install never invokes port" {
+  assert_equal "{{ contains "/opt/local/bin/port -N install" $u2ArmInstall }}" "false"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "empty Intel MacPorts selection never invokes port" {
+  assert_equal "{{ contains "/opt/local/bin/port -N install" $u2EmptyInstall }}" "false"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "Intel install runs a single Homebrew bundle with mas and App Store entries" {
+  assert_equal "{{ len (regexFindAll "brew bundle --no-upgrade" $u2IntelInstall -1) }}" "1"
+  assert_equal "{{ contains "mas \"Example\"" $u2IntelInstall }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "Intel Brew Bundle includes casks, the mas formula, and App Store entries" {
+  assert_equal "{{ contains "cask \"Example Cask\"" $u2IntelBrewfile }}" "true"
+  assert_equal "{{ contains "brew \"mas\"" $u2IntelBrewfile }}" "true"
+  assert_equal "{{ contains "mas \"Example\"" $u2IntelBrewfile }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "Intel Brewfile rejects disallowed Homebrew formulae" {
+  run chezmoi execute-template 2>/dev/null <<'TMPL'
+{{ "{{" }}- $root := dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict) "packages" (dict "base" (dict "core" (dict "bad-formula" (dict "manager" "brew"))) "os" (dict) "profile" (dict)) "brew" (dict "base" (dict) "os" (dict) "profile" (dict)) -}}
+{{ "{{" }} includeTemplate "os/darwin/brewfile" $root }}
+TMPL
+  assert_failure
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "Intel Brewfile renders the llama-cpp tap formula while MacPorts excludes it" {
+  assert_equal "{{ contains "tap \"adyranov/tap\"" $u2IntelBrewfile }}" "true"
+  assert_equal "{{ contains "brew \"adyranov/tap/llama-cpp\", trusted: true" $u2IntelBrewfile }}" "true"
+  assert_equal "{{ contains "adyranov/tap/llama-cpp" $u2IntelPort }}" "false"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "arm64 Brew Bundle includes Mac App Store entries" {
+  assert_equal "{{ contains "brew \"arm-formula\"" $u2ArmBrewfile }}" "true"
+  assert_equal "{{ contains "mas \"Example\"" $u2ArmBrewfile }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "Intel bootstrap maps supported macOS releases to MacPorts assets" {
+  assert_equal "{{ contains "15-Sequoia" $u2IntelBootstrap }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "Intel bootstrap skips Homebrew formula upgrades" {
+  assert_equal "{{ contains "Upgrading formulae" $u2IntelBootstrap }}" "false"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "arm64 bootstrap omits MacPorts bootstrap" {
+  assert_equal "{{ contains "MACPORTS_VERSION" $u2ArmBootstrap }}" "false"
+}

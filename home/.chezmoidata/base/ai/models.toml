@@ -13,8 +13,8 @@ port = 8321
 default = "balanced"
 
 [ai.base.models.providers]
-deepseek = {api_key_env = "DEEPSEEK_API_KEY", auth_keys = ["deepseek"]}
-github-copilot = {opencode_quota = "copilot"}
-openai-codex = {opencode_alias = "openai", opencode_quota = "openai"}
-opencode-go = {api_key_env = "OPENCODE_API_KEY", auth_keys = ["opencode-go"]}
-openrouter = {api_key_env = "OPENROUTER_API_KEY", auth_keys = ["openrouter"]}
+deepseek = { api_key_env = "DEEPSEEK_API_KEY", auth_keys = ["deepseek"] }
+github-copilot = { opencode_quota = "copilot" }
+openai-codex = { opencode_alias = "openai", opencode_quota = "openai" }
+opencode-go = { api_key_env = "OPENCODE_API_KEY", auth_keys = ["opencode-go"] }
+openrouter = { api_key_env = "OPENROUTER_API_KEY", auth_keys = ["openrouter"] }

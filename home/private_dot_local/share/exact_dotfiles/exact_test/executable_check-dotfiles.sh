@@ -133,8 +133,8 @@ listTests() {
 runSuite() {
   local suite_path=$1 out_dir=$2 parallel=${3:-true}
   local rc=0 jobs_args=()
-  [ "$parallel" = true ] && jobs_args=("${BATS_JOBS_ARGS[@]}")
-  "$BATS_BIN" "${jobs_args[@]}" "${BATS_FILTER_ARGS[@]}" \
+  [ "$parallel" = true ] && jobs_args=("${BATS_JOBS_ARGS[@]+"${BATS_JOBS_ARGS[@]}"}")
+  "$BATS_BIN" "${jobs_args[@]+"${jobs_args[@]}"}" "${BATS_FILTER_ARGS[@]+"${BATS_FILTER_ARGS[@]}"}" \
     --formatter tap \
     --report-formatter junit --output "$out_dir" \
     "$suite_path" >"$out_dir/stdout.log" 2>&1 || rc=$?
@@ -169,7 +169,7 @@ runAll() {
   local active=() suite_path count count_output
   for suite_path in "${suites[@]}"; do
     [ -f "$suite_path" ] || continue
-    if ! count_output=$("$BATS_BIN" "${BATS_FILTER_ARGS[@]}" --count "$suite_path" 2>&1); then
+    if ! count_output=$("$BATS_BIN" "${BATS_FILTER_ARGS[@]+"${BATS_FILTER_ARGS[@]}"}" --count "$suite_path" 2>&1); then
       printf '\n%s== suite: %s ==%s\n' "$C_BLUE$C_BOLD" "$(suiteDisplayName "$suite_path")" "$C_RESET"
       printf '%s\n' "$count_output"
       rm -rf "$tmp_root"
@@ -190,7 +190,7 @@ runAll() {
   local pids=() dirs=() names=() suite_name out_dir
   local use_internal_parallel=true
   [ ${#active[@]} -gt 1 ] && use_internal_parallel=false
-  for suite_path in "${active[@]}"; do
+  for suite_path in "${active[@]+"${active[@]}"}"; do
     suite_name=$(suiteDisplayName "$suite_path")
     out_dir="$tmp_root/$suite_name"
     mkdir -p "$out_dir"
@@ -202,13 +202,13 @@ runAll() {
 
   # Wait for completion.
   local i
-  for i in "${!pids[@]}"; do wait "${pids[$i]}" 2>/dev/null || true; done
+  for ((i = 0; i < ${#pids[@]}; i++)); do wait "${pids[$i]}" 2>/dev/null || true; done
 
   # Collect results in suite order.
   local show_summary=false
   [ -t 1 ] && [ "${CI:-}" = "" ] && show_summary=true
 
-  for i in "${!names[@]}"; do
+  for ((i = 0; i < ${#names[@]}; i++)); do
     local sn="${names[$i]}" sd="${dirs[$i]}"
     local rc
     rc=$(cat "$sd/exit_code" 2>/dev/null || echo 1)
@@ -408,7 +408,7 @@ main() {
   # Build bats filter args.
   BATS_FILTER_ARGS=()
   local tag
-  for tag in "${tag_filters[@]}"; do BATS_FILTER_ARGS+=(--filter-tags "$tag"); done
+  for tag in "${tag_filters[@]+"${tag_filters[@]}"}"; do BATS_FILTER_ARGS+=(--filter-tags "$tag"); done
 
   local combined_regex=""
   if [ -n "$filter_regex" ] && [ ${#tools[@]} -gt 0 ]; then

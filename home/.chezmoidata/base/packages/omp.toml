@@ -4,4 +4,4 @@
 manager = "mise"
 package = "github:can1357/oh-my-pi"
 version = "omp --version"
-completion = {generate = "omp completions zsh"}
+completion = { generate = "omp completions zsh" }

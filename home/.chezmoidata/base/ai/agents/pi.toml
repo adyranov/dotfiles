@@ -1,5 +1,5 @@
 [ai.base.agents.pi]
-settings = {bash_mode = {toggle_shortcut = "ctrl+shift+b", transcript_max_bytes = 524288, transcript_max_lines = 2000}, powerline = {fixed_editor = true, mouse_scroll = true, preset = "full"}, theme = "catppuccin-mocha"}
+settings = { bash_mode = { toggle_shortcut = "ctrl+shift+b", transcript_max_bytes = 524288, transcript_max_lines = 2000 }, powerline = { fixed_editor = true, mouse_scroll = true, preset = "full" }, theme = "catppuccin-mocha" }
 
 [ai.base.agents.pi.mcp_servers.codegraph]
 args = ["serve", "--mcp"]
@@ -16,8 +16,8 @@ deny = [
 
 [ai.base.agents.pi.profiles.core]
 extends = "minimal"
-compaction = {keep_recent_tokens = 8000, reserve_tokens = 8192}
-plannotator = {executing = "medium", plan_dir = "docs/plans/", planning = "big"}
+compaction = { keep_recent_tokens = 8000, reserve_tokens = 8192 }
+plannotator = { executing = "medium", plan_dir = "docs/plans/", planning = "big" }
 packages = [
   "@ff-labs/pi-fff",
   "pi-lens",
@@ -38,8 +38,8 @@ skills = ["karpathy-guidelines"]
 
 [ai.base.agents.pi.profiles.factory]
 extends = "core"
-compaction = {keep_recent_tokens = 20000, reserve_tokens = 16384}
-plannotator = {executing = "medium", plan_dir = "docs/plans/", plan_only = true, planning = "big"}
+compaction = { keep_recent_tokens = 20000, reserve_tokens = 16384 }
+plannotator = { executing = "medium", plan_dir = "docs/plans/", plan_only = true, planning = "big" }
 packages = [
   "@juicesharp/rpiv-i18n",
   "@juicesharp/rpiv-workflow",
@@ -50,7 +50,7 @@ packages = [
 skills = []
 
 [ai.base.agents.pi.profiles.minimal]
-compaction = {keep_recent_tokens = 4000, reserve_tokens = 4096}
+compaction = { keep_recent_tokens = 4000, reserve_tokens = 4096 }
 packages = [
   "@gotgenes/pi-permission-system",
   "@sherif-fanous/pi-catppuccin",

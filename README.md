@@ -120,7 +120,7 @@ same RunPod zone.
 
 | Host           | Default engine                          | Notes                                                                               |
 | -------------- | --------------------------------------- | ----------------------------------------------------------------------------------- |
-| darwin / arm64 | profile (`models.catalog.local.engine`) | Installs both oMLX and `adyranov/tap/llama-cpp`; runtime picks `omlx` or `llamacpp` |
+| darwin / arm64 | profile (`models.catalog.local.engine`) | Installs oMLX and tap-backed `adyranov/tap/llama-cpp`; runtime picks `omlx` or `llamacpp` |
 | darwin / amd64 | `llamacpp`                              | `adyranov/tap/llama-cpp`; native llama.cpp router mode                              |
 | Linux / WSL2   | `llamacpp`                              | mise `llama.cpp` native router mode                                                 |
 
@@ -249,7 +249,7 @@ Notes:
 
 ## 🖥 Supported Platforms
 
-- 🍎 macOS (arm64 & x86_64) with Homebrew-backed packages.
+- 🍎 macOS (arm64 via Homebrew; x86_64 via MacPorts and mise, with Homebrew for `mas` and casks).
 - 🐧 Ubuntu (amd64 primary, arm64 best-effort with per-tool exclusions).
 - 🦬 Fedora (amd64 focus, arm64 best-effort) via dnf.
 - 🎯 Arch Linux (amd64 & arm64) via pacman.
@@ -257,7 +257,9 @@ Notes:
 
 ## 🧭 Install Manager Legend
 
-- `system` → Native package manager (Homebrew, apt, dnf, pacman).
+- `system` → Default native manager (Homebrew on arm64 Darwin, MacPorts on Intel; apt, dnf, pacman on Linux).
+- `brew` → Homebrew formulae and casks on arm64 Darwin; on Intel only the `mas` formula and casks are available.
+- `macports` → Verified MacPorts ports on Intel macOS.
 - `mise` → [mise](https://github.com/jdx/mise) runtime manager and UBI packages.
 - `krew` → [Krew](https://krew.sigs.k8s.io/) kubectl plugin manager.
 - `helm` → [Helm](https://helm.sh/) plugin manager.
@@ -268,7 +270,19 @@ This inventory covers user-facing tools; service and support packages are
 omitted. Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means
 the tool is provisioned on all architectures for that OS; `❌ (arch)` flags a
 missing architecture. The Install column highlights when `mise` is responsible
-(`mise ✅`); otherwise the native package manager or plugin manager is used.
+(`mise ✅`); otherwise the selected native manager or plugin manager is used.
+Portable tools use `mise` where a base definition exists; tap-backed formulae
+remain arm64-only Homebrew integrations, while GUI applications remain
+Homebrew casks. App Store applications use `mas`.
+Legacy table annotations that say `system` refer to the native provider; on
+Darwin that provider is now resolved as `macports` on Intel and `brew` on arm64
+unless the package explicitly selects another manager.
+
+Current Darwin exceptions are explicit in `.chezmoidata`: portable CLI tools
+use `mise`, Intel macOS uses MacPorts for system packages but Homebrew for
+`mas` and casks, tap-backed AI and hardware tools use Homebrew only on arm64,
+and `rage` remains a mise tool bootstrapped before source decryption.
+Installomator and direct DMG/PKG installers are deferred.
 
 ### ☁️ Cloud
 
@@ -342,10 +356,9 @@ missing architecture. The Install column highlights when `mise` is responsible
 | [age-plugin-yubikey](https://github.com/str4d/age-plugin-yubikey) | YubiKey plugin for age encryption | `system`                   | ✅    | ❌     | ❌     | ❌   |
 | [bubblewrap](https://github.com/containers/bubblewrap)            | Unprivileged sandboxing           | `system`                   | ❌    | ✅     | ✅     | ✅   |
 | [gocryptfs](https://github.com/rfjakob/gocryptfs)                 | Encrypted overlay filesystem      | `system` (`gocryptfs-mac`) | ✅    | ✅     | ✅     | ✅   |
-| [mas](https://github.com/mas-cli/mas)                             | Mac App Store CLI                 | `system`                   | ✅    | ❌     | ❌     | ❌   |
+| [mas](https://github.com/mas-cli/mas)                             | Mac App Store CLI                 | `brew`                     | ✅    | ❌     | ❌     | ❌   |
 | [OpenSC](https://github.com/OpenSC/OpenSC)                        | Smart card middleware             | `system`                   | ✅    | ❌     | ❌     | ❌   |
 | [pam-u2f](https://github.com/Yubico/pam-u2f)                      | U2F PAM module                    | `system`                   | ✅    | ❌     | ❌     | ❌   |
-| [pinentry-mac](https://github.com/GPGTools/pinentry)              | GPG passphrase entry for macOS    | `system`                   | ✅    | ❌     | ❌     | ❌   |
 | [qrencode](https://fukuchi.org/works/qrencode/)                   | QR code generator                 | `system`                   | ✅    | ✅     | ✅     | ✅   |
 | [socat](http://www.dest-unreach.org/socat/)                       | Multipurpose socket relay         | `system`                   | ❌    | ✅     | ✅     | ✅   |
 | [YubiKey Manager](https://github.com/Yubico/yubikey-manager)      | YubiKey configuration tool        | `system`                   | ✅    | ❌     | ❌     | ❌   |
@@ -436,7 +449,8 @@ missing architecture. The Install column highlights when `mise` is responsible
 
 ## 🧰 GUI Apps (macOS)
 
-These desktop apps are installed on macOS via Homebrew casks or the App Store (mas).
+These desktop apps are installed on macOS via Homebrew casks or the App Store
+(`mas`). Installomator and direct vendor installers are intentionally deferred.
 
 ### 🍺 Homebrew Casks
 

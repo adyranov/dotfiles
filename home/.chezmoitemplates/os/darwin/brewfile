@@ -1,18 +1,39 @@
 {{- $brew := includeTemplate "base/helpers/load-section" (dict "root" . "section" "brew") | mustFromJson -}}
 
 {{- $taps := index $brew "taps" | default list -}}
-{{- $brews := concat (splitList " " (includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "system" "format" "install"))) (index $brew "brews" | default list) -}}
+{{- $brewPkgs := includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "brew" "format" "install") | trim -}}
+{{- $rawBrews := index $brew "brews" | default list -}}
+{{- $brews := $rawBrews -}}
+{{- if $brewPkgs -}}
+{{-   $brews = concat (splitList " " $brewPkgs) $brews -}}
+{{- end -}}
+{{- $allowedIntel := list "mas" "adyranov/tap/llama-cpp" -}}
+{{- if eq .host.arch "amd64" -}}
+{{-   $offending := list -}}
+{{-   range $brewName := $brews -}}
+{{-     if not (has $brewName $allowedIntel) -}}
+{{-       $offending = append $offending $brewName -}}
+{{-     end -}}
+{{-   end -}}
+{{-   if $offending -}}
+{{-     fail (printf "Intel macOS cannot install Homebrew formulae: %s" (join " " $offending)) -}}
+{{-   end -}}
+{{- end -}}
 {{- $casks := index $brew "casks" | default list -}}
 {{- $mas := index $brew "mas" | default list -}}
+{{- if eq .host.arch "amd64" -}}
+tap "adyranov/tap"
+{{- else -}}
 {{- range $taps -}}
 {{- if kindIs "map" . -}}
 {{- if .url -}}
-{{- printf "tap \"%s\", \"%s\", trusted: true\n" .name .url -}}
+{{- printf "tap \"%s\", \"%s\"\n" .name .url -}}
 {{- else -}}
-{{- printf "tap \"%s\", trusted: true\n" .name -}}
+{{- printf "tap \"%s\"\n" .name -}}
 {{- end -}}
 {{- else -}}
-{{- printf "tap \"%s\", trusted: true\n" . -}}
+{{- printf "tap \"%s\"\n" . -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{ range ($brews | sortAlpha | uniq) }}

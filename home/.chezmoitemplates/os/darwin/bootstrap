@@ -1,16 +1,77 @@
-# Post-init bootstrap (before-phase): refreshes Homebrew after .init.sh installed it.
-# Package installation is handled by os/darwin/install via brew bundle.
+{{- $macportsEnabled := and (eq .host.distro.family "darwin") (eq .host.arch "amd64") -}}
+{{- $macportsPath := "/opt/local" -}}
+# Post-init bootstrap (before-phase): refreshes Homebrew after .init.sh installed it
+# and installs the Intel-only MacPorts package manager before package installation.
+# Package installation is handled by os/darwin/install via brew bundle and port install.
 
 eval $({{ .brew.path }} shellenv)
 {{- includeTemplate "base/helpers/sudo-keep-alive" . }}
 echo "🍺 Updating Homebrew…"
 brew update
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
+{{- if ne .host.arch "amd64" }}
 echo "📦 Upgrading formulae…"
 brew upgrade
+{{- end }}
 echo "🧰 Upgrading casks…"
 brew upgrade --cask --greedy
 echo "🧹 Cleaning up…"
 brew cleanup
 {{- end }}
 echo "✅ Homebrew updated."
+{{- if $macportsEnabled }}
+
+# MacPorts release matrix for supported Intel macOS versions. Bump
+# MACPORTS_VERSION together with the release asset names and signing team.
+# Trust anchor: SHA-256 from MacPorts' published distfiles checksum file plus
+# the Apple-issued Developer ID signature.
+MACPORTS_VERSION="2.12.6"
+MACPORTS_SIGNER="QTA3A3B7F3"
+if [ ! -x {{ $macportsPath }}/bin/port ]; then
+  if [ "{{ .host.interactive }}" != "true" ] || [ "{{ .host.restricted }}" = "true" ]; then
+    echo "❌ MacPorts is not installed; this non-interactive/restricted host requires it preinstalled." >&2
+    exit 1
+  else
+    _macports_major="$(sw_vers -productVersion | cut -d. -f1)"
+    case "${_macports_major}" in
+      11) _macports_release="11-BigSur" ;;
+      12) _macports_release="12-Monterey" ;;
+      13) _macports_release="13-Ventura" ;;
+      14) _macports_release="14-Sonoma" ;;
+      15) _macports_release="15-Sequoia" ;;
+      26) _macports_release="26-Tahoe" ;;
+      27) _macports_release="27-GoldenGate" ;;
+      *)
+        echo "❌ No MacPorts ${MACPORTS_VERSION} release mapping for macOS ${_macports_major}" >&2
+        exit 1
+        ;;
+    esac
+    _macports_asset="MacPorts-${MACPORTS_VERSION}-${_macports_release}.pkg"
+    _macports_url="https://github.com/macports/macports-base/releases/download/v${MACPORTS_VERSION}"
+    _macports_checksum_url="https://distfiles.macports.org/MacPorts/MacPorts-${MACPORTS_VERSION}.chk.txt"
+    _macports_tmp="$(mktemp -d)"
+    trap 'rm -rf "${_macports_tmp:-}"' EXIT
+    echo "📦 Installing MacPorts ${MACPORTS_VERSION} (${_macports_release})…"
+    curl -fsSL --retry 3 -o "${_macports_tmp}/${_macports_asset}" "${_macports_url}/${_macports_asset}"
+    curl -fsSL --retry 3 -o "${_macports_tmp}/MacPorts-${MACPORTS_VERSION}.chk.txt" "${_macports_checksum_url}"
+    _macports_expected="$(awk -v key="SHA2-256(${_macports_asset})=" 'index($0, key) == 1 { v = substr($0, length(key) + 1); gsub(/^[[:space:]]+/, "", v); print v }' "${_macports_tmp}/MacPorts-${MACPORTS_VERSION}.chk.txt")"
+    if [ -z "${_macports_expected}" ]; then
+      echo "❌ No published SHA-256 for ${_macports_asset}" >&2
+      exit 1
+    fi
+    _macports_actual="$(shasum -a 256 "${_macports_tmp}/${_macports_asset}" | awk '{print $1}')"
+    if [ "${_macports_actual}" != "${_macports_expected}" ]; then
+      echo "❌ MacPorts checksum mismatch for ${_macports_asset}" >&2
+      exit 1
+    fi
+    if ! pkgutil --check-signature "${_macports_tmp}/${_macports_asset}" | grep -q "Developer ID Installer: .*(${MACPORTS_SIGNER})"; then
+      echo "❌ MacPorts package is not signed by the expected identity (${MACPORTS_SIGNER})" >&2
+      exit 1
+    fi
+    sudo installer -pkg "${_macports_tmp}/${_macports_asset}" -target /
+    rm -rf "${_macports_tmp}"
+    trap - EXIT
+    echo "  ✅ MacPorts installed."
+  fi
+fi
+{{- end }}

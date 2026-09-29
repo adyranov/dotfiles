@@ -1,3 +1,3 @@
 [packages.base.java]
-java = {manager = "mise", version = "java -version", pin = "lts"}
-maven = {manager = "mise", bin = "mvn", version = "mvn -v"}
+java = { manager = "mise", version = "java -version", pin = "lts" }
+maven = { manager = "mise", bin = "mvn", version = "mvn -v" }

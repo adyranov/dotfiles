@@ -10,7 +10,7 @@ deny = ["~/.local/share/opencode/auth.json"]
 extends = "minimal"
 plugins = ["@plannotator/opencode", "@dietrichgebert/ponytail"]
 instructions = ["AGENTS.md", "OPENCODE.md"]
-plannotator = {plan_dir = "docs/plans/", planning_agents = ["plan"], workflow = "plan-agent"}
+plannotator = { plan_dir = "docs/plans/", planning_agents = ["plan"], workflow = "plan-agent" }
 
 [ai.base.agents.opencode.profiles.core.mcp_servers.codegraph]
 type = "local"
@@ -27,7 +27,7 @@ extends = "core"
 default_agent = "orchestrator"
 plugins = ["oh-my-opencode-slim", "./plugins/compound-engineering.js"]
 disabled_agents = ["build", "explore", "general", "plan", "scout"]
-plannotator = {plan_dir = "docs/plans/", workflow = "manual"}
+plannotator = { plan_dir = "docs/plans/", workflow = "manual" }
 skills_paths = [
   "~/.config/agents/libraries/skills/compound-engineering",
   "~/.config/agents/libraries/skills/oh-my-opencode-slim"

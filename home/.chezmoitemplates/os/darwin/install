@@ -1,3 +1,28 @@
+{{- $macportsEnabled := and (eq .host.distro.family "darwin") (eq .host.arch "amd64") -}}
+{{- $macportsPath := "/opt/local" -}}
+{{- if $macportsEnabled }}
+{{- $ports := includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "macports" "format" "install") | trim -}}
+{{- if $ports }}
+
+echo "📦 Ensuring MacPorts packages…"
+export PATH="{{ $macportsPath }}/bin:{{ $macportsPath }}/sbin:${PATH}"
+if [ ! -x {{ $macportsPath }}/bin/port ]; then
+  echo "❌ MacPorts is required for: {{ $ports }}" >&2
+  echo "   Install MacPorts on this Intel host before running the MacPorts install step." >&2
+  exit 1
+fi
+{{- if .host.restricted }}
+if ! sudo -n true 2>/dev/null; then
+  echo "❌ Restricted host cannot elevate; preinstall MacPorts packages: $ports" >&2
+  exit 1
+fi
+{{- else }}
+{{- includeTemplate "base/helpers/sudo-keep-alive" . }}
+{{- end }}
+sudo {{ $macportsPath }}/bin/port -N install {{ $ports }}
+echo "✅ MacPorts packages applied."
+{{- end }}
+{{- end }}
 echo "📦 Ensuring Homebrew bundle packages…"
 brew bundle --no-upgrade --verbose --file=/dev/stdin <<EOF
 {{ includeTemplate "os/darwin/brewfile" . }}

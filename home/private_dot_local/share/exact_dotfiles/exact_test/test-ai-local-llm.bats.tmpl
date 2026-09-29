@@ -22,16 +22,14 @@ setup() {
 {{- $llmPull := "$HOME/.local/bin/llm-pull" }}
 {{- $llmServe := "$HOME/.local/bin/llm-serve" }}
 
-{{- if eq .host.distro.family "darwin" }}
+{{- if and (eq .host.distro.family "darwin") (eq .host.arch "arm64") }}
 # bats test_tags=toolchain:ai,kind:local-llm
-@test "macOS installs adyranov tap native AI tools" {
+@test "macOS installs native llama.cpp AI tools from adyranov/tap" {
   assert_file_exists "$HOMEBREW_BUNDLE_FILE"
-  run grep -F 'tap "adyranov/tap", "https://github.com/adyranov/homebrew-tap", trusted: true' "$HOMEBREW_BUNDLE_FILE"
+  run grep -F 'tap "adyranov/tap"' "$HOMEBREW_BUNDLE_FILE"
   assert_success
   run grep -F 'brew "adyranov/tap/llama-cpp", trusted: true' "$HOMEBREW_BUNDLE_FILE"
   assert_success
-  run grep -F 'brew "llama.cpp"' "$HOMEBREW_BUNDLE_FILE"
-  assert_failure
   run command -v llama-bench
   assert_success
   run command -v llama-server
@@ -45,8 +43,10 @@ setup() {
 
 {{- if and (eq .host.distro.family "darwin") (eq .host.arch "arm64") }}
 # bats test_tags=toolchain:ai,kind:local-llm
-@test "Apple Silicon installs omlx alongside adyranov tap llama.cpp" {
+@test "Apple Silicon installs omlx alongside tap-backed llama.cpp" {
   run grep -F 'brew "jundot/omlx/omlx", trusted: true' "$HOMEBREW_BUNDLE_FILE"
+  assert_success
+  run grep -F 'brew "adyranov/tap/llama-cpp", trusted: true' "$HOMEBREW_BUNDLE_FILE"
   assert_success
   run brew --prefix omlx
   assert_success

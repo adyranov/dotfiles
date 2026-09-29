@@ -40,16 +40,16 @@ casks = [
   "zoom"
 ]
 mas = [
-  {id = 937984704, name = "Amphetamine"},
-  {id = 1193539993, name = "Brother iPrint&Scan"},
-  {id = 1024640650, name = "CotEditor"},
-  {id = 1295203466, name = "Windows App"},
-  {id = 1451685025, name = "WireGuard"},
-  {id = 1475387142, name = "Tailscale"},
-  {id = 310633997, name = "WhatsApp"},
-  {id = 409183694, name = "Keynote"},
-  {id = 409201541, name = "Pages"},
-  {id = 409203825, name = "Numbers"},
-  {id = 497799835, name = "Xcode"},
-  {id = 803453959, name = "Slack"}
+  { id = 937984704, name = "Amphetamine" },
+  { id = 1193539993, name = "Brother iPrint&Scan" },
+  { id = 1024640650, name = "CotEditor" },
+  { id = 1295203466, name = "Windows App" },
+  { id = 1451685025, name = "WireGuard" },
+  { id = 1475387142, name = "Tailscale" },
+  { id = 310633997, name = "WhatsApp" },
+  { id = 409183694, name = "Keynote" },
+  { id = 409201541, name = "Pages" },
+  { id = 409203825, name = "Numbers" },
+  { id = 497799835, name = "Xcode" },
+  { id = 803453959, name = "Slack" }
 ]

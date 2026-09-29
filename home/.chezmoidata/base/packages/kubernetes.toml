@@ -1,25 +1,25 @@
 [packages.base.kubernetes]
-helm-diff = {manager = "helm", package = "https://github.com/databus23/helm-diff", version = "helm diff --help"}
-k3d = {manager = "mise", version = "k3d version", completion = {generate = "k3d completion zsh"}, policy = {deny = [
+helm-diff = { manager = "helm", package = "https://github.com/databus23/helm-diff", version = "helm diff --help" }
+k3d = { manager = "mise", version = "k3d version", completion = { generate = "k3d completion zsh" }, policy = { deny = [
   "k3d * delete*"
-]}}
-k9s = {completion = true, manager = "mise", version = "k9s version"}
-kubecolor = {manager = "mise", version = "kubecolor help", completion = {generate = "kubectl completion zsh", refresh = "kubectl version --client", sed = "s/kubectl/kubecolor/g"}}
-kubectl-access-matrix = {manager = "krew"}
-kubectl-get-all = {manager = "krew"}
-kubectl-neat = {manager = "krew"}
-kubectl-node-shell = {manager = "krew", version = "kubectl node-shell --version", policy = {deny = [
+] } }
+k9s = { completion = true, manager = "mise", version = "k9s version" }
+kubecolor = { manager = "mise", version = "kubecolor help", completion = { generate = "kubectl completion zsh", refresh = "kubectl version --client", sed = "s/kubectl/kubecolor/g" } }
+kubectl-access-matrix = { manager = "krew" }
+kubectl-get-all = { manager = "krew" }
+kubectl-neat = { manager = "krew" }
+kubectl-node-shell = { manager = "krew", version = "kubectl node-shell --version", policy = { deny = [
   "kubectl node-shell *"
-]}}
-kubectl-rbac-tool = {manager = "krew"}
-kubectl-tree = {manager = "krew"}
-kubescape = {completion = true, manager = "mise", package = "aqua:kubescape/kubescape", version = "kubescape help"}
-kustomize = {completion = true, manager = "mise", version = "kustomize version"}
-stern = {manager = "mise", completion = {generate = "stern --completion zsh"}}
-yq = {manager = "mise", completion = {generate = "yq shell-completion zsh"}, policy = {deny = [
+] } }
+kubectl-rbac-tool = { manager = "krew" }
+kubectl-tree = { manager = "krew" }
+kubescape = { completion = true, manager = "mise", package = "aqua:kubescape/kubescape", version = "kubescape help" }
+kustomize = { completion = true, manager = "mise", version = "kustomize version" }
+stern = { manager = "mise", completion = { generate = "stern --completion zsh" } }
+yq = { manager = "mise", completion = { generate = "yq shell-completion zsh" }, policy = { deny = [
   "yq * -i *",
   "yq -i *"
-]}}
+] } }
 
 [packages.base.kubernetes.helm]
 completion = true
@@ -76,10 +76,10 @@ package = "github:Ramilito/kubesess"
 version = "kubesess --help"
 
 [packages.base.kubernetes.kubesess.platforms]
-linux-arm64 = {bin_path = "target/aarch64-unknown-linux-gnu/release"}
-linux-x64 = {bin_path = "target/x86_64-unknown-linux-gnu/release"}
-macos-arm64 = {bin_path = "target/aarch64-apple-darwin/release"}
-macos-x64 = {bin_path = "target/x86_64-apple-darwin/release"}
+linux-arm64 = { bin_path = "target/aarch64-unknown-linux-gnu/release" }
+linux-x64 = { bin_path = "target/x86_64-unknown-linux-gnu/release" }
+macos-arm64 = { bin_path = "target/aarch64-apple-darwin/release" }
+macos-x64 = { bin_path = "target/x86_64-apple-darwin/release" }
 
 [packages.base.kubernetes.oc]
 completion = true

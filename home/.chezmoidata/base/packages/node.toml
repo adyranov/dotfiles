@@ -1,7 +1,7 @@
 [packages.base.node]
 
 [packages.base.node.bun]
-completion = {generate = "bun completions zsh"}
+completion = { generate = "bun completions zsh" }
 manager = "mise"
 
 [packages.base.node.bun.policy]

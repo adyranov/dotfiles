@@ -20,7 +20,7 @@ RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=fal
     && echo "$USER ALL=(ALL) NOPASSWD: ALL" > "/etc/sudoers.d/$USER" \
     && chmod 0440 "/etc/sudoers.d/$USER" \
     && chown -R "$USER:$USER" "$HOME" \
-    && pacman -Sy --noconfirm --needed \
+    && pacman -Syu --noconfirm --needed \
         bash \
         git \
         sudo \

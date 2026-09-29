@@ -37,6 +37,9 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 
 export PATH="${HOME}/.local/bin:${PATH}"
+if [ "${ARCH}" != "arm64" ]; then
+  export PATH="/opt/local/bin:/opt/local/sbin:${PATH}"
+fi
 
 if ! command -v mise >/dev/null 2>&1; then
   echo "📦 Installing mise..."
@@ -46,6 +49,13 @@ fi
 
 if ! command -v rage >/dev/null 2>&1; then
   echo "🔐 Installing rage (encryption tool)..."
-  retry brew install rage
+  retry mise install github:str4d/rage@latest
+  RAGE_DIR="$(mise where github:str4d/rage)"
+  if [ ! -x "${RAGE_DIR}/rage" ]; then
+    echo "❌ mise installed rage without an executable at ${RAGE_DIR}/rage" >&2
+    exit 1
+  fi
+  mkdir -p "${HOME}/.local/bin"
+  ln -sf "${RAGE_DIR}/rage" "${HOME}/.local/bin/rage"
   echo "  ✅ rage installed."
 fi

@@ -1,2 +1,2 @@
 [packages.base.pi]
-pi = {manager = "mise", package = "npm:@earendil-works/pi-coding-agent"}
+pi = { manager = "mise", package = "npm:@earendil-works/pi-coding-agent" }

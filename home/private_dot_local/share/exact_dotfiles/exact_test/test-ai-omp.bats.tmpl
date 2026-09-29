@@ -189,13 +189,13 @@ scratch_env() {
     esac
   done
 {{- if eq .host.profile "personal" }}
-  assert_yq '.modelRoles.default == "openai-codex/gpt-5.6-luna:high" and .modelRoles.plan == "openai-codex/gpt-5.6-luna:high"' "$OMP_DIR/config.yml"
-  assert_yq '.modelRoles.slow == "openai-codex/gpt-5.6-terra:max" and .modelRoles.advisor == "openai-codex/gpt-5.6-terra:max" and .modelRoles.oracle == "openai-codex/gpt-5.6-terra:max"' "$OMP_DIR/config.yml"
-  assert_yq '.modelRoles.task == "opencode-go/deepseek-v4-flash:high" and .modelRoles.smol == "opencode-go/deepseek-v4-flash:off"' "$OMP_DIR/config.yml"
-  assert_yq '((.retry.fallbackChains.default | join("|")) == "deepseek/deepseek-v4-pro:high|opencode-go/deepseek-v4-flash:high")' "$OMP_DIR/config.yml"
-  assert_yq '((.retry.fallbackChains.oracle | join("|")) == "deepseek/deepseek-v4-pro:max|opencode-go/deepseek-v4-flash:high")' "$OMP_DIR/config.yml"
-  assert_yq '((.retry.fallbackChains.task | join("|")) == "deepseek/deepseek-v4-flash:high")' "$OMP_DIR/config.yml"
-  assert_yq '((.retry.fallbackChains.smol | join("|")) == "deepseek/deepseek-v4-flash:off")' "$OMP_DIR/config.yml"
+  assert_yq '.modelRoles.default == "openai-codex/gpt-6-luna:high" and .modelRoles.plan == "openai-codex/gpt-6-luna:high"' "$OMP_DIR/config.yml"
+  assert_yq '.modelRoles.slow == "openai-codex/gpt-6-sol:max" and .modelRoles.advisor == "openai-codex/gpt-6-sol:max" and .modelRoles.oracle == "openai-codex/gpt-6-sol:max"' "$OMP_DIR/config.yml"
+  assert_yq '.modelRoles.task == "opencode-zen/deepseek-v4.1-flash:high" and .modelRoles.smol == "opencode-zen/deepseek-v4.1-flash:off"' "$OMP_DIR/config.yml"
+  assert_yq '((.retry.fallbackChains.default | join("|")) == "deepseek/deepseek-v4-pro:high|opencode-zen/deepseek-v4.1-flash:high")' "$OMP_DIR/config.yml"
+  assert_yq '((.retry.fallbackChains.oracle | join("|")) == "deepseek/deepseek-v4-pro:max|opencode-zen/deepseek-v4.1-flash:high")' "$OMP_DIR/config.yml"
+  assert_yq '((.retry.fallbackChains.task | join("|")) == "deepseek/deepseek-flash:high")' "$OMP_DIR/config.yml"
+  assert_yq '((.retry.fallbackChains.smol | join("|")) == "deepseek/deepseek-flash:off")' "$OMP_DIR/config.yml"
   assert_yq '((.retry.fallbackChains.designer | join("|")) == "deepseek/deepseek-v4-pro:medium")' "$OMP_DIR/config.yml"
 {{- end }}
 }
@@ -224,7 +224,7 @@ scratch_env() {
   assert_yq '.startup.checkUpdate == false and .startup.setupWizard == false' "$SECURITY_FILE"
 {{- if eq .host.profile "personal" }}
   # Only the three selected providers remain available.
-  assert_yq '(.disabledProviders | map(select(. == "openai-codex")) | length == 0) and (.disabledProviders | map(select(. == "opencode-go")) | length == 0) and (.disabledProviders | map(select(. == "deepseek")) | length == 0)' "$SECURITY_FILE"
+  assert_yq '(.disabledProviders | map(select(. == "openai-codex")) | length == 0) and (.disabledProviders | map(select(. == "opencode-zen")) | length == 0) and (.disabledProviders | map(select(. == "opencode-go")) | length == 1) and (.disabledProviders | map(select(. == "deepseek")) | length == 0)' "$SECURITY_FILE"
   assert_yq '(.disabledProviders | map(select(. == "openrouter")) | length == 0) and (.disabledProviders | map(select(. == "anthropic")) | length == 1) and (.disabledProviders | map(select(. == "google")) | length == 1) and (.disabledProviders | map(select(. == "github-copilot")) | length == 1)' "$SECURITY_FILE"
 {{- end }}
 {{- if eq .host.profile "work" }}
