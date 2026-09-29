@@ -95,7 +95,7 @@ repos:
       - id: gitleaks
         name: Detect Hardcoded Secrets
   - repo: https://github.com/editorconfig-checker/editorconfig-checker
-    rev: v3.11.3
+    rev: v4.0.2
     hooks:
       - id: editorconfig-checker
         name: Check EditorConfig
