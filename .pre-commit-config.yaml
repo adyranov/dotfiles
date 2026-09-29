@@ -101,17 +101,17 @@ repos:
         name: Check EditorConfig
         exclude: plist|tmpl|pub|age
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 44.103.1
+    rev: 44.115.10
     hooks:
       - id: renovate-config-validator
         name: Validate Renovate Config
   - repo: https://github.com/crate-ci/typos
-    rev: v1.50.2
+    rev: v1.50.3
     hooks:
       - id: typos
         name: Check Spelling
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.2
+    rev: v0.23.3
     hooks:
       - id: markdownlint-cli2
         name: Lint Markdown
