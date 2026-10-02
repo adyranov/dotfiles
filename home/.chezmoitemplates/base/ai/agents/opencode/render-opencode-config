@@ -8,6 +8,11 @@
 {{- $cmdPolicies := includeTemplate "base/ai/security/collect-policies" (dict "root" $root) | mustFromJson -}}
 {{- $cmdDeny := index $cmdPolicies "deny" | default list -}}
 
+{{- /* ── Serving providers (shared with Pi): enabled=false opts a provider out. ── */ -}}
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.serving" "required" false) | mustFromJson -}}
+{{- $localServing := index $serving "local" | default dict -}}
+{{- $localEnabled := dig "enabled" true $localServing -}}
+
 {{- /* ── Local LLM catalog (shared with Pi via load-local-models) ── */ -}}
 {{- $localResolved := includeTemplate "base/ai/models/load-local-models" (dict "root" $root) | mustFromJson -}}
 {{- $localModels := get $localResolved "models" | default dict -}}
@@ -16,7 +21,7 @@
 {{- range $id, $m := $localModels -}}
 {{-   $modelEntry := dict
         "name" (get $m "name" | default $id)
-        "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "max_output" | default 8192))
+        "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "context_output" | default 8192))
       -}}
 {{-   if get $m "reasoning" -}}
 {{-     $_ := set $modelEntry "reasoning" true -}}
@@ -24,7 +29,7 @@
 {{-   $_ := set $localProviderModels $id $modelEntry -}}
 {{- end -}}
 {{- $providers := dict -}}
-{{- if $localProviderModels -}}
+{{- if and $localEnabled $localProviderModels -}}
 {{-   $_ := set $providers "local" (dict
         "npm" "@ai-sdk/openai-compatible"
         "name" "Local LLM Gateway"
@@ -33,8 +38,47 @@
       ) -}}
 {{- end -}}
 
+{{- /* ── Remote OpenAI-compatible serving providers (keyless, declared IDs) ── */}}
+{{- range $spId, $sp := $serving -}}
+{{-   if not (kindIs "map" $sp) -}}{{- continue -}}{{- end -}}
+{{-   $spEnabled := dig "enabled" true $sp -}}
+{{-   if and $spEnabled (eq (get $sp "kind" | default "") "openai-compatible") -}}
+{{-     $baseURL := get $sp "base_url" | default "" -}}
+{{-     if not $baseURL -}}
+{{-       fail (printf "render-opencode-config: serving provider %q (openai-compatible) has no base_url" $spId) -}}
+{{-     end -}}
+{{-     $remoteProviderModels := dict -}}
+{{-     range $m := get $sp "models" | default list -}}
+{{-       $id := get $m "id" | default "" -}}
+{{-       if not $id -}}
+{{-         fail (printf "render-opencode-config: serving provider %q has a model without id" $spId) -}}
+{{-       end -}}
+{{- /* OpenCode v1 requires limit.output when limit is set; default it to its 8192 fallback. */ -}}
+{{-       $modelEntry := dict
+            "name" (get $m "name" | default $id)
+            "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "max_output" | default 8192))
+          -}}
+{{-       if get $m "reasoning" -}}
+{{-         $_ := set $modelEntry "reasoning" true -}}
+{{-       end -}}
+{{-       if has "image" (get $m "inputs" | default list) -}}
+{{-         $_ := set $modelEntry "attachment" true -}}
+{{-       end -}}
+{{-       $_ := set $remoteProviderModels $id $modelEntry -}}
+{{-     end -}}
+{{-     if $remoteProviderModels -}}
+{{-       $_ := set $providers $spId (dict
+            "npm" "@ai-sdk/openai-compatible"
+            "name" $spId
+            "options" (dict "baseURL" $baseURL)
+            "models" $remoteProviderModels
+          ) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+
 {{- /* ── Model IDs ── */ -}}
-{{- if not (hasKey $tiers "default") -}}{{- fail "ai.models.tiers has no 'default' key" -}}{{- end -}}
+{{- if not (hasKey $tiers "default") -}}{{- fail "ai.tiers has no 'default' key" -}}{{- end -}}
 {{- $defaults := index $tiers $tiers.default -}}
 {{- $modelId := includeTemplate "base/ai/agents/opencode/render-opencode-model-id" (dict "route" $defaults "root" $root) -}}
 {{- $smallTier := index $tiers "small" | default dict -}}
@@ -102,29 +146,9 @@
 {{- $profileData := includeTemplate "base/ai/agents/resolve-profile" (dict "agentData" $opencode "profile" $profile) | mustFromJson -}}
 {{- $plugins := $profileData.plugins | default list -}}
 {{- $renderedPlugins := list -}}
-{{- $hasPlannotator := false -}}
-{{- $plannotatorWorkflow := "" -}}
-{{- $plannotatorPlanningAgents := list -}}
-{{- $plannotatorPlanDir := ".plannotator/" -}}
-{{- $plannotatorPlanOnly := false -}}
 {{- range $plugin := $plugins -}}
-{{-   if and (kindIs "string" $plugin) (eq $plugin "@plannotator/opencode") -}}
-{{-     $hasPlannotator = true -}}
-{{-     $plannotatorCfg := get $profileData "plannotator" | default dict -}}
-{{-     $plannotatorWorkflow = get $plannotatorCfg "workflow" | default "plan-agent" -}}
-{{-     $plannotatorPlanningAgents = get $plannotatorCfg "planning_agents" | default (list "plan") -}}
-{{-     $plannotatorPlanDir = get $plannotatorCfg "plan_dir" | default ".plannotator/" | trimSuffix "/" | printf "%s/" -}}
-{{-     $plannotatorPlanOnly = get $plannotatorCfg "plan_only" | default false -}}
-{{-     $plannotatorOpts := dict "workflow" $plannotatorWorkflow -}}
-{{-     if eq $plannotatorWorkflow "plan-agent" -}}
-{{-       $_ := set $plannotatorOpts "planningAgents" $plannotatorPlanningAgents -}}
-{{-     end -}}
-{{-     $renderedPlugins = append $renderedPlugins (list "@plannotator/opencode@latest" $plannotatorOpts) -}}
-{{-   else -}}
-{{-     $renderedPlugins = append $renderedPlugins $plugin -}}
-{{-   end -}}
+{{-   $renderedPlugins = append $renderedPlugins $plugin -}}
 {{- end -}}
-
 {{- /* ── Built-in agents ── */ -}}
 {{- $builtinAgentCategories := dict
   "build" "medium"
@@ -139,7 +163,7 @@
 {{-   $tier := index $builtinAgentCategories $agent -}}
 {{-   $route := index $tiers $tier -}}
 {{-   if not $route -}}
-{{-     fail (printf "render-opencode-config: ai.models.tiers has no route for tier %q (mapped by agent %q)" $tier $agent) -}}
+{{-     fail (printf "render-opencode-config: ai.tiers has no route for tier %q (mapped by agent %q)" $tier $agent) -}}
 {{-   end -}}
 {{-   $agentModelId := includeTemplate "base/ai/agents/opencode/render-opencode-model-id" (dict "route" $route "root" $root) -}}
 {{-   $agentConfig := dict "model" $agentModelId "mode" (get $builtinAgentModes $agent | default "all") -}}
@@ -155,20 +179,6 @@
 {{-   $_ := set $agentConfig "disable" true -}}
 {{-   $_ := set $agentOverrides $agent $agentConfig -}}
 {{- end -}}
-{{- /* ── Plannotator: configure only declared plan-agent workflow ── */ -}}
-{{- if and $hasPlannotator (eq $plannotatorWorkflow "plan-agent") (gt (len $plannotatorPlanningAgents) 0) -}}
-{{-   range $agentName := $plannotatorPlanningAgents -}}
-{{-     if and (hasKey $agentOverrides $agentName) (not (has $agentName $disabledAgents)) -}}
-{{-       $agentCfg := get $agentOverrides $agentName -}}
-{{-       $planningPrompt := includeTemplate "base/ai/agents/plannotator/render-plannotator-prompts" (dict "phase" "planning" "submit_tool" "submit_plan" "advisor_tool" "" "platform_note" "" "plan_dir" $plannotatorPlanDir "plan_only" $plannotatorPlanOnly) -}}
-{{-       $editGlob := printf "%s**" $plannotatorPlanDir -}}
-{{-       $editPermissions := dict "*" "deny" $editGlob "allow" -}}
-{{-       $_ := set $agentCfg "prompt" $planningPrompt -}}
-{{-       $_ := set $agentCfg "permission" (dict "edit" $editPermissions "bash" "deny") -}}
-{{-     end -}}
-{{-   end -}}
-{{- end -}}
-
 {{- /* ── Skills & instructions ── */ -}}
 {{- $basePaths := index $opencode.skills "paths" | default list -}}
 {{- $profilePaths := get $profileData "skills_paths" | default list -}}

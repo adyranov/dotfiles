@@ -105,6 +105,7 @@ print_env() {
       printf 'export OPENCODE_CONFIG_DIR="%s"\n' "$dir"
       if [ "$profile" = "factory" ]; then
         printf 'export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true\n'
+        printf 'export OPENCODE_ENABLE_EXA=1\n'
         printf 'export OPENCODE_PORT="%s"\n' "${OPENCODE_PORT:-$(pick_high_port)}"
       fi
       ;;
@@ -164,7 +165,6 @@ preflight_update() {
       ;;
     omp)
       # OMP is a standalone compiled binary; no preflight needed.
-      # Extensions disabled via config and --no-extensions flag.
       ok "Binary: standalone (no preflight needed)"
       ;;
   esac
@@ -187,8 +187,10 @@ set_runtime_env() {
       export OPENCODE_CONFIG_DIR="$dir"
       if [ "$profile" = "factory" ]; then
         export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
+        export OPENCODE_ENABLE_EXA=1
         export OPENCODE_PORT="${OPENCODE_PORT:-$(pick_high_port)}"
         dim "Background subagents: enabled"
+        dim "Websearch (Exa): enabled"
         dim "OpenCode port: $OPENCODE_PORT"
       fi
       dim "Config:  $dir"
@@ -217,9 +219,9 @@ Usage: pi-agent [profile] [--no-greywall] [--no-update] [pi args...]
        pi-agent --print-env [profile]
 
 Profiles:
-  core                daily driver (Pi with Plannotator, permission system, catppuccin)
+  core                daily driver (Pi with permission system, catppuccin)
   factory             full rpiv-pi factory stack
-  minimal             stripped stack (no Plannotator, no MCP servers, no subagents)
+  minimal             stripped stack (no MCP servers, no subagents)
 
 Options:
   --no-greywall       run pi directly without greywall sandbox
@@ -266,15 +268,12 @@ Usage: omp-agent [omp args...]
 Configuration:
   Managed config root at $HOME/.config/omp (canonical, not XDG-relative).
   PI_CODING_AGENT_DIR is set to this root; no named profile is active.
-  --profile, --alias, and Pi profile names are rejected.
+  Positional Pi profile names (core, default, factory, minimal) are rejected.
   Sandbox via greywall is mandatory — no --no-greywall bypass.
 
 Safety:
   Scrubs inherited PI_*, OPENCODE_*, and OMP_PROFILE env vars.
   Sets only PI_CODING_AGENT_DIR for OMP.
-  Injects managed --config <security.yml> and --no-extensions with precedence.
-  Rejects extension/plugin injection flags and management subcommands.
-  Fails closed: requires readable $HOME/.config/omp/security.yml.
 
 Args:
   omp args            forwarded to omp
@@ -562,46 +561,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# OMP: reject unsafe overrides, management subcommands, enforce single config root
-if [ "$AGENT_NAME" = "omp" ]; then
-  # Reject CLI overrides in remaining args
-  for _arg do
-    case "$_arg" in
-      --profile|--profile=*)
-        die "OMP: --profile rejected (single config root, no named profiles)" ;;
-      --yolo|--auto-approve|--plan-yolo)
-        die "OMP: unsafe approval flag '$_arg' rejected" ;;
-      --config|--config=*)
-        die "OMP: --config overlay rejected (config is managed)" ;;
-      --approval-mode|--approval-mode=*)
-        die "OMP: --approval-mode override rejected" ;;
-      --api-key|--api-key=*)
-        die "OMP: --api-key rejected (use interactive authentication)" ;;
-      --alias|--alias=*)
-        die "OMP: --alias requires --profile; both rejected" ;;
-      -e|--extension|--extension=*)
-        die "OMP: extension injection flag '$_arg' rejected (extensions managed via security.yml)" ;;
-      --hook|--hook=*)
-        die "OMP: hook injection flag '$_arg' rejected (hooks managed via security.yml)" ;;
-      --plugin-dir|--plugin-dir=*)
-        die "OMP: plugin dir flag '$_arg' rejected (plugins managed via security.yml)" ;;
-    esac
-  done
-  unset _arg
-
-  # Reject management subcommands that cannot safely receive injected --config/--no-extensions
-  for _cmd do
-    case "$_cmd" in
-      init|setup|install|completion|doctor|update|manage|system|migrate|reset|uninstall)
-        die "OMP: management subcommand '$_cmd' rejected (use binary directly, not omp-agent)" ;;
-    esac
-    break  # only check first positional arg
-  done
-  unset _cmd
-
-  profile="default"
-fi
-
 # Factory OpenCode: keep --port and OPENCODE_PORT aligned for oh-my-opencode-slim
 if [ "$AGENT_NAME" = "opencode" ] && [ "$profile" = "factory" ]; then
   _port=""
@@ -629,17 +588,6 @@ if [ "$AGENT_NAME" = "opencode" ] && [ "$profile" = "factory" ]; then
     set -- --port "$OPENCODE_PORT" "$@"
   fi
   unset _port _next_is_port _arg
-fi
-
-# OMP: inject managed flags with precedence; fail closed on missing security
-if [ "$AGENT_NAME" = "omp" ]; then
-  _omp_security="$HOME/.config/omp/security.yml"
-  if [ ! -r "$_omp_security" ]; then
-    die "OMP: required security config not found or not readable: $_omp_security"
-  fi
-  # Inject managed flags after remaining user args so they take precedence
-  set -- "$@" --no-extensions --config "$_omp_security"
-  unset _omp_security
 fi
 
 # ── Launch ──

@@ -15,20 +15,9 @@
 {{-   if not $current -}}{{- $current = dict -}}{{- end -}}
 {{- end -}}
 {{- $managed := includeTemplate "base/ai/agents/pi/render-pi-profile-settings" (dict "root" .root "profile" .profile) | fromJsonc -}}
-{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" .root "required" true) | mustFromJson -}}
-{{- if not (hasKey $tiers "default") -}}{{- fail "ai.models.tiers has no 'default' key" -}}{{- end -}}
-{{- $defaults := index $tiers $tiers.default -}}
-{{- if not (hasKey $current "defaultModel") -}}
-{{-   $_ := set $managed "defaultModel" $defaults.model -}}
-{{- end -}}
-{{- if not (hasKey $current "defaultProvider") -}}
-{{-   $_ := set $managed "defaultProvider" $defaults.provider -}}
-{{- end -}}
-{{- if not (hasKey $current "defaultThinkingLevel") -}}
-{{-   $_ := set $managed "defaultThinkingLevel" $defaults.thinking -}}
-{{- end -}}
 {{- $final := mergeOverwrite $current $managed -}}
-{{- /* Strip subagents that Managed doesn't own but $current carries over */ -}}
+{{- /* Subagent overrides follow the selected preset; replace (not merge) the
+       whole agentOverrides map so removed/stale agent routes do not survive. */ -}}
 {{- if not (hasKey $managed "subagents") -}}
 {{-   $_ := unset $final "subagents" -}}
 {{- else if hasKey $final.subagents "agentOverrides" -}}

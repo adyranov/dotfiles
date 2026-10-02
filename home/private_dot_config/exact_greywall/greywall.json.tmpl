@@ -9,6 +9,8 @@
 {{- $creds := (includeTemplate "base/ai/auth/render-credentials" . | mustFromJson) -}}
 {{- $netPolicy := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.network" "required" false) | mustFromJson) -}}
 {{- $localhost := index $netPolicy "localhost" | default dict -}}
+{{- $localServing := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving.local" "required" false) | mustFromJson) -}}
+{{- $localPort := index $localServing "port" | default 8321 -}}
 {{- $network := dict
   "proxyUrl" (printf "socks5://localhost:%v" $greyproxy.socks)
   "httpProxyUrl" (printf "http://localhost:%v" $greyproxy.http)
@@ -16,7 +18,8 @@
   "rules" $networkRules
 -}}
 {{- if hasKey $localhost "allow_outbound" -}}{{- $_ := set $network "allowLocalOutbound" $localhost.allow_outbound -}}{{- end -}}
-{{- if hasKey $localhost "forward_ports" -}}{{- $_ := set $network "forwardPorts" $localhost.forward_ports -}}{{- end -}}
+{{- $forwardPorts := index $localhost "forward_ports" | default list -}}
+{{- $_ := set $network "forwardPorts" (append $forwardPorts $localPort | uniq) -}}
 {{- if hasKey $netPolicy "allow_unix_sockets" -}}{{- $_ := set $network "allowUnixSockets" (index $netPolicy "allow_unix_sockets") -}}{{- end -}}
 {{- $ssh := dict
   "allowedHosts" (list "github.com")

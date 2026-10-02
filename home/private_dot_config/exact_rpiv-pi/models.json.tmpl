@@ -1,9 +1,21 @@
 {{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson -}}
-{{- $skills := includeTemplate "base/ai/agents/pi/render-model-category-map" (dict "root" . "field" "skills") | mustFromJson -}}
-{{- $agents := includeTemplate "base/ai/agents/pi/render-model-category-map" (dict "root" . "field" "agents") | mustFromJson -}}
+{{- /* Skill -> tier-class map, hardcoded here (rpiv-pi is slated for removal,
+     so it is not worth a first-class data section). Mirrors the owning agents. */ -}}
+{{- $skillTiers := dict
+  "ce-code-review" "oracle"
+  "ce-debug" "medium"
+  "ce-polish" "visual"
+  "ce-pov" "oracle"
+  "ce-simplify-code" "medium"
+  "ce-test-browser" "visual"
+  "ce-work" "medium"
+-}}
+{{- $skills := includeTemplate "base/ai/agents/pi/render-model-category-map" (dict "root" . "field" "skills" "classMap" $skillTiers) | mustFromJson -}}
+{{- $agentTiers := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" -}}
+{{- $agents := includeTemplate "base/ai/agents/pi/render-model-category-map" (dict "root" . "field" "agents" "classMap" $agentTiers) | mustFromJson -}}
 {{- $defaultRole := default "medium" (get $tiers "default") -}}
 {{- $default := get $tiers $defaultRole -}}
-{{- if not $default -}}{{- fail (printf "ai.models.tiers.default resolves to unknown tier %q" $defaultRole) -}}{{- end -}}
+{{- if not $default -}}{{- fail (printf "ai.tiers.default resolves to unknown tier %q" $defaultRole) -}}{{- end -}}
 
 {{- dict
   "defaults" (dict "model" (includeTemplate "base/ai/agents/pi/render-pi-model-ref" $default) "thinking" (get $default "thinking"))

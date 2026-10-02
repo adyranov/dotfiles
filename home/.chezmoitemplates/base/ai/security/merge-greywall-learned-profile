@@ -29,27 +29,17 @@
 {{- $base = setValueAtPath "filesystem.allowWrite" (concat (dig "filesystem" "allowWrite" (list) $base) $allowWriteAdditions | uniq | sortAlpha) $base -}}
 {{- $base = setValueAtPath "filesystem.denyRead" (concat (dig "filesystem" "denyRead" (list) $base) $denyReadAdditions | uniq | sortAlpha) $base -}}
 {{- $base = setValueAtPath "filesystem.denyWrite" (concat (dig "filesystem" "denyWrite" (list) $base) $denyWriteAdditions | uniq | sortAlpha) $base -}}
-{{- if eq $agent "omp" -}}
-{{- /* OMP config is modify-managed; remove the stale pre-modify deny entry. */ -}}
-{{-   $filteredDenyWrite := list -}}
-{{-   range $path := (dig "filesystem" "denyWrite" (list) $base) -}}
-{{-     if ne $path "~/.config/omp/config.yml" -}}
-{{-       $filteredDenyWrite = append $filteredDenyWrite $path -}}
-{{-     end -}}
-{{-   end -}}
-{{-   $base = setValueAtPath "filesystem.denyWrite" $filteredDenyWrite $base -}}
-{{- end -}}
-
-{{- /* Strip stale broad cross-agent denies from the learned baseline.
-  Deny lists were narrowed to auth files, but merge only appends, so old
-  learned profiles may still carry the broad `~/.config/<other>/**` entries. */ -}}
+{{- /* Strip stale denies from the learned baseline. Deny lists were narrowed to
+  auth files (OMP's config is modify-managed and its security overlay retired),
+  but merge only appends, so old learned profiles may still carry the broad
+  `~/.config/<other>/**` entries or OMP's retired per-file denies. */ -}}
 {{- $staleDenies := list -}}
 {{- if eq $agent "pi" -}}
 {{-   $staleDenies = list "~/.config/opencode/**" "~/.config/omp/**" "~/.local/share/opencode/**" -}}
 {{- else if eq $agent "opencode" -}}
 {{-   $staleDenies = list "~/.config/pi/**" "~/.config/omp/**" -}}
 {{- else if eq $agent "omp" -}}
-{{-   $staleDenies = list "~/.config/pi/**" "~/.config/opencode/**" "~/.config/rpiv-*/**" "~/.local/share/opencode/**" -}}
+{{-   $staleDenies = list "~/.config/pi/**" "~/.config/opencode/**" "~/.config/rpiv-*/**" "~/.local/share/opencode/**" "~/.config/omp/config.yml" "~/.config/omp/security.yml" -}}
 {{- end -}}
 {{- if gt (len $staleDenies) 0 -}}
 {{-   range $field := list "denyRead" "denyWrite" -}}
@@ -85,17 +75,20 @@
 {{- end -}}
 {{- $base = setValueAtPath "network.rules" $networkRules $base -}}
 
-{{- /* Forward ports from base localhost config */ -}}
+{{- /* Forward ports from base localhost config, plus the configured local
+  serving-provider port so session profiles can reach the loopback service. */ -}}
 {{- $netPolicy := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.network" "required" false) | mustFromJson -}}
 {{- $localhost := dig "localhost" dict $netPolicy -}}
 {{- $forwardPorts := dig "forward_ports" (list) $localhost -}}
-{{- if gt (len $forwardPorts) 0 -}}
-{{-   $base = setValueAtPath "network.forwardPorts" $forwardPorts $base -}}
-{{- end -}}
+{{- $localServing := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.serving.local" "required" false) | mustFromJson -}}
+{{- $localPort := index $localServing "port" | default 8321 -}}
+{{- $base = setValueAtPath "network.forwardPorts" (append $forwardPorts $localPort | uniq) $base -}}
 {{- $allowOutbound := dig "allow_outbound" false $localhost -}}
 {{- $allowUnixSockets := dig "allow_unix_sockets" (list) $netPolicy -}}
+{{- $agentUnixSockets := dig "allow_unix_sockets" (list) $agentNetwork -}}
+{{- $allowUnixSockets = concat $allowUnixSockets $agentUnixSockets -}}
 {{- if gt (len $allowUnixSockets) 0 -}}
-{{-   $base = setValueAtPath "network.allowUnixSockets" $allowUnixSockets $base -}}
+{{-   $base = setValueAtPath "network.allowUnixSockets" (uniq $allowUnixSockets) $base -}}
 {{- end -}}
 {{- if $allowOutbound -}}
 {{-   $base = setValueAtPath "network.allowLocalOutbound" true $base -}}

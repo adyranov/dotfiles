@@ -53,9 +53,9 @@ are an additional guard, not a sandbox replacement.
 
 #### Pi
 
-- `pi-agent` or `pi-agent core` runs the daily profile with Plannotator,
-  permission checks, and Catppuccin.
-- `pi-agent minimal` removes Plannotator, MCP servers, and subagents.
+- `pi-agent` or `pi-agent core` runs the daily profile with permission
+  checks and Catppuccin.
+- `pi-agent minimal` removes MCP servers and subagents.
 - `pi-agent factory` adds the rpiv-pi workflow stack. Sessions are isolated per
   profile.
 
@@ -86,9 +86,9 @@ Prerequisites: Node >=20 and OpenCode >=1.4.3.
 #### OMP
 
 OMP (oh-my-pi) is installed through the mise GitHub backend
-(`github:can1357/oh-my-pi`, unpinned to track upstream). `omp-agent` uses the
-shared launcher with mandatory Greywall sandboxing, rejects alternate profiles
-and config roots, and injects `--no-extensions`. Managed routing uses Luna as
+(`github:can1357/oh-my-pi`, unpinned to track upstream). `omp-agent` is a thin
+wrapper around the shared launcher: it runs omp under the mandatory Greywall
+sandbox and forwards arguments unmodified. Managed routing uses Luna as
 the primary/orchestrator model, Terra as the oracle/advisor, and DeepSeek v4
 flash for task workers, with OMP subagents surfaced through OMP's native
 task/session UI rather than automatic tmux or Herdr panes. Its XDG root is
@@ -105,7 +105,7 @@ under `[skypilot.base.runpod]` in
 `home/.chezmoidata/base/skypilot/tasks.toml`; the volume and GPU pod must use the
 same RunPod zone.
 
-### Local LLM serving
+### Local and remote model serving
 
 **`llm-serve`** is the local OpenAI-compatible gateway on
 `http://127.0.0.1:8321/v1`. Model data lives in
@@ -118,15 +118,45 @@ same RunPod zone.
 - `llm-pull` — download missing local model weights and report stale GGUF caches
 - `llm-bench [model ...]` — warm and benchmark local models with AIPerf
 
-| Host           | Default engine                          | Notes                                                                               |
-| -------------- | --------------------------------------- | ----------------------------------------------------------------------------------- |
-| darwin / arm64 | profile (`models.catalog.local.engine`) | Installs oMLX and tap-backed `adyranov/tap/llama-cpp`; runtime picks `omlx` or `llamacpp` |
-| darwin / amd64 | `llamacpp`                              | `adyranov/tap/llama-cpp`; native llama.cpp router mode                              |
-| Linux / WSL2   | `llamacpp`                              | mise `llama.cpp` native router mode                                                 |
+Serving providers live under `ai.serving.<id>`. The `local`
+provider (`kind = "local"`) drives `llm-serve`; a remote endpoint is a
+`kind = "openai-compatible"` provider with a `base_url` and explicit nested
+models, for example:
+
+```toml
+[ai.profile.personal.serving.infer01]
+kind = "openai-compatible"
+base_url = "http://infer01:8080/v1"
+
+[[ai.profile.personal.serving.infer01.models]]
+id = "qwen3.8-27b"
+```
+
+OpenCode, Pi, and OMP read the same provider/models and selected preset. The
+selected preset is `ai.presets.default` (default `balanced`); set
+`ai.profile.<profile>.presets.default = "qwen"` to route roles to Qwen.
+Apply the managed OpenCode, Pi, and OMP configuration files and restart those
+clients; set the value back to `balanced` to revert. OpenCode's runtime
+`/preset` is a client-local override and does not update the shared TOML, Pi, or
+OMP. Remote endpoints are keyless and assumed to be on a trusted private
+network.
+
+If the server changes the model served under an existing ID, refresh its static
+metadata before applying. When removing an endpoint, also remove its
+`infer01:8080` per-agent network allow and restart the affected agents so the
+old session rule is superseded. Any separately promoted persistent Greyproxy
+rule must be removed independently with `DELETE /api/rules/<id>` or the
+Greyproxy dashboard.
+
+| Host           | Default engine                             | Notes                                                                                     |
+| -------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| darwin / arm64 | profile (`serving.providers.local.engine`) | Installs oMLX and tap-backed `adyranov/tap/llama-cpp`; runtime picks `omlx` or `llamacpp` |
+| darwin / amd64 | `llamacpp`                                 | `adyranov/tap/llama-cpp`; native llama.cpp router mode                                    |
+| Linux / WSL2   | `llamacpp`                                 | mise `llama.cpp` native router mode                                                       |
 
 Set `engine = "omlx"` or `engine = "llamacpp"` under
-`[ai.profile.<profile>.models.catalog.local]`. Each model must declare the
-matching backend (`mlx` or `gguf`). Qwen 3.5+ GGUF models
+`[ai.profile.<profile>.serving.local]`. Each local model must
+declare the matching backend (`mlx` or `gguf`). Qwen 3.5+ GGUF models
 auto-attach the froggeric chat template. Use `llm-pull` to download weights, then
 `chezmoi apply` to sync model symlinks and llama.cpp router presets.
 

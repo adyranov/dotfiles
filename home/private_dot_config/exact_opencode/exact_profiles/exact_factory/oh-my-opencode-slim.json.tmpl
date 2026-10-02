@@ -2,21 +2,15 @@
 {{- /* Render oh-my-opencode-slim plugin config from managed tier data */ -}}
 {{- $root := . -}}
 
-{{- $presetsConfig := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.presets" "required" true) | mustFromJson -}}
+{{- $presetsConfig := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.presets" "required" true) | mustFromJson -}}
 
-{{- /* Mapping: slim agent to tier */ -}}
-{{- $agentMap := dict
-  "orchestrator" "big"
-  "oracle" "oracle"
-  "librarian" "small"
-  "explorer" "small"
-  "designer" "visual"
-  "fixer" "medium"
--}}
+{{- /* Mapping: slim agent to tier, hardcoded (opencode-specific agent names; the
+     tiers are the primary data, resolved per preset). */ -}}
+{{- $agentMap := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" -}}
 
 {{- /* MCP/skills per agent */ -}}
 {{- $engramMcps := list "engram" -}}
-{{- $librarianMcps := list "websearch" "context7" "gh_grep" "codegraph" -}}
+{{- $librarianMcps := list "context7" "gh_grep" "codegraph" -}}
 {{- $explorerMcps := list "codegraph" -}}
 {{- $emptyMcps := list -}}
 {{- $orchestratorSkills := list "*" -}}
@@ -32,7 +26,6 @@
 {{- $allPresets := dict -}}
 {{- $allCouncilPresets := dict -}}
 {{- $activePreset := "balanced" -}}
-{{- $council := dict "default_preset" "balanced" "presets" (dict) -}}
 {{-   $activePreset = get $presetsConfig "default" | default "balanced" -}}
 {{-   range $presetName, $_ := $presetsConfig -}}
 {{-     if eq $presetName "default" -}}{{- continue -}}{{- end -}}
@@ -87,14 +80,12 @@
 {{-       $cfg := dict "model" $models -}}
 {{-       $_ := set $councillors $name $cfg -}}
 {{-     end -}}
-{{-     if eq (len $councillors) 0 -}}
-{{-       fail (printf "render-opencode-slim-config: preset %q has no council councillors" $presetName) -}}
-{{-     end -}}
-
 {{-     $_ := set $allPresets $presetName $presetAgents -}}
-{{-     $_ := set $allCouncilPresets $presetName $councillors -}}
+{{- /* Presets without council seats are omitted; a missing council key disables council in the plugin. */ -}}
+{{-     if gt (len $councillors) 0 -}}
+{{-       $_ := set $allCouncilPresets $presetName $councillors -}}
+{{-     end -}}
 {{-   end -}}
-{{-   $council = dict "default_preset" $activePreset "presets" $allCouncilPresets -}}
 
 
 {{- $backgroundJobs := dict
@@ -116,7 +107,11 @@
   "backgroundJobs" $backgroundJobs
   "fallback" $fallback
   "presets" $allPresets
-  "council" $council
 -}}
+{{- /* Council is only emitted when the active preset declares council seats;
+  a missing council key disables council in the slim plugin. */ -}}
+{{- if index $allCouncilPresets $activePreset -}}
+{{-   $_ := set $result "council" (dict "default_preset" $activePreset "presets" $allCouncilPresets) -}}
+{{- end -}}
 
 {{- $result | toPrettyJson -}}

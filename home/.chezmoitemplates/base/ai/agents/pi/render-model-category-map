@@ -1,32 +1,39 @@
 {{- /*
-  Renders category-mapped model routes from ai.models.tiers.
+  Renders category-mapped model routes from a caller-provided name ->
+  tier-class map.
 
   Args (dict):
-    root  — chezmoi data root (required)
-    field — category field to render, usually "agents" or "skills" (default: "agents")
+    root     — chezmoi data root (required)
+    field    — category field, "agents" or "skills"; used in error messages
+    classMap — required name -> tier-class map
 
-  Output: JSON dict of mappedName → {model, thinking},
-  where model is "provider/model" when provider is set.
+  The name -> tier-class assignment is stable across presets (KTD9); only the
+  class -> provider/model resolution changes with the selected preset.
+
+  Output: JSON dict of mappedName → {model, thinking}, where model is
+  "provider/model" when provider is set.
 */ -}}
 {{- $root := .root -}}
 {{- $field := index . "field" | default "agents" -}}
+{{- $classMap := index . "classMap" -}}
+{{- if not $classMap -}}
+{{-   fail "render-model-category-map: classMap is required" -}}
+{{- end -}}
 {{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" $root "required" true) | mustFromJson -}}
 {{- $result := dict -}}
-{{- range $tierName := keys $tiers | sortAlpha -}}
-{{-   $route := index $tiers $tierName -}}
-{{-   if not (kindIs "map" $route) -}}{{ continue }}{{- end -}}
-{{-   if not (hasKey $route $field) -}}{{ continue }}{{- end -}}
+{{- range $name, $tierClass := $classMap -}}
+{{-   $route := index $tiers $tierClass -}}
+{{-   if not (kindIs "map" $route) -}}
+{{-     fail (printf "ai.agent_tiers.%s maps %q to unknown tier %q" $field $name $tierClass) -}}
+{{-   end -}}
 {{-   if not (hasKey $route "model") -}}
-{{-     fail (printf "ai.models.tiers.%s maps %s but has no model route" $tierName $field) -}}
+{{-     fail (printf "ai.tiers.%s maps %s but has no model route" $tierClass $field) -}}
 {{-   end -}}
 {{-   if not (hasKey $route "thinking") -}}
-{{-     fail (printf "ai.models.tiers.%s maps %s but has no thinking route" $tierName $field) -}}
+{{-     fail (printf "ai.tiers.%s maps %s but has no thinking route" $tierClass $field) -}}
 {{-   end -}}
-{{-   $names := index $route $field | default list -}}
-{{-   range $name := $names -}}
-{{-     $model := includeTemplate "base/ai/agents/pi/render-pi-model-ref" $route -}}
-{{-     $config := dict "model" $model "thinking" $route.thinking -}}
-{{-     $result = merge $result (dict $name $config) -}}
-{{-   end -}}
+{{-   $model := includeTemplate "base/ai/agents/pi/render-pi-model-ref" $route -}}
+{{-   $config := dict "model" $model "thinking" $route.thinking -}}
+{{-   $_ := set $result $name $config -}}
 {{- end -}}
 {{- $result | toJson -}}

@@ -1,20 +1,23 @@
-[ai.base.models.catalog]
-
-[ai.base.models.catalog.local]
-port = 8321
-
 # Tier descriptions (actual model routes set in profile presets):
 # small  — Fast lookup, search, and discovery.
 # medium — Implementation, revision, and bookkeeping.
 # big    — Planning, review, deep analysis, and architecture.
 # oracle — Rare escalation, adjudication, and final review.
 # visual — Visual and frontend design.
-[ai.base.models.presets]
+[ai.base.presets]
 default = "balanced"
 
-[ai.base.models.providers]
+[ai.base.providers]
 deepseek = { api_key_env = "DEEPSEEK_API_KEY", auth_keys = ["deepseek"] }
 github-copilot = { opencode_quota = "copilot" }
 openai-codex = { opencode_alias = "openai", opencode_quota = "openai" }
 opencode-go = { api_key_env = "OPENCODE_API_KEY", auth_keys = ["opencode-go"] }
 openrouter = { api_key_env = "OPENROUTER_API_KEY", auth_keys = ["openrouter"] }
+
+# Serving providers own the local engine and OpenAI-compatible endpoint
+# bindings. Each provider declares a nested `models` array whose entries share
+# id/name/limit/capability fields so every client projects the same metadata
+# (KTD1). Managed cloud credential providers stay under ai.providers.
+[ai.base.serving.local]
+kind = "local"
+port = 8321

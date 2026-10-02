@@ -8,16 +8,21 @@ setup() {
   common_setup
   AGENTS_MD="${HOME}/.config/agents/AGENTS.md"
   OMP_DIR="$HOME/.config/omp"
-  SECURITY_FILE="$OMP_DIR/security.yml"
+  MODELS_FILE="$OMP_DIR/models.yml"
+  CONFIG_FILE="$OMP_DIR/config.yml"
   GREYWALL_FILE="$HOME/.config/greywall/learned/omp.json"
 }
 
 
 {{- if (get .toolchains "omp" | default false) }}
 
-{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
 {{- $creds := includeTemplate "base/ai/auth/render-credentials" . | mustFromJson }}
 {{- $ompCreds := includeTemplate "base/ai/auth/render-credentials" (dict "root" . "agent" "omp") | mustFromJson }}
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving" "required" false) | mustFromJson }}
+{{- $infer01 := index $serving "infer01" | default dict }}
+{{- $hasInfer01 := gt (len $infer01) 0 }}
+{{- $presets := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.presets" "required" false) | mustFromJson }}
+{{- $activePreset := index $presets "default" | default "balanced" }}
 
 # ── Helpers ──
 
@@ -26,13 +31,6 @@ assert_yq() { run yq -e "$1" "$2"; assert_success; }
 
 # assert_jq EXPR FILE — compact jq -e + assert_success for JSON artifacts
 assert_jq() { run jq -e "$1" "$2"; assert_success; }
-
-# assert_rejected ARGS... — launcher must reject a managed-boundary override
-assert_rejected() {
-  run "$HOME/.local/bin/omp-agent" "$@"
-  assert_failure
-  assert_output --partial "rejected"
-}
 
 # setup_mock_bins DIR — create curl/nc/greyproxy stubs for dispatch tests
 setup_mock_bins() {
@@ -52,12 +50,10 @@ EOF
   chmod +x "$d/curl" "$d/nc" "$d/greyproxy"
 }
 
-# make_test_home — isolated HOME with the managed security overlay present
+# make_test_home — isolated empty HOME for dispatch tests
 make_test_home() {
   local d
   d="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
-  mkdir -p "$d/.config/omp"
-  touch "$d/.config/omp/security.yml"
   printf '%s\n' "$d"
 }
 
@@ -125,20 +121,15 @@ scratch_env() {
 }
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent rejects unsafe overrides and positional profile names" {
+@test "omp-agent rejects --no-greywall and positional profile names" {
   run "$HOME/.local/bin/omp-agent" --no-greywall
   assert_failure
-  assert_rejected --profile work
-  assert_rejected --yolo
-  assert_rejected --auto-approve
-  assert_rejected --plan-yolo
-  assert_rejected --approval-mode yolo
-  assert_rejected --config /tmp/evil.yaml
-  assert_rejected --api-key sk-abc
-  assert_rejected --alias work
-  assert_rejected core
-  assert_rejected factory
-  assert_rejected minimal
+  assert_output --partial "rejected"
+  for prof in core default factory minimal; do
+    run "$HOME/.local/bin/omp-agent" "$prof"
+    assert_failure
+    assert_output --partial "rejected"
+  done
 }
 
 # bats test_tags=toolchain:omp,kind:launcher
@@ -159,14 +150,19 @@ scratch_env() {
 
 # bats test_tags=toolchain:omp,kind:config
 @test "omp config.yml has managed routing, resilience, and core settings" {
-  assert_yq 'has("modelRoles") and has("retry") and has("compaction") and has("memory") and .memory.backend == "local" and .theme.dark == "dark-catppuccin" and .theme.light == "light-catppuccin" and .symbolPreset == "nerd" and (has("mcp") | not) and (has("task") | not) and (has("skills") | not)' "$OMP_DIR/config.yml"
-  assert_yq '.compaction.enabled == true and .compaction.strategy == "snapcompact" and .compaction.reserveTokens == 16384 and .compaction.keepRecentTokens == 20000' "$OMP_DIR/config.yml"
-  assert_yq '.retry.enabled == true and .retry.modelFallback == true and .retry.fallbackRevertPolicy == "cooldown-expiry" and .retry.maxRetries == 3 and .retry.baseDelayMs == 500 and .retry.maxDelayMs == 30000' "$OMP_DIR/config.yml"
+  assert_yq 'has("modelRoles") and has("retry") and has("memory") and (has("advisor") | not) and (has("compaction") | not) and .memory.backend == "local" and .theme.dark == "dark-catppuccin" and .theme.light == "light-catppuccin" and .symbolPreset == "nerd" and (has("mcp") | not) and (has("task") | not)' "$OMP_DIR/config.yml"
+  # Skills are loaded from the managed compound-engineering library.
+  assert_yq '.skills.customDirectories | length == 1' "$OMP_DIR/config.yml"
+  assert_yq ".skills.customDirectories[0] == \"${HOME}/.config/agents/libraries/extensions/compound-engineering/skills\"" "$OMP_DIR/config.yml"
+  # retry carries only non-default values plus the explicit empty fallback
+  # chains that disable OMP's built-in fallback priority.
+  assert_yq '.retry.maxRetries == 3 and .retry.maxDelayMs == 30000 and (.retry | has("enabled") | not) and (.retry | has("baseDelayMs") | not) and (.retry | has("modelFallback") | not) and (.retry | has("fallbackRevertPolicy") | not)' "$OMP_DIR/config.yml"
+  assert_yq '(.retry.fallbackChains | keys | length == 10)' "$OMP_DIR/config.yml"
 }
 
 # bats test_tags=toolchain:omp,kind:config
-@test "omp config.yml keeps advisor opt-in and defers incidental blocks" {
-  assert_yq '.advisor.enabled == false and .advisor.subagents == true and .advisor.syncBacklog == "1" and .advisor.immuneTurns == 2' "$OMP_DIR/config.yml"
+@test "omp config.yml has no advisor block and defers incidental blocks" {
+  assert_yq '(has("advisor") | not)' "$OMP_DIR/config.yml"
   for block in async bashInterceptor codexResets display features goal lsp model plan provider providers todo tools textVerbosity; do
     run yq -e "has(\"${block}\") | not" "$OMP_DIR/config.yml"
     assert_success "deferred block present: $block"
@@ -177,10 +173,10 @@ scratch_env() {
 
 # bats test_tags=toolchain:omp,kind:model,tier:routing
 @test "omp config.yml has provider-qualified modelRoles for all tiers" {
-  for role in default plan slow advisor oracle smol tiny task commit designer vision; do
-    run yq -e ".modelRoles | has(\"${role}\")" "$OMP_DIR/config.yml"
+  for role in default plan slow advisor oracle smol tiny task commit vision; do
+    run yq -e ".modelRoles | has(\"${role}\")" "$CONFIG_FILE"
     assert_success "missing role: $role"
-    run yq -r ".modelRoles.${role}" "$OMP_DIR/config.yml"
+    run yq -r ".modelRoles.${role}" "$CONFIG_FILE"
     assert_success
     [ -n "$output" ]
     case "$output" in
@@ -188,51 +184,91 @@ scratch_env() {
       *) false ;;
     esac
   done
-{{- if eq .host.profile "personal" }}
-  assert_yq '.modelRoles.default == "openai-codex/gpt-6-luna:high" and .modelRoles.plan == "openai-codex/gpt-6-luna:high"' "$OMP_DIR/config.yml"
-  assert_yq '.modelRoles.slow == "openai-codex/gpt-6-sol:max" and .modelRoles.advisor == "openai-codex/gpt-6-sol:max" and .modelRoles.oracle == "openai-codex/gpt-6-sol:max"' "$OMP_DIR/config.yml"
-  assert_yq '.modelRoles.task == "opencode-zen/deepseek-v4.1-flash:high" and .modelRoles.smol == "opencode-zen/deepseek-v4.1-flash:off"' "$OMP_DIR/config.yml"
-  assert_yq '((.retry.fallbackChains.default | join("|")) == "deepseek/deepseek-v4-pro:high|opencode-zen/deepseek-v4.1-flash:high")' "$OMP_DIR/config.yml"
-  assert_yq '((.retry.fallbackChains.oracle | join("|")) == "deepseek/deepseek-v4-pro:max|opencode-zen/deepseek-v4.1-flash:high")' "$OMP_DIR/config.yml"
-  assert_yq '((.retry.fallbackChains.task | join("|")) == "deepseek/deepseek-flash:high")' "$OMP_DIR/config.yml"
-  assert_yq '((.retry.fallbackChains.smol | join("|")) == "deepseek/deepseek-flash:off")' "$OMP_DIR/config.yml"
-  assert_yq '((.retry.fallbackChains.designer | join("|")) == "deepseek/deepseek-v4-pro:medium")' "$OMP_DIR/config.yml"
+  # OMP 18.3.5 removed the bundled designer role; visual work uses `vision`.
+  assert_yq '(.modelRoles | has("designer") | not) and (.modelRoles | has("vision"))' "$CONFIG_FILE"
+{{- if and (eq .host.profile "personal") (eq $activePreset "balanced") }}
+  assert_yq '.modelRoles.default == "openai-codex/gpt-6-luna:high" and .modelRoles.plan == "openai-codex/gpt-6-luna:high"' "$CONFIG_FILE"
+  assert_yq '.modelRoles.slow == "openai-codex/gpt-6.1-sol:max" and .modelRoles.advisor == "openai-codex/gpt-6.1-sol:max" and .modelRoles.oracle == "openai-codex/gpt-6.1-sol:max"' "$CONFIG_FILE"
+  assert_yq '.modelRoles.task == "opencode-zen/deepseek-v4.1-flash:high" and .modelRoles.smol == "opencode-zen/deepseek-v4.1-flash:off"' "$CONFIG_FILE"
+  assert_yq '.modelRoles.vision == "openai-codex/gpt-6-luna:medium"' "$CONFIG_FILE"
+  assert_yq '((.retry.fallbackChains.default | join("|")) == "deepseek/deepseek-v4-pro:high|opencode-zen/deepseek-v4.1-flash:high")' "$CONFIG_FILE"
+  assert_yq '((.retry.fallbackChains.oracle | join("|")) == "deepseek/deepseek-v4-pro:max|opencode-zen/deepseek-v4.1-flash:high")' "$CONFIG_FILE"
+  assert_yq '((.retry.fallbackChains.task | join("|")) == "deepseek/deepseek-flash:high")' "$CONFIG_FILE"
+  assert_yq '((.retry.fallbackChains.smol | join("|")) == "deepseek/deepseek-flash:off")' "$CONFIG_FILE"
+  assert_yq '((.retry.fallbackChains.vision | join("|")) == "deepseek/deepseek-v4-pro:medium")' "$CONFIG_FILE"
+  # The whole managed fallback map is emitted; no stale designer chain survives.
+  assert_yq '(.retry.fallbackChains | has("designer") | not) and ((.retry.fallbackChains | keys | join("|")) == "advisor|commit|default|oracle|plan|slow|smol|task|tiny|vision")' "$CONFIG_FILE"
 {{- end }}
 }
 
-# ── Security overlay ──
+{{- if hasKey $presets "qwen" }}
+{{- $qwenTiers := index (index $presets "qwen") "tiers" }}
 
-# bats test_tags=toolchain:omp,kind:config
-@test "omp security.yml enforces bounded autonomous task execution" {
-  assert_file_exists "$SECURITY_FILE"
-  assert_yq '.tools.approvalMode == "yolo" and (.tools | has("discoveryMode") | not)' "$SECURITY_FILE"
-  assert_yq '.task.eager == "preferred"' "$SECURITY_FILE"
-  assert_yq '.task.isolation.mode == "auto" and .task.isolation.apply == true and .task.isolation.merge == "patch"' "$SECURITY_FILE"
-  assert_yq '.task.maxConcurrency == 4 and .task.maxRecursionDepth == 2 and .task.maxRuntimeMs == 900000 and ((.task.maxRuntimeMs / 60000) == 15)' "$SECURITY_FILE"
-  assert_yq '(.task | has("batch") | not) and (.task | has("enableEffort") | not) and (.task | has("enableLsp") | not) and (.task | has("maxEffort") | not) and (.task | has("showResolvedModelBadge") | not)' "$SECURITY_FILE"
+# bats test_tags=toolchain:omp,kind:model,tier:routing
+@test "omp qwen preset routes every tier to local infer01 with no fallbacks or council" {
+  run jq -e -n \
+    --argjson qtiers '{{ $qwenTiers | toJson }}' \
+    --argjson qpreset '{{ index $presets "qwen" | toJson }}' '
+    ([$qtiers[] | has("fallbacks") | not] | all) and
+    ($qtiers.oracle.provider == "infer01" and $qtiers.oracle.model == "qwen3.8-27b" and $qtiers.oracle.thinking == "max") and
+    ($qpreset | has("council") | not)
+  '
+  assert_success
+{{- if eq $activePreset "qwen" }}
+  # Active-preset render: every tier routes local, oracle/slow are :max, and
+  # fallback chains are fully empty.
+  assert_yq '.modelRoles.oracle == "infer01/qwen3.8-27b:max" and .modelRoles.slow == "infer01/qwen3.8-27b:max" and (.modelRoles | to_entries | map(.value | test("^infer01/qwen3.8-27b")) | all) and (.retry.fallbackChains | to_entries | map(.value | length == 0) | all)' "$CONFIG_FILE"
+{{- end }}
+}
+{{- end }}
+
+# ── Custom model registry ──
+
+# bats test_tags=toolchain:omp,kind:model
+@test "omp models.yml registers only infer01 keylessly with nested models" {
+  assert_file_exists "$MODELS_FILE"
+  # The local loopback engine is intentionally not registered for OMP.
+  assert_yq '(.providers | has("local") | not)' "$MODELS_FILE"
+{{- if $hasInfer01 }}
+  # A missing `enabled` key defaults to true, so the keyless provider registers.
+  assert_yq '(.providers | has("infer01")) and (.providers | length == 1)' "$MODELS_FILE"
+  assert_yq '.providers.infer01.api == "openai-completions" and .providers.infer01.auth == "none"' "$MODELS_FILE"
+  assert_yq '.providers.infer01.baseUrl == "http://infer01:8080/v1"' "$MODELS_FILE"
+  assert_yq '(.providers.infer01.models | map(select(.id == "qwen3.8-27b"))[0] as $m | (($m.contextWindow == 262144) and ($m.reasoning == true) and (($m.input | join("|")) == "text|image") and (($m | has("maxTokens")) | not)))' "$MODELS_FILE"
+{{- end }}
 }
 
-# bats test_tags=toolchain:omp,kind:config
-@test "omp security.yml enables curated user skills and disables project sources" {
-  assert_yq '.skills.enabled == true and .skills.enableSkillCommands == true and (.skills.enablePiUser == false) and (.skills.enablePiProject == false) and (.skills.enableAgentsUser == true) and (.skills.enableAgentsProject == false) and (.commands.enableClaudeUser == false) and (.commands.enableOpencodeUser == false)' "$SECURITY_FILE"
-}
-
-# bats test_tags=toolchain:omp,kind:config
-@test "omp security.yml configures MCP, startup, and disabledProviders per profile" {
-  assert_yq '.mcp.enableProjectConfig == false and (.mcp | has("discoveryMode") | not) and (.disabledProviders | type == "!!seq")' "$SECURITY_FILE"
-  assert_yq '.disabledProviders | length > 0' "$SECURITY_FILE"
-  assert_yq '.startup.checkUpdate == false and .startup.setupWizard == false' "$SECURITY_FILE"
-{{- if eq .host.profile "personal" }}
-  # Only the three selected providers remain available.
-  assert_yq '(.disabledProviders | map(select(. == "openai-codex")) | length == 0) and (.disabledProviders | map(select(. == "opencode-zen")) | length == 0) and (.disabledProviders | map(select(. == "opencode-go")) | length == 1) and (.disabledProviders | map(select(. == "deepseek")) | length == 0)' "$SECURITY_FILE"
-  assert_yq '(.disabledProviders | map(select(. == "openrouter")) | length == 0) and (.disabledProviders | map(select(. == "anthropic")) | length == 1) and (.disabledProviders | map(select(. == "google")) | length == 1) and (.disabledProviders | map(select(. == "github-copilot")) | length == 1)' "$SECURITY_FILE"
-{{- end }}
-{{- if eq .host.profile "work" }}
-  # enabled providers: github-copilot — must NOT be disabled
-  assert_yq '(.disabledProviders | map(select(. == "github-copilot")) | length == 0)' "$SECURITY_FILE"
-  # representative built-in providers that are not enabled must be disabled
-  assert_yq '(.disabledProviders | map(select(. == "anthropic")) | length == 1) and (.disabledProviders | map(select(. == "google")) | length == 1) and (.disabledProviders | map(select(. == "openai-codex")) | length == 1)' "$SECURITY_FILE"
-{{- end }}
+# bats test_tags=toolchain:omp,kind:model
+@test "omp config modify replaces managed role and fallback maps" {
+  local tmpl
+  tmpl="$(chezmoi source-path "$HOME/.config/omp/config.yml")"
+  assert_file_exists "$tmpl"
+  run chezmoi execute-template -f "$tmpl" --with-stdin 2>/dev/null <<'YAML'
+advisor:
+  model: stale/advisor:high
+compaction:
+  strategy: auto
+modelRoles:
+  designer: stale/model:high
+  default: stale/model:high
+retry:
+  baseDelayMs: 500
+  enabled: false
+  fallbackRevertPolicy: revert
+  modelFallback: stale/model:high
+  userField: keep-me
+  fallbackChains:
+    designer: ["stale/model:high"]
+    task: ["stale/model:high"]
+YAML
+  assert_success
+  local rendered="$output"
+  run yq -e '(.modelRoles | has("designer") | not) and (.modelRoles | has("vision"))' <<< "$rendered"
+  assert_success
+  # Previously applied retired blocks and retry fields migrate out; user-owned
+  # fields survive.
+  run yq -e '(has("advisor") | not) and (has("compaction") | not) and (.retry.fallbackChains | has("designer") | not) and (.retry.fallbackChains | has("vision")) and (.retry.userField == "keep-me") and (.retry | has("enabled") | not) and (.retry | has("baseDelayMs") | not) and (.retry | has("modelFallback") | not) and (.retry | has("fallbackRevertPolicy") | not)' <<< "$rendered"
+  assert_success
 }
 
 # ── Greywall learned profile ──
@@ -253,13 +289,13 @@ scratch_env() {
   assert_jq '.filesystem.allowWrite | index("/tmp/agents/omp/**") != null' "$GREYWALL_FILE"
   assert_jq '(.filesystem.allowRead | index("~/.config/pi/**") | not)' "$GREYWALL_FILE"
   assert_jq '(.filesystem.allowRead | index("~/.config/opencode/**") | not)' "$GREYWALL_FILE"
-  # OMP root is not deny-written (managed overlay)
+  # OMP root is not deny-written (allow-writable, modify-managed)
   assert_jq '.filesystem.denyWrite | index("~/.config/omp/**") == null' "$GREYWALL_FILE"
   # config.yml is allow-writable (modify-managed)
   assert_jq '(.filesystem.allowWrite | index("~/.config/omp/config.yml") != null) or (.filesystem.allowWrite | index("~/.config/omp/**") != null)' "$GREYWALL_FILE"
   assert_jq '.filesystem.denyWrite | index("~/.config/omp/config.yml") | not' "$GREYWALL_FILE"
-  # security.yml is deny-write (enforced overlay)
-  assert_jq '.filesystem.denyWrite | index("~/.config/omp/security.yml") != null' "$GREYWALL_FILE"
+  # The retired security overlay is no longer deny-written.
+  assert_jq '.filesystem.denyWrite | index("~/.config/omp/security.yml") | not' "$GREYWALL_FILE"
 }
 
 # bats test_tags=toolchain:omp,kind:greywall
@@ -268,6 +304,16 @@ scratch_env() {
   assert_jq '.credentials.inject == []' "$GREYWALL_FILE"
   assert_jq '.credentials.secrets | length > 0' "$GREYWALL_FILE"
   assert_jq '.network.allowUnixSockets | index("~/.local/share/tmux") != null' "$GREYWALL_FILE"
+  # OMP's tiny worker listens on unix sockets under ~/.config/omp/run
+  # (the runtime dir; the ~/.omp symlink canonicalizes to it, so one
+  # spelling covers both). The daemon broker listens under the scratch
+  # root /tmp/agents/omp (greywall-<pid>/omp-daemon-smoke-*/run/broker.sock).
+  # Both entries must be literal dirs: greywall emits them as seatbelt
+  # subpath entries with no glob support, so a trailing /** is a dead rule
+  # and omp --smoke-test fails (tiny worker: "no tagged pong"; broker:
+  # "Failed to start daemon broker ... connect ENOENT").
+  assert_jq '.network.allowUnixSockets | index("~/.config/omp/run") != null' "$GREYWALL_FILE"
+  assert_jq '.network.allowUnixSockets | index("/tmp/agents/omp") != null' "$GREYWALL_FILE"
   assert_jq '(.network.forwardPorts // []) | index(7437) != null' "$GREYWALL_FILE"
 }
 
@@ -325,7 +371,7 @@ scratch_env() {
 # ── Full dispatch ──
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent full dispatch: greywall --profile omp with --no-extensions and --config" {
+@test "omp-agent full dispatch: greywall --profile omp passes user args through unmodified" {
   local mockdir
   local test_home
   mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
@@ -345,11 +391,7 @@ echo "OMP_ARGS=$*"
 exit 0
 SCRIPT
 
-  cat >"$mockdir/omp" <<'SCRIPT'
-#!/usr/bin/env sh
-echo "OMP_RECEIVED_ARGS=$*"
-SCRIPT
-  chmod +x "$mockdir/greywall" "$mockdir/omp"
+  chmod +x "$mockdir/greywall"
 
   run env $(scratch_env) PATH="$mockdir:$PATH" XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
     "$HOME/.local/bin/omp-agent" -c session-abc
@@ -357,35 +399,9 @@ SCRIPT
   assert_output --partial "GREYWALL_CALLED=true"
   assert_output --partial "GREYWALL_PROFILE=omp"
   assert_output --partial "GREYWALL_TMPDIR=$BATS_TEST_TMPDIR/agents/omp"
-  assert_output --partial "--no-extensions"
-  assert_output --partial "security.yml"
-  assert_output --partial "session-abc"
-}
-
-# bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent full dispatch: missing security overlay fails closed" {
-  local mockdir
-  local test_home
-  mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
-  test_home="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
-  setup_mock_bins "$mockdir"
-
-  cat >"$mockdir/greywall" <<'SCRIPT'
-#!/usr/bin/env sh
-shift 2
-[ "${1:-}" = "--" ] && shift
-exec "$@"
-SCRIPT
-
-  cat >"$mockdir/omp" <<'SCRIPT'
-#!/usr/bin/env sh
-echo "OMP_RECEIVED_ARGS=$*"
-SCRIPT
-  chmod +x "$mockdir/greywall" "$mockdir/omp"
-
-  run env PATH="$mockdir:$PATH" XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
-    "$HOME/.local/bin/omp-agent" -c session-abc
-  assert_failure
+  assert_output --partial "OMP_ARGS=-c session-abc"
+  refute_output --partial "--no-extensions"
+  refute_output --partial "--config"
 }
 
 # bats test_tags=toolchain:omp,kind:launcher
@@ -425,7 +441,7 @@ SCRIPT
 # ── Managed user-level MCP (codegraph) ──
 
 # bats test_tags=toolchain:omp,kind:config
-@test "omp .mcp.json wires codegraph stdio server, retrieval-only, project MCP locked" {
+@test "omp .mcp.json wires codegraph stdio server, retrieval-only" {
   assert_file_exists "$OMP_DIR/.mcp.json"
   # Local stdio server: command codegraph with only serve --mcp args.
   assert_jq '.mcpServers.codegraph.command == "codegraph"' "$OMP_DIR/.mcp.json"
@@ -435,8 +451,6 @@ SCRIPT
              (.mcpServers.codegraph.args | index("index")) == null and
              (.mcpServers.codegraph.args | index("sync")) == null and
              (.mcpServers.codegraph.args | length) == 2' "$OMP_DIR/.mcp.json"
-  # Project-level MCP stays disabled in the managed security overlay.
-  assert_yq '.mcp.enableProjectConfig == false' "$SECURITY_FILE"
 }
 
 # ── Isolated scratch bootstrap ──
@@ -457,11 +471,7 @@ echo "GREYWALL_TMPDIR=${TMPDIR:-unset}"
 exit 0
 SCRIPT
 
-  cat >"$mockdir/omp" <<'SCRIPT'
-#!/usr/bin/env sh
-echo "OMP_OK"
-SCRIPT
-  chmod +x "$mockdir/greywall" "$mockdir/omp"
+  chmod +x "$mockdir/greywall"
 
   run env $(scratch_env) PATH="$mockdir:$PATH" XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
     "$HOME/.local/bin/omp-agent" -c session-abc

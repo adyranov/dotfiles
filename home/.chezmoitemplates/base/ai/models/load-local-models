@@ -1,5 +1,6 @@
 {{- /*
-  Resolves per-host local LLM engine and model backends from ai.models.catalog.local.
+  Resolves the local serving provider's engine and model backends from
+  ai.serving.local.
 
   Input: .root (chezmoi data root)
   Output: JSON dict:
@@ -14,7 +15,7 @@
                               upstream_id?, backend: { repo, file } } }
 
   Engine selection:
-    ai.models.catalog.local.engine (required): "omlx" | "llamacpp"
+    ai.serving.local.engine (required): "omlx" | "llamacpp"
     Models must declare the backend matching the active engine.
 
   GPU flags (llamacpp only, best-effort static presets):
@@ -26,13 +27,21 @@
     Qwen 3.5+ model ids auto-attach qwen-froggeric.jinja unless overridden in profile data.
 */ -}}
 {{- $root := .root -}}
-{{- $local := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.catalog.local" "required" true) | mustFromJson -}}
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.serving" "required" true) | mustFromJson -}}
+{{- $local := index $serving "local" | default dict -}}
+{{- if not (kindIs "map" $local) -}}
+{{-   fail "ai.serving.local must be a table" -}}
+{{- end -}}
+{{- $kind := index $local "kind" | default "" -}}
+{{- if ne $kind "local" -}}
+{{-   fail (printf "ai.serving.local.kind = %q, expected \"local\"" $kind) -}}
+{{- end -}}
 {{- $engineRaw := index $local "engine" | default "" -}}
 {{- if not $engineRaw -}}
-{{-   fail "ai.models.catalog.local.engine must be set in the active profile (got empty); expected \"omlx\" or \"llamacpp\"" -}}
+{{-   fail "ai.serving.local.engine must be set in the active profile (got empty); expected \"omlx\" or \"llamacpp\"" -}}
 {{- end -}}
 {{- if not (has $engineRaw (list "omlx" "llamacpp")) -}}
-{{-   fail (printf "ai.models.catalog.local.engine = %q is not one of: omlx, llamacpp" $engineRaw) -}}
+{{-   fail (printf "ai.serving.local.engine = %q is not one of: omlx, llamacpp" $engineRaw) -}}
 {{- end -}}
 {{- $engine := $engineRaw -}}
 {{- $gpuFlags := "" -}}
@@ -66,7 +75,14 @@
 {{- $omlxModelDir := printf "%s/omlx/models" $xdgState -}}
 {{- $qwenChatTemplate := printf "%s/qwen-froggeric.jinja" $llamaCppConfigDir -}}
 {{- $models := dict -}}
-{{- range $id, $m := index $local "models" | default dict -}}
+{{- range $m := index $local "models" | default list -}}
+{{-   if not (kindIs "map" $m) -}}
+{{-     fail "ai.serving.local.models entries must be tables" -}}
+{{-   end -}}
+{{-   $id := index $m "id" | default "" -}}
+{{-   if not $id -}}
+{{-     fail "ai.serving.local has a model entry without an id" -}}
+{{-   end -}}
 {{-   $backendKey := "gguf" -}}
 {{-   if eq $engine "omlx" -}}
 {{-     $backendKey = "mlx" -}}

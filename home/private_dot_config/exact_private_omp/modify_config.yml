@@ -10,9 +10,8 @@
     chezmoi  — the .chezmoi context (provides stdin for modify-template)
 
   Parses existing OMP config YAML, renders managed modelRoles and fallback
-  chains from ai.models.tiers, then applies static compaction, memory,
-  theme, and native advisor settings. Advisor stays opt-in (disabled by
-  default). User-owned keys outside those managed sections are preserved
+  chains from ai.tiers, then applies static memory, theme, and retry
+  settings. User-owned keys outside those managed sections are preserved
   via mergeOverwrite.
 */ -}}
 {{- $current := dict -}}
@@ -25,6 +24,22 @@
 {{- $deferredKeys := list "async" "bashInterceptor" "codexResets" "display" "features" "goal" "lsp" "model" "plan" "provider" "providers" "todo" "tools" "textVerbosity" -}}
 {{- range $key := $deferredKeys -}}
 {{-   if hasKey $current $key -}}{{- $_ := unset $current $key -}}{{- end -}}
+{{- end -}}
+{{- /* Replace managed maps wholesale so stale keys (e.g. the removed
+  `designer` role) and previous-preset fallback chains cannot survive
+  mergeOverwrite's deep merge. Unrelated top-level config is preserved. */ -}}
+{{- $_ := unset $current "modelRoles" -}}
+{{- /* Unset blocks and retry fields no longer managed so previously
+  applied configs migrate instead of retaining them. */ -}}
+{{- $_ := unset $current "advisor" -}}
+{{- $_ := unset $current "compaction" -}}
+{{- $currentRetry := get $current "retry" | default dict -}}
+{{- if kindIs "map" $currentRetry -}}
+{{-   $_ := unset $currentRetry "fallbackChains" -}}
+{{-   $_ := unset $currentRetry "enabled" -}}
+{{-   $_ := unset $currentRetry "baseDelayMs" -}}
+{{-   $_ := unset $currentRetry "modelFallback" -}}
+{{-   $_ := unset $currentRetry "fallbackRevertPolicy" -}}
 {{- end -}}
 
 
@@ -73,42 +88,22 @@
 {{-   $_ := set $tierFallbacks $key $fallbackRefs -}}
 {{- end -}}
 
+{{- /* Emit every managed role key, including explicit empty [] chains, so a
+  Qwen request with no fallbacks never activates OMP's built-in fallback
+  priority. `designer` is omitted (removed in OMP 18.3.5). */ -}}
 {{- $fallbackChains := dict -}}
-{{- if gt (len $tierFallbacks.big) 0 -}}
-{{-   $_ := set $fallbackChains "default" $tierFallbacks.big -}}
-{{-   $_ := set $fallbackChains "plan" $tierFallbacks.big -}}
-{{- end -}}
-{{- if gt (len $tierFallbacks.oracle) 0 -}}
-{{-   $_ := set $fallbackChains "advisor" $tierFallbacks.oracle -}}
-{{-   $_ := set $fallbackChains "oracle" $tierFallbacks.oracle -}}
-{{-   $_ := set $fallbackChains "slow" $tierFallbacks.oracle -}}
-{{- end -}}
-{{- if gt (len $tierFallbacks.small) 0 -}}
-{{-   $_ := set $fallbackChains "smol" $tierFallbacks.small -}}
-{{-   $_ := set $fallbackChains "tiny" $tierFallbacks.small -}}
-{{- end -}}
-{{- if gt (len $tierFallbacks.medium) 0 -}}
-{{-   $_ := set $fallbackChains "commit" $tierFallbacks.medium -}}
-{{-   $_ := set $fallbackChains "task" $tierFallbacks.medium -}}
-{{- end -}}
-{{- if gt (len $tierFallbacks.visual) 0 -}}
-{{-   $_ := set $fallbackChains "designer" $tierFallbacks.visual -}}
-{{-   $_ := set $fallbackChains "vision" $tierFallbacks.visual -}}
-{{- end -}}
+{{- $_ := set $fallbackChains "default" $tierFallbacks.big -}}
+{{- $_ := set $fallbackChains "plan" $tierFallbacks.big -}}
+{{- $_ := set $fallbackChains "advisor" $tierFallbacks.oracle -}}
+{{- $_ := set $fallbackChains "oracle" $tierFallbacks.oracle -}}
+{{- $_ := set $fallbackChains "slow" $tierFallbacks.oracle -}}
+{{- $_ := set $fallbackChains "smol" $tierFallbacks.small -}}
+{{- $_ := set $fallbackChains "tiny" $tierFallbacks.small -}}
+{{- $_ := set $fallbackChains "commit" $tierFallbacks.medium -}}
+{{- $_ := set $fallbackChains "task" $tierFallbacks.medium -}}
+{{- $_ := set $fallbackChains "vision" $tierFallbacks.visual -}}
 
 {{- $managed := dict
-  "advisor" (dict
-    "enabled" false
-    "immuneTurns" 2
-    "subagents" true
-    "syncBacklog" "1"
-  )
-  "compaction" (dict
-    "enabled" true
-    "strategy" "snapcompact"
-    "reserveTokens" 16384
-    "keepRecentTokens" 20000
-  )
   "memory" (dict
     "backend" "local"
   )
@@ -118,13 +113,12 @@
     "slow" ($tierConfigs.oracle | default ($tierConfigs.big | default $fmtRef))
   )
   "retry" (dict
-    "baseDelayMs" 500
-    "enabled" true
     "fallbackChains" $fallbackChains
-    "fallbackRevertPolicy" "cooldown-expiry"
     "maxDelayMs" 30000
     "maxRetries" 3
-    "modelFallback" true
+  )
+"skills" (dict
+    "customDirectories" (list (printf "%s/.config/agents/libraries/extensions/compound-engineering/skills" .chezmoi.homeDir))
   )
   "symbolPreset" $settings.symbol_preset
   "theme" (dict
@@ -147,7 +141,6 @@
 {{-   $_ := set $managed.modelRoles "commit" $tierConfigs.medium -}}
 {{- end -}}
 {{- if $tierConfigs.visual -}}
-{{-   $_ := set $managed.modelRoles "designer" $tierConfigs.visual -}}
 {{-   $_ := set $managed.modelRoles "vision" $tierConfigs.visual -}}
 {{- end -}}
 
