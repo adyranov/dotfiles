@@ -1,5 +1,5 @@
 {{- /*
-  Loads the default preset's tiers from ai.models.presets.
+  Loads the default preset's tiers from ai.presets.
 
   Usage:
     {{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson -}}
@@ -9,7 +9,7 @@
 */ -}}
 {{- $root := .root -}}
 {{- $required := index . "required" | default false -}}
-{{- $presets := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.presets" "required" $required) | mustFromJson -}}
+{{- $presets := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.presets" "required" $required) | mustFromJson -}}
 {{- if and $presets (kindIs "map" $presets) (hasKey $presets "default") -}}
   {{- $defaultName := index $presets "default" -}}
   {{- $defaultPreset := index $presets $defaultName -}}
@@ -22,6 +22,6 @@
     {{- dict | toJson -}}
   {{- end -}}
 {{- else -}}
-  {{- if $required -}}{{- fail "load-default-tiers: ai.models.presets not found" -}}{{- end -}}
+  {{- if $required -}}{{- fail "load-default-tiers: ai.presets not found" -}}{{- end -}}
   {{- dict | toJson -}}
 {{- end -}}

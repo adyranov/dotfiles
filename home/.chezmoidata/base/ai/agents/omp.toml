@@ -6,6 +6,8 @@ command = "codegraph"
 
 [ai.base.agents.omp.sandbox.network]
 hosts = ["api.openai.com", "auth.openai.com", "opencode.ai"]
+allow = [{ host = "infer01", port = 8080 }]
+allow_unix_sockets = ["/tmp/agents/omp", "~/.config/omp/run"]
 
 [ai.base.agents.omp.sandbox.paths]
 allow_read = [
@@ -38,7 +40,6 @@ deny_read = [
   "~/.local/share/opencode/auth.json",
   "~/.local/share/pi-lens/**",
   "~/.config/greywall/**",
-  "~/.local/share/plannotator/**",
   "~/.local/share/engram/**",
   "~/.config/age/**",
   "~/.ssh/**",
@@ -55,50 +56,10 @@ deny_write = [
   "~/.config/pi/profiles/factory/auth.json",
   "~/.local/share/opencode/auth.json",
   "~/.config/agents/**",
-  "~/.config/greywall/**",
-  "~/.config/omp/security.yml"
+  "~/.config/greywall/**"
 ]
-
-[ai.base.agents.omp.security.commands]
-enable_claude_user = false
-enable_claude_project = false
-enable_opencode_user = false
-enable_opencode_project = false
-
-[ai.base.agents.omp.security.mcp]
-enable_project_config = false
-
-[ai.base.agents.omp.security.skills]
-enabled = true
-enable_skill_commands = true
-enable_codex_user = false
-enable_claude_user = false
-enable_claude_project = false
-enable_pi_user = false
-enable_pi_project = false
-enable_agents_user = true
-enable_agents_project = false
-
-[ai.base.agents.omp.security.startup]
-check_update = false
-setup_wizard = false
-
-[ai.base.agents.omp.security.task]
-eager = "preferred"
-max_concurrency = 4
-max_recursion_depth = 2
-max_runtime_ms = 900000
-
-[ai.base.agents.omp.security.task.isolation]
-apply = true
-merge = "patch"
-mode = "auto"
-
-[ai.base.agents.omp.security.tools]
-approval_mode = "yolo"
 
 [ai.base.agents.omp.settings]
 theme_dark = "dark-catppuccin"
 theme_light = "light-catppuccin"
 symbol_preset = "nerd"
-providers = ["azure", "openai-codex", "anthropic", "zai", "kimi-code", "openrouter", "github-copilot", "cursor", "devin", "google-antigravity", "google-gemini-cli", "openai-codex-device", "xai-oauth", "gitlab-duo", "gitlab-duo-workflow", "alibaba-coding-plan", "aimlapi", "zhipu-coding-plan", "umans", "qwen-portal", "sakana", "minimax-code", "minimax-code-cn", "xiaomi", "xiaomi-token-plan-sgp", "xiaomi-token-plan-ams", "xiaomi-token-plan-cn", "firepass", "deepseek", "moonshot", "cerebras", "fireworks", "together", "nvidia", "huggingface", "perplexity", "qianfan", "venice", "synthetic", "nanogpt", "wafer-serverless", "coreweave", "vercel-ai-gateway", "cloudflare-ai-gateway", "litellm", "kilo", "zenmux", "opencode-zen", "opencode-go", "tavily", "kagi", "parallel", "ollama", "ollama-cloud", "lm-studio", "llama.cpp", "vllm", "openai", "google", "google-vertex", "xai", "groq", "mistral", "minimax", "amazon-bedrock"]

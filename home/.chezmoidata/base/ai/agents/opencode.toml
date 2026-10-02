@@ -8,9 +8,8 @@ deny = ["~/.local/share/opencode/auth.json"]
 
 [ai.base.agents.opencode.profiles.core]
 extends = "minimal"
-plugins = ["@plannotator/opencode", "@dietrichgebert/ponytail"]
+plugins = ["@dietrichgebert/ponytail"]
 instructions = ["AGENTS.md", "OPENCODE.md"]
-plannotator = { plan_dir = "docs/plans/", planning_agents = ["plan"], workflow = "plan-agent" }
 
 [ai.base.agents.opencode.profiles.core.mcp_servers.codegraph]
 type = "local"
@@ -27,7 +26,6 @@ extends = "core"
 default_agent = "orchestrator"
 plugins = ["oh-my-opencode-slim", "./plugins/compound-engineering.js"]
 disabled_agents = ["build", "explore", "general", "plan", "scout"]
-plannotator = { plan_dir = "docs/plans/", workflow = "manual" }
 skills_paths = [
   "~/.config/agents/libraries/skills/compound-engineering",
   "~/.config/agents/libraries/skills/oh-my-opencode-slim"
@@ -35,6 +33,9 @@ skills_paths = [
 
 [ai.base.agents.opencode.profiles.minimal]
 plugins = ["@slkiser/opencode-quota"]
+
+[ai.base.agents.opencode.sandbox.network]
+allow = [{ host = "infer01", port = 8080 }]
 
 [ai.base.agents.opencode.sandbox.paths]
 allow_read = [
@@ -45,8 +46,6 @@ allow_read = [
   "~/.local/share/opencode/**",
   "~/.local/state/opencode",
   "~/.local/state/opencode/**",
-  "~/.local/share/plannotator",
-  "~/.local/share/plannotator/**",
   "/tmp/agents/opencode",
   "/tmp/agents/opencode/**",
   "/tmp/compound-engineering",
@@ -57,8 +56,6 @@ allow_write = [
   "~/.cache/opencode/**",
   "~/.local/share/opencode",
   "~/.local/share/opencode/**",
-  "~/.local/share/plannotator",
-  "~/.local/share/plannotator/**",
   "~/.local/state/opencode",
   "~/.local/state/opencode/**",
   "/tmp/agents/opencode",

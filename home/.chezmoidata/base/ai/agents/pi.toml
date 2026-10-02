@@ -17,13 +17,11 @@ deny = [
 [ai.base.agents.pi.profiles.core]
 extends = "minimal"
 compaction = { keep_recent_tokens = 8000, reserve_tokens = 8192 }
-plannotator = { executing = "medium", plan_dir = "docs/plans/", planning = "big" }
 packages = [
   "@ff-labs/pi-fff",
   "pi-lens",
   "pi-hashline-readmap",
   "pi-mcp-adapter",
-  "@plannotator/pi-extension",
   "@dietrichgebert/ponytail",
   "@juicesharp/rpiv-web-tools",
   "@juicesharp/rpiv-advisor",
@@ -39,7 +37,6 @@ skills = ["karpathy-guidelines"]
 [ai.base.agents.pi.profiles.factory]
 extends = "core"
 compaction = { keep_recent_tokens = 20000, reserve_tokens = 16384 }
-plannotator = { executing = "medium", plan_dir = "docs/plans/", plan_only = true, planning = "big" }
 packages = [
   "@juicesharp/rpiv-i18n",
   "@juicesharp/rpiv-workflow",
@@ -61,6 +58,7 @@ skills = []
 
 [ai.base.agents.pi.sandbox.network]
 hosts = ["pi.dev"]
+allow = [{ host = "infer01", port = 8080 }]
 
 [ai.base.agents.pi.sandbox.paths]
 allow_read = [
@@ -72,7 +70,6 @@ allow_read = [
   "~/.config/rpiv-ask-user-question/**",
   "~/.cache/pi",
   "~/.cache/pi/**",
-  "~/.local/share/plannotator/**",
   "/tmp/agents/pi",
   "/tmp/agents/pi/**",
   "**/node_modules/@earendil-works/pi-coding-agent/**"
@@ -90,8 +87,6 @@ allow_write = [
   "~/.config/pi/profiles/factory/**",
   "/tmp/agents/pi",
   "/tmp/agents/pi/**",
-  "~/.local/share/plannotator",
-  "~/.local/share/plannotator/**",
   "~/.pi-lens",
   # CodeGraph runtime state
   "**/.codegraph/**"

@@ -1,29 +1,24 @@
 {{- /* Render Pi profile settings managed dict as JSON */ -}}
 {{- $pi := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.agents.pi" "required" true) | mustFromJson -}}
 {{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" .root "required" true) | mustFromJson -}}
-{{- if not (hasKey $tiers "default") -}}{{- fail "ai.models.tiers has no 'default' key" -}}{{- end -}}
-{{- $catalog := includeTemplate "base/helpers/load-section" (dict "root" .root "section" "ai.models.catalog" "required" false) | mustFromJson -}}
+{{- if not (hasKey $tiers "default") -}}{{- fail "ai.tiers has no 'default' key" -}}{{- end -}}
 {{- $profile := includeTemplate "base/ai/agents/resolve-profile" (dict "agentData" $pi "profile" .profile) | mustFromJson -}}
 {{- $defaults := index $tiers $tiers.default -}}
 {{- $enabledAuth := includeTemplate "base/ai/auth/resolve-enabled-auth-providers" (dict "root" .root) | mustFromJson -}}
-{{- $enabledModels := $enabledAuth.enabled_models -}}
-{{- /* Fallback: if no provider has explicit enabled or no models from enabled providers, derive from tiers + local */ -}}
-{{- if or (not $enabledAuth.has_enabled_data) (eq (len $enabledModels) 0) -}}
-{{-   $enabledModels = list -}}
-{{-   range $_, $route := $tiers -}}
-{{-     if not (kindIs "map" $route) -}}{{ continue }}{{- end -}}
-{{-     if not (hasKey $route "model") -}}{{ continue }}{{- end -}}
-{{-     $modelId := includeTemplate "base/ai/agents/pi/render-pi-model-ref" $route -}}
-{{-     $enabledModels = append $enabledModels $modelId | uniq -}}
-{{-   end -}}
-{{-   $local := get $catalog "local" | default dict -}}
-{{-   if hasKey $local "models" -}}
-{{-     range $key, $_ := $local.models -}}
-{{-       $enabledModels = append $enabledModels (printf "local/%s" $key) -}}
-{{-     end -}}
-{{-   end -}}
-{{-   $enabledModels = $enabledModels | uniq -}}
+{{- /* Pi's enabledModels is the union of every enabled managed model and every
+       declared serving model (keyless local/remote endpoints included); this is
+       exactly resolve-enabled-auth-providers' valid_models. Union the selected
+       preset's provider-qualified routes too, so a profile without explicit
+       managed enablement still exposes the models it actually routes to. */ -}}
+{{- $enabledModels := get $enabledAuth "valid_models" | default list -}}
+{{- if not (get $enabledAuth "has_enabled_data" | default false) -}}
+{{- range $_, $route := $tiers -}}
+{{-   if not (kindIs "map" $route) -}}{{ continue }}{{- end -}}
+{{-   if not (and (hasKey $route "provider") (hasKey $route "model")) -}}{{ continue }}{{- end -}}
+{{-   $enabledModels = append $enabledModels (includeTemplate "base/ai/agents/pi/render-pi-model-ref" $route) -}}
 {{- end -}}
+{{- end -}}
+{{- $enabledModels = $enabledModels | uniq -}}
 {{- $settings := $pi.settings -}}
 {{- $packages := list -}}
 {{- $skills := list -}}
@@ -50,6 +45,9 @@
     "transcriptMaxLines" $settings.bash_mode.transcript_max_lines
   )
   "compaction" (dict "enabled" true "keepRecentTokens" $profile.compaction.keep_recent_tokens "reserveTokens" $profile.compaction.reserve_tokens)
+  "defaultModel" $defaults.model
+  "defaultProvider" $defaults.provider
+  "defaultThinkingLevel" $defaults.thinking
   "followUpMode" "all"
   "steeringMode" "all"
   "treeFilterMode" "no-tools"
@@ -69,7 +67,10 @@
   "warnings" (dict "anthropicExtraUsage" true)
 -}}
 {{- if eq .profile "factory" -}}
-{{-   $agentOverrides := includeTemplate "base/ai/agents/pi/render-model-category-map" (dict "root" .root "field" "agents") | mustFromJson -}}
+{{- /* Agent -> tier-class map, hardcoded (pi-specific; tiers are the primary
+  data, resolved per preset). */ -}}
+{{-   $piAgentTiers := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" -}}
+{{-   $agentOverrides := includeTemplate "base/ai/agents/pi/render-model-category-map" (dict "root" .root "field" "agents" "classMap" $piAgentTiers) | mustFromJson -}}
 {{-   $_ := set $managed "subagents" (dict "agentOverrides" $agentOverrides) -}}
 {{- end -}}
 {{- $managed | toPrettyJson -}}

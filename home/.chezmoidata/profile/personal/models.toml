@@ -1,52 +1,91 @@
-[ai.profile.personal.models.catalog]
+[ai.profile.personal.presets]
+default = "qwen"
 
-[ai.profile.personal.models.catalog.local]
-default_model = "qwen3-coder-30b-a3b"
-engine = "llamacpp"
-
-[ai.profile.personal.models.catalog.local.models]
-"qwen3-coder-30b-a3b" = { name = "Qwen3 Coder 30B-A3B", reasoning = false, context_window = 32768, max_output = 8192, gguf = { repo = "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF", file = "Qwen3-Coder-30B-A3B-Instruct-UD-IQ3_XXS.gguf" }, sampling = { temperature = 0.7, top_p = 0.8, top_k = 20, min_p = 0.0, repetition_penalty = 1.05 } }
-"qwen3.5-9b" = { name = "Qwen3.5 9B", reasoning = true, context_window = 65536, max_output = 8192, gguf = { repo = "unsloth/Qwen3.5-9B-GGUF", file = "Qwen3.5-9B-UD-Q6_K_XL.gguf" }, sampling = { min_p = 0.0, presence_penalty = 1.5, repetition_penalty = 1.0, temperature = 1.0, top_k = 20, top_p = 0.95 } }
-
-[ai.profile.personal.models.presets]
-
-[ai.profile.personal.models.presets.balanced.council]
+[ai.profile.personal.presets.balanced.council]
 # 2 councillors — cross-provider fallbacks for fault tolerance
-alpha = { provider = "openai-codex", model = "gpt-6-sol", thinking = "high", fallbacks = [{ provider = "deepseek", model = "deepseek-v4-pro", thinking = "high" }] }
+alpha = { provider = "openai-codex", model = "gpt-6.1-sol", thinking = "high", fallbacks = [{ provider = "deepseek", model = "deepseek-v4-pro", thinking = "high" }] }
 beta = { provider = "deepseek", model = "deepseek-v4-pro", thinking = "high", fallbacks = [{ provider = "openai-codex", model = "gpt-6-luna", thinking = "high" }] }
 
-[ai.profile.personal.models.presets.balanced.tiers]
+[ai.profile.personal.presets.balanced.tiers]
 small = { provider = "opencode-zen", model = "deepseek-v4.1-flash", thinking = "off", fallbacks = [{ provider = "deepseek", model = "deepseek-flash", thinking = "off" }] }
 medium = { provider = "opencode-zen", model = "deepseek-v4.1-flash", thinking = "high", fallbacks = [{ provider = "deepseek", model = "deepseek-flash", thinking = "high" }] }
 big = { provider = "openai-codex", model = "gpt-6-luna", thinking = "high", fallbacks = [{ provider = "deepseek", model = "deepseek-v4-pro", thinking = "high" }, { provider = "opencode-zen", model = "deepseek-v4.1-flash", thinking = "high" }] }
-oracle = { provider = "openai-codex", model = "gpt-6-sol", thinking = "max", fallbacks = [{ provider = "deepseek", model = "deepseek-v4-pro", thinking = "max" }, { provider = "opencode-zen", model = "deepseek-v4.1-flash", thinking = "high" }] }
+oracle = { provider = "openai-codex", model = "gpt-6.1-sol", thinking = "max", fallbacks = [{ provider = "deepseek", model = "deepseek-v4-pro", thinking = "max" }, { provider = "opencode-zen", model = "deepseek-v4.1-flash", thinking = "high" }] }
 visual = { provider = "openai-codex", model = "gpt-6-luna", thinking = "medium", fallbacks = [{ provider = "deepseek", model = "deepseek-v4-pro", thinking = "medium" }] }
 
-[ai.profile.personal.models.presets.deepseek.council]
+[ai.profile.personal.presets.deepseek.council]
 alpha = { provider = "deepseek", model = "deepseek-v4-pro", thinking = "high" }
 beta = { provider = "deepseek", model = "deepseek-flash", thinking = "high" }
 
-[ai.profile.personal.models.presets.deepseek.tiers]
+[ai.profile.personal.presets.deepseek.tiers]
 small = { provider = "deepseek", model = "deepseek-flash", thinking = "off" }
 medium = { provider = "deepseek", model = "deepseek-flash", thinking = "high" }
 big = { provider = "deepseek", model = "deepseek-v4-pro", thinking = "high" }
 oracle = { provider = "deepseek", model = "deepseek-v4-pro", thinking = "max" }
 visual = { provider = "deepseek", model = "deepseek-v4-pro", thinking = "medium" }
 
-[ai.profile.personal.models.presets.openai.council]
-alpha = { provider = "openai-codex", model = "gpt-6-sol", thinking = "high" }
+[ai.profile.personal.presets.openai.council]
+alpha = { provider = "openai-codex", model = "gpt-6.1-sol", thinking = "high" }
 beta = { provider = "openai-codex", model = "gpt-6-luna", thinking = "high" }
 
-[ai.profile.personal.models.presets.openai.tiers]
+[ai.profile.personal.presets.openai.tiers]
 small = { provider = "openai-codex", model = "gpt-6-luna", thinking = "off" }
 medium = { provider = "openai-codex", model = "gpt-6-luna", thinking = "medium" }
 big = { provider = "openai-codex", model = "gpt-6-luna", thinking = "high" }
-oracle = { provider = "openai-codex", model = "gpt-6-sol", thinking = "high" }
-visual = { provider = "openai-codex", model = "gpt-6-sol", thinking = "medium" }
+oracle = { provider = "openai-codex", model = "gpt-6.1-sol", thinking = "high" }
+visual = { provider = "openai-codex", model = "gpt-6.1-sol", thinking = "medium" }
 
-[ai.profile.personal.models.providers]
+# Qwen preset routes all tiers to local infer01/qwen3.8-27b with no fallbacks;
+# council is disabled under this preset.
+[ai.profile.personal.presets.qwen.tiers]
+small = { provider = "infer01", model = "qwen3.8-27b", thinking = "off" }
+medium = { provider = "infer01", model = "qwen3.8-27b", thinking = "high" }
+big = { provider = "infer01", model = "qwen3.8-27b", thinking = "high" }
+oracle = { provider = "infer01", model = "qwen3.8-27b", thinking = "max" }
+visual = { provider = "infer01", model = "qwen3.8-27b", thinking = "medium" }
+
+[ai.profile.personal.providers]
 deepseek = { enabled = true, models = ["deepseek-flash", "deepseek-v4-pro"] }
-openai-codex = { enabled = true, models = ["gpt-6-luna", "gpt-6-sol"] }
+openai-codex = { enabled = true, models = ["gpt-6-luna", "gpt-6.1-sol"] }
 opencode-go = { enabled = false }
 opencode-zen = { api_key_env = "OPENCODE_API_KEY", auth_keys = ["opencode-zen"], enabled = true, models = ["deepseek-v4.1-flash"], opencode_alias = "opencode" }
 openrouter = { enabled = true, models = ["z-ai/glm-5.2", "moonshotai/kimi-k3", "anthropic/claude-sonnet-5"] }
+
+# Keyless OpenAI-compatible endpoint. Client-required limits/capabilities are
+# declared statically (R2, R3); no runtime /v1/models discovery.
+# infer01 /v1/models reported max_model_len=262144 for Qwen3.8; use it as the
+# static context window. Leave max_output unset per user preference so clients
+# use their own defaults rather than a guessed cap.
+[ai.profile.personal.serving.infer01]
+base_url = "http://infer01:8080/v1"
+kind = "openai-compatible"
+
+[[ai.profile.personal.serving.infer01.models]]
+id = "qwen3.8-27b"
+name = "qwen3.8-27b"
+reasoning = true
+context_window = 262144
+inputs = ["text", "image"]
+cost = { input = 0.0, output = 0.0 }
+
+[ai.profile.personal.serving.local]
+default_model = "qwen3-coder-30b-a3b"
+engine = "llamacpp"
+
+[[ai.profile.personal.serving.local.models]]
+id = "qwen3-coder-30b-a3b"
+name = "Qwen3 Coder 30B-A3B"
+reasoning = false
+context_window = 32768
+max_output = 8192
+gguf = { repo = "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF", file = "Qwen3-Coder-30B-A3B-Instruct-UD-IQ3_XXS.gguf" }
+sampling = { temperature = 0.7, top_p = 0.8, top_k = 20, min_p = 0.0, repetition_penalty = 1.05 }
+
+[[ai.profile.personal.serving.local.models]]
+id = "qwen3.5-9b"
+name = "Qwen3.5 9B"
+reasoning = true
+context_window = 65536
+max_output = 8192
+gguf = { repo = "unsloth/Qwen3.5-9B-GGUF", file = "Qwen3.5-9B-UD-Q6_K_XL.gguf" }
+sampling = { min_p = 0.0, presence_penalty = 1.5, repetition_penalty = 1.0, temperature = 1.0, top_k = 20, top_p = 0.95 }

@@ -1,6 +1,14 @@
-{{- /* Render Pi models.json with only local provider. Remote providers use Pi built-in models; no catalog restriction. */ -}}
+{{- /* Render Pi models.json: local provider via load-local-models plus each
+   declared OpenAI-compatible serving provider. Remote entries use the literal
+   `no-auth` apiKey sentinel required by Pi's model picker (KTD5); never an env
+   var or real credential. */ -}}
 {{- $root := . -}}
 {{- $providers := dict -}}
+
+{{- /* Serving providers with enabled=false are opted out (default enabled). */ -}}
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.serving" "required" false) | mustFromJson -}}
+{{- $localServing := index $serving "local" | default dict -}}
+{{- $localEnabled := dig "enabled" true $localServing -}}
 
 {{- $resolved := includeTemplate "base/ai/models/load-local-models" (dict "root" $root) | mustFromJson -}}
 {{- $localModels := get $resolved "models" | default dict -}}
@@ -17,7 +25,7 @@
       ) -}}
 {{- end -}}
 {{- $port := get $resolved "port" | default 8321 -}}
-{{- if $localModelList -}}
+{{- if and $localEnabled $localModelList -}}
 {{-   $_ := set $providers "local" (dict
         "baseUrl" (printf "http://127.0.0.1:%v/v1" $port)
         "api" "openai-completions"
@@ -26,5 +34,45 @@
       ) -}}
 {{- end -}}
 
+{{- /* Declared OpenAI-compatible endpoints: explicit upstream model IDs, no
+       runtime discovery. maxTokens is intentionally omitted so Pi applies its
+       own client defaults rather than a guessed output cap. */ -}}
+{{- range $spId, $sp := $serving -}}
+{{-   if not (kindIs "map" $sp) -}}{{ continue }}{{- end -}}
+{{-   if ne (get $sp "kind" | default "") "openai-compatible" -}}{{ continue }}{{- end -}}
+{{-   $spEnabled := dig "enabled" true $sp -}}
+{{-   if not $spEnabled -}}{{ continue }}{{- end -}}
+{{-   $baseUrl := get $sp "base_url" | default "" -}}
+{{-   if not $baseUrl -}}
+{{-     fail (printf "serving provider %q is openai-compatible but has no base_url" $spId) -}}
+{{-   end -}}
+{{-   $remoteModels := list -}}
+{{-   range $m := get $sp "models" | default list -}}
+{{-     $id := get $m "id" | default "" -}}
+{{-     if not $id -}}
+{{-       fail (printf "serving provider %q has a model entry without an id" $spId) -}}
+{{-     end -}}
+{{-     $cost := get $m "cost" | default dict -}}
+{{-     $remoteModels = append $remoteModels (dict
+          "id" $id
+          "name" (get $m "name" | default $id)
+          "reasoning" (get $m "reasoning" | default false)
+          "input" (get $m "inputs" | default (list "text"))
+          "contextWindow" (get $m "context_window" | default 128000)
+          "cost" (dict
+            "input" (get $cost "input" | default 0)
+            "output" (get $cost "output" | default 0)
+            "cacheRead" (get $cost "cacheRead" | default 0)
+            "cacheWrite" (get $cost "cacheWrite" | default 0)
+          )
+        ) -}}
+{{-   end -}}
+{{-   $_ := set $providers $spId (dict
+        "baseUrl" $baseUrl
+        "api" "openai-completions"
+        "apiKey" "no-auth"
+        "models" $remoteModels
+      ) -}}
+{{- end -}}
 
 {{- dict "providers" $providers | toPrettyJson -}}

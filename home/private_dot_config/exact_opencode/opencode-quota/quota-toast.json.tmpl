@@ -2,7 +2,7 @@
 {{- /* Render quota-toast config for @slkiser/opencode-quota plugin */ -}}
 {{- /* enabledProviders derived from merged model providers filtered by opencode_quota */ -}}
 {{- $root := . -}}
-{{- $providers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.models.providers" "required" false) | mustFromJson -}}
+{{- $providers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.providers" "required" false) | mustFromJson -}}
 {{- $enabledProviders := list -}}
 {{- range $id, $p := $providers -}}
 {{-   if get $p "enabled" | default false -}}

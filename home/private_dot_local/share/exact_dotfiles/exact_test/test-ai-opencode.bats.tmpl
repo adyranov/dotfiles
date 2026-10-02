@@ -9,7 +9,18 @@ setup() {
   AGENTS_MD="${HOME}/.config/agents/AGENTS.md"
 }
 
-{{- if .toolchains.opencode }}
+{{ if .toolchains.opencode }}
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving" "required" false) | mustFromJson -}}
+{{- $localServing := index $serving "local" | default dict -}}
+{{- $localPort := get $localServing "port" | default 8321 -}}
+{{- $hasLocalModels := gt (len (get $localServing "models" | default list)) 0 -}}
+{{- $infer01 := index $serving "infer01" | default dict -}}
+{{- $hasInfer01 := gt (len $infer01) 0 -}}
+{{- $presets := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.presets" "required" false) | mustFromJson -}}
+{{- $agentTiers := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" -}}
+{{- $slim := "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json" -}}
+{{- $activePreset := index $presets "default" | default "balanced" -}}
+{{- $hasActiveCouncil := gt (len (index (index $presets $activePreset | default dict) "council" | default dict)) 0 -}}
 @test "opencode core config has routing and schema" {
   local file="$HOME/.config/opencode/opencode.jsonc"
   assert_file_exists "$file"
@@ -50,6 +61,12 @@ setup() {
     .backgroundJobs.abortGraceMs == 10000 and
     .fallback.enabled == true and
     .fallback.maxRetries == 3
+{{- if $hasActiveCouncil }}
+    and (.council.default_preset == "{{ $activePreset }}") and
+    (.council.presets["{{ $activePreset }}"] | length > 0)
+{{- else }}
+    and (.council | not)
+{{- end }}
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
@@ -75,14 +92,6 @@ setup() {
   run jsoncJq -e '
     (.default_agent == "orchestrator") and
     (.agent.plan.disable == true)' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
-  assert_success
-}
-
-@test "opencode factory plannotator is manual and does not configure plan" {
-  run jsoncJq -e '
-    (.plugin | map(select(type == "array" and .[0] == "@plannotator/opencode@latest")) | .[0][1].workflow == "manual") and
-    (.plugin | map(select(type == "array" and .[0] == "@plannotator/opencode@latest")) | .[0][1] | has("planningAgents") | not) and
-    (.agent.plan | has("prompt") | not)' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
   assert_success
 }
 
@@ -225,9 +234,108 @@ EOF
   assert_output "$AGENTS_MD"
 }
 
-{{- if (get . "localModels" | default false) }}
-@test "opencode local provider exposes catalog default" {
-  run jsoncJq -e '.provider.local.models | length > 0' "$HOME/.config/opencode/opencode.jsonc"
+{{- if $hasLocalModels }}
+@test "opencode preserves the loopback local provider" {
+  run jsoncJq -e --arg url "http://127.0.0.1:{{ $localPort }}/v1" '
+    (.provider.local.options.baseURL == $url) and
+    (.provider.local.models | length > 0)
+  ' "$HOME/.config/opencode/opencode.jsonc"
+  assert_success
+}
+{{- end }}
+
+{{- /* Regression: local limits must project load-local-models' normalized
+       context_output, not the raw max_output field (which normalization drops,
+       silently falling back to 8192). The work profile declares 4096, so this
+       fails if the renderer reads the wrong field. */ -}}
+{{- if index .ai.profile "work" }}
+{{- $workHost := merge (dict) .host }}
+{{- $_ := set $workHost "profile" "work" }}
+{{- $workRoot := merge (dict) . }}
+{{- $_ := set $workRoot "host" $workHost }}
+{{- $workCfg := includeTemplate "base/ai/agents/opencode/render-opencode-config" (dict "root" $workRoot "profile" "minimal") | fromJsonc }}
+{{- $workModels := index (index (index (index .ai.profile "work").serving.local) "models") }}
+{{- $expectedOutputs := list }}
+{{- $actualOutputs := list }}
+{{- range $m := $workModels }}
+{{-   $id := get $m "id" }}
+{{-   $expectedOutputs = append $expectedOutputs (printf "%s=%v" $id (get $m "max_output" | default 8192)) }}
+{{-   $actualOutputs = append $actualOutputs (printf "%s=%v" $id (index (index (index $workCfg.provider.local.models $id) "limit") "output")) }}
+{{- end }}
+@test "opencode local output limits use normalized context_output (work profile)" {
+  run test "{{ $actualOutputs | join "," }}" = "{{ $expectedOutputs | join "," }}"
+  assert_success
+}
+{{- end }}
+
+{{- /* Serving providers with enabled=false are opted out (default enabled),
+       matching resolve-enabled-auth-providers' valid_models. */ -}}
+{{- $enabledRoot := merge (dict) . }}
+{{- $enabledServing := merge (dict) .ai.base.serving }}
+{{- $_ := set $enabledServing "disabled-test" (dict
+      "kind" "openai-compatible"
+      "base_url" "http://disabled.test:8080/v1"
+      "enabled" false
+      "models" (list (dict "id" "disabled-model" "name" "Disabled" "context_window" 1000))
+    ) }}
+{{- $_ := set $enabledServing "enabled-test" (dict
+      "kind" "openai-compatible"
+      "base_url" "http://enabled.test:8080/v1"
+      "models" (list (dict "id" "enabled-model" "name" "Enabled" "context_window" 2000))
+    ) }}
+{{- $enabledBase := merge (dict) .ai.base }}
+{{- $_ := set $enabledBase "serving" $enabledServing }}
+{{- $enabledAI := merge (dict) .ai }}
+{{- $_ := set $enabledAI "base" $enabledBase }}
+{{- $_ := set $enabledRoot "ai" $enabledAI }}
+{{- $enabledCfg := includeTemplate "base/ai/agents/opencode/render-opencode-config" (dict "root" $enabledRoot "profile" "minimal") | fromJsonc }}
+@test "opencode omits serving providers with enabled=false" {
+  run test "{{ if hasKey $enabledCfg.provider "disabled-test" }}leaked{{ else }}excluded{{ end }}" = "excluded"
+  assert_success
+  run test "{{ if hasKey $enabledCfg.provider "enabled-test" }}present{{ else }}missing{{ end }}" = "present"
+  assert_success
+}
+
+{{- if $agentTiers }}
+@test "opencode slim preset agents match the shared agent-tier map" {
+  run jq -e --argjson agents '{{ $agentTiers | toJson }}' '
+    (.presets.balanced | keys) == ($agents | keys)
+  ' "{{ $slim }}"
+  assert_success
+}
+{{- end }}
+
+@test "opencode default preset matches configured default" {
+  run jq -e --arg p '{{ index $presets "default" | default "balanced" }}' '.preset == $p' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+{{- if $hasInfer01 }}
+@test "opencode renders keyless infer01 openai-compatible provider" {
+  run jsoncJq -e '
+    (.provider.infer01.npm == "@ai-sdk/openai-compatible") and
+    (.provider.infer01.options.baseURL == "http://infer01:8080/v1") and
+    ((.provider.infer01.options | has("apiKey")) | not) and
+    (.provider.infer01.models["qwen3.8-27b"].name == "qwen3.8-27b") and
+    (.provider.infer01.models["qwen3.8-27b"].limit.context == 262144) and
+    (.provider.infer01.models["qwen3.8-27b"].attachment == true) and
+    (.provider.infer01.models["qwen3.8-27b"].reasoning == true)
+  ' "$HOME/.config/opencode/opencode.jsonc"
+  assert_success
+}
+{{- end }}
+
+{{- if hasKey $presets "qwen" }}
+@test "opencode qwen preset routes are single-entry local infer01 arrays" {
+  run jq -e '
+    (.presets.qwen.orchestrator.model == [{"id":"infer01/qwen3.8-27b","variant":"high"}]) and
+    (.presets.qwen.fixer.model == [{"id":"infer01/qwen3.8-27b","variant":"high"}]) and
+    (.presets.qwen.explorer.model == [{"id":"infer01/qwen3.8-27b"}]) and
+    (.presets.qwen.librarian.model == [{"id":"infer01/qwen3.8-27b"}]) and
+    (.presets.qwen.designer.model == [{"id":"infer01/qwen3.8-27b","variant":"medium"}]) and
+    (.presets.qwen.oracle.model == [{"id":"infer01/qwen3.8-27b","variant":"max"}]) and
+    ((.council.presets // {}) | has("qwen") | not)
+  ' "{{ $slim }}"
   assert_success
 }
 {{- end }}

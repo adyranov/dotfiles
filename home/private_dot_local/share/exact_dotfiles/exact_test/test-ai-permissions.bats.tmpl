@@ -186,6 +186,8 @@ setup() {
 {{- if ne .host.type "ephemeral" }}
 {{- $agentDeny := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) }}
 {{- $denyPaths := includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (index $agentDeny "deny_paths" | default list)) | mustFromJson }}
+{{- $localResolved := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson }}
+{{- $configuredLocalPort := $localResolved.port | toString }}
 
 {{- if eq .host.distro.family "darwin" }}
 # bats test_tags=kind:greywall
@@ -434,9 +436,52 @@ setup() {
 @test "greywall base config allows engram loopback outbound" {
   run jsoncJq -e '.network.allowLocalOutbound == true' "{{ $greywallDir }}/greywall.json"
   assert_success
-  run jsoncJq -e '(.network.forwardPorts // []) | index(7437) != null' "{{ $greywallDir }}/greywall.json"
+  run jsoncJq -e --arg port '{{ $configuredLocalPort }}' '
+    (.network.forwardPorts // [] | map(tostring)) as $ports |
+    ($ports | index("7437") != null) and ($ports | index($port) != null)
+  ' "{{ $greywallDir }}/greywall.json"
   assert_success
 }
+
+# bats test_tags=kind:greywall
+@test "greywall global config adds no infer01 rule" {
+  assert_file_exists "{{ $greywallDir }}/greywall.json"
+  run jsoncJq -e '([.network.rules[] | select(.destination == "infer01")] | length) == 0' "{{ $greywallDir }}/greywall.json"
+  assert_success
+}
+
+{{- $inferAgents := list -}}
+{{- if .toolchains.pi -}}
+{{-   $inferAgents = append $inferAgents (dict "name" "pi" "file" (printf "%s/learned/pi.json" $greywallDir) "tag" "toolchain:pi") -}}
+{{- end -}}
+{{- if .toolchains.opencode -}}
+{{-   $inferAgents = append $inferAgents (dict "name" "opencode" "file" (printf "%s/learned/opencode.json" $greywallDir) "tag" "toolchain:opencode") -}}
+{{- end -}}
+{{- if (get .toolchains "omp" | default false) -}}
+{{-   $inferAgents = append $inferAgents (dict "name" "omp" "file" (printf "%s/learned/omp.json" $greywallDir) "tag" "toolchain:omp") -}}
+{{- end -}}
+
+{{- range $agent := $inferAgents }}
+
+# bats test_tags={{ $agent.tag }},kind:greywall,kind:permission
+@test "{{ $agent.name }} greywall session profile allows infer01:8080" {
+  assert_file_exists "{{ $agent.file }}"
+  run jsoncJq -e '
+    (.network.rules[] | select(.destination == "infer01" and (.port | tostring) == "8080" and .action == "allow"))
+  ' "{{ $agent.file }}"
+  assert_success
+}
+
+# bats test_tags={{ $agent.tag }},kind:greywall,kind:permission
+@test "{{ $agent.name }} greywall session profile forwards preserved and local serving ports" {
+  assert_file_exists "{{ $agent.file }}"
+  run jsoncJq -e --arg port '{{ $configuredLocalPort }}' '
+    (.network.forwardPorts // [] | map(tostring)) as $ports |
+    ($ports | index("7437") != null) and ($ports | index($port) != null)
+  ' "{{ $agent.file }}"
+  assert_success
+}
+{{- end }}
 
 # bats test_tags=kind:greywall
 @test "greywall pi learned profile is valid JSON" {

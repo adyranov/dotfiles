@@ -87,7 +87,7 @@ Keep created tests concise and behavior-focused. Prefer a few high-value invaria
 ## Coding Style
 
 - Use `.editorconfig` for formatting. Respect `.gitattributes` line endings.
-- **TOML**: Alphabetize keys, use `lower_snake_case` for custom data keys. Package keys follow upstream naming (hyphens allowed). `pre-commit` enforces `toml-sort`, `taplo`, `yamlfmt`, `yamllint`, `markdownlint-cli2`, `editorconfig-checker`, `codespell`.
+- **TOML**: Alphabetize keys, use `lower_snake_case` for custom data keys. Entity identifiers (provider/model/package names such as `github-copilot`, `openai.default`) are *values*, not keys, and may be kebab-case or dotted. Package keys follow upstream naming (hyphens allowed). `pre-commit` enforces `toml-sort`, `taplo`, `yamlfmt`, `yamllint`, `markdownlint-cli2`, `editorconfig-checker`, `codespell`.
 - **Shell**: Constants in `UPPER_SNAKE_CASE`, locals in `lower_snake_case`, functions in `lowerCamelCase`. Prefer standard utilities (`awk`, `sed`, `grep`, `curl`).
 - **Chezmoi templates**: Prefer data-driven logic over Go template branching.
   Use `base/helpers/load-section` for merged sections. Prefer source attributes

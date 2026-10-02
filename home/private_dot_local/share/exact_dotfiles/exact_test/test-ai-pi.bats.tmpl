@@ -80,30 +80,6 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi plannotator.json planning has key activeTools" {
-  run jq -e '
-    .phases.planning.activeTools | index("module_report") != null and
-    index("lsp_navigation") != null and
-    index("plannotator_submit_plan") != null and
-    index("ask_user_question") != null
-  ' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi plannotator.json phase systemPrompts are wired" {
-  run jq -e '
-    (.phases.planning.systemPrompt | length > 0) and
-    (.phases.executing.systemPrompt | length > 0) and
-    (.phases.reviewing.systemPrompt | length > 0)
-  ' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  run jq -r ".phases.planning.systemPrompt" "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-  assert_output --partial "docs/plans/"
-}
-
-# bats test_tags=toolchain:pi,kind:config
 @test "pi factory settings.json renders agent routes" {
   assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
   run jq -e '(.subagents.agentOverrides | type) == "object"' "$HOME/.config/pi/profiles/factory/settings.json"
@@ -136,16 +112,6 @@ setup() {
 
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi plannotator.json has model routes" {
-  run jq -e '
-    (.defaults.model.id | length > 0) and
-    (.phases.planning.model.id | length > 0) and
-    (.phases.executing.model.id | length > 0)
-  ' "$HOME/.config/pi/profiles/core/plannotator.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
 @test "pi factory profile symlinks resolve to agent config" {
   local profile="factory"
   run readlink -f "$HOME/.config/pi/profiles/$profile/AGENTS.md"
@@ -154,20 +120,6 @@ setup() {
   run readlink -f "$HOME/.config/pi/profiles/$profile/SYSTEM.md"
   assert_success
   assert_output "$HOME/.config/pi/agent/SYSTEM.md"
-  # Factory plannotator.json is standalone (not a symlink to core)
-  assert_file_exists "$HOME/.config/pi/profiles/$profile/plannotator.json"
-  run jq -e '.phases.planning.systemPrompt | contains("Plan-only contract")' "$HOME/.config/pi/profiles/$profile/plannotator.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi factory plannotator is standalone with plan-only contract" {
-  assert_file_exists "$HOME/.config/pi/profiles/factory/plannotator.json"
-  run jq -e '
-    (.phases.planning.systemPrompt | contains("Plan-only contract")) and
-    (.phases.executing.systemPrompt | contains("[PLANNOTATOR PLAN-ONLY]"))
-  ' "$HOME/.config/pi/profiles/factory/plannotator.json"
-  assert_success
 }
 
 # bats test_tags=toolchain:pi,kind:config
@@ -322,7 +274,7 @@ EOF
 }
 
 # bats test_tags=toolchain:ai,kind:config
-@test "rpiv-advisor reads oracle model route from ai.models.tiers" {
+@test "rpiv-advisor reads oracle model route from ai.tiers" {
   assert_file_exists "$HOME/.config/rpiv-advisor/advisor.json"
 {{- $oracle := get $tiers "oracle" }}
 {{- $oracleKey := printf "%s:%s" $oracle.provider $oracle.model }}
@@ -394,6 +346,130 @@ EOF
   {{- else }}
   true
   {{- end }}
+}
+{{- end }}
+
+# --- Serving-provider projection: local + keyless OpenAI-compatible endpoints ---
+
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving" "required" false) | mustFromJson }}
+{{- $infer01 := index $serving "infer01" | default dict }}
+{{- $hasInfer01 := gt (len $infer01) 0 }}
+{{- $agentTiers := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" }}
+{{- $defaultTier := index $tiers $tiers.default }}
+
+{{- if $hasInfer01 }}
+# bats test_tags=toolchain:pi,kind:model
+@test "pi models.json renders keyless infer01 openai-compatible provider" {
+  assert_file_exists "$HOME/.config/pi/agent/models.json"
+  run jq -e '
+    (.providers.infer01.api == "openai-completions") and
+    (.providers.infer01.baseUrl == "http://infer01:8080/v1") and
+    (.providers.infer01.apiKey == "no-auth") and
+    (.providers.infer01.models
+      | map(select(.id == "qwen3.8-27b"))[0] as $m |
+        ($m.contextWindow == 262144) and
+        ($m.reasoning == true) and
+        (($m.input | index("image")) != null) and
+        (($m | has("maxTokens")) | not))
+  ' "$HOME/.config/pi/agent/models.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "pi enabledModels unions serving and managed provider models" {
+  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+  run jq -e '.enabledModels | index("infer01/qwen3.8-27b") != null' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+}
+{{- end }}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "pi enabledModels keeps local serving models selectable" {
+  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+  run jq -e '.enabledModels | any(startswith("local/"))' "$HOME/.config/pi/agent/settings.json"
+  assert_success
+}
+
+{{- /* Regression: serving providers with enabled=false are opted out (default
+       enabled), matching resolve-enabled-auth-providers' valid_models. */ -}}
+{{- $piRoot := merge (dict) . }}
+{{- $piServing := merge (dict) .ai.base.serving }}
+{{- $_ := set $piServing "disabled-test" (dict
+      "kind" "openai-compatible"
+      "base_url" "http://disabled.test:8080/v1"
+      "enabled" false
+      "models" (list (dict "id" "disabled-model" "name" "Disabled" "context_window" 1000))
+    ) }}
+{{- $_ := set $piServing "enabled-test" (dict
+      "kind" "openai-compatible"
+      "base_url" "http://enabled.test:8080/v1"
+      "models" (list (dict "id" "enabled-model" "name" "Enabled" "context_window" 2000))
+    ) }}
+{{- $piBase := merge (dict) .ai.base }}
+{{- $_ := set $piBase "serving" $piServing }}
+{{- $piAI := merge (dict) .ai }}
+{{- $_ := set $piAI "base" $piBase }}
+{{- $_ := set $piRoot "ai" $piAI }}
+{{- $piCfg := includeTemplate "private_dot_config/exact_pi/exact_agent/private_models.json.tmpl" $piRoot | fromJson }}
+# bats test_tags=toolchain:pi,kind:model
+@test "pi models.json omits serving providers with enabled=false" {
+  run test "{{ if hasKey $piCfg.providers "disabled-test" }}leaked{{ else }}excluded{{ end }}" = "excluded"
+  assert_success
+  run test "{{ if hasKey $piCfg.providers "enabled-test" }}present{{ else }}missing{{ end }}" = "present"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "pi factory defaults follow the selected preset" {
+  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
+  run jq -e \
+    --arg m '{{ $defaultTier.model }}' \
+    --arg p '{{ $defaultTier.provider }}' \
+    --arg t '{{ $defaultTier.thinking }}' '
+    (.defaultModel == $m) and (.defaultProvider == $p) and (.defaultThinkingLevel == $t)
+  ' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "pi factory subagent overrides resolve the shared agent-tier map" {
+  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
+  {{- $expectedOverrides := dict }}
+  {{- range $name, $tierClass := $agentTiers }}
+  {{-   $route := index $tiers $tierClass }}
+  {{-   $expectedOverrides = merge $expectedOverrides (dict $name (dict "model" (includeTemplate "base/ai/agents/pi/render-pi-model-ref" $route) "thinking" (get $route "thinking"))) }}
+  {{- end }}
+  run jq -e --argjson expected '{{ $expectedOverrides | toJson }}' '
+    .subagents.agentOverrides == $expected
+  ' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+}
+
+{{- $presets := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.presets" "required" false) | mustFromJson }}
+{{- if hasKey $presets "qwen" }}
+{{-   $balTiers := index (index $presets "balanced") "tiers" }}
+{{-   $qwenTiers := index (index $presets "qwen") "tiers" }}
+{{-   $balResolved := dict }}
+{{-   $qwenResolved := dict }}
+{{-   range $name, $tierClass := $agentTiers }}
+{{-     $balResolved = merge $balResolved (dict $name (includeTemplate "base/ai/agents/pi/render-pi-model-ref" (index $balTiers $tierClass))) }}
+{{-     $qwenResolved = merge $qwenResolved (dict $name (includeTemplate "base/ai/agents/pi/render-pi-model-ref" (index $qwenTiers $tierClass))) }}
+{{-   end }}
+# bats test_tags=toolchain:pi,kind:model
+@test "pi agent-tier assignments stay stable while routes change with preset" {
+  run jq -e -n \
+    --argjson map '{{ $agentTiers | toJson }}' \
+    --argjson bal '{{ $balResolved | toJson }}' \
+    --argjson qwen '{{ $qwenResolved | toJson }}' '
+    ($map | keys) == ($bal | keys) and
+    ($map | keys) == ($qwen | keys) and
+    ($qwen.explorer == "infer01/qwen3.8-27b") and
+    ($qwen.fixer == "infer01/qwen3.8-27b") and
+    ($qwen.orchestrator == "infer01/qwen3.8-27b") and
+    ($qwen.designer == "infer01/qwen3.8-27b") and
+    ($qwen.oracle == "infer01/qwen3.8-27b")
+  '
+  assert_success
 }
 {{- end }}
 {{- end }}

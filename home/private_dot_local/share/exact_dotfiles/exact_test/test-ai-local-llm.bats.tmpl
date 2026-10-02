@@ -11,8 +11,23 @@ setup() {
 # --- Local LLM ---
 
 {{- if .toolchains.ai }}
-{{- $catalog := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.catalog" "required" true) | mustFromJson }}
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving" "required" true) | mustFromJson }}
+{{- $localServing := index $serving "local" | default dict }}
+{{- $localModels := get $localServing "models" | default list }}
 {{- $resolved := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson }}
+{{- $presets := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.presets" "required" true) | mustFromJson }}
+{{- $enabledAuthBase := includeTemplate "base/ai/auth/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson }}
+{{- $validModels := get $enabledAuthBase "valid_models" | default list }}
+{{- $servingRefs := list }}
+{{- range $spId, $sp := $serving }}
+{{-   if kindIs "map" $sp }}
+{{-     range $m := get $sp "models" | default list }}
+{{-       if and (kindIs "map" $m) (get $m "id") }}{{ $servingRefs = append $servingRefs (printf "%s/%s" $spId (get $m "id")) }}{{ end }}
+{{-     end }}
+{{-   end }}
+{{- end }}
+{{- $agentTiers := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" }}
+{{- $assignedTiers := values $agentTiers | uniq }}
 {{- $swapConfig := "$HOME/.config/llama-swap/config.yaml" }}
 {{- $llamaCppPreset := "$HOME/.config/llama.cpp/models.ini" }}
 {{- $modelsJson := "$HOME/.config/pi/agent/models.json" }}
@@ -21,6 +36,105 @@ setup() {
 {{- $llmBench := "$HOME/.local/bin/llm-bench" }}
 {{- $llmPull := "$HOME/.local/bin/llm-pull" }}
 {{- $llmServe := "$HOME/.local/bin/llm-serve" }}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "local serving provider declares kind and nested models" {
+  run test "{{ get $localServing "kind" | default "" }}" = "local"
+  assert_success
+{{- range $m := $localModels }}
+  run test -n "{{ get $m "id" | default "" }}"
+  assert_success
+  run test -n "{{ get $m "name" | default "" }}"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "load-local-models preserves normalized contract from serving models" {
+  run test "{{ $resolved.port | default 0 }}" != "0"
+  assert_success
+  run test "{{ $resolved.engine }}" = "{{ get $localServing "engine" | default "" }}"
+  assert_success
+  run test "{{ len (get $resolved "models" | default dict) }}" = "{{ len $localModels }}"
+  assert_success
+{{- range $id := keys ($resolved.models | default dict) | sortAlpha }}
+  run test -n "{{ (index $resolved.models $id).backend.repo | default "" }}"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "serving provider models join the enabled-model validation union" {
+{{- range $ref := $servingRefs }}
+  run test "{{ if has $ref $validModels }}yes{{ else }}no{{ end }}" = "yes"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "serving providers inject no credentials" {
+{{- range $spId, $sp := $serving }}
+{{-   if kindIs "map" $sp }}
+  run test "{{ if has $spId $enabledAuthBase.providers }}leaked{{ else }}clean{{ end }}" = "clean"
+  assert_success
+{{-   end }}
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "base preset default resolves to a defined preset" {
+  run test "{{ if and (index $presets "default") (hasKey $presets (index $presets "default")) }}yes{{ else }}no{{ end }}" = "yes"
+  assert_success
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "shared agent/skill tier map applies to every preset" {
+  run test "{{ len $assignedTiers }}" != "0"
+  assert_success
+{{- range $presetName, $preset := $presets }}
+{{-   if ne $presetName "default" }}
+{{-     $tiers := get $preset "tiers" | default dict }}
+{{-     range $tier := $assignedTiers }}
+  run test "{{ if hasKey $tiers $tier }}yes{{ else }}no{{ end }}" = "yes"
+  assert_success
+{{-     end }}
+{{-   end }}
+{{- end }}
+}
+
+{{- if index $presets "qwen" }}
+{{- $qwenPreset := index $presets "qwen" }}
+{{- $qwenTiers := get $qwenPreset "tiers" | default dict }}
+{{- $infer01 := index $serving "infer01" | default dict }}
+{{- $qwenModel := index (get $infer01 "models" | default list) 0 | default dict }}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "infer01 Qwen metadata uses reported context and client output defaults" {
+  run test "{{ get $qwenModel "context_window" | default 0 }}" = "262144"
+  assert_success
+  run test "{{ if hasKey $qwenModel "max_output" }}set{{ else }}client-default{{ end }}" = "client-default"
+  assert_success
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "qwen preset routes work tiers to local infer01 with no fallbacks" {
+{{- range $tier := list "small" "medium" "big" "visual" }}
+{{-   $route := index $qwenTiers $tier }}
+  run test "{{ $route.provider }}/{{ $route.model }}" = "infer01/{{ get $qwenModel "id" | default "" }}"
+  assert_success
+  run test "{{ if hasKey $route "fallbacks" }}bad{{ else }}ok{{ end }}" = "ok"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "qwen preset routes oracle locally and carries no council" {
+  run test "{{ $qwenTiers.oracle.provider }}/{{ $qwenTiers.oracle.model }}/{{ $qwenTiers.oracle.thinking }}" = "infer01/{{ get $qwenModel "id" | default "" }}/max"
+  assert_success
+  run test "{{ if hasKey $qwenPreset "council" }}present{{ else }}absent{{ end }}" = "absent"
+  assert_success
+}
+{{- end }}
 
 {{- if and (eq .host.distro.family "darwin") (eq .host.arch "arm64") }}
 # bats test_tags=toolchain:ai,kind:local-llm
@@ -61,15 +175,6 @@ setup() {
   run grep -F 'export HF_HOME="$XDG_DATA_HOME/huggingface"' "$HOME/.config/shell/exports.d/ai-agents.sh"
   assert_success
   run grep -F 'export HF_HUB_CACHE="$HF_HOME/hub"' "$HOME/.config/shell/exports.d/ai-agents.sh"
-  assert_success
-}
-
-# bats test_tags=toolchain:ai,kind:config
-@test "shell exports configure plannotator data dir" {
-  assert_file_exists "$HOME/.config/shell/exports.d/ai-agents.sh"
-  run grep -F 'export PLANNOTATOR_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/plannotator"' "$HOME/.config/shell/exports.d/ai-agents.sh"
-  assert_success
-  run grep -vF 'export PLANNOTATOR_PORT' "$HOME/.config/shell/exports.d/ai-agents.sh"
   assert_success
 }
 
@@ -213,8 +318,7 @@ setup() {
 }
 {{ if .toolchains.pi }}
 {{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
-{{- $enabledAuth := includeTemplate "base/ai/auth/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson -}}
-{{- $hasExplicitEnabled := $enabledAuth.has_enabled_data -}}
+{{- $hasExplicitEnabled := $enabledAuthBase.has_enabled_data -}}
 
 # bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
 @test "pi models.json points local provider at llm-serve" {
@@ -241,9 +345,15 @@ setup() {
 
 {{ $expectedProviders := list }}
 {{ if $resolved.models }}{{ $expectedProviders = list "local" }}{{ end }}
+{{ range $spId, $sp := $serving }}
+{{   if eq (get $sp "kind" | default "") "openai-compatible" }}
+{{     $expectedProviders = append $expectedProviders $spId }}
+{{   end }}
+{{ end }}
+{{ $expectedProviders = $expectedProviders | uniq | sortAlpha }}
 
 # bats test_tags=toolchain:pi,kind:model
-@test "pi models.json has only local provider" {
+@test "pi models.json has all configured serving providers" {
   assert_file_exists "{{ $modelsJson }}"
   run jq -e '.providers | keys == {{ $expectedProviders | toJson }}' "{{ $modelsJson }}"
   assert_success
@@ -252,7 +362,7 @@ setup() {
 {{- $expectedEnabledModels := list -}}
 {{- $forbiddenBareModels := list -}}
 {{- if $hasExplicitEnabled -}}
-{{-   $expectedEnabledModels = $enabledAuth.enabled_models | sortAlpha -}}
+{{-   $expectedEnabledModels = $enabledAuthBase.valid_models | sortAlpha -}}
 {{- else -}}
 {{-   $expectedRemoteModels := list -}}
 {{-   $forbiddenBareModels = list -}}

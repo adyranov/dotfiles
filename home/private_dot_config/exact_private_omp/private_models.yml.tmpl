@@ -1,0 +1,67 @@
+{{- /* OMP custom model registry (~/.config/omp/models.yml).
+
+  Renders each declared OpenAI-compatible serving endpoint (e.g. infer01) as a
+  keyless (`auth: none`) custom provider with explicit nested model IDs
+  (KTD1, KTD4). Managed cloud credential providers stay out of this registry.
+  `provider`/`providers` are intentionally NOT rendered into config.yml.
+
+  The local loopback engine (llama.cpp / MLX, port 8321) is intentionally NOT
+  registered for OMP: OMP reaches its models through the shared
+  OpenAI-compatible endpoint, so the local stack is left to the other agents
+  that build their own local registries.
+
+  `maxTokens` is emitted only when the shared entry declares an output cap;
+  the remote Qwen3.8 entry omits it so OMP applies its own client default. */ -}}
+{{- $root := . -}}
+{{- $providers := dict -}}
+
+{{- /* Serving providers with enabled=false are opted out (default enabled);
+  this covers every OpenAI-compatible endpoint. */ -}}
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.serving" "required" false) | mustFromJson -}}
+
+{{- /* ── Declared OpenAI-compatible endpoints ── */ -}}
+{{- range $spId, $sp := $serving -}}
+{{-   if not (kindIs "map" $sp) -}}{{ continue }}{{- end -}}
+{{-   $spEnabled := dig "enabled" true $sp -}}
+{{-   if and $spEnabled (eq (get $sp "kind" | default "") "openai-compatible") -}}
+{{-     $baseUrl := get $sp "base_url" | default "" -}}
+{{-     if not $baseUrl -}}
+{{-       fail (printf "omp models.yml: serving provider %q (openai-compatible) has no base_url" $spId) -}}
+{{-     end -}}
+{{-     $remoteList := list -}}
+{{-     range $m := get $sp "models" | default list -}}
+{{-       $id := get $m "id" | default "" -}}
+{{-       if not $id -}}
+{{-         fail (printf "omp models.yml: serving provider %q has a model without id" $spId) -}}
+{{-       end -}}
+{{-       $entry := dict
+            "id" $id
+            "name" (get $m "name" | default $id)
+            "reasoning" (get $m "reasoning" | default false)
+            "input" (get $m "inputs" | default (list "text"))
+            "contextWindow" (get $m "context_window" | default 128000 | int)
+          -}}
+{{-       if hasKey $m "max_output" -}}
+{{-         $_ := set $entry "maxTokens" ($m.max_output | int) -}}
+{{-       end -}}
+{{-       $cost := get $m "cost" | default dict -}}
+{{-       $_ := set $entry "cost" (dict
+            "input" (get $cost "input" | default 0)
+            "output" (get $cost "output" | default 0)
+            "cacheRead" (get $cost "cacheRead" | default 0)
+            "cacheWrite" (get $cost "cacheWrite" | default 0)
+          ) -}}
+{{-       $remoteList = append $remoteList $entry -}}
+{{-     end -}}
+{{-     if $remoteList -}}
+{{-       $_ := set $providers $spId (dict
+            "baseUrl" $baseUrl
+            "api" "openai-completions"
+            "auth" "none"
+            "models" $remoteList
+          ) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+
+{{- dict "providers" $providers | toYaml -}}

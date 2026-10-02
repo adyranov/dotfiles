@@ -1,6 +1,10 @@
-{{- $catalog := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.models.catalog" "required" true) | mustFromJson -}}
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving" "required" true) | mustFromJson -}}
 {{- $resolved := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson -}}
-{{- $profile := get $catalog "local" | default dict -}}
+{{- $localModels := index (index $serving "local" | default dict) "models" | default list -}}
+{{- $modelsById := dict -}}
+{{- range $m := $localModels -}}
+{{-   $modelsById = merge $modelsById (dict $m.id $m) -}}
+{{- end -}}
 #!/usr/bin/env sh
 # llm-pull — Download local LLM weights configured in this chezmoi profile.
 set -eu
@@ -55,8 +59,7 @@ ask_no() {
 
 configured_models() {
   cat <<'EOF'
-{{- range $id := keys $profile.models | sortAlpha }}
-{{-   $m := index $profile.models $id }}
+{{- range $id, $m := $modelsById }}
 {{-   $mlx := index $m "mlx" | default dict }}
 {{-   if index $mlx "repo" }}
 {{ $id }}	mlx	{{ $mlx.repo }}

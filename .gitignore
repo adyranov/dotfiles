@@ -86,7 +86,6 @@ ehthumbs.db
 *.swo
 *~
 # Plans
-.plannotator/
 docs/plans/
 
 # Local Pi runtime state
