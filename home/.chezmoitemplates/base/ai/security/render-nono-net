@@ -1,0 +1,67 @@
+{{- /* render-nono-net — Build the nono network section from the host allow-list.
+  Usage: {{ includeTemplate "base/ai/security/render-nono-net" (dict "root" .) | mustFromJson }}
+          {{ includeTemplate "base/ai/security/render-nono-net" (dict "root" . "credentials" $creds) | mustFromJson }}
+  Output: JSON { allow_domain, open_port } plus custom_credentials (every route
+    row, credentials.routes_enabled) — the proxy's loopback routes and the only
+    definition site: a custom entry named after a built-in replaces it, and only
+    this shape carries env_var, inject_header, endpoint_policy.
+  Input: ai.permissions.network.allow_domain — category -> hosts (chezmoi-side
+    grouping sugar); rendered flat with wildcards preserved and no port grammar.
+  Mixed-list classification: entries containing "." are literal hosts and
+    "@"-prefixed entries are provider tokens (both pass through); dotless entries
+    are group references resolved via expand-path-groups against
+    ai.permissions.network.groups, loud-failing when absent (an unknown group
+    must never render as a garbage allow-domain entry).
+  localhost.forward_ports map to open_port, plus the local serving port.
+  Unix sockets are emitted by render-nono-fs (filesystem.unix_socket*). Raw SSH
+  egress stays blocked; git runs HTTPS-only through the proxy.
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $credentials := (includeTemplate "base/helpers/load-section" (dict "root" ($root | default .) "section" "ai.credentials" "required" false) | mustFromJson) -}}
+{{- $creds := index . "credentials" | default dict -}}
+{{- $net := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.network" "required" false) | mustFromJson) -}}
+{{- $flat := list -}}
+{{- range $hosts := (index $net "allow_domain" | default dict) -}}
+{{-   $flat = concat $flat ($hosts | default list) -}}
+{{- end -}}
+{{- $domains := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" $flat "catalog" "ai.permissions.network.groups") | mustFromJson -}}
+{{- $localhost := index $net "localhost" | default dict -}}
+{{- $ports := (index $localhost "forward_ports" | default list) -}}
+{{- $serving := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.serving" "required" false) | mustFromJson) -}}
+{{- $localServing := index $serving "local" | default dict -}}
+{{- $localPort := index $localServing "port" -}}
+{{- if $localPort -}}
+{{-   $ports = append $ports $localPort -}}
+{{- end -}}
+{{- $out := dict
+  "allow_domain" (includeTemplate "base/ai/security/uniq-sort" $domains | mustFromJson)
+  "open_port" ($ports | uniq)
+-}}
+{{- /* 0.79.0 cannot resolve a credential on a command sandbox, so every route is
+  defined and used at session level, with its endpoint policy attached. */ -}}
+{{- if index $creds "routes_enabled" -}}
+{{-   $custom := dict -}}
+{{-   range $row := ($creds.routes | default list) -}}
+{{-     $entry := dict "upstream" (index $row "upstream") "credential_key" (index $row "credential_key") "env_var" (index $row "env_var") -}}
+{{-     if index $row "inject_header" -}}{{-     $_ := set $entry "inject_header" (index $row "inject_header") -}}{{-     end -}}
+{{-     if index $row "credential_format" -}}{{-     $_ := set $entry "credential_format" (index $row "credential_format") -}}{{-     end -}}
+{{-     $allow := list -}}
+{{-     range $rule := (index $row "endpoint_rules" | default list) -}}{{-     $allow = append $allow (dict "method" $rule.method "path" $rule.path) -}}{{-     end -}}
+{{-     $_ := set $entry "endpoint_policy" (dict "default" (dict "decision" "deny") "allow" $allow) -}}
+{{-     $key := index $row "custom_name" | default (index $row "preset") | default (index $row "name" | lower) -}}
+{{-     $_ := set $custom $key $entry -}}
+{{-   end -}}
+{{-   if $custom -}}{{-   $_ := set $out "custom_credentials" $custom -}}{{-   end -}}
+{{- /* A definition alone is inert (measured: no env injection). Activation is the
+  built-in service list, which also accepts a custom_credentials override for the same
+  name. Names outside it cannot be activated, so the render fails rather than shipping
+  a route the agent cannot use. */ -}}
+{{-   $svc := $credentials.built_in_services | default list -}}
+{{-   $active := list -}}
+{{-   range $k := keys $custom | sortAlpha -}}
+{{-     if not (has $k $svc) -}}{{-     fail (printf "credential route %s is not a built-in service (%s): no activation surface exists, so it injects nothing; move the name to env_injected" $k ($svc | join ", ")) -}}{{-     end -}}
+{{-     $active = append $active $k -}}
+{{-   end -}}
+{{-   if $active -}}{{-   $_ := set $out "credentials" ($active | uniq | sortAlpha) -}}{{-   end -}}
+{{- end -}}
+{{- $out | toJson -}}

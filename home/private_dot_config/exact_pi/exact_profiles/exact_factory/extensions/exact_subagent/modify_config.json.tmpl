@@ -1,0 +1,42 @@
+{{- /*
+  Renders at template stage to an executable modify script: the fleet
+  (pi-subagents) concurrency budget is resolved and the managed defaults are
+  baked into the script text. At apply time the script reads the current
+  target content on stdin and validates it: valid JSON object -> merge (user
+  keys preserved, managed keys overwritten); corrupt or non-object content ->
+  warn and emit the baked defaults (discard-and-warn); empty stdin -> managed
+  defaults. Never exits non-zero on bad input and never emits empty stdout
+  (empty stdout deletes the chezmoi target).
+
+  Key mapping from the retired tintinweb subagents.json: maxConcurrent ->
+  globalConcurrencyLimit takes the full preset budget (it bounds every child
+  in a run tree, foreground included — the retired maxConcurrent = limit-1
+  covered only the background pool), maxConcurrentForeground=1 ->
+  forceTopLevelAsync + maxActiveAsyncRunsPerSession (top-level dispatches go
+  background; one async run at a time per session approximates the serial
+  foreground). Tunable per-host via unmanaged keys' absence: managed keys
+  always win on apply.
+*/ -}}
+{{- $limit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" .) | int -}}
+{{- $managed := dict "forceTopLevelAsync" true "globalConcurrencyLimit" $limit "maxActiveAsyncRunsPerSession" (max 1 (sub $limit 1)) -}}
+#!/usr/bin/env bash
+set -euo pipefail
+
+managed=$(cat <<'MANAGED'
+{{ $managed | toPrettyJson }}
+MANAGED
+)
+
+input=$(cat)
+
+if [ -z "$input" ]; then
+  printf '%s\n' "$managed"
+  exit 0
+fi
+
+if printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1; then
+  printf '%s' "$input" | jq --argjson managed "$managed" '. + $managed'
+else
+  printf 'chezmoi: warning: extensions/subagent/config.json: existing content is not valid JSON; discarding and restoring managed defaults\n' >&2
+  printf '%s\n' "$managed"
+fi

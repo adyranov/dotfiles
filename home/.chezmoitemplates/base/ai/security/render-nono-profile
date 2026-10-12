@@ -1,0 +1,115 @@
+{{- /* render-nono-profile — Build a full nono profile (base, or an agent that extends base).
+  Usage: {{ includeTemplate "base/ai/security/render-nono-profile" (dict "root" .) | mustFromJson }}
+    {{ includeTemplate "base/ai/security/render-nono-profile" (dict "root" . "agent" "pi") | mustFromJson }}
+  Base (no agent): emits the shared filesystem / command_policies / network /
+  environment sections. Agent: emits `extends: "base"` plus only the delta —
+  shared sandbox merged with the agent's own, an interpolated /tmp/agents/<agent>
+  scratch pair, agent grants/denies/hosts; nono appends+dedupes inherited arrays.
+  Filesystem refs classify via classify-refs (loud-fail on unknown bare names);
+  native globs pass verbatim except the tilde-tail strip. environment.deny_vars:
+  base carries the derived credential scrub set (incl. DCG_*), agents add their
+  own; wildcard and gap-set names repeat into redaction.extra_env_vars (nono
+  redacts exact deny_vars names only, so gap names stay out of deny_vars).
+  Routes land on agent profiles, never on base. The gap set is delivered by
+  pass-through (gap names stay out of deny_vars): env_credentials declarations
+  are fatal at launch when a source var is unset (measured, nono 0.79.0).
+  unsafe_macos_seatbelt_rules: $HOME sentinels expand via expand-tmpdir;
+  emitted darwin-only when non-empty (rules APPEND after the generated tiers,
+  last-match-wins in nono 0.79.0; silently ignored on Linux, and honoured in
+  user-authored profiles only).
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $agent := dig "agent" "" . -}}
+{{- if eq $agent "" -}}
+{{- /* Hoisted once per base render: the guard chain (2 python spawns) runs a
+  single time and both consumers take the passed list. Guard refusals
+  propagate identically (a fail in the include fails this render). */ -}}
+{{-   $applyDests := includeTemplate "base/ai/security/render-apply-dests" (dict "root" $root) | mustFromJson -}}
+{{-   $fs := includeTemplate "base/ai/security/render-nono-fs" (dict "root" $root "applyDests" $applyDests) | mustFromJson -}}
+{{-   $cmd := includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $root "applyDests" $applyDests) | mustFromJson -}}
+{{-   $net := includeTemplate "base/ai/security/render-nono-net" (dict "root" $root) | mustFromJson -}}
+{{-   $creds := includeTemplate "base/ai/auth/render-credentials" $root | mustFromJson -}}
+{{-   $denyVars := $creds.secrets | default list -}}
+{{-   $gap := keys ($creds.env_injected | default dict) | sortAlpha -}}
+{{-   $wildcards := list -}}
+{{-   range $v := $denyVars -}}{{-   if contains "*" $v -}}{{-   $wildcards = append $wildcards $v -}}{{-   end -}}{{-   end -}}
+{{-   $profile := dict
+  "meta" (dict "name" "base")
+  "filesystem" $fs
+  "command_policies" $cmd
+  "network" $net
+  "environment" (dict "deny_vars" $denyVars)
+  "diagnostics" (dict "redaction" (dict "extra_env_vars" (concat $wildcards $gap | uniq | sortAlpha)))
+-}}
+{{-   $profile | toPrettyJson -}}
+{{- else -}}
+{{- /* Shared baseline merge: load-section overwrites arrays per layer, so
+  concat shared into the agent lists explicitly (network.allow dict entries
+  preserved); the uniq|sortAlpha tiers downstream dedupe. The per-agent
+  /tmp/agents/<agent> scratch pair is interpolated here, never stored in data. */ -}}
+{{-   $shared := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.shared.sandbox" "required" false) | mustFromJson) -}}
+{{-   $own := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" (printf "ai.agents.%s.sandbox" $agent) "required" false) | mustFromJson) -}}
+{{-   $fsData := dict -}}
+{{-   $netData := dict -}}
+{{-   $seatbelt := list -}}
+{{-   range $map := list $shared $own -}}
+{{-     range $k, $v := (index $map "filesystem" | default dict) -}}{{-     $_ := set $fsData $k (concat ($v | default list) (index $fsData $k | default list)) -}}{{-     end -}}
+{{-     range $k, $v := (index $map "network" | default dict) -}}{{-     $_ := set $netData $k (concat ($v | default list) (index $netData $k | default list)) -}}{{-     end -}}
+{{-     $seatbelt = concat $seatbelt (index $map "unsafe_macos_seatbelt_rules" | default list) -}}
+{{-   end -}}
+{{-   $scratch := printf "/tmp/agents/%s" $agent -}}
+{{-   $fsCatalog := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem.paths" "required" true) | mustFromJson) -}}
+{{-   $read := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $fsData "read" | default list) (list $scratch)) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{-   $write := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $fsData "write" | default list) (list $scratch)) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{-   $deny := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (index $fsData "deny" | default list) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{-   $tiers := includeTemplate "base/ai/security/build-fs-tiers" (dict "root" $root "read" $read "write" $write "deny" $deny) | mustFromJson -}}
+{{-   $fs := dict "allow" (index $tiers "allow") "read" (index $tiers "read") "deny" (index $tiers "deny") -}}
+{{-   $sockets := index $fsData "unix_socket_subtree" | default list -}}
+{{-   if $sockets -}}{{-   $_ := set $fs "unix_socket_subtree" (includeTemplate "base/ai/security/uniq-sort" $sockets | mustFromJson) -}}{{- end -}}
+{{-   $readFiles := index $fsData "read_file" | default list -}}
+{{-   if $readFiles -}}{{-   $_ := set $fs "read_file" (includeTemplate "base/ai/security/uniq-sort" $readFiles | mustFromJson) -}}{{- end -}}
+{{-   $bypass := index $fsData "bypass_protection" | default list -}}
+{{-   if $bypass -}}{{-   $_ := set $fs "bypass_protection" (includeTemplate "base/ai/security/uniq-sort" $bypass | mustFromJson) -}}{{- end -}}
+{{-   $hosts := (index $netData "allow_domain" | default list) -}}
+{{-   range $e := (index $netData "allow" | default list) -}}
+{{-     $hosts = append $hosts (index $e "host") -}}
+{{-   end -}}
+{{-   $hosts = includeTemplate "base/ai/security/uniq-sort" $hosts | mustFromJson -}}
+{{-   $profile := dict
+  "meta" (dict "name" $agent)
+  "extends" "base"
+  "filesystem" $fs
+-}}
+{{-   $network := dict -}}
+{{-   if gt (len $hosts) 0 -}}{{-   $_ := set $network "allow_domain" $hosts -}}{{- end -}}
+{{- /* Session routes attach here (the agent's own clients); the scrub lives in base. */ -}}
+{{-   $creds := includeTemplate "base/ai/auth/render-credentials" (dict "root" $root "agent" $agent) | mustFromJson -}}
+{{-   $netOut := includeTemplate "base/ai/security/render-nono-net" (dict "root" $root "credentials" $creds) | mustFromJson -}}
+{{-   $routeKeys := omit $netOut "allow_domain" "open_port" -}}
+{{-   if $routeKeys -}}{{-   $network = merge $network $routeKeys -}}{{-   end -}}
+{{-   if $network -}}{{-   $_ := set $profile "network" $network -}}{{- end -}}
+{{- /* Command-attached routes need the definition (network, above) and the
+  sandbox reference in the SAME profile. The whole command_policies section is
+  re-emitted, not a subset: how extends merges that section is unprobed, and an
+  identical full body is correct whether the child replaces or merges. */ -}}
+{{-   $cmdRoutes := list -}}
+{{-   if $creds.routes_enabled -}}
+{{-     range $row := ($creds.routes | default list) -}}
+{{-       if eq (index $row "attach" | default "session") "command" -}}{{-       $cmdRoutes = append $cmdRoutes (index $row "command") -}}{{-       end -}}
+{{-     end -}}
+{{-   end -}}
+{{-   if $cmdRoutes -}}
+{{-     $dests := includeTemplate "base/ai/security/render-apply-dests" (dict "root" $root) | mustFromJson -}}
+{{-     $_ := set $profile "command_policies" (includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $root "applyDests" $dests) | mustFromJson) -}}
+{{-   end -}}
+{{- /* Seatbelt S-expressions: $HOME sentinels expand to canonical literal
+  paths (expand-tmpdir's home key, trailing slash trimmed like render-nono-cmd
+  does for its own printf rules); darwin-only — the field is silently ignored
+  on Linux, so it is stripped there. */ -}}
+{{-   $seatbelt = includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $seatbelt "home" (trimSuffix "/" $root.chezmoi.homeDir)) | mustFromJson -}}
+{{-   if and $seatbelt (eq $root.chezmoi.os "darwin") -}}{{-   $_ := set $profile "unsafe_macos_seatbelt_rules" (includeTemplate "base/ai/security/uniq-sort" $seatbelt | mustFromJson) -}}{{- end -}}
+{{- /* omp scrubs the full derived set; others inherit base's scrub and receive
+  gap values by pass-through (gap names are excluded from deny_vars upstream). */ -}}
+{{-   if eq $agent "omp" -}}{{-   $_ := set $profile "environment" (dict "deny_vars" ($creds.secrets | default list)) -}}{{-   end -}}
+{{-   $profile | toPrettyJson -}}
+{{- end -}}

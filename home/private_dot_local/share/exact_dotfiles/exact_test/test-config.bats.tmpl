@@ -298,3 +298,40 @@ EOF
   run grep -q 'SetEnv TERM=' "$XDG_CONFIG_HOME/ssh/config.d/common.conf"
   assert_failure
 }
+
+{{- /* Age-off hosts: the ignore block prunes both confs, so the assertion
+       only applies when age encryption is configured. */ -}}
+{{- if .secrets.age }}
+# bats test_tags=kind:ssh
+@test "ssh config.d carries only the active profile conf" {
+  run "$(chezmoiBin)" data --format json
+  assert_success
+  profile="$(jq -r '.host.profile' <<<"$output")"
+  other=$([ "$profile" = "work" ] && echo personal || echo work)
+  assert_file_exists "$HOME/.config/ssh/config.d/${profile}.conf"
+  assert [ ! -f "$HOME/.config/ssh/config.d/${other}.conf" ]
+}
+{{- end }}
+
+{{- /* Render-level guards: a comment closing with "-}}" between two literal
+       lines chomps the separator newline and glues the patterns into one
+       inert entry (84f60c9 CI failure: the age catch-all glued onto the
+       Library pattern). --override-data makes these hermetic on every host,
+       age on or off. */}}
+# bats test_tags=kind:render
+@test ".chezmoiignore age catch-all renders as a standalone pattern" {
+  local src
+  src="$("$(chezmoiBin)" source-path)/.chezmoiignore.tmpl"
+  render_source "$src" "$BATS_FILE_TMPDIR/ignore.txt" '{"secrets":{"age":false}}'
+  run grep -cx -F '**/*.age' "$BATS_FILE_TMPDIR/ignore.txt"
+  assert_success
+}
+
+# bats test_tags=kind:render
+@test ".chezmoiremove legacy symlink patterns render standalone" {
+  local src
+  src="$("$(chezmoiBin)" source-path)/.chezmoiremove.tmpl"
+  render_source "$src" "$BATS_FILE_TMPDIR/remove.txt"
+  run grep -cx -F '.local/bin/omp-agent' "$BATS_FILE_TMPDIR/remove.txt"
+  assert_success
+}

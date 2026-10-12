@@ -27,15 +27,20 @@
 {{- end -}}
 {{- $filters := get $profile "package_filters" | default dict -}}
 {{- range $name := $profile.packages -}}
+{{- /* Scheme-qualified entries (git:, npm:) pass verbatim; bare names are npm.
+  ponytail: contains-":" heuristic; whitelist npm:/git: prefixes if pi grows
+  scheme support. */ -}}
+{{-   $source := $name -}}
+{{-   if not (contains ":" $name) -}}{{- $source = printf "npm:%s" $name -}}{{- end -}}
 {{-   $filter := index $filters $name -}}
 {{-   if $filter -}}
-{{-     $pkg := dict "source" (printf "npm:%s" $name) -}}
+{{-     $pkg := dict "source" $source -}}
 {{-     range $k, $v := $filter -}}
 {{-       $_ := set $pkg $k $v -}}
 {{-     end -}}
 {{-     $packages = append $packages $pkg -}}
 {{-   else -}}
-{{-     $packages = append $packages (printf "npm:%s" $name) -}}
+{{-     $packages = append $packages $source -}}
 {{-   end -}}
 {{- end -}}
 {{- $managed := dict
@@ -51,7 +56,7 @@
   "followUpMode" "all"
   "steeringMode" "all"
   "treeFilterMode" "no-tools"
-  "enableInstallTelemetry" true
+  "enableInstallTelemetry" false
   "enabledModels" $enabledModels
   "npmCommand" (list "mise" "exec" "node@lts" "--" "npm")
   "packages" $packages
@@ -67,10 +72,12 @@
   "warnings" (dict "anthropicExtraUsage" true)
 -}}
 {{- if eq .profile "factory" -}}
-{{- /* Agent -> tier-class map, hardcoded (pi-specific; tiers are the primary
-  data, resolved per preset). */ -}}
-{{-   $piAgentTiers := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" -}}
-{{-   $agentOverrides := includeTemplate "base/ai/agents/pi/render-model-category-map" (dict "root" .root "field" "agents" "classMap" $piAgentTiers) | mustFromJson -}}
-{{-   $_ := set $managed "subagents" (dict "agentOverrides" $agentOverrides) -}}
+{{- /* Fleet role -> tier-class map from profile data (fleet_role_tiers);
+  tiers are the primary data, resolved per preset. */ -}}
+{{-   $fleetTiers := get $profile "fleet_role_tiers" | default dict -}}
+{{-   if $fleetTiers -}}
+{{-     $agentOverrides := includeTemplate "base/ai/agents/pi/render-model-category-map" (dict "root" .root "field" "agents" "classMap" $fleetTiers) | mustFromJson -}}
+{{-     $_ := set $managed "subagents" (dict "agentOverrides" $agentOverrides) -}}
+{{-   end -}}
 {{- end -}}
 {{- $managed | toPrettyJson -}}

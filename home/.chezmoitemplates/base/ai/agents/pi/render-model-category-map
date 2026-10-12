@@ -7,7 +7,7 @@
     field    — category field, "agents" or "skills"; used in error messages
     classMap — required name -> tier-class map
 
-  The name -> tier-class assignment is stable across presets (KTD9); only the
+  The name -> tier-class assignment is stable across presets; only the
   class -> provider/model resolution changes with the selected preset.
 
   Output: JSON dict of mappedName → {model, thinking}, where model is

@@ -1,87 +1,77 @@
-# chezmoi --remove --dry-run --verbose apply
-
-.asdf
-Brewfile
-.bash_history
-.bash_logout
-.bash_profile
-.bashrc
-.cargo
-.colima
+{{- /*
+Prune lists for gated content: gate off -> targets are gone.
+Renames self-heal via exact_ dirs + `chezmoi apply --remove '<target>'`
+(chezmoi prunes files no longer present in source). Patterns are TARGET
+names; each gated block below mirrors home/.chezmoiignore.tmpl exactly.
+*/ -}}
+{{- if ne .host.distro.family "darwin" }}
+Library
+{{- end }}
+{{- if not .secrets.age }}
+{{- /* Age targets with no non-age twin; the ssh config.d confs are also
+     listed here in .chezmoiignore.tmpl but pruned by the profile block.
+     Intentional asymmetry: .chezmoiignore.tmpl carries a .age catch-all that is
+     deliberately not mirrored here — targets listed in .chezmoiignore are never
+     removed, so a .age pattern here would be inert, and an age-off host never
+     writes a .age target (apply dies before writing it). */}}
+.config/docker/buildkitd/buildkitd.work.toml
+.config/git/work
+.config/git/work-user
+.config/maven/work.settings.xml
+.local/share/mkcert/readonly_rootCA-key.pem
+.local/share/mkcert/rootCA.pem
+{{- end }}
+{{- if not .toolchains.ai }}
+.agents
+.config/agents
+.config/agents/**
+.config/dcg
+.config/dcg/**
 .config/llama-swap
-.config/agents/commands/caveman.md
-.config/agents/commands/caveman-commit.md
-.config/agents/commands/caveman-compress.md
-.config/agents/commands/caveman-help.md
-.config/agents/commands/caveman-review.md
-.config/agents/commands/caveman-stats.md
-.config/agents/libraries/commands/caveman
-.config/agents/libraries/commands/caveman-instructions
-.config/agents/libraries/extensions/opencode-caveman
-.config/agents/libraries/skills/caveman
-.config/agents/skills/caveman
-.config/opencode/profiles/core/commands/caveman.md
-.config/opencode/profiles/core/commands/caveman-commit.md
-.config/opencode/profiles/core/commands/caveman-compress.md
-.config/opencode/profiles/core/commands/caveman-help.md
-.config/opencode/profiles/core/commands/caveman-review.md
-.config/opencode/profiles/core/commands/caveman-stats.md
-.config/opencode/profiles/core/plugins/caveman
-.config/opencode/profiles/core/CAVEMAN.md
-.config/opencode/profiles/factory/commands/caveman.md
-.config/opencode/profiles/factory/commands/caveman-commit.md
-.config/opencode/profiles/factory/commands/caveman-compress.md
-.config/opencode/profiles/factory/commands/caveman-help.md
-.config/opencode/profiles/factory/commands/caveman-review.md
-.config/opencode/profiles/factory/commands/caveman-stats.md
-.config/opencode/profiles/factory/plugins/caveman
-.config/opencode/profiles/factory/CAVEMAN.md
-.config/agents/libraries/commands/plannotator-opencode
-.config/opencode/commands/plannotator-*.md
-.config/opencode/profiles/core/commands/plannotator-*.md
-.config/opencode/profiles/factory/commands/plannotator-*.md
-.config/pi/profiles/core/plannotator.json
-.config/pi/profiles/factory/plannotator.json
-.dircolors
-.gitconfig
-.gitignore
-.gradle
-.inputrc
-.krew
-.lesshst
-.local/bin/llama-bench
-.local/bin/llama-cli
-.local/bin/llama-server
-.local/share/asdf
-.local/share/aqua
-.local/src/llama-x86-mac
-.local/state/llama-x86-mac
-.m2
-.npm
-.opencode-notify.log
-.ant
-.croc
-.python_history
-.rustup
-.subversion
-.terraform.d
-.terraformrc
-.tmux.conf
-.config/herdr
-.local/share/herdr
-.cache/herdr
-.local/state/herdr
-.local/log/herdr
-.tokei.toml
-.tool-versions
-.unison
-.viminfo
-.wgetrc
-.zlogin
-.zlogout
-.zprofile
-.zshrc
-.zshrc.zwc
-.zsh_history
-.zsh_sessions
-.config/pi/agent/caveman.json
+.config/llama-swap/**
+.config/nono
+.config/nono/**
+.config/skypilot
+.config/skypilot/**
+.config/runpod
+.config/runpod/**
+.config/zsh/functions.d/skyl
+.runpod
+.local/bin/llm-serve
+.local/share/dotfiles/test/test-ai-*.bats
+{{- end }}
+{{- /* Legacy argv0 symlinks (subcommand dispatch replaced them):
+       pruned unconditionally on every host. */}}
+.local/bin/pi-agent
+.local/bin/opencode-agent
+.local/bin/omp-agent
+{{- /* Retired greywall-era artifacts: LaunchAgent plist (booted out by the
+       darwin retire script), the Application Support convenience symlinks,
+       and the greywall-open-url bridge pair (the bridge wrote /tmp/
+       greywall-open-url; macOS keeps /usr/bin/open). */}}
+Library/LaunchAgents/com.user.openurl-bridge.plist
+Library/Application Support/greywall
+Library/Application Support/greyproxy
+.local/bin/open
+.local/bin/openurl-bridge.sh
+{{- if not (get .toolchains "pi" | default false) }}
+.config/pi
+.config/pi/**
+{{- end }}
+{{- if not (get .toolchains "opencode" | default false) }}
+.config/opencode
+.config/opencode/**
+{{- end }}
+{{- if not (get .toolchains "omp" | default false) }}
+.config/omp
+.config/omp/**
+{{- end }}
+{{- /* Launcher gate: mirrors home/.chezmoiignore.tmpl. */ -}}
+{{- if not (or (get .toolchains "pi" | default false) (get .toolchains "opencode" | default false) (get .toolchains "omp" | default false)) }}
+.local/bin/agent
+{{- end }}
+{{ if eq .host.profile "work" -}}
+.config/ssh/config.d/personal.conf
+{{- else -}}
+.config/ssh/config.d/work.conf
+{{- end }}

@@ -4,9 +4,10 @@
 
 {{- $presetsConfig := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.presets" "required" true) | mustFromJson -}}
 
-{{- /* Mapping: slim agent to tier, hardcoded (opencode-specific agent names; the
-     tiers are the primary data, resolved per preset). */ -}}
-{{- $agentMap := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" -}}
+{{- /* Mapping: slim agent to tier, from data (ai.agents.opencode.agent_tiers;
+     opencode-specific agent names; the tiers are the primary data, resolved
+     per preset). */ -}}
+{{- $agentMap := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.opencode.agent_tiers" "required" true) | mustFromJson -}}
 
 {{- /* MCP/skills per agent */ -}}
 {{- $engramMcps := list "engram" -}}
@@ -91,6 +92,7 @@
 {{- $backgroundJobs := dict
   "wallClockTimeoutMs" 3600000
   "abortGraceMs" 10000
+  "concurrency" (dict "defaultConcurrency" (includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" $root) | int))
 -}}
 {{- $fallback := dict
   "enabled" true

@@ -1,12 +1,14 @@
 {{- /* format/mise — Outputs TOML tool entries for mise.toml.
   Args (dict): packages — dict of id → package info.
-  Supports `extras` field for pipx packages. */ -}}
+  Supports `extras` for pipx packages and `uvx_args` for per-tool uv flags
+  (e.g. pinning the interpreter when wheels are missing for mise's Python). */ -}}
 {{- $packages := .packages -}}
 {{- range $id := sortAlpha (keys $packages) }}
     {{- $pkg := index $packages $id }}
     {{- $name := index $pkg "package" }}
     {{- $version := index $pkg "pin" | default "latest" }}
     {{- $extras := index $pkg "extras" | default "" }}
+    {{- $uvxArgs := index $pkg "uvx_args" | default "" }}
     {{- $platforms := index $pkg "platforms" }}
     {{- if gt (len $platforms) 0 }}
     {{- $platformParts := list -}}
@@ -19,9 +21,18 @@
         {{- $platformParts = append $platformParts (printf "%s = {%s}" $platform ($optParts | join ", ")) -}}
     {{- end }}
 "{{ $name }}" = {version = "{{ $version }}", platforms = { {{- $platformParts | join ", " -}} }}
-    {{- else if ne $extras "" }}
-'{{ $name }}' = {version = '{{ $version }}', extras = '{{ $extras }}'}
     {{- else }}
+    {{- $opts := list (printf "version = '%s'" $version) -}}
+    {{- if ne $extras "" -}}
+        {{- $opts = append $opts (printf "extras = '%s'" $extras) -}}
+    {{- end -}}
+    {{- if ne $uvxArgs "" -}}
+        {{- $opts = append $opts (printf "uvx_args = '%s'" $uvxArgs) -}}
+    {{- end }}
+    {{- if eq (len $opts) 1 }}
 '{{ $name }}' = '{{ $version }}'
+    {{- else }}
+'{{ $name }}' = { {{- $opts | join ", " -}} }
+    {{- end }}
     {{- end }}
 {{- end -}}

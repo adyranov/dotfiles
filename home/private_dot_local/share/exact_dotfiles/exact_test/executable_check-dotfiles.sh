@@ -10,6 +10,14 @@ done
 DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 BATS_BIN="${DIR}/bats/bin/bats"
 
+# gtimeout on macOS (coreutils), timeout on Linux CI; absence fails the run
+# loudly below — a test runner without a timeout is not acceptable.
+TIMEOUT_BIN="$(command -v gtimeout || command -v timeout || true)"
+if [ -z "$TIMEOUT_BIN" ]; then
+  printf 'check-dotfiles: gtimeout/timeout not found (coreutils required)\n' >&2
+  exit 1
+fi
+
 if [ ! -x "$BATS_BIN" ]; then
   printf 'check-dotfiles: bats not found at %s\nRun chezmoi apply to fetch test externals.\n' "$BATS_BIN" >&2
   exit 1
@@ -18,8 +26,9 @@ fi
 # ----- Constants & defaults ---------------------------------------------------
 
 PACKAGE_SUITES=(test-system-packages.bats test-mise-packages.bats test-helm-plugins.bats test-krew-plugins.bats)
-AI_SUITES=(test-ai-shared.bats test-ai-pi.bats test-ai-opencode.bats test-ai-omp.bats test-ai-local-llm.bats test-ai-permissions.bats test-ai-skypilot.bats)
-ALL_SUITES=("${PACKAGE_SUITES[@]}" test-config.bats "${AI_SUITES[@]}")
+AI_SUITES=(test-ai-shared.bats test-ai-pi.bats test-ai-opencode.bats test-ai-omp.bats test-ai-local-llm.bats test-ai-permissions.bats test-ai-dcg.bats test-ai-subagent-limit.bats)
+ALL_SUITES=("${PACKAGE_SUITES[@]}" test-config.bats test-runner.bats "${AI_SUITES[@]}")
+AGGREGATE_TITLE='aggregate install smoke'
 
 detectJobs() {
   if command -v nproc >/dev/null 2>&1; then
@@ -51,6 +60,7 @@ suiteAlias() {
   helm-plugins | helm) echo test-helm-plugins.bats ;;
   krew-plugins | krew) echo test-krew-plugins.bats ;;
   config) echo test-config.bats ;;
+  runner) echo test-runner.bats ;;
   ai) printf '%s\n' "${AI_SUITES[@]}" ;;
   ai-shared) echo test-ai-shared.bats ;;
   ai-pi) echo test-ai-pi.bats ;;
@@ -58,6 +68,8 @@ suiteAlias() {
   ai-omp) echo test-ai-omp.bats ;;
   ai-local-llm | ai-llm) echo test-ai-local-llm.bats ;;
   ai-permissions | ai-perms) echo test-ai-permissions.bats ;;
+  ai-dcg) echo test-ai-dcg.bats ;;
+  ai-subagent-limit | ai-limit) echo test-ai-subagent-limit.bats ;;
   all) printf '%s\n' "${ALL_SUITES[@]}" ;;
   *) return 1 ;;
   esac
@@ -75,17 +87,6 @@ resolveSuites() {
     fi
     printf '%s\n' "$resolved"
   done | awk '!seen[$0]++'
-}
-
-buildToolFilterRegex() {
-  local parts=() tool
-  for tool in "$@"; do
-    parts+=("$(printf '%s' "$tool" | sed 's/[][(){}.^$*+?|\\]/\\&/g')")
-  done
-  printf '^(%s)($| )' "$(
-    IFS='|'
-    printf '%s' "${parts[*]}"
-  )"
 }
 
 junitAttr() {
@@ -128,13 +129,35 @@ listTests() {
   done < <(discoverTests)
 }
 
+# Bare package keys must name a pkg:<id> tag in a package suite; the fixed
+# aggregate title alone would let unknown keys pass the smoke vacuously.
+validateToolKeys() {
+  local known key
+  known=$(discoverTests | awk -F'\t' '
+    $1 == "system-packages" || $1 == "mise-packages" || $1 == "helm-plugins" || $1 == "krew-plugins" { print $3 }' |
+    tr ',' '\n')
+  local unknown=()
+  for key in "$@"; do
+    printf '%s\n' "$known" | grep -qxF "pkg:$key" || unknown+=("$key")
+  done
+  [ ${#unknown[@]} -eq 0 ] && return 0
+  for key in "${unknown[@]}"; do
+    printf 'check-dotfiles: unknown package key: %s\n' "$key" >&2
+  done
+  return 1
+}
+
 # ----- Execution --------------------------------------------------------------
 
 runSuite() {
-  local suite_path=$1 out_dir=$2 parallel=${3:-true}
+  local suite_path=$1 out_dir=$2 parallel=$3
   local rc=0 jobs_args=()
   [ "$parallel" = true ] && jobs_args=("${BATS_JOBS_ARGS[@]+"${BATS_JOBS_ARGS[@]}"}")
-  "$BATS_BIN" "${jobs_args[@]+"${jobs_args[@]}"}" "${BATS_FILTER_ARGS[@]+"${BATS_FILTER_ARGS[@]}"}" \
+  # Hard wall-clock cap per suite: a suite that overruns its budget is a suite
+  # bug (missing probe batching / timeouts), not a slow pass. Every suite
+  # must finish within 120s. CHECK_DOTFILES_SUITE_TIMEOUT overrides.
+  local cap=120
+  "${TIMEOUT_BIN}" -k 10 "${CHECK_DOTFILES_SUITE_TIMEOUT:-$cap}" "$BATS_BIN" "${jobs_args[@]+"${jobs_args[@]}"}" "${BATS_FILTER_ARGS[@]+"${BATS_FILTER_ARGS[@]}"}" \
     --formatter tap \
     --report-formatter junit --output "$out_dir" \
     "$suite_path" >"$out_dir/stdout.log" 2>&1 || rc=$?
@@ -160,31 +183,39 @@ runAll() {
   local suites=("$@")
   local tmp_root exit_code=0 failed_suites=0
   tmp_root=$(mktemp -d -t check-dotfiles.XXXXXX)
-  local total_tests=0 total_pass=0 total_skip=0 total_fail=0 total_time=0
-  local rows=()
+  local total_tests=0 total_pass=0 total_skip=0 total_fail=0
+  local rows=() missing_junit=()
   local wall_start
   wall_start=$(date +%s)
 
-  # Filter to suites with matching tests; fail loud on Bats parse errors.
+  # Pre-count exists to guard "no tests matched" per suite: run it only for
+  # filtered runs; unfiltered every suite runs and parse errors surface via
+  # runSuite rc + printed log.
   local active=() suite_path count count_output
-  for suite_path in "${suites[@]}"; do
-    [ -f "$suite_path" ] || continue
-    if ! count_output=$("$BATS_BIN" "${BATS_FILTER_ARGS[@]+"${BATS_FILTER_ARGS[@]}"}" --count "$suite_path" 2>&1); then
-      printf '\n%s== suite: %s ==%s\n' "$C_BLUE$C_BOLD" "$(suiteDisplayName "$suite_path")" "$C_RESET"
-      printf '%s\n' "$count_output"
-      rm -rf "$tmp_root"
-      return 1
-    fi
-    count=$(printf '%s\n' "$count_output" | tail -n 1)
-    case $count in
-    '' | *[!0-9]*)
-      printf 'check-dotfiles: invalid test count for %s: %s\n' "$suite_path" "$count" >&2
-      rm -rf "$tmp_root"
-      return 1
-      ;;
-    esac
-    [ "$count" -gt 0 ] && active+=("$suite_path")
-  done
+  if [ ${#BATS_FILTER_ARGS[@]} -gt 0 ]; then
+    for suite_path in "${suites[@]}"; do
+      [ -f "$suite_path" ] || continue
+      if ! count_output=$("$BATS_BIN" "${BATS_FILTER_ARGS[@]+"${BATS_FILTER_ARGS[@]}"}" --count "$suite_path" 2>&1); then
+        printf '\n%s== suite: %s ==%s\n' "$C_BLUE$C_BOLD" "$(suiteDisplayName "$suite_path")" "$C_RESET"
+        printf '%s\n' "$count_output"
+        rm -rf "$tmp_root"
+        return 1
+      fi
+      count=$(printf '%s\n' "$count_output" | tail -n 1)
+      case $count in
+      '' | *[!0-9]*)
+        printf 'check-dotfiles: invalid test count for %s: %s\n' "$suite_path" "$count" >&2
+        rm -rf "$tmp_root"
+        return 1
+        ;;
+      esac
+      [ "$count" -gt 0 ] && active+=("$suite_path")
+    done
+  else
+    for suite_path in "${suites[@]}"; do
+      if [ -f "$suite_path" ]; then active+=("$suite_path"); fi
+    done
+  fi
 
   # Launch all suites in parallel.
   local pids=() dirs=() names=() suite_name out_dir
@@ -233,7 +264,10 @@ runAll() {
       total_pass=$((total_pass + pass))
       total_skip=$((total_skip + skipped))
       total_fail=$((total_fail + fails))
-      total_time=$(awk -v a="$total_time" -v b="$time" 'BEGIN{printf "%.3f", a+b}')
+    elif [ "$rc" -ne 0 ]; then
+      # rc != 0 with no junit report (timeout kill, crash): invisible to the
+      # metrics rows; track it for the verdict below.
+      missing_junit+=("$sn $rc")
     fi
   done
 
@@ -267,6 +301,17 @@ runAll() {
     printf "$C_BOLD${fmt}$C_RESET" "Total" "$total_tests" "$total_pass" "$total_skip" "$total_fail" "$(printf '%ds' "$(($(date +%s) - wall_start))")"
   fi
 
+  # Name suite failures that produced no junit report and count one failure
+  # each, so the final line can never print "OK: all N test(s) passed" while
+  # a suite was killed by the timeout.
+  local mj mj_name mj_rc
+  for mj in "${missing_junit[@]+"${missing_junit[@]}"}"; do
+    read -r mj_name mj_rc <<<"$mj"
+    printf '%sFAIL: suite %s exited %s without a junit report (timeout-killed or crashed)%s\n' \
+      "$C_RED$C_BOLD" "$mj_name" "$mj_rc" "$C_RESET"
+    total_fail=$((total_fail + 1))
+  done
+
   # Final status line.
   local wall_end wall_elapsed
   wall_end=$(date +%s)
@@ -298,11 +343,14 @@ Run Bats validation suites for installed dotfile packages and configuration.
 By default runs all suites in parallel with auto-detected CPU count.
 
 Selectors:
-  TOOL...               Package key(s) (e.g. kubectl helm). Restricts to
-                        package suites and matches the `pkg:<key>` tag.
+  TOOL...               Package key(s) (e.g. kubectl helm). Runs the aggregate
+                        install smoke of the package suites, filtered to the
+                        smoke checks of exactly those keys.
   --suite NAME[,...]    Suite names: packages, system-packages, mise-packages,
-                        helm-plugins, krew-plugins, config, ai, all
-  --tag EXPR[,...]      Bats tag filter (AND within, OR across repeated flags).
+                        helm-plugins, krew-plugins, config, runner, ai, all
+  --tag EXPR[,...]      Bats tag filter (AND within, OR across repeated
+                        flags). Tag-scoped runs of a package aggregate
+                        execute all of its keys unfiltered.
   --filter REGEX        Bats name filter regex.
 
 Options:
@@ -311,11 +359,17 @@ Options:
   -h, --help            Show this help.
 
 Examples:
-  check-dotfiles                          # all suites, full parallel
-  check-dotfiles kubectl helm             # only these packages
+  check-dotfiles                          # all suites
+  check-dotfiles kubectl helm             # aggregate smoke, these keys only
   check-dotfiles --suite config,ai        # specific suites
   check-dotfiles --tag toolchain:kubernetes
   check-dotfiles -j1                      # sequential (debug)
+
+Environment:
+  CHECK_DOTFILES_SUITE_TIMEOUT  Per-suite wall-clock cap in seconds
+                                (default 120, 10s kill-after).
+  CHECK_DOTFILES_PKG_KEYS       Comma-separated package keys scoping the
+                                aggregate smoke (set by TOOL... selectors).
 EOF
 }
 
@@ -404,19 +458,38 @@ main() {
     printf 'check-dotfiles: no suites resolved\n' >&2
     exit 1
   }
+  if [ ${#tools[@]} -gt 0 ]; then
+    validateToolKeys "${tools[@]}" || exit 1
+  fi
 
-  # Build bats filter args.
+  # Build bats filter args. Pass each user --tag flag through as its own
+  # --filter-tags: bats semantics are commas=AND within one flag, repeated
+  # flags=OR. Parentheses and semicolons are not operators — composing a
+  # `(a);(b)` expression feeds bats' internal eval, which strips the parens
+  # of the first term and runs the rest as shell. With no user tags, run
+  # unfiltered.
   BATS_FILTER_ARGS=()
   local tag
-  for tag in "${tag_filters[@]+"${tag_filters[@]}"}"; do BATS_FILTER_ARGS+=(--filter-tags "$tag"); done
+  for tag in "${tag_filters[@]+"${tag_filters[@]}"}"; do
+    BATS_FILTER_ARGS+=(--filter-tags "$tag")
+  done
 
+  # Package keys scope the aggregate smoke in BOTH tools-only and
+  # filter+tools runs.
+  if [ ${#tools[@]} -gt 0 ]; then
+    CHECK_DOTFILES_PKG_KEYS="$(
+      IFS=,
+      printf '%s' "${tools[*]}"
+    )"
+    export CHECK_DOTFILES_PKG_KEYS
+  fi
   local combined_regex=""
   if [ -n "$filter_regex" ] && [ ${#tools[@]} -gt 0 ]; then
-    combined_regex="(${filter_regex})|$(buildToolFilterRegex "${tools[@]}")"
+    combined_regex="(${filter_regex})|${AGGREGATE_TITLE}"
   elif [ -n "$filter_regex" ]; then
     combined_regex=$filter_regex
   elif [ ${#tools[@]} -gt 0 ]; then
-    combined_regex=$(buildToolFilterRegex "${tools[@]}")
+    combined_regex=$AGGREGATE_TITLE
   fi
   [ -n "$combined_regex" ] && BATS_FILTER_ARGS+=(-f "$combined_regex")
 

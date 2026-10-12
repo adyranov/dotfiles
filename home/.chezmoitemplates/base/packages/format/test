@@ -1,5 +1,10 @@
-{{- /* format/test — Outputs Bats test cases with auto-generated tags.
-  Args (dict): packages — dict of id → package info. */ -}}
+{{- /* format/test — Emits ONE aggregate install-smoke Bats test per manager suite.
+  Args (dict): packages — dict of id → package info (normalized by
+  base/packages/collect-packages; keys with an empty test command are excluded).
+  Env CHECK_DOTFILES_PKG_KEYS (comma list, set by check-dotfiles for bare
+  package-key args): restricts the loop to those keys. The smoke checks
+  presence and runnability only — the `version` data key overrides the test
+  command; `pin` is title decoration and is never asserted. */ -}}
 {{- $packages := .packages -}}
 {{- $suiteByManager := dict
     "system" "suite:system-packages"
@@ -7,18 +12,42 @@
     "helm"   "suite:helm-plugins"
     "krew"   "suite:krew-plugins"
 -}}
-{{- range $id := sortAlpha (keys $packages) }}
-    {{- $pkg := index $packages $id }}
-    {{- $version := index $pkg "pin" }}
-    {{- $toolchain := index $pkg "toolchain" }}
-    {{- $manager := index $pkg "manager" }}
-    {{- $suiteTag := index $suiteByManager $manager | default "suite:packages" -}}
-    {{- $tags := list $suiteTag "suite:packages" (printf "mgr:%s" $manager) (printf "toolchain:%s" $toolchain) (printf "pkg:%s" $id) -}}
-{{- if index $pkg "test" -}}
+{{- $ids := list -}}
+{{- range $id := sortAlpha (keys $packages) -}}
+{{-   if index $packages $id "test" -}}{{- $ids = append $ids $id -}}{{- end -}}
+{{- end -}}
+{{- if $ids }}
+{{-   $first := index $packages (index $ids 0) -}}
+{{-   $manager := index $first "manager" -}}
+{{-   $suiteTag := index $suiteByManager $manager | default "suite:packages" -}}
+{{-   $toolchains := dict -}}
+{{-   range $id := $ids -}}{{-   $_ := set $toolchains (index $packages $id "toolchain") true -}}{{- end -}}
+{{-   $tags := list $suiteTag "suite:packages" (printf "mgr:%s" $manager) -}}
+{{-   range $tc := sortAlpha (keys $toolchains) -}}{{- $tags = append $tags (printf "toolchain:%s" $tc) -}}{{- end -}}
+{{-   range $id := $ids -}}{{- $tags = append $tags (printf "pkg:%s" $id) -}}{{- end }}
 # bats test_tags={{ $tags | join "," }}
-@test "{{ $id }}{{ if $version }} ({{ $version }}){{ end }}" {
-    run {{ index $pkg "test" }}
-    assert_success
+@test "aggregate install smoke" {
+    local offenders=() n=0 key cmd
+    while IFS=$'\t' read -r key cmd; do
+        [ -n "$key" ] || continue
+        if [ -n "${CHECK_DOTFILES_PKG_KEYS:-}" ]; then
+            case ",$CHECK_DOTFILES_PKG_KEYS," in
+            *",$key,"*) ;;
+            *) continue ;;
+            esac
+        fi
+        n=$((n + 1))
+        run bash -c "$cmd" </dev/null
+        [ "$status" -eq 0 ] || offenders+=("$key (exit $status)")
+    done <<'SMOKE_PKGS'
+{{- range $id := $ids }}
+{{ $id }}	{{ index $packages $id "test" }}
+{{- end }}
+SMOKE_PKGS
+    if [ ${#offenders[@]} -gt 0 ]; then
+        printf 'checked %d package(s); offenders:\n' "$n"
+        printf '  %s\n' "${offenders[@]}"
+        fail "${#offenders[@]} of $n package(s) failed install smoke"
+    fi
 }
-{{ end }}
-{{ end -}}
+{{- end -}}

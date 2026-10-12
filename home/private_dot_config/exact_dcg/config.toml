@@ -1,0 +1,26 @@
+# Managed by chezmoi. Agents cannot write here; edit the chezmoi
+# source. Custom rows in the tool-scoped packs under packs/*.yaml.
+
+[packs]
+enabled = [
+  "containers.compose",
+  "containers.docker",
+  "infrastructure.terraform",
+  "kubernetes.helm",
+  "kubernetes.kubectl",
+  "package_managers"
+]
+custom_paths = ["~/.config/dcg/packs/*.yaml"]
+
+[policy.packs]
+# Triage rows must block, not warn: override the severity-based default that
+# maps medium severity to warn mode (a DCG ask/deny surfaces as a block).
+"user.system" = "deny"
+"user.package_managers" = "deny"
+"user.github" = "deny"
+"user.compute" = "deny"
+"user.cloud" = "deny"
+"user.kubernetes" = "deny"
+"user.docker" = "deny"
+"user.iac" = "deny"
+"user.publish" = "deny"

@@ -1,32 +1,18 @@
+# agent-writable root (nono pi profile): pi writes runtime files here; the
+# exact_ deletion law would remove them — data-loss risk.
+*.lock
 agents/sdd-*
-# rpiv managed agents
-agents/.rpiv-managed.json
-agents/artifact-code-reviewer.md
-agents/artifact-coverage-reviewer.md
-agents/artifacts-analyzer.md
-agents/artifacts-locator.md
-agents/claim-verifier.md
-agents/codebase-analyzer.md
-agents/codebase-locator.md
-agents/codebase-pattern-finder.md
-agents/diff-auditor.md
-agents/integration-scanner.md
-agents/peer-comparator.md
-agents/precedent-locator.md
-agents/scope-tracer.md
-agents/slice-verifier.md
-agents/web-search-researcher.md
-
 chains/
 extensions/*
-!extensions/pi-permission-system
-!extensions/pi-permission-system/config.json
+!extensions/dcg-robot.ts
 gentle-ai/
 git/**
 intercom/
+keybindings.json
 logs/
 lastChangelogVersion
 mcp-cache.json
+models-store.json
 npm/
 run-history.jsonl
 sessions/**

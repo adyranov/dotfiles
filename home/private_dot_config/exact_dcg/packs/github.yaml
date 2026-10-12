@@ -1,0 +1,53 @@
+# DCG policy pack: GitHub CLI.
+# Managed source — agents cannot write here; edit the chezmoi source.
+id: user.github
+name: User GitHub rules
+version: "1.0.0"
+description: Custom denies for gh deletions, edits, variable sets, raw API DELETEEs, and local git commands core.git leaves open.
+keywords:
+  - gh
+  - git
+destructive_patterns:
+  - name: gh-delete
+    pattern: '\bgh\b[^;&|\n]*?\bdelete'
+    severity: high
+    description: gh deletes remote GitHub objects
+    explanation: Row gh * delete*. Releases, branches, PRs and workflows are gone server-side.
+  - name: gh-edit
+    pattern: '\bgh\b[^;&|\n]*?\bedit\b'
+    severity: medium
+    description: gh edits PRs/issues/releases in place
+    explanation: Row gh * edit *. Title/body/branch edits change review state.
+  - name: gh-variable-set
+    pattern: '\bgh\b[^;&|\n]*?\bvariable\s+set\b'
+    severity: medium
+    description: gh sets repository/organization variables
+    explanation: Row gh * variable set *. Variable changes alter CI behavior for everyone.
+  - name: gh-api-delete
+    pattern: '\bgh\b[^;&|\n]*?\bapi\b[^;&|\n]*?(?:-X\s*DELETE|--method\s+DELETE)'
+    severity: high
+    description: gh api DELETE bypasses CLI safety
+    explanation: Row gh api repos/* -X DELETE*. Raw DELETEEs can remove arbitrary remote resources.
+  # Local git destructive gate: completes the retired core.toml git policy.
+  # core.git (built-in) already covers clean/reset --hard/push-force; the gaps
+  # it leaves open are gated here (force-push stays on the nono hard core).
+  - name: git-rebase
+    pattern: '\bgit\b[^;&|\n]*?\brebase\b'
+    severity: high
+    description: git rebase rewrites commit history
+    explanation: Row git rebase *. Conflicts and rewritten SHAs can strand commits.
+  - name: git-stash-drop-pop
+    pattern: '\bgit\b[^;&|\n]*?\bstash\b[^;&|\n]*?\b(?:drop|pop)\b'
+    severity: high
+    description: git stash drop/pop consumes the stash entry
+    explanation: Row git stash drop/pop *. A conflicted pop drops the entry, losing the stashed work.
+  - name: git-tag-delete
+    pattern: '\bgit\b[^;&|\n]*?\btag\b[^;&|\n]*?(?:\s-d\b|--delete\b)'
+    severity: medium
+    description: git tag -d deletes local tags
+    explanation: Row git tag -d *. Release tags lost locally drift from the remote.
+  - name: git-worktree-remove
+    pattern: '\bgit\b[^;&|\n]*?\bworktree\b[^;&|\n]*?\bremove\b'
+    severity: high
+    description: git worktree remove deletes a worktree directory
+    explanation: Row git worktree remove *. --force removes it with uncommitted work inside.

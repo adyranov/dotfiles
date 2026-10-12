@@ -1,299 +1,320 @@
-# Level 1 — Process boundary (greywall sandbox)
-# Paths and caches that every sandboxed agent process needs.
-# deny_read/deny_write override allows.
+# Nono sandbox permission data. Keys mirror the rendered nono profile sections
+# 1:1 (filesystem / command_policies / network / environment via credentials.toml).
+# Chezmoi-side sugar, flattened at render: read/write/deny list path-group
+# names expanded by expand-path-groups from filesystem.paths (each glob
+# defined exactly once); allow_domain groups category -> hosts. Home-anchored
+# denies covered by nono's built-in groups are pruned; **/ globs survive.
+# This is the only command-deny store (DCG owns the destructive-but-normal set).
 
-# Level 2 — Agent restrictions (what the AI model cannot access via tools)
-# Uses allow/ask/deny categories. This layer stays broad because agent tools can
-# expose sensitive files directly. Per-agent auth files live in per-agent sections.
-[ai.base.permissions.agent]
-allow = []
-ask = []
-deny_paths = [
-  "project_secrets",
-  "private_key_files",
-  "cert_key_binaries",
-  "ssh_broad",
-  "gpg_broad",
-  "password_stores",
-  "cloud_creds",
-  "cloud_creds_broad",
-  "git_gh_creds",
-  "git_gh_creds_broad",
-  "package_creds",
-  "package_creds_broad",
-  "service_creds",
-  "service_creds_broad",
-  "ai_provider_creds",
-  "ai_provider_creds_broad",
-  "db_client_secrets",
-  "shell_history",
-  "secrets_dirs",
-  "terraform_state",
-  "macos_keychain",
-  "engram_memory"
+# In-sandbox targeted `chezmoi apply` allowlist; the list *is* the grant set:
+# session write grants (render-nono-fs, file-granular) plus chezmoi's
+# command-sandbox lists (render-nono-cmd, destination-PARENT-dir granular —
+# nono accepts only DIRECTORIES there; a file entry policy-denies the whole
+# invocation). apply-dest-guard refuses globs, relative paths, and entries
+# equal to, an ancestor of, or a descendant of a protected root. Widening is
+# the user's audit-loop data edit plus a terminal apply.
+[ai.base.permissions.apply]
+# The command sandbox replaces the session filesystem grants for chezmoi:
+# read = state/cache + source dir + destination PARENT dirs; write = state +
+# cache + parents (file-granular containment stays in the session tier).
+# Broad parents are refused at render: they re-open the credential deny
+# groups under them (`~/.config`: gh hosts.yml, git credentials, configstore,
+# pgpass; `~/.local/share`: amazon/azure/engram state).
+command_sandbox_read = [
+  ".",
+  "/dev",
+  # PATH resolves chezmoi (and the render chain's tools) through mise shims:
+  # shim version resolution scans installs/<tool>/latest (children of the
+  # literal dir grant — the /** glob is required); the python3 guard fork
+  # writes os_log (/Library/Preferences/Logging). Device nodes ride
+  # command_sandbox_read_file below.
+  "/Library/Preferences/Logging",
+  "~/.cache/chezmoi",
+  "~/.config/chezmoi",
+  "~/.local/share/chezmoi",
+  "~/.local/share/mise/installs",
+  "~/.local/share/mise/installs/**"
 ]
+command_sandbox_read_file = ["/dev/autofs_nowait", "/dev/dtracehelper"]
+command_sandbox_write = ["~/.cache/chezmoi", "~/.config/chezmoi"]
+# Seed list pending user pruning (entries carry content user tooling executes:
+# git aliases/hooksPath, mise [tasks]/env).
+destinations = ["~/.config/git/config", "~/.config/mise/mise.toml"]
 
-# Level 3 — System-wide command deny list
-[ai.base.permissions.commands]
+# The ["."] default kills gh at boot: it reads ~/.config/gh/config.yml. Only that
+# file is granted — ~/.config/gh as a dir contains the hosts.yml deny entry, so
+# the apply-dest guard refuses it (dir grants over credential dirs ride
+# destination parents only).
+[ai.base.permissions.apply.sandbox.gh]
+fs_read = [".", "core_unix"]
+fs_read_file = ["~/.config/gh/config.yml"]
+# An unreadable ~/.config/gh/hosts.yml is fatal for gh ("failed to create root
+# command"), and that file sits on the credential floor. Relocating gh's state into
+# the sandbox makes the missing file created instead of denied, and the real config
+# stays unreadable.
+fs_write = ["~/.cache/gh-sandbox"]
+
+# gh's API host is api.github.com, which git_forge deliberately excludes, and
+# mediation grants a command egress only from its own sandbox.
+[ai.base.permissions.apply.sandbox.gh.network]
+allow_domain = ["api.github.com"]
+
+[ai.base.permissions.apply.sandbox.gh.set_vars]
+GH_CONFIG_DIR = "$HOME/.cache/gh-sandbox/config"
+GH_DATA_DIR = "$HOME/.cache/gh-sandbox/data"
+GH_CACHE_DIR = "$HOME/.cache/gh-sandbox/cache"
+
+# Per-command command-sandbox overrides keyed by command name (unlisted names
+# keep the default ["."]). The ["."] default is fatal for git (dies reading
+# ~/.config/git/config; cannot write worktrees, hook caches, TMPDIR) and mise
+# (cannot exec its own binary). apply-dest-guard validates every list.
+[ai.base.permissions.apply.sandbox.git]
+# Empirically tested (nono 0.79.0, macOS): `git status` rc 0 from the repo cwd.
+# `@git:config-files` is NOT usable: it expands to FILE entries and the lists
+# are directories-only. `~/.config/git` covers the whole config chain;
+# /opt/local is the MacPorts git install; /dev, /System/Volumes/Data (APFS
+# home root) and /Library/Preferences/Logging (os_log) are macOS binary reads.
+fs_read = [
+  ".",
+  "core_unix",
+  "agents_scratch",
+  "/opt/local",
+  "~/.config/git",
+  "/Library/Developer/CommandLineTools",
+  "~/.cache/pre-commit",
+  "~/.local/share/chezmoi",
+  "~/.local/share/mise",
+  "/System/Volumes/Data"
+]
+# TMPDIR: git hooks/pre-commit write temp files; denial is fatal. `$TMPDIR` is
+# a sentinel expanded at render time (expand-tmpdir); data is static TOML.
+fs_write = ["tmp_workspace", "agents_scratch", "/private/var/folders", "~/.cache/pre-commit"]
+# Every macOS binary writes the dtrace probe device; denial is fatal.
+fs_write_file = ["dtrace_helper_file"]
+# The session exports GIT_SSL_CAINFO at the house bundle and the command sandbox
+# replaces the session grants: ungranted, every HTTPS op dies with
+# "error setting certificate verify locations" (measured, nono 0.79.0).
+fs_read_file = ["ca_bundle"]
+# The macOS child-exec gate takes literal canonical paths only (no globs) and
+# drops exec_paths, so git-core helpers and hooks (run via /bin/sh) need
+# explicit seatbelt rules, emitted AFTER the exec-gate deny so last-match
+# wins; honoured only in user-authored profiles — this one is.
+unsafe_macos_seatbelt_rules = [
+  "(allow process-exec* (literal \"/opt/local/libexec/git-core/git\"))",
+  "(allow process-exec* (literal \"/bin/sh\"))",
+  # Darwin git rewrites the hook shebang /bin/sh to DEFAULT_SHELL_PATH=/bin/bash.
+  "(allow process-exec* (literal \"/bin/bash\"))",
+  "(allow process-exec* (subpath \"/Library/Developer/CommandLineTools/usr/libexec/git-core\"))",
+  # find_hook() gates hooks on access(path, X_OK), which seatbelt checks as
+  # process-exec* (there is NO file-test-execute operation; that symbol breaks
+  # sandbox_init), so git silently skips hooks under /private/tmp/agents without
+  # this grant. No new authority: the dir is already fs_write-granted.
+  "(allow process-exec* (subpath \"/private/tmp/agents\"))"
+]
+# Linux parity for the same nested exec: exec_paths dirs, dropped on macOS.
+exec_paths = ["/opt/local/libexec/git-core", "/usr/lib/git-core"]
+
+# Mediation gives a sandboxed command proxy egress only for hosts its own
+# sandbox grants; the session allow-list does not apply. Git is HTTPS-only, so
+# fetch/clone egress is exactly the GitHub transport hosts.
+[ai.base.permissions.apply.sandbox.git.network]
+allow_domain = ["git_forge"]
+
+[ai.base.permissions.apply.sandbox.mise]
+# mise's ~/.local/bin entry point is a symlink-to-file; a dir entry cannot carry it.
+# Chained mediation: mise-exec'd children need the caller's can_use edge (no
+# fallback) — adopted from 157 audited denies of `mise npm` (pi plugin update
+# check); nono-cmd-policy lifts it to the command entry. /dev (autofs) and
+# /Library/Preferences/Logging (os_log) carry the npm/node legs.
+can_use = ["npm"]
+fs_read = [
+  ".",
+  "core_unix",
+  "agents_scratch",
+  "~/.cache/mise",
+  "~/.config/mise",
+  "~/.local/share/mise",
+  "~/.local/state/mise",
+  "~/Library/Caches/mise"
+]
+fs_read_file = ["~/.local/bin/mise"]
+fs_write = ["tmp_workspace", "agents_scratch", "/private/var/folders", "~/.cache/mise", "~/.local/share/mise", "~/.local/state/mise", "~/Library/Caches/mise"]
+fs_write_file = ["dtrace_helper_file"]
+
+[ai.base.permissions.apply.sandbox.mise.network]
+allow_domain = ["mise_runtime"]
+
+[ai.base.permissions.command_policies]
 deny = [
-  "sudo *",
+  "aws * create-access-key *",
+  "aws * get-secret-value *",
+  "az keyvault secret show *",
+  "bun login",
+  "bun login *",
+  "bun logout",
+  "bun logout *",
+  # Global-apply forms, enumerated from `chezmoi apply --help`. A POSITIONAL
+  # apply (`chezmoi apply <path>`) is deliberately absent: the filesystem axis
+  # grants it, and the trailing-flag positional form (`<path> --force`) is
+  # unexpressible in the argv matcher, so the command sandbox confines it.
+  "chezmoi --destination *",
+  "chezmoi --exclude *",
+  "chezmoi --force *",
+  "chezmoi --force apply",
+  "chezmoi --include *",
+  "chezmoi --remove *",
+  "chezmoi --source *",
+  "chezmoi -D *",
+  "chezmoi -S *",
+  "chezmoi -i *",
+  "chezmoi -x *",
+  "chezmoi apply",
+  "chezmoi apply --destination *",
+  "chezmoi apply --exclude *",
+  "chezmoi apply --force",
+  "chezmoi apply --force *",
+  "chezmoi apply --include *",
+  "chezmoi apply --remove",
+  "chezmoi apply --remove *",
+  "chezmoi apply --source *",
+  "chezmoi apply -D *",
+  "chezmoi apply -S *",
+  "chezmoi apply -i *",
+  "chezmoi apply -x *",
+  # Update/clone-and-apply forms: they clone/pull a source tree and apply it
+  # globally, so no destination allowlist bounds them.
+  "chezmoi init --apply *",
+  "chezmoi init -a *",
+  "chezmoi up *",
+  "chezmoi update *",
+  "diskutil eraseDisk *",
+  "diskutil eraseOptical *",
+  "diskutil eraseVolume *",
+  "diskutil partitionDisk *",
+  # Privilege escalation, system administration, and raw-socket tools: hard
+  # kernel floor for every sandboxed process. DCG packs cover destructive-but-
+  # normal workflows (power/services/in-place edits), not these; a prompt
+  # layer cannot gate them (hooks-only, direct-path exec bypasses it).
   "doas *",
-  "su *",
-  "su",
-  "shutdown *",
-  "reboot *",
-  "halt *",
-  "poweroff *",
-  "systemctl stop *",
-  "systemctl disable *",
-  "systemctl mask *",
-  "systemctl daemon-reload *",
-  "launchctl unload *",
-  "launchctl remove *",
-  "launchctl bootout *",
-  "crontab -e *",
-  "crontab -r *",
-  "sed -i *",
-  "sed * -i *",
-  "security delete-*",
-  "security add-*",
-  "security set-*",
-  "security unlock-keychain *",
-  "security dump-keychain *",
-  "security find-generic-password*",
-  "security find-internet-password*",
-  "brew uninstall *",
-  "brew remove *",
-  "brew untap *",
-  "apt remove *",
-  "apt purge *",
-  "apt-get remove *",
-  "apt-get purge *",
-  "dnf remove *",
-  "pacman -R*",
-  "snap remove *",
+  "fdisk *",
+  "gh * secret *",
+  "gh auth login *",
+  "gh auth logout *",
+  "gh auth token",
+  "gh auth token *",
+  "git * push --force *",
+  "git * push --force-with-lease *",
+  "git * push -f *",
+  "git push --force *",
+  "git push --force-with-lease *",
+  "git push -f *",
+  "gpg --export-secret-keys *",
+  "gpg --export-secret-subkeys *",
+  "gpg --export-secret-ssh-key *",
+  "groupadd *",
+  "groupdel *",
+  "hf auth *",
+  "ip6tables *",
+  "iptables *",
+  "mise run apply",
+  "mise run apply *",
+  "mise trust *",
+  "mise untrust *",
+  "mkcert *",
+  "mkfs *",
+  "mount *",
   "nc *",
   "ncat *",
   "netcat *",
+  "nft *",
+  "npm token",
+  "npm token *",
+  "parted *",
+  "pfctl *",
+  "security add-* *",
+  "security delete-* *",
+  "security find-*-password *",
+  "security set-* *",
+  "sky * --secret *",
   "socat *",
-  "gpg --export-secret*",
-  "kill -9 *",
-  "killall *",
-  "pkill *",
-  "eval *",
-  "exec *",
+  "su",
+  "su *",
+  "sudo *",
+  "swapoff *",
+  "swapon *",
+  "umount *",
+  "ufw *",
   "useradd *",
   "userdel *",
-  "usermod *",
-  "groupadd *",
-  "groupdel *",
-  "mount *",
-  "umount *",
-  "mkfs *",
-  "diskutil erase*",
-  "diskutil partition*",
-  "swapon *",
-  "swapoff *",
-  "fdisk *",
-  "parted *",
-  "iptables *",
-  "ip6tables *",
-  "nft *",
-  "pfctl *",
-  "ufw *"
+  "usermod *"
 ]
 
+[ai.base.permissions.filesystem]
+# The engram memory store is neither base-granted nor base-denied: agents that
+# run the engram MCP (opencode, omp) grant ~/.local/share/engram in their own
+# sandbox profiles. A base deny would be unopenable for those MCP children
+# (deny beats grants across extends); a base grant would expose the shared
+# store to every session.
+deny = [
+  "ai_provider_creds",
+  "app_data_creds",
+  "cert_key_binaries",
+  "cloud_creds",
+  "db_client_secrets",
+  "git_gh_creds",
+  "gpg",
+  "macos_keychain",
+  "package_creds",
+  "password_manager_local",
+  "password_stores",
+  "private_key_files",
+  "project_secrets",
+  "secrets_dirs",
+  "service_creds",
+  "shell_history",
+  "ssh",
+  "terraform_state"
+]
+# dcg_state is a READ-tier carve-out, not a deny: agents read DCG stores,
+# writes are denied (deny would also kill the reads the allowlist-edit
+# remediation needs). The allow-once store stays unwritable on purpose: the
+# hooks never set DCG_ALLOW_ONCE_PATH and DCG fails closed on the read-only
+# default store (every block stands).
+read = [
+  "dcg_state",
+  "pre_commit_cache",
+  "sandbox_macos",
+  "sandbox_read_base"
+]
+write = [
+  "build_caches",
+  "pre_commit_cache",
+  "sandbox_macos",
+  "sandbox_write_base",
+  "sandbox_write_specific"
+]
+unix_socket_subtree = ["~/.local/share/tmux"]
+
 [ai.base.permissions.filesystem.paths]
-project_secrets = [
-  ".env",
-  ".env.*",
-  "**/.env",
-  "**/.env.*",
-  "**/.npmrc",
-  "**/.envrc.local",
-  "**/.envrc.private",
-  "**/.envrc.secret",
-  "**/.direnv/**",
-  "**/.htpasswd"
-]
-ssh_private = [
-  "~/.ssh/id_*",
-  "~/.ssh/authorized_keys",
-  "~/.ssh/agent",
-  "~/.ssh/environment-*",
-  "~/.ssh/identity",
-  "~/.ssh/environment"
-]
-ssh_broad = ["~/.ssh/**", "~/.config/ssh/**"]
-gpg_private = [
-  "~/.gnupg/private-keys-v1.d/**",
-  "~/.gnupg/random_seed",
-  "~/.local/share/gnupg/private-keys-v1.d/**",
-  "~/.local/share/gnupg/random_seed"
-]
-gpg_broad = ["~/.gnupg/**", "~/.local/share/gnupg/**"]
-password_stores = [
-  "~/.password-store/**",
-  "~/.local/share/pass/**",
-  "~/.keys/**",
-  "~/.config/age/**",
-  "~/.config/sops/**"
-]
-# === PRIVATE KEYS — broad (agent) vs narrow (sandbox) ===
-private_key_files = [
-  "**/*-key.pem",
-  "**/*_rsa",
-  "**/*_rsa.pub",
-  "**/*_ed25519",
-  "**/*_ed25519.pub",
-  "**/*id_rsa*",
-  "**/*id_ed25519*",
-  "**/key.pem",
-  "**/private*.pem",
-  "**/*.pem.bak",
-  "**/*_rsa.bak",
-  "**/*_rsa.old",
-  "**/*_ed25519.bak",
-  "**/*_ed25519.old",
-  "**/*id_rsa.bak",
-  "**/*id_rsa.old",
-  "**/*.asc",
-  "**/*.key"
-]
-sandbox_private_keys = [
-  "**/*_rsa",
-  "**/*_ed25519",
-  "**/*id_rsa",
-  "**/*id_ed25519",
-  "**/key.pem",
-  "**/private*.pem",
-  "**/*.pem.bak",
-  "**/*_rsa.bak",
-  "**/*_rsa.old",
-  "**/*_ed25519.bak",
-  "**/*_ed25519.old",
-  "**/*id_rsa.bak",
-  "**/*id_rsa.old"
-]
-cert_key_binaries = [
-  "**/*.p8",
-  "**/*.p12",
-  "**/*.pfx",
-  "**/*.jks",
-  "**/*.keystore",
-  "**/*.kdbx"
-]
-# === CREDENTIAL PATTERNS — local (~) vs broad (**/) ===
-cloud_creds = [
-  "~/.aws/**",
-  "~/.azure/**",
-  "~/.config/runpod/**",
-  "~/.runpod/**",
-  "~/.config/containers/auth.json",
-  "~/.config/docker/config.json",
-  "~/.config/gcloud/**",
-  "~/.docker/config.json",
-  "~/.docker/trust/private/**",
-  "~/.kube/**",
-  "~/.local/share/containers/auth.json",
-  "~/.pulumi/**",
-  "~/.terraform.d/credentials.tfrc.json",
-  "~/.terraformrc"
-]
-cloud_creds_broad = [
-  "**/.aws/**",
-  "**/.azure/**",
-  "**/.config/runpod/**",
-  "**/.runpod/**",
-  "**/.boto",
-  "**/.config/gcloud/**",
-  "**/.docker/config.json",
-  "**/.netrc",
-  "**/.terraform.d/credentials.tfrc.json",
-  "**/.terraformrc"
-]
-git_gh_creds = [
-  "~/.git-credentials",
-  "~/.config/git/credentials",
-  "~/.config/gh/hosts.yml",
-  "~/.config/github-copilot/**",
-  "~/.netrc"
-]
-git_gh_creds_broad = [
-  "**/.git-credentials",
-  "**/.config/git/credentials",
-  "**/.config/gh/hosts.yml",
-  "**/.config/github-copilot/hosts.json",
-  "**/.docker/config.json",
-  "**/.netrc",
-  "**/.terraform.d/credentials.tfrc.json",
-  "**/.terraformrc"
-]
-package_creds = [
-  "~/.gem/credentials",
-  "~/.cargo/credentials",
-  "~/.local/share/cargo/credentials",
-  "~/.config/gradle/gradle.properties",
-  "~/.config/npm/npmrc",
-  "~/.config/pip/pip.conf",
-  "~/.config/pypoetry/auth.toml",
-  "~/.gradle/gradle.properties",
-  "~/.m2/settings.xml",
-  "~/.npm",
-  "~/.npm/**",
-  "~/.npmrc",
-  "~/.pnpmrc",
-  "~/.pypirc",
-  "~/.yarnrc",
-  "~/.yarnrc.yml"
-]
-package_creds_broad = [
-  "**/.npmrc",
-  "**/.pnpmrc",
-  "**/.pypirc",
-  "**/.yarnrc",
-  "**/.yarnrc.yml",
-  "**/.cargo/credentials",
-  "**/.gem/credentials",
-  "**/.m2/settings.xml",
-  "**/.pip/pip.conf",
-  "**/gradle.properties",
-  "**/poetry.toml",
-  "**/settings.xml"
-]
-service_creds = [
-  "~/.config/op/**",
-  "~/.config/.wrangler/**",
-  "~/.config/netlify/config.json",
-  "~/.config/ngrok/ngrok.yml",
-  "~/.config/turso/**",
-  "~/.config/vercel/auth.json",
-  "~/.fly/config.yml",
-  "~/.huggingface/token",
-  "~/.supabase/**"
-]
-service_creds_broad = [
-  "**/.config/netlify/config.json",
-  "**/.config/ngrok/ngrok.yml",
-  "**/.config/vercel/auth.json"
-]
+# Shared command-sandbox groups (referenced by apply.sandbox.* fs lists):
+# recurring macOS system reads, the agents scratch dir, the cwd+TMPDIR work
+# pair, and the dtrace probe device every macOS binary writes.
+agents_scratch = ["/private/tmp/agents"]
 ai_provider_creds = [
-  "~/.openai/**",
   "~/.anthropic/**",
   "~/.claude/**",
-  "~/.config/claude/**",
-  "~/.config/anthropic/**",
   "~/.codex/**",
-  "~/.gemini/**",
+  "~/.config/Cursor/**",
+  "~/.config/Windsurf/**",
+  "~/.config/anthropic/**",
+  "~/.config/claude/**",
+  "~/.config/continue/**",
   "~/.config/gemini/**",
   "~/.continue/**",
-  "~/.config/continue/**",
   "~/.cursor/**",
-  "~/.config/Cursor/**",
+  "~/.gemini/**",
+  "~/.openai/**",
   "~/.windsurf/**",
-  "~/.config/Windsurf/**"
-]
-ai_provider_creds_broad = [
   "**/.anthropic/**",
   "**/.claude/**",
   "**/.codex/**",
@@ -302,316 +323,318 @@ ai_provider_creds_broad = [
   "**/.config/gemini/**",
   "**/.cursor/**",
   "**/.gemini/**",
-  "**/.huggingface/token",
   "**/.openai/**"
 ]
+app_data_creds = [
+  "~/.config/Duplicati/**",
+  "~/.config/Google/**",
+  "~/.config/colima/**/*_ed25519",
+  "~/.config/colima/**/*_rsa",
+  "~/.config/colima/**/id_*",
+  "~/.config/colima/**/key.pem",
+  "~/.config/configstore/**",
+  "~/.config/opentofu/**",
+  "~/.local/share/Amazon.com Inc./**",
+  "~/.local/share/GitKrakenCLI/**",
+  "~/.local/share/IsolatedStorage/**",
+  "~/.local/share/azure/msal_token_cache.json",
+  "~/.local/share/mkcert/rootCA-key.pem",
+  "~/.local/share/ykman/**"
+]
+build_caches = [
+  "~/.cache/bun",
+  "~/.cache/chezmoi-render-cache",
+  "~/.cache/go-build",
+  "~/.cache/mise",
+  "~/.cache/node-gyp",
+  "~/.cache/npm",
+  "~/.cache/pip",
+  "~/.cache/pnpm",
+  "~/.cache/uv",
+  "~/.cache/yarn",
+  "~/.cargo/git",
+  "~/.cargo/registry",
+  "~/.local/state/npm"
+]
+# Path of the rendered CA bundle (GIT_SSL_CAINFO); source of truth is
+# private_dot_config/exact_shell/exact_exports.d/ca-bundle.sh.tmpl — bump together.
+ca_bundle = ["~/.config/certificates/ca-bundle.pem"]
+cert_key_binaries = [
+  "**/*.jks",
+  "**/*.keystore",
+  "**/*.kdbx",
+  "**/*.p12",
+  "**/*.p8",
+  "**/*.pfx"
+]
+cloud_creds = [
+  "~/.config/containers/auth.json",
+  "~/.config/docker/config.json",
+  "~/.config/runpod/**",
+  "~/.local/share/containers/auth.json",
+  "~/.pulumi/**",
+  "~/.runpod/**",
+  "~/.terraformrc",
+  "**/.aws/**",
+  "**/.azure/**",
+  "**/.boto",
+  "**/.config/gcloud/**",
+  "**/.config/runpod/**",
+  "**/.docker/config.json",
+  "**/.runpod/**",
+  "**/.terraform.d/credentials.tfrc.json",
+  "**/.terraformrc"
+]
+core_unix = [
+  "/Library/Preferences/Logging",
+  "/bin",
+  "/dev",
+  "/private/etc",
+  "/usr"
+]
+db_client_secrets = ["~/.config/pg/pgpass", "~/.pgpass"]
+dtrace_helper_file = ["/dev/dtracehelper"]
+dcg_state = [
+  "~/Library/Application Support/dcg/**",
+  "~/.config/dcg/**"
+]
+engram = ["~/.local/share/engram"]
+git_gh_creds = [
+  "~/.config/gh/hosts.yml",
+  "~/.config/git/credentials",
+  "~/.config/github-copilot/**",
+  "**/.config/gh/hosts.yml",
+  "**/.config/git/credentials",
+  "**/.config/github-copilot/hosts.json",
+  "**/.git-credentials",
+  "**/.netrc"
+]
+gpg = ["~/.local/share/gnupg/**"]
+macos_keychain = [
+  "~/Library/Caches/aws/**",
+  "~/Library/Caches/gcloud/**",
+  "~/Library/Caches/gh/**",
+  "~/Library/Group Containers/**"
+]
+omp_auth_files = ["~/.config/omp/agent/auth.json"]
+opencode_auth_files = ["~/.local/share/opencode/auth.json"]
+package_creds = [
+  "~/.cargo/credentials",
+  "~/.config/gradle/gradle.properties",
+  "~/.config/npm/npmrc",
+  "~/.config/pip/pip.conf",
+  "~/.config/pypoetry/auth.toml",
+  "~/.gem/credentials",
+  "~/.gradle/gradle.properties",
+  "~/.local/share/cargo/credentials",
+  "~/.m2/settings.xml",
+  "~/.npm",
+  "~/.npm/**",
+  "~/.pnpmrc",
+  "~/.pypirc",
+  "~/.yarnrc",
+  "~/.yarnrc.yml",
+  "**/.cargo/credentials",
+  "**/.gem/credentials",
+  "**/.m2/settings.xml",
+  "**/.npmrc",
+  "**/.pip/pip.conf",
+  "**/.pnpmrc",
+  "**/.pypirc",
+  "**/.yarnrc",
+  "**/.yarnrc.yml",
+  "**/gradle.properties",
+  "**/poetry.toml",
+  "**/settings.xml"
+]
 password_manager_local = [
-  "~/.config/gopass/**",
-  "~/.config/rbw/**",
-  "~/.config/rclone/**",
+  "~/.config/1Password/**",
   "~/.config/AWS VPN Client/**",
   "~/.config/AWSVPNClient/**",
-  "~/.config/Gemalto/**",
-  "~/.config/lftp/**",
-  "~/.config/1Password/**",
   "~/.config/Bitwarden/**",
+  "~/.config/Gemalto/**",
+  "~/.config/gopass/**",
   "~/.config/keepassxc/**",
+  "~/.config/lftp/**",
+  "~/.config/rclone/**",
+  "~/.config/rbw/**",
   "~/.local/share/keyrings/**",
   "~/.local/share/kwalletd/**"
 ]
-app_data_creds = [
-  "~/.config/Google/**",
-  "~/.config/configstore/**",
-  "~/.config/colima/**/id_*",
-  "~/.config/colima/**/*_rsa",
-  "~/.config/colima/**/*_ed25519",
-  "~/.config/colima/**/key.pem",
-  "~/.config/Duplicati/**",
-  "~/.config/opentofu/**",
-  "~/.local/share/azure/msal_token_cache.json",
-  "~/.local/share/GitKrakenCLI/**",
-  "~/.local/share/Amazon.com Inc./**",
-  "~/.local/share/mkcert/rootCA-key.pem",
-  "~/.local/share/ykman/**",
-  "~/.local/share/IsolatedStorage/**"
+password_stores = ["~/.config/age/**", "~/.config/sops/**", "~/.local/share/pass/**"]
+pi_auth_files = [
+  "~/.config/pi/agent/auth.json",
+  "~/.config/pi/profiles/core/auth.json",
+  "~/.config/pi/profiles/factory/auth.json"
 ]
-terraform_state = [
-  "**/*.tfstate",
-  "**/*.tfstate.*",
-  "**/*.tfvars",
-  "**/*.tfvars.json",
-  "**/*.auto.tfvars",
-  "**/*.auto.tfvars.json",
-  "**/secret.tfvars",
-  "**/secret.tfvars.json",
-  "**/.terraform/**",
-  "**/*kubeconfig*",
-  "**/.kube/config",
-  "**/kubeconfig.secret*"
-]
-sandbox_terraform_state = [
-  "**/*.tfstate",
-  "**/*.tfstate.*",
-  "**/*.auto.tfvars",
-  "**/*.auto.tfvars.json",
-  "**/secret.tfvars",
-  "**/secret.tfvars.json",
-  "**/.terraform/**",
-  "**/.kube/config",
-  "**/kubeconfig.secret*"
-]
-secrets_dirs = [
-  "**/secrets/**",
-  "**/.secrets/**",
-  "**/credentials/**",
-  "**/.credentials/**"
-]
-sandbox_secrets_dirs = ["**/.secrets/**", "**/.credentials/**"]
-shell_history = [
-  "~/.bash_history",
-  "~/.zsh_history",
-  "~/.history",
-  "~/.local/state/bash/history",
-  "~/.local/state/zsh/history",
-  "~/.local/share/atuin/**",
-  "~/.psql_history",
-  "~/.mysql_history",
-  "~/.mongosh_history",
-  "~/.rediscli_history",
-  "~/.sqlite_history",
-  "~/.lesshst"
-]
-db_client_secrets = ["~/.pgpass", "~/.config/pg/pgpass"]
-macos_keychain = [
-  "~/Library/Keychains/**",
-  "~/Library/Application Support/1Password/**",
-  "~/Library/Application Support/Google/Chrome/Default/Login Data",
-  "~/Library/Application Support/Google/Chrome/Default/Cookies",
-  "~/Library/Group Containers/**",
-  "~/Library/Caches/gcloud/**",
-  "~/Library/Caches/aws/**",
-  "~/Library/Caches/gh/**"
-]
-engram_memory = ["~/.local/share/engram", "~/.local/share/engram/**"]
-greywall_config_boundary = [
-  "~/.config/greywall/**",
-  "~/Library/Application Support/greywall",
-  "~/Library/Application Support/greywall/**",
-  "~/Library/Application Support/greyproxy"
-]
-greyproxy_data_boundary = [
-  "~/.local/share/greyproxy/greyproxy.db",
-  "~/.local/share/greyproxy/greyproxy.db-*",
-  "~/.local/share/greyproxy/settings.json",
-  "~/.local/share/greyproxy/ca-key.pem",
-  "~/.local/share/greyproxy/session.key"
-]
-colima_private_keys = [
-  "~/.config/colima/**/id_*",
-  "~/.config/colima/**/*_rsa",
-  "~/.config/colima/**/*_ed25519",
-  "~/.config/colima/**/key.pem"
-]
-local_credential_overlaps = ["~/.local/share/mkcert/rootCA-key.pem"]
 pre_commit_cache = [
   "~/.cache/pre-commit",
-  "~/.cache/pre-commit/**"
+  # mise's pre-commit shim bootstraps its zipapp cache here on first run
+  "~/.cache/pre-commit-zipapp"
 ]
-sandbox_read_base = [
-  ".",
-  "~/.cache/chezmoi",
-  "~/.cache/chezmoi/**",
-  "~/.ssh",
-  "~/.ssh/config",
-  "~/.editorconfig",
-  "~/.zshenv",
-  "~/.agents",
-  "~/.pi",
-  "~/.pi-lens",
-  "~/.omlx",
-  "~/.config",
-  "~/.local",
-  "~/.local/share"
+private_key_files = [
+  "**/*.asc",
+  "**/*.key",
+  "**/*.pem.bak",
+  "**/*_ed25519",
+  "**/*_ed25519.bak",
+  "**/*_ed25519.old",
+  "**/*_ed25519.pub",
+  "**/*_rsa",
+  "**/*_rsa.bak",
+  "**/*_rsa.old",
+  "**/*_rsa.pub",
+  "**/*-key.pem",
+  "**/*id_ed25519*",
+  "**/*id_rsa*",
+  "**/*id_rsa.bak",
+  "**/*id_rsa.old",
+  "**/key.pem",
+  "**/private*.pem"
 ]
-managed_config_dirs = [
-  "~/.config/agents/**",
-  "~/.config/atuin/**",
-  "~/.config/bat/**",
-  "~/.config/brew/**",
-  "~/.config/btop/**",
-  "~/.config/certificates/**",
-  "~/.config/colima/**",
-  "~/.config/docker/**",
-  "~/.config/fd/**",
-  "~/.config/ghostty/**",
-  "~/.config/git/**",
-  "~/.config/greywall/**",
-  "~/.config/tmux/**", # managed via exact_tmux
-  "~/.config/iterm2/**",
-  "~/.config/k9s/**",
-  "~/.config/lazygit/**",
-  "~/.config/llama.cpp/**",
-  "~/.config/maven/**",
-  "~/.config/mise/**",
-  "~/.config/npm/**",
-  "~/.config/nvim/**",
-  "~/.config/opencode/**",
-  "~/.config/pi/**",
-  "~/.config/rpiv-advisor/**",
-  "~/.config/rpiv-ask-user-question/**",
-  "~/.config/rpiv-pi/**",
-  "~/.config/rpiv-todo/**",
-  "~/.config/rpiv-web-tools/**",
-  "~/.config/shell/**",
-  "~/.config/ssh/**",
-  "~/.config/ssh/**",
-  "~/.config/wget/**",
-  "~/.config/yazi/**",
-  "~/.config/zsh/**",
-  "~/.config/zsh-abbr/**"
-]
-managed_local_dirs = [
-  "~/.local/bin/**",
-  "~/.local/share/dotfiles/**",
-  "~/.local/share/gnupg/**",
-  "~/.local/share/java/**",
-  "~/.local/share/mkcert/**",
-  "~/.local/share/opencode/**",
-  "~/.local/share/pi-lens/**",
-  "~/.local/share/ssh/**",
-  "~/.local/src/**"
+project_secrets = [
+  # The launching shell's credential store (direnv); agents supply it, never read it.
+  ".env",
+  ".env.*",
+  ".envrc",
+  "**/.direnv/**",
+  "**/.env",
+  "**/.env.*",
+  "**/.envrc",
+  "**/.envrc.local",
+  "**/.envrc.private",
+  "**/.envrc.secret",
+  "**/.htpasswd"
 ]
 sandbox_macos = [
   "~/Library",
   "~/Library/Application Support",
-  "~/Library/Application Support/Cursor",
-  "~/Library/Application Support/Cursor/User",
-  "~/Library/Application Support/Cursor/User/settings.json",
-  "~/Library/Application Support/Cursor/User/keybindings.json",
   "~/Library/Application Support/Code",
   "~/Library/Application Support/Code/User",
-  "~/Library/Application Support/Code/User/settings.json",
   "~/Library/Application Support/Code/User/keybindings.json",
-  "~/Library/Application Support/greywall",
-  "~/Library/Application Support/greyproxy",
+  "~/Library/Application Support/Code/User/settings.json",
+  "~/Library/Application Support/Cursor",
+  "~/Library/Application Support/Cursor/User",
+  "~/Library/Application Support/Cursor/User/keybindings.json",
+  "~/Library/Application Support/Cursor/User/settings.json",
+  "~/Library/Caches/go-build",
+  "~/Library/Caches/node-gyp",
   "~/Library/Fonts",
-  "~/Library/Fonts/**",
-  "~/Library/Scripts",
-  "~/Library/Scripts/setenv.sh",
   "~/Library/LaunchAgents",
   "~/Library/LaunchAgents/com.user.setenv.plist",
-  "~/Library/Caches/node-gyp",
-  "~/Library/Caches/node-gyp/**",
-  "~/Library/Caches/go-build",
-  "~/Library/Caches/go-build/**"
+  "~/Library/Scripts",
+  "~/Library/Scripts/setenv.sh"
 ]
-build_caches = [
-  "~/.cache/bun",
-  "~/.cache/bun/**",
-  "~/.cache/go-build",
-  "~/.cache/go-build/**",
-  "~/.cache/mise/**",
-  "~/.cache/node-gyp",
-  "~/.cache/node-gyp/**",
-  "~/.cache/npm",
-  "~/.cache/npm/**",
-  "~/.cache/pip",
-  "~/.cache/pip/**",
-  "~/.cache/pnpm",
-  "~/.cache/pnpm/**",
-  "~/.cache/uv",
-  "~/.cache/uv/**",
-  "~/.cache/yarn",
-  "~/.cache/yarn/**",
-  "~/.cargo/git",
-  "~/.cargo/git/**",
-  "~/.cargo/registry",
-  "~/.cargo/registry/**",
-  "~/.local/state/npm",
-  "~/.local/state/npm/**"
+sandbox_read_base = [
+  ".",
+  "~/.agents",
+  "~/.cache/chezmoi",
+  "~/.config",
+  "~/.editorconfig",
+  "~/.local/share",
+  "~/.omlx"
 ]
 sandbox_write_base = [
   ".",
-  "/dev/fd/**",
-  "/proc/self/fd/**",
-  "/tmp/greywall-open-url",
-  "/tmp/greywall-open-url/**",
   "~/.agents",
   "~/.cache/chezmoi",
-  "~/.cache/chezmoi/**",
   "~/.editorconfig",
-  "~/.local",
-  "~/.local/bin/**",
-  "~/.local/share",
-  "~/.local/share/dotfiles/**",
-  "~/.omlx",
-  "~/.pi",
-  "~/.pi-lens",
-  "~/.ssh",
-  "~/.ssh/config",
-  "~/.zshenv"
+  "~/.omlx"
 ]
 sandbox_write_specific = [
-  "~/.config",
-  "~/.config/chezmoi/chezmoistate.boltdb",
-  "~/.config/pi/agent/.models.json*",
-  "~/.config/pi/agent/.settings.json*",
-  "~/.config/pi/agent/models.json",
-  "~/.config/pi/agent/settings.json",
-  "~/.config/rpiv-pi",
-  "~/.config/rpiv-pi/**",
+  # Dir (not just the boltdb file): chezmoi opens its state dir for lock/temp
+  # files, so agents could not run `chezmoi diff` in-sandbox with a file grant.
+  "~/.config/chezmoi",
   "~/.local/share/dotfiles/test",
-  "~/.local/share/dotfiles/test/**",
-  "~/.local/share/engram",
-  "~/.local/share/engram/**",
-  "~/.local/share/gnupg/**",
-  "~/.local/share/java/**",
-  "~/.local/share/mkcert/**",
-  "~/.local/share/opencode/**",
-  "~/.local/share/pi-lens/**",
-  "~/.local/share/ssh/**",
-  "~/.local/src/**",
-  "~/.local/share/tmux/**"
+  "~/.local/share/tmux",
+  # mise trusts repo configs by writing symlinks under state (in-sandbox mise).
+  "~/.local/state/mise"
 ]
-# Shared scratch parent for sandboxed processes and the agent launchers that
-# bootstrap it (agent-launch creates /tmp/agents before invoking greywall).
-# Only the exact parent lives in the shared/base profile; each agent's
-# /tmp/agents/<agent> subtree is allow-listed only in its own overlay so the
-# base profile cannot cross-read or cross-write other agents' scratch dirs.
-agent_scratch = [
-  "/tmp/agents",
-  "/tmp/compound-engineering",
-  "/tmp/compound-engineering/**"
+secrets_dirs = ["**/.credentials/**", "**/.secrets/**", "**/credentials/**", "**/secrets/**"]
+service_creds = [
+  "~/.config/.wrangler/**",
+  "~/.config/netlify/config.json",
+  "~/.config/ngrok/ngrok.yml",
+  "~/.config/turso/**",
+  "~/.config/vercel/auth.json",
+  "~/.fly/config.yml",
+  "~/.huggingface/token",
+  "~/.supabase/**",
+  "**/.config/netlify/config.json",
+  "**/.config/ngrok/ngrok.yml",
+  "**/.config/vercel/auth.json",
+  "**/.huggingface/token"
 ]
+shell_history = [
+  "~/.lesshst",
+  "~/.local/share/atuin/**",
+  "~/.local/state/bash/history",
+  "~/.local/state/zsh/history",
+  "~/.mongosh_history",
+  "~/.mysql_history",
+  "~/.psql_history",
+  "~/.rediscli_history",
+  "~/.sqlite_history"
+]
+# nono 0.79.0's deny_credentials does NOT cover ~/.ssh, and reads are
+# default-allowed (system_read_macos's /System/Volumes firmlink makes home
+# readable). A literal directory deny covers only the dir itself (ls EPERM vs
+# cat allowed), so the direct-child keys are denied too; `~/.ssh/*` expands at
+# sandbox start.
+ssh = ["~/.config/ssh/**", "~/.ssh", "~/.ssh/*"]
+terraform_state = [
+  "**/*.auto.tfvars",
+  "**/*.auto.tfvars.json",
+  "**/*.tfstate",
+  "**/*.tfstate.*",
+  "**/*.tfvars",
+  "**/*.tfvars.json",
+  "**/.kube/config",
+  "**/.terraform/**",
+  "**/*kubeconfig*",
+  "**/kubeconfig.secret*",
+  "**/secret.tfvars",
+  "**/secret.tfvars.json"
+]
+# `$TMPDIR` is the render-time sentinel (expand-tmpdir); "." is the cwd.
+tmp_workspace = ["$TMPDIR", "."]
 
-[ai.base.permissions.network]
-allow_unix_sockets = ["~/.local/share/tmux"]
-
-[ai.base.permissions.network.hosts]
+[ai.base.permissions.network.allow_domain]
+agent_search_providers = [
+  "*.exa.ai",
+  "*.parallel.ai",
+  "api.firecrawl.dev",
+  "api.linkup.so",
+  "api.tavily.com",
+  "google.serper.dev",
+  "mcp.context7.com",
+  "mcp.grep.app",
+  "mcp.kagi.com",
+  "serpapi.com"
+]
 ai_providers = [
   "*.aiplatform.googleapis.com",
+  "*.githubcopilot.com",
   "*.maas.aliyuncs.com",
   "*.openai.azure.com",
+  "*.openai.com",
   "*.opencode.ai",
   "*.services.ai.azure.com",
   "aiplatform.googleapis.com",
   "api.anthropic.com",
   "api.baseten.co",
-  "api.business.githubcopilot.com",
   "api.cerebras.ai",
   "api.cloudflare.com",
   "api.cohere.com",
   "api.deepinfra.com",
   "api.deepseek.com",
   "api.fireworks.ai",
-  "api.githubcopilot.com",
   "api.groq.com",
   "api-inference.huggingface.co",
   "api.jina.ai",
   "api.minimax.io",
   "api.mistral.ai",
   "api.moonshot.ai",
-  "api.openai.com",
   "api.perplexity.ai",
   "api.replicate.com",
   "api.stepfun.ai",
@@ -620,260 +643,60 @@ ai_providers = [
   "api.x.ai",
   "api.xiaomimimo.com",
   "api.z.ai",
-  "auth.openai.com",
+  "chatgpt.com",
   "cloudcode-pa.googleapis.com",
+  "coding-intl.dashscope.aliyuncs.com",
   "dashscope-intl.aliyuncs.com",
   "dashscope-us.aliyuncs.com",
-  "docs.anthropic.com",
   "gateway.ai.cloudflare.com",
   "generativelanguage.googleapis.com",
   "integrate.api.nvidia.com",
   "models.github.ai",
   "opencode.ai",
   "openrouter.ai",
-  "api-docs.deepseek.com",
-  "chatgpt.com",
-  "docs.ai21.com",
-  "docs.sambanova.ai",
-  "docs.siliconflow.cn",
-  "docs.voyageai.com",
-  "docs.z.ai",
-  "help.openai.com",
-  "jina.ai",
-  "learn.chatgpt.com",
-  "openai.com",
   "platform.claude.com",
-  "platform.kimi.ai",
-  "platform.minimax.io",
-  "platform.moonshot.ai",
-  "platform.openai.com",
-  "platform.stepfun.ai",
-  "router.huggingface.co"
+  "routify-file-proxy-sg.oss-ap-southeast-1.aliyuncs.com"
 ]
-github = [
-  "*.github.com",
-  "*.githubassets.com",
-  "api.bitbucket.org",
-  "api.github.com",
-  "avatars.githubusercontent.com",
-  "bitbucket.org",
-  "codeload.github.com",
-  "gist.github.com",
-  "github.com",
-  "gitlab.com",
-  "objects.githubusercontent.com",
-  "pkg-npm.githubusercontent.com",
-  "raw.githubusercontent.com",
-  "registry.gitlab.com",
-  "gist.githubusercontent.com",
-  "github.blog",
-  "github.github.io",
-  "monaspace.githubnext.com",
-  "release-assets.githubusercontent.com"
-]
-registries = [
-  "*.crates.io",
-  "*.golang.org",
-  "*.npmjs.org",
-  "*.pythonhosted.org",
-  "api.npmjs.org",
-  "api.nuget.org",
-  "api.pub.dev",
-  "api.rubygems.org",
-  "crates.io",
-  "docs.npmjs.com",
-  "files.pythonhosted.org",
-  "getcomposer.org",
-  "go.dev",
-  "hackage.haskell.org",
-  "hex.pm",
-  "huggingface.co",
-  "index.crates.io",
-  "index.golang.org",
-  "index.rubygems.org",
-  "jsr.io",
-  "libraries.io",
-  "*.libraries.io",
-  "npmjs.com",
-  "www.npmjs.com",
-  "packagist.org",
-  "pkg.go.dev",
-  "plugins.jetbrains.com",
-  "proxy.golang.org",
-  "pub.dev",
-  "pypi.org",
-  "registry.npmjs.org",
-  "registry.yarnpkg.com",
-  "repo.packagist.org",
-  "rubygems.org",
-  "rustup.rs",
-  "static.crates.io",
-  "static.rust-lang.org",
-  "sum.golang.org",
-  "test.pypi.org"
-]
-java_maven = [
-  "central.maven.org",
-  "download.jetbrains.com",
-  "maven.google.com",
-  "plugins.gradle.org",
-  "repo.maven.apache.org",
-  "repo.maven.org",
-  "repo.spring.io",
-  "repo1.maven.org",
-  "search.maven.org",
-  "services.gradle.org"
-]
+ai_skypilot = ["*.skypilot.co", "skypilot.co"]
 containers = [
   "*.data.mcr.microsoft.com",
+  "*.docker.com",
+  "*.docker.io",
   "*.gcr.io",
-  "auth.docker.io",
-  "download.docker.com",
   "gcr.io",
   "ghcr.io",
-  "hub.docker.com",
-  "index.docker.io",
   "mcr.microsoft.com",
   "production.cloudflare.docker.com",
   "public.ecr.aws",
   "quay.io",
-  "registry-1.docker.io",
   "us-docker.pkg.dev"
 ]
-js_cdns = [
-  "cdn.jsdelivr.net",
-  "deno.com",
-  "esm.run",
-  "esm.sh",
-  "jspm.dev",
-  "unpkg.com"
-]
-docs_frameworks = [
-  "*.modelcontextprotocol.io",
-  "ai.google.dev",
-  "ai-sdk.dev",
-  "angular.dev",
-  "astro.build",
-  "biomejs.dev",
-  "bun.com",
-  "bun.sh",
-  "claude.ai",
-  "www.anthropic.com",
-  "cloud.google.com",
-  "code.claude.com",
-  "context7.com",
-  "deepwiki.com",
-  "deno.land",
-  "developer.apple.com",
-  "developer.hashicorp.com",
+docs_reference = [
+  "*.stackoverflow.com",
   "developer.mozilla.org",
-  "developers.cloudflare.com",
-  "developers.openai.com",
   "doc.rust-lang.org",
-  "docs.brew.sh",
-  "docs.renovatebot.com",
-  "formulae.brew.sh",
-  "ghostty.org",
-  "man.archlinux.org",
-  "man7.org",
-  "mise-versions.jdx.dev",
-  "www.chezmoi.io",
-  "docs.anthropic.com",
-  "docs.aws.amazon.com",
-  "docs.claude.com",
-  "docs.cloud.google.com",
-  "docs.cursor.com",
-  "docs.comfy.org",
-  "docs.deno.com",
-  "docs.docker.com",
   "docs.github.com",
-  "docs.gitlab.com",
   "docs.python.org",
   "docs.rs",
-  "docs.litellm.ai",
-  "helm.sh",
-  "hono.dev",
-  "kubernetes.io",
-  "learn.microsoft.com",
-  "mise.jdx.dev",
-  "modelcontextprotocol.io",
-  "docs.runpod.io",
-  "docs.sglang.ai",
-  "docs.sglang.io",
-  "docs.vllm.ai",
-  "models.dev",
-  "nextjs.org",
-  "nodejs.org",
-  "nuxt.com",
-  "packaging.python.org",
-  "pip.pypa.io",
-  "pnpm.io",
-  "react.dev",
-  "remix.run",
-  "sdk.vercel.ai",
-  "svelte.dev",
-  "tailwindcss.com",
-  "tanstack.com",
-  "trpc.io",
-  "turbo.build",
-  "vercel.com",
-  "vitejs.dev",
-  "vitest.dev",
-  "vuejs.org",
-  "zod.dev"
-]
-search = [
-  "*.duckduckgo.com",
-  "*.reddit.com",
-  "api.search.brave.com",
-  "api.stackexchange.com",
-  "askubuntu.com",
-  "hacker-news.firebaseio.com",
-  "docs.greywall.io",
-  "duckduckgo.com",
-  "news.ycombinator.com",
-  "reddit.com",
-  "serverfault.com",
-  "stackexchange.com",
+  "hexdocs.pm",
+  "man7.org",
+  "nono.sh",
+  "pkg.go.dev",
   "stackoverflow.com",
-  "superuser.com",
-  "arxiv.org",
-  "google.com",
-  "www.bing.com",
-  "www.google.com",
-  "www.swebench.com",
-  "support.apple.com",
-  "www.typescriptlang.org"
+  "www.chezmoi.io"
 ]
-agent_search_providers = [
-  "api.exa.ai",
-  "api.firecrawl.dev",
-  "api.jina.ai",
-  "api.linkup.so",
-  "api.parallel.ai",
-  "api.perplexity.ai",
-  "api.search.brave.com",
-  "api.tavily.com",
-  "docs.exa.ai",
-  "docs.firecrawl.dev",
-  "docs.jina.ai",
-  "docs.linkup.so",
-  "docs.parallel.ai",
-  "docs.perplexity.ai",
-  "docs.tavily.com",
-  "google.serper.dev",
-  "help.kagi.com",
-  "kagi.com",
-  "mcp.context7.com",
-  "mcp.exa.ai",
-  "mcp.grep.app",
-  "mcp.kagi.com",
-  "search.parallel.ai",
-  "serpapi.com"
+github = ["*.githubusercontent.com", "api.github.com", "codeload.github.com", "github.com"]
+iac_tools = [
+  "artifacthub.io",
+  "get.helm.sh",
+  "hub.helm.sh",
+  "registry.terraform.io",
+  "releases.hashicorp.com"
 ]
 infra_schema = [
   "*.schemastore.org",
   "marketplace.visualstudio.com",
+  "mcp.supabase.com",
   "netlify.com",
   "open-vsx.org",
   "pre-commit.com",
@@ -882,68 +705,91 @@ infra_schema = [
   "semgrep.dev",
   "supabase.com"
 ]
-ai_skypilot = [
-  "*.skypilot.co",
-  "docs.skypilot.co",
-  "skypilot.co"
+kubernetes_release = ["*.k3s.io"]
+java_maven = [
+  "*.gradle.org",
+  "*.maven.org",
+  "download.jetbrains.com",
+  "maven.google.com",
+  "repo.maven.apache.org",
+  "repo.spring.io"
+]
+js_cdns = [
+  "cdn.jsdelivr.net",
+  "cdnjs.cloudflare.com",
+  "deno.com",
+  "esm.run",
+  "esm.sh",
+  "jspm.dev",
+  "ui.shadcn.com",
+  "unpkg.com"
+]
+models_catalog = ["models.dev", "pi.dev"]
+registries = [
+  "*.crates.io",
+  "*.golang.org",
+  "*.jdx.dev",
+  "*.npmjs.org",
+  "*.packagist.org",
+  "*.pub.dev",
+  "*.pythonhosted.org",
+  "*.rubygems.org",
+  "api.nuget.org",
+  "crates.io",
+  "getcomposer.org",
+  "go.dev",
+  "hackage.haskell.org",
+  "hex.pm",
+  "huggingface.co",
+  "jsr.io",
+  "packagist.org",
+  "pub.dev",
+  "pypi.org",
+  "registry.yarnpkg.com",
+  "rubygems.org",
+  "rustup.rs",
+  "test.pypi.org"
+]
+runtime_binaries = [
+  "*.deno.land",
+  "*.nodejs.org",
+  "cache.ruby-lang.org",
+  "cdn.playwright.dev",
+  "deno.land",
+  "download-r2.pytorch.org",
+  "download.pytorch.org",
+  "googlechromelabs.github.io",
+  "nodejs.org",
+  "playwright.download.prss.microsoft.com",
+  "www.python.org"
+]
+search = ["api.search.brave.com", "api.stackexchange.com", "hacker-news.firebaseio.com"]
+vuln_advisories = ["api.osv.dev", "vuln.go.dev"]
+
+# Narrow dedicated host groups for the command sandboxes (resolved by
+# expand-path-groups with catalog "ai.permissions.network.groups"). Sandbox
+# lists reference ONLY these groups, never a base category: mediated sandboxes
+# get egress solely for what their own list grants, so a base-category
+# reference would widen them. Dotless entries in any network list are group
+# references here and loud-fail at render when absent.
+[ai.base.permissions.network.groups]
+# Git is HTTPS-only: exactly the GitHub transport hosts (api.github.com is
+# deliberately absent — it is not transport).
+git_forge = ["*.githubusercontent.com", "codeload.github.com", "github.com"]
+# mise's own registry hosts plus the node runtime pair (mise install node).
+mise_runtime = [
+  "*.crates.io",
+  "*.golang.org",
+  "*.jdx.dev",
+  "*.nodejs.org",
+  "*.npmjs.org",
+  "*.pythonhosted.org",
+  "api.github.com",
+  "cdn.jsdelivr.net",
+  "nodejs.org",
+  "pypi.org",
+  "static.rust-lang.org"
 ]
 
 [ai.base.permissions.network.localhost]
-allow_outbound = true
 forward_ports = [7437]
-
-[ai.base.permissions.sandbox]
-allow_read_paths = [
-  "agent_scratch",
-  "sandbox_read_base",
-  "managed_config_dirs",
-  "managed_local_dirs",
-  "sandbox_macos",
-  "pre_commit_cache"
-]
-allow_write_paths = [
-  "agent_scratch",
-  "sandbox_write_base",
-  "sandbox_write_specific",
-  "managed_config_dirs",
-  "build_caches",
-  "sandbox_macos",
-  "pre_commit_cache"
-]
-deny_read_paths = [
-  "project_secrets",
-  "sandbox_private_keys",
-  "cert_key_binaries",
-  "ssh_private",
-  "gpg_private",
-  "password_stores",
-  "cloud_creds",
-  "git_gh_creds",
-  "package_creds",
-  "service_creds",
-  "ai_provider_creds",
-  "password_manager_local",
-  "app_data_creds",
-  "sandbox_terraform_state",
-  "sandbox_secrets_dirs",
-  "shell_history",
-  "db_client_secrets",
-  "colima_private_keys",
-  "macos_keychain",
-  "greyproxy_data_boundary"
-]
-deny_write_paths = [
-  "project_secrets",
-  "sandbox_private_keys",
-  "cert_key_binaries",
-  "ssh_private",
-  "gpg_private",
-  "cloud_creds",
-  "git_gh_creds",
-  "package_creds",
-  "sandbox_terraform_state",
-  "sandbox_secrets_dirs",
-  "greywall_config_boundary",
-  "colima_private_keys",
-  "local_credential_overlaps"
-]

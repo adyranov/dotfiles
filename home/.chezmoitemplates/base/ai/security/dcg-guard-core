@@ -1,0 +1,116 @@
+import { spawnSync } from "node:child_process";
+import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+
+const HOME = process.env.HOME || "";
+const DCG_CANDIDATES = [
+  `${HOME}/.local/share/mise/shims/dcg`,
+  "/usr/local/bin/dcg",
+  "dcg",
+];
+const DCG_TIMEOUT_MS = 10000;
+
+// Mirrors the upstream parse_env_bool truthy set in destructive_command_guard
+// src/config.rs (trimmed, lowercased), so DCG and this core agree on DCG_BYPASS.
+const DCG_BYPASS_TRUTHY = ["1", "true", "yes", "y", "on"];
+// Third seal: a sandboxed process cannot write the read-only DCG store, so a
+// forged env (env -u AGENT_SANDBOX DCG_BYPASS=1 …) fails the probe and stays
+// armed. Probe success = unsandboxed write access. Linux caveat: Landlock/
+// seatbelt deny on the existing ~/.config/dcg dir also denies creating files
+// in it; a host where the dir is writable is unsandboxed by definition.
+// The probe file is unlinked after a successful write: the DCG store is
+// exact_-managed and .chezmoiremove-purged, so a leftover file makes every
+// chezmoi apply prompt about it. Only the write's success matters.
+function bootWriteProbeOk() {
+  const dir = `${process.env.HOME || ""}/.config/dcg`;
+  const probe = `${dir}/.guard-boot-probe`;
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(probe, "1");
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try {
+      unlinkSync(probe);
+    } catch {
+      // cleanup is best-effort; the verdict is the write probe
+    }
+  }
+}
+// Boot-time snapshot of the launcher's --no-sandbox bypass (DCG_BYPASS=1) and
+// the AGENT_SANDBOX marker. Three seals keep a sandboxed agent from self-disarming:
+// (1) nono profiles scrub inherited DCG_* env at sandbox spawn, so a sandboxed
+// launch never sees the bypass at boot; (2) this is a module-load snapshot, so
+// post-boot process.env mutation by agent-loaded code cannot disarm the guard
+// (a live read would; today's tamper fails closed, keep it that way); (3) the
+// boot write probe above fails inside the sandbox even when seals 1-2 are
+// forged around, so a nested spawn with a scrubbed marker stays armed.
+// Caveat: a project plugin executing before this core at boot can poison the
+// snapshot (third-party plugin ordering).
+const DCG_BYPASS_AT_BOOT =
+  DCG_BYPASS_TRUTHY.includes((process.env.DCG_BYPASS || "").trim().toLowerCase()) &&
+  !process.env.AGENT_SANDBOX &&
+  bootWriteProbeOk();
+// The agent's transcript is the only audit trail of a bypassed session
+// (no DCG history, no nono log), so announce the bypass in-band, once,
+// mirroring the missing-binary warning below.
+if (DCG_BYPASS_AT_BOOT) {
+  console.error("[dcg] guard bypassed at boot (DCG_BYPASS); commands are not checked");
+}
+
+function dcgBlockReason(command, cwd) {
+  // A bypassed dcg never consults packs, so the spawn is pure overhead;
+  // skipping it also avoids depending on bypassed-binary output shapes.
+  if (DCG_BYPASS_AT_BOOT) return null;
+  if (typeof command !== "string" || command.length === 0) return null;
+  const payload = `${JSON.stringify({ tool_name: "Bash", tool_input: { command } })}\n`;
+  let result = null;
+  for (const candidate of DCG_CANDIDATES) {
+    let probe;
+    try {
+      probe = spawnSync(candidate, ["hook", "--robot", "--batch"], {
+        input: payload,
+        encoding: "utf8",
+        timeout: DCG_TIMEOUT_MS,
+        cwd: typeof cwd === "string" && cwd ? cwd : undefined,
+        env: {
+          ...process.env,
+          DCG_FAIL_CLOSED: "1",
+          // No DCG_ALLOW_ONCE_PATH override: the default store is read-only
+          // in the sandbox and DCG fails closed on it (block stands). A
+          // writable store would be a self-authorization hole: entries are
+          // plain JSONL and match_command trusts store bytes.
+        },
+      });
+    } catch {
+      continue;
+    }
+    if (probe.error && probe.status == null && !probe.signal) continue; // never started
+    result = probe;
+    break;
+  }
+  if (!result) {
+    console.error("[dcg] pinned binary not found; command allowed (permissive missing-binary mode)");
+    return null;
+  }
+  const line = String(result.stdout || "").trim().split("\n")[0];
+  let verdict = null;
+  try {
+    verdict = line ? JSON.parse(line) : null;
+  } catch {
+    verdict = null;
+  }
+  const decision = verdict && verdict.decision;
+  if (decision === "deny" || decision === "ask" || decision === "indeterminate") {
+    const rule = verdict && verdict.rule_id;
+    if (!rule) {
+      // Rule-less verdict (e.g. an Unknown-dialect widening): `dcg allow` has
+      // no rule to approve, so send the operator to explain on the command.
+      return `${(verdict && verdict.reason) || "Blocked by DCG (no rule id)"}\n\nRule: (none reported)\nApproval: not rule-approvable; operator terminal: dcg explain '<command>'`;
+    }
+    return `${(verdict && verdict.reason) || `Blocked by DCG (${rule})`}\n\nRule: ${rule}\nApproval (operator terminal, not the agent): dcg allow ${rule}; see: dcg explain`;
+  }
+  if (decision === "allow") return null;
+  if (result.status === 0) return "Blocked by DCG: dcg exited 0 without a verdict (fail-closed).";
+  return `Blocked by DCG: dcg ended without a verdict (exit ${result.status}${result.signal ? ` signal ${result.signal}` : ""}; fail-closed).`;
+}

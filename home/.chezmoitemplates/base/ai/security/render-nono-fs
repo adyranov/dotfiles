@@ -1,0 +1,40 @@
+{{- /* render-nono-fs — Build the base nono filesystem section from the permission data.
+  Usage: {{ includeTemplate "base/ai/security/render-nono-fs" (dict "root" . "applyDests" $dests) | mustFromJson }}
+  applyDests (required): the render-apply-dests output list, computed ONCE per
+  base render by render-nono-profile (the guard chain runs one time, not per
+  consumer; fail-propagation is identical).
+  Output: JSON { allow, read, write, deny, unix_socket_subtree }
+  Input: ai.permissions.filesystem { read, write, deny, unix_socket_subtree } —
+  read/write/deny list path-group names expanded from filesystem.paths.
+  Full r+w = every write-group path (nono "allow" is read+write); read-only =
+  read-group paths with no write group; tier pipeline in build-fs-tiers. Deny
+  carries "~/.config/nono" so an agent cannot edit its own (or the base)
+  profile and escalate on relaunch. Apply-allowlist destinations join the
+  write tier: a destination is applicable if and only if it is granted.
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $fs := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem" "required" true) | mustFromJson) -}}
+{{- $read := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $fs "read" | default list)) | mustFromJson -}}
+{{- $write := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $fs "write" | default list)) | mustFromJson -}}
+{{- /* The allowlist is the grant set; render-apply-dests refused protected/glob/relative. */ -}}
+{{- $dests := index . "applyDests" -}}
+{{- if not (kindIs "slice" $dests) -}}{{- fail "render-nono-fs: applyDests arg (render-apply-dests output list) is required; render-nono-profile computes it once per base render" -}}{{- end -}}
+{{- $write = concat $write $dests -}}
+{{- $deny := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $fs "deny" | default list)) | mustFromJson -}}
+{{- /* Deny the nono profile dir so an agent cannot escalate via its own profile. */ -}}
+{{- $deny = concat $deny (list "~/.config/nono") -}}
+{{- /* Base also honors the agents' overlay hook reads: an overlay cannot subtract a
+  base allow (realpath-aware: the ~/.pi symlink into ~/.config/pi silently shadowed
+  the pi hook carve-out). */ -}}
+{{- $agents := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents" "required" false) | mustFromJson) -}}
+{{- $fsCatalog := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem.paths" "required" true) | mustFromJson) -}}
+{{- $extraCarve := list -}}
+{{- range $name, $a := $agents -}}{{- if eq (kindOf $a) "map" -}}{{- $extraCarve = concat $extraCarve (includeTemplate "base/ai/security/resolve-path-refs" (dict "root" $root "refs" (dig "sandbox" "filesystem" "read" list $a) "catalogJson" $fsCatalog) | mustFromJson) -}}{{- end -}}{{- end -}}
+{{- $tiers := includeTemplate "base/ai/security/build-fs-tiers" (dict "root" $root "read" $read "write" $write "deny" $deny "extraCarve" $extraCarve) | mustFromJson -}}
+{{- dict
+  "allow" (index $tiers "allow")
+  "read" (index $tiers "read")
+  "write" (list)
+  "deny" (index $tiers "deny")
+  "unix_socket_subtree" (includeTemplate "base/ai/security/uniq-sort" (index $fs "unix_socket_subtree" | default list) | mustFromJson)
+| toJson -}}

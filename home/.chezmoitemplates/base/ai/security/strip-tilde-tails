@@ -1,0 +1,35 @@
+{{- /* strip-tilde-tails — SIGILL guard for tilde-anchored globs.
+  Collapse `~/X/**` globs to the literal prefix `~/X` when that root exists as
+  a directory on this machine: nono expands tilde-anchored `/**` tails with a
+  recursive walk at sandbox start (~22s then SIGILL, rc 132, on nono 0.79.0 at
+  full profile scale; read/allow tiers expand eagerly too), while nono
+  directory rules already recurse and cover future content — the prefix is
+  semantically exact. Missing-root globs stay native (zero walk cost).
+  Untouched: rootless name globs, mid-path double-stars, single-star and literal paths.
+  Usage:
+    {{ includeTemplate "base/ai/security/strip-tilde-tails" (dict "homeDir" .chezmoi.homeDir "paths" $list) | mustFromJson }}
+  Output: JSON array, same order, collapsed where safe.
+*/ -}}
+{{- $homeDir := index . "homeDir" -}}
+{{- /* Root-existence stats only make sense on the host (full read access).
+  Inside a sandboxed chezmoi the tilde roots live under protected
+  ancestors (/Users, ~) that stat cannot traverse, and a stat error
+  aborts the render; sandbox renders are informational, so keep native
+  globs there. Marker: the mediation shim dir on PATH — the one signal
+  that survives the tool-env scrub. */ -}}
+{{- $probe := true -}}
+{{- if contains ":/private/tmp/nono-tool-sandbox-" (printf ":%s:" (env "PATH")) -}}{{- $probe = false -}}{{- end -}}
+{{- $out := list -}}
+{{- range $p := (index . "paths") | default list -}}
+{{-   $q := trimSuffix "/" $p -}}
+{{-   $keep := $p -}}
+{{-   if and (hasPrefix "~/" $q) (hasSuffix "/**" $q) -}}
+{{-     $root := trimSuffix "/**" $q -}}
+{{-     if $probe -}}
+{{-       $st := stat (joinPath $homeDir (trimPrefix "~" $root)) -}}
+{{-       if and $st $st.isDir -}}{{- $keep = $root -}}{{- end -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $out = append $out $keep -}}
+{{- end -}}
+{{- $out | toJson -}}

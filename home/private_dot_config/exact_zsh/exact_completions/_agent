@@ -1,0 +1,32 @@
+#compdef agent
+# zsh completion for the agent launcher (~/.local/bin/agent).
+# Level 1: agent names and aliases plus the launcher flags; level 2: per-agent
+# profile words and flags (omp: flags only, single-root) — --profile selects
+# the profile in both positions; positional profile words stay compat aliases.
+
+if (( CURRENT == 2 )); then
+  _values 'agent' 'pi' 'oc' 'opencode' 'omp' '--profile' '--help' '--list'
+  return
+fi
+
+case "${words[2]}" in
+  pi)
+    _values 'pi profiles + flags' \
+      'core' 'default' 'factory' 'minimal' \
+      '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
+    ;;
+  opencode|oc)
+    _values 'opencode profiles + flags' \
+      'core' 'default' 'factory' 'minimal' \
+      '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile' \
+      '--port'
+    ;;
+  omp)
+    _values 'agent flags' \
+      '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
+    ;;
+  *)
+    _values 'agent flags' \
+      '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
+    ;;
+esac

@@ -17,12 +17,28 @@ install.sh
 Library
 {{- end }}
 {{- if not .secrets.age }}
+{{- /* With encryption unconfigured, chezmoi's NoEncryption.EncryptedSuffix() is
+     "", so the .age suffix is NOT stripped: the computed target of an
+     encrypted_*.age source keeps .age, and only the catch-all pattern below
+     drops it before apply tries to decrypt (the "encryption not configured"
+     failure). The stripped names below are not dead code: they protect the
+     decrypted targets applied on age-on hosts from exact_ directory pruning. */}}
 **/*.age
+.config/docker/buildkitd/buildkitd.work.toml
+.config/git/work
+.config/git/work-user
+.config/maven/work.settings.xml
+.config/ssh/config.d/personal.conf
+.config/ssh/config.d/work.conf
+.local/share/mkcert/readonly_rootCA-key.pem
+.local/share/mkcert/rootCA.pem
 {{- end }}
 {{- if not .toolchains.ai }}
 .agents
 .config/agents/**
+.config/dcg/**
 .config/llama-swap/**
+.config/nono/**
 .config/skypilot/**
 .config/runpod/**
 .config/zsh/functions.d/skyl
@@ -33,20 +49,16 @@ Library
 {{- /* Per-agent toolchains: stop managing (and --remove can prune) the whole agent tree. */ -}}
 {{- if not (get .toolchains "pi" | default false) }}
 .config/pi/**
-.local/bin/pi-agent
 {{- end }}
 {{- if not (get .toolchains "opencode" | default false) }}
 .config/opencode/**
-.local/bin/opencode-agent
 {{- end }}
 {{- if not (get .toolchains "omp" | default false) }}
 .config/omp/**
-.local/bin/omp-agent
 {{- end }}
-{{- $hasPi := get .toolchains "pi" | default false -}}
-{{- $hasOc := get .toolchains "opencode" | default false -}}
-{{- $hasOmp := get .toolchains "omp" | default false -}}
-{{- if and (not $hasPi) (not $hasOc) (not $hasOmp) }}
-.local/bin/agent-launch
+{{- /* Launcher gate: manage ~/.local/bin/agent while any agent toolchain is
+       enabled; keep this predicate in sync with the launcher's agent set. */ -}}
+{{- if not (or (get .toolchains "pi" | default false) (get .toolchains "opencode" | default false) (get .toolchains "omp" | default false)) }}
+.local/bin/agent
 {{- end }}
 .gitkeep
