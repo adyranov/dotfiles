@@ -111,6 +111,46 @@ requireDcgPack() {
   assert_equal "${#offenders[@]}" 0
 }
 
+# bats test_tags=kind:dcg
+@test "dcg gates mutation shapes on the session gh tier (KTD3)" {
+  requireDcgPack
+  # KTD3: the session gh tier makes every agent-tree process write-capable on
+  # the GitHub route hosts, so the user.github rows gate the mutation SHAPE,
+  # not one binary. Reads (gh api GET, plain curl GET) must stay ungated.
+  local blocks=(
+    "gh api repos/x/y -X POST|gh-api-write"
+    "gh api repos/x/y --method PATCH|gh-api-write"
+    "gh api repos/x/y -f foo=bar|gh-api-field-write"
+    "gh workflow run ci.yml|gh-workflow-run"
+    "gh pr merge 1|gh-pr-merge"
+    "gh release create v1|gh-release-create"
+    "curl -X POST https://api.github.com/repos/x/y/issues|http-client-write"
+    "wget --post-data=a=b https://api.github.com/x|http-client-write"
+  )
+  local allows=(
+    "gh api /user"
+    "gh api repos/x/y"
+    "curl -s https://api.github.com/rate_limit"
+    "curl -X GET https://github.com/x"
+  )
+  local case cmd rule
+  local offenders=()
+  for case in "${blocks[@]}"; do
+    cmd="${case%%|*}" rule="${case##*|}"
+    run dcg test --robot "$cmd"
+    [ "$status" -ne 0 ] || offenders+=("robot allowed: $cmd")
+    run dcg test "$cmd"
+    [[ "$output" == *"$rule"* && "$output" == *"BLOCKED"* ]] ||
+      offenders+=("$cmd: missing '$rule' or BLOCKED")
+  done
+  for cmd in "${allows[@]}"; do
+    run dcg test --robot "$cmd"
+    [ "$status" -eq 0 ] || offenders+=("robot blocked read: $cmd")
+  done
+  printf '%s\n' "${offenders[@]}" >&2
+  assert_equal "${#offenders[@]}" 0
+}
+
 {{- $hooks := list }}
 {{- if get .toolchains "opencode" | default false }}{{ $hooks = append $hooks "$HOME/.config/opencode/plugins/dcg-guard.js" }}{{ end }}
 {{- if get .toolchains "pi" | default false }}{{ $hooks = append $hooks "$HOME/.config/pi/agent/extensions/dcg-robot.ts" }}{{ end }}
