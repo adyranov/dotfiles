@@ -121,9 +121,8 @@ launcher, the completion, and the toolchain gates.
 You supply agent credentials through the environment you launch from (`direnv`, a
 global export, a prefix) — chezmoi never stores or reads them. nono scrubs every
 credential name out of the sandbox and re-injects the real value at egress through
-its loopback proxy routes, so the agent holds a phantom token and no value. Routes
-carry a coarse work-friendly endpoint policy (DELETE class denied), revised from the
-session audit trail. Repository scope is the token's own grant: a fine-grained token
+its loopback proxy routes, so the agent holds a phantom token and no value.
+Repository scope is the token's own grant: a fine-grained token
 per project, enforced by GitHub. Rotation is a new value plus a relaunch. OMP stays
 credential-free.
 
@@ -134,12 +133,10 @@ credential-free.
   `nono setup` reports Landlock per-port enforcement, declared per host). Elsewhere
   agents run scrub-only — no credential values, so provider calls fail; the launcher
   prints the mode and names any route whose credential source is missing from that shell.
-  Every route carries an endpoint policy (reads and repo writes allowed, everything else
-  denied by default — measured: an off-list write returns 403 with a `connect_intercept`
-  audit denial, on the client's own traffic, no base-URL override involved). `gh` keeps its
+  `gh` keeps its
   real `hosts.yml` denied and runs from a relocated state dir, and authenticates on the
   phantom `GH_TOKEN`: the egress swap is measured (`gh api /user` returns the account,
-  rate limit 5000), with off-list writes refused by the endpoint policy.
+  rate limit 5000).
 - The store is invisible to agents (`.envrc`, `.env*`, `.direnv/` on the deny
   floor); on Linux, denies cover only paths that exist at sandbox start.
 - `--no-sandbox` runs unscrubbed with the real values: debug only. Provider traffic

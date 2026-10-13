@@ -485,7 +485,7 @@ setup() {
 }
 
 {{- /* Every row is defined as custom_credentials and every upstream is a host the
-     base floor already grants: routes add no egress. Unmatched routes deny. */ -}}
+     base floor already grants: routes add no egress. */ -}}
 {{- $routeRender := omit $netCredsRender "allow_domain" "open_port" -}}
 
 # bats test_tags=kind:nono
@@ -495,10 +495,8 @@ setup() {
     (($r.custom_credentials // {}) | keys | sort) == $keys and
     (all(($r.custom_credentials // {}) | values[]; .upstream | sub("^https?://"; "") | . as $h | ($want | index($h)) != null)) and
     (all(($r.custom_credentials // {}) | values[]; .credential_key | startswith("env://"))) and
-    (all(($r.custom_credentials // {}) | values[]; .endpoint_policy.default.decision == "deny")) and
-    (all(($r.custom_credentials // {}) | values[]; (.endpoint_policy.allow | length) > 0)) and
-    (all(($r.custom_credentials // {}) | values[] | .endpoint_policy.allow[]; (.method | type) == "string" and (.path | type) == "string")) and
-    (all(($r.custom_credentials // {}) | values[] | .endpoint_policy.allow[]; (.method | ascii_upcase) != "DELETE"))
+    # exact entry shape: the proxy route is host/key/env/header/format only
+    (all(($r.custom_credentials // {}) | values[]; (. | keys | sort) == ["credential_format", "credential_key", "env_var", "inject_header", "upstream"]))
   '
   assert_success
 }
@@ -550,8 +548,6 @@ setup() {
 {{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
 {{- $routeHttpTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes" "ANTHROPIC_API_KEY" "upstream") "value" "http://insecure.invalid") | mustFromJson -}}
 {{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
-{{- $routeGroupTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes" "ANTHROPIC_API_KEY" "endpoint_group") "value" "nope_endpoint_group_typo") | mustFromJson -}}
-{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
 
 # bats test_tags=kind:nono
 @test "credential route validation fails the render naming the offending row" {
@@ -567,9 +563,6 @@ FIXTURE
   cat >"$BATS_TEST_TMPDIR/route-http.tmpl" <<'FIXTURE'
 {{ $routeHttpTpl }}
 FIXTURE
-  cat >"$BATS_TEST_TMPDIR/route-group.tmpl" <<'FIXTURE'
-{{ $routeGroupTpl }}
-FIXTURE
 
   run "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-not-secret.tmpl"
   [ "$status" -ne 0 ] || offenders="$offenders not-secret:fails-render"
@@ -584,10 +577,6 @@ FIXTURE
   run "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-http.tmpl"
   [ "$status" -ne 0 ] || offenders="$offenders http:fails-render"
   [[ "$output" == *"must be https"* ]] || offenders="$offenders http:reason-marker"
-
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-group.tmpl"
-  [ "$status" -ne 0 ] || offenders="$offenders group:fails-render"
-  [[ "$output" == *nope_endpoint_group_typo* ]] || offenders="$offenders group:named"
 
   if [ -n "$offenders" ]; then
     printf 'credential route validation (offending checks):%s\n' "$offenders"

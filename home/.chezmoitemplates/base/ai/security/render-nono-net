@@ -4,7 +4,7 @@
   Output: JSON { allow_domain, open_port } plus custom_credentials (every route
     row, credentials.routes_enabled) — the proxy's loopback routes and the only
     definition site: a custom entry named after a built-in replaces it, and only
-    this shape carries env_var, inject_header, endpoint_policy.
+    this shape carries env_var, inject_header.
   Input: ai.permissions.network.allow_domain — category -> hosts (chezmoi-side
     grouping sugar); rendered flat with wildcards preserved and no port grammar.
   Mixed-list classification: entries containing "." are literal hosts and
@@ -38,16 +38,13 @@
   "open_port" ($ports | uniq)
 -}}
 {{- /* 0.79.0 cannot resolve a credential on a command sandbox, so every route is
-  defined and used at session level, with its endpoint policy attached. */ -}}
+  defined and used at session level. */ -}}
 {{- if index $creds "routes_enabled" -}}
 {{-   $custom := dict -}}
 {{-   range $row := ($creds.routes | default list) -}}
 {{-     $entry := dict "upstream" (index $row "upstream") "credential_key" (index $row "credential_key") "env_var" (index $row "env_var") -}}
 {{-     if index $row "inject_header" -}}{{-     $_ := set $entry "inject_header" (index $row "inject_header") -}}{{-     end -}}
 {{-     if index $row "credential_format" -}}{{-     $_ := set $entry "credential_format" (index $row "credential_format") -}}{{-     end -}}
-{{-     $allow := list -}}
-{{-     range $rule := (index $row "endpoint_rules" | default list) -}}{{-     $allow = append $allow (dict "method" $rule.method "path" $rule.path) -}}{{-     end -}}
-{{-     $_ := set $entry "endpoint_policy" (dict "default" (dict "decision" "deny") "allow" $allow) -}}
 {{-     $key := index $row "custom_name" | default (index $row "preset") | default (index $row "name" | lower) -}}
 {{-     $_ := set $custom $key $entry -}}
 {{-   end -}}
