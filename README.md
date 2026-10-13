@@ -126,13 +126,26 @@ Repository scope is the token's own grant: a fine-grained token
 per project, enforced by GitHub. Rotation is a new value plus a relaunch. OMP stays
 credential-free.
 
+Delegation is one story per host: your terminal keeps the full identity and every
+sandbox gets a deliberately scoped subset. On macOS the subset arrives as phantom
+tokens — scrubbed values, with the proxy injecting the real credential at egress.
+On Linux hosts whose kernel cannot enforce the proxy (stock Ubuntu, WSL2) the
+exported provider keys pass through into the agent env, names redacted in the
+audit trail, and GitHub is not delegated there: `gh` and git work stay your
+terminal's. GitHub delegation rides the project's fine-grained token at the
+session-tier `gh` grant, and the macOS keychain is unreachable in-sandbox on
+every path, files and Mach IPC. Full permissions exist only outside the sandbox,
+launched by a human (`--no-sandbox`).
+
 - Clients that cannot honor a base-URL override (the Gemini family) are listed in
   `env_injected` in `home/.chezmoidata/base/ai/credentials.toml`: their real value
   reaches the agent env, redacted in logs.
 - Routes activate only on hosts that enforce the proxy (macOS; Linux once
   `nono setup` reports Landlock per-port enforcement, declared per host). Elsewhere
-  agents run scrub-only — no credential values, so provider calls fail; the launcher
-  prints the mode and names any route whose credential source is missing from that shell.
+  the exported provider keys pass through into the agent env (names added to
+  `env_injected` per distro overlay, redacted in logs), and the launcher prints the
+  mode; on route-capable hosts it also names any route whose credential source is
+  missing from that shell.
   `gh` keeps its
   real `hosts.yml` denied and runs from a relocated state dir, and authenticates on the
   phantom `GH_TOKEN`: the egress swap is measured (`gh api /user` returns the account,

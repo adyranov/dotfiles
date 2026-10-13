@@ -763,8 +763,11 @@ export NONO_NO_SAVE_PROMPT=1
 # r+w — durable, agent-readable triage trail; the in-band denial summary stays.
 export NONO_LOG_FILE="$TMPDIR/nono.log"
 
-# Credential mode of the applied profile: routes on, or scrub-only.
+# Credential mode of the applied profile: routes on, pass-through (KTD5), or
+# scrub-only. The scrub lives in the base profile; agent profiles inherit it
+# (omp re-declares the full set, so it never reads as pass-through).
 NONO_PROFILE_FILE="$HOME/.config/nono/profiles/$NONO_PROFILE.json"
+NONO_BASE_PROFILE="$HOME/.config/nono/profiles/base.json"
 if grep -q '"custom_credentials"' "$NONO_PROFILE_FILE" 2>/dev/null; then
   dim "Credentials: routes on — the proxy injects values at egress"
   # A route whose env:// source is unset in THIS shell injects nothing: the proxy warns
@@ -776,8 +779,17 @@ if grep -q '"custom_credentials"' "$NONO_PROFILE_FILE" 2>/dev/null; then
       | .key] | join(" ")' "$NONO_PROFILE_FILE" 2>/dev/null)"
     [ -n "$missing_creds" ] && warn "Routes without a credential source in this shell: $missing_creds — the proxy denies them (export the var, e.g. via direnv)"
   fi
+elif [ "$NONO_PROFILE" != omp ] && command -v jq >/dev/null 2>&1 &&
+  jq -e '.environment.deny_vars | (index("ANTHROPIC_API_KEY") == null and
+    index("OPENAI_API_KEY") == null)' "$NONO_BASE_PROFILE" >/dev/null 2>&1; then
+  dim "Credentials: pass-through — exported provider keys are in the agent env (names redacted in the audit trail); GitHub is not delegated: gh/git work stays in your terminal"
 else
   dim "Credentials: scrub-only — no credential values, provider calls unavailable"
+fi
+# Audit-mode notice: a profile stamped with audit_mode logs without
+# enforcing. Dormant today: no rendered profile carries the field.
+if grep -q '"audit_mode"' "$NONO_PROFILE_FILE" 2>/dev/null; then
+  warn "[nono: AUDIT mode — enforcing off]"
 fi
 dim "Launch: nono run --profile $NONO_PROFILE ${open_port:+--open-port $open_port} -- $BINARY_NAME ..."
 exec nono run --profile "$NONO_PROFILE" ${open_port:+--open-port "$open_port"} -- "$BINARY_NAME" "$@"
