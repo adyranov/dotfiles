@@ -157,7 +157,7 @@ setup() {
 }
 
 # bats test_tags=kind:nono
-@test "apply grants: file-granular session tier, parent-dir chezmoi sandbox, git/mise/gh overrides" {
+@test "apply grants: file-granular session tier, parent-dir chezmoi sandbox, git/mise overrides" {
   # Grants are the allowlist: the same data renders the session write tier (file
   # granular) and the chezmoi command sandbox that replaces it for chezmoi — and
   # nono takes DIRECTORIES only in the sandbox lists, so chezmoi's tier carries the
@@ -166,7 +166,7 @@ setup() {
   # broad config parent: `~/.config`/`~/.local/share` reads would re-open the
   # credential deny groups living under them — gh hosts.yml, git credentials,
   # configstore, pgpass, amazon/azure/engram state (user-terminal probe: `nono run
-  # --profile base -- cat ~/.config/gh/hosts.yml` must EPERM). The git/mise/gh keys
+   # --profile base -- cat ~/.config/gh/hosts.yml` must EPERM). The git/mise keys
   # are the overrides (live A/B tested, nono 0.79.0): the ["."] default is
   # fatal for both; git reads `~/.config/git` as a DIR — the `@git:config-files`
   # token is fatal on hosts with a system gitconfig (file entries in dirs-only
@@ -179,7 +179,6 @@ setup() {
     ($r.command_policies.commands.chezmoi.from.session.sandbox) as $cz |
     ($r.command_policies.commands.git.from.session.sandbox) as $git |
     ($r.command_policies.commands.mise.from.session.sandbox) as $mise |
-    ($r.command_policies.commands.gh.from.session.sandbox) as $gh |
     ($d | length) > 0 and
     all($d[]; . as $p | ($r.filesystem.allow | index($p)) != null) and
     all($pairs[]; . as $pr | ($cz.fs_write | index($pr.parent)) != null) and
@@ -219,18 +218,11 @@ setup() {
     ($mise.fs_write | index("~/.local/state/mise") != null) and
     ($mise.fs_read | index("~/Library/Caches/mise") != null) and
     ($mise.fs_write | index("~/Library/Caches/mise") != null) and
-    # gh dies at boot without the config read (measured: `gh --version` EPERMs on
-    # ~/.config/gh/config.yml); the dir grant over it is refused by the guard
-    # because it contains the hosts.yml deny entry, so only the file rides
-    ($gh.fs_read_file | index("~/.config/gh/config.yml") != null) and
-    ($gh.fs_read | index("~/.config/gh") | not) and
     # Sandbox network lists resolve through the [network.groups] catalog; the
     # pins are EXACT sets (group refs are narrow by design — a base-category
     # reference would widen the mediated sandbox and must never render).
     ($git.network.allow_domain | sort) == ["*.githubusercontent.com", "codeload.github.com", "github.com"] and
-    ($mise.network.allow_domain | sort) == ["*.crates.io", "*.golang.org", "*.jdx.dev", "*.nodejs.org", "*.npmjs.org", "*.pythonhosted.org", "api.github.com", "cdn.jsdelivr.net", "nodejs.org", "pypi.org", "static.rust-lang.org"] and
-    # gh's API host is not in the git_forge group; mediation grants no session egress
-    ($gh.network.allow_domain | sort) == ["api.github.com"]
+    ($mise.network.allow_domain | sort) == ["*.crates.io", "*.golang.org", "*.jdx.dev", "*.nodejs.org", "*.npmjs.org", "*.pythonhosted.org", "api.github.com", "cdn.jsdelivr.net", "nodejs.org", "pypi.org", "static.rust-lang.org"]
   ' "{{ $nonoProfiles }}/base.json"
   assert_success
 }
@@ -404,8 +396,6 @@ setup() {
     # secret egress denied; ordinary verbs outside the families allowed
     (hit("gpg"; ["--export-secret-keys"])) and (hit("gpg"; ["--export-secret-subkeys"])) and
     (hit("gpg"; ["--export","me@example.com"]) | not) and (hit("gpg"; ["--export-ssh-key","me"]) | not) and
-    (hit("gh"; ["auth","token"])) and (hit("gh"; ["secret","list","-R","a/b"])) and
-    (hit("gh"; ["repo","view","r"]) | not) and
     (hit("aws"; ["secretsmanager","get-secret-value","--secret-id","x"])) and (hit("aws"; ["s3","ls"]) | not) and
     (hit("sky"; ["launch","--secret","k=v"])) and (hit("sky"; ["status"]) | not) and
     # disk erase/partition families denied; other verbs allowed
@@ -552,6 +542,19 @@ setup() {
     (.filesystem.deny | index("**/.config/gh/hosts.yml") != null)
   ' "{{ $nonoProfiles }}/base.json"
   assert_success
+}
+
+# bats test_tags=kind:nono
+@test "the command axis carries no gh: session tier replaces it (KTD2)" {
+  # U2 deletion (boot measured OK 2026-10-13): gh runs at the agent's session
+  # tier, so the command policy is gone entirely — no apply.sandbox.gh entry,
+  # no deny rows. gh auth login/auth token are NO LONGER command-denied (no
+  # pin needed): the token read returns the phantom and login writes the
+  # relocated state. The secret-mutation gate rides the DCG github pack.
+  run jq -e '.command_policies.commands | has("gh") | not' "{{ $nonoProfiles }}/base.json"
+  assert_success
+  run grep -F -e '"gh ' -e 'sandbox.gh' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
+  assert_failure
 }
 
 # bats test_tags=kind:nono

@@ -41,28 +41,14 @@ command_sandbox_write = ["~/.cache/chezmoi", "~/.config/chezmoi"]
 # git aliases/hooksPath, mise [tasks]/env).
 destinations = ["~/.config/git/config", "~/.config/mise/mise.toml"]
 
-# The ["."] default kills gh at boot: it reads ~/.config/gh/config.yml. Only that
-# file is granted — ~/.config/gh as a dir contains the hosts.yml deny entry, so
-# the apply-dest guard refuses it (dir grants over credential dirs ride
-# destination parents only).
-[ai.base.permissions.apply.sandbox.gh]
-fs_read = [".", "core_unix"]
-fs_read_file = ["~/.config/gh/config.yml"]
-# An unreadable ~/.config/gh/hosts.yml is fatal for gh ("failed to create root
-# command"), and that file sits on the credential floor. Relocating gh's state into
-# the sandbox makes the missing file created instead of denied, and the real config
-# stays unreadable.
-fs_write = ["~/.cache/gh-sandbox"]
-
-# gh's API host is api.github.com, which git_forge deliberately excludes, and
-# mediation grants a command egress only from its own sandbox.
-[ai.base.permissions.apply.sandbox.gh.network]
-allow_domain = ["api.github.com"]
-
-[ai.base.permissions.apply.sandbox.gh.set_vars]
-GH_CONFIG_DIR = "$HOME/.cache/gh-sandbox/config"
-GH_DATA_DIR = "$HOME/.cache/gh-sandbox/data"
-GH_CACHE_DIR = "$HOME/.cache/gh-sandbox/cache"
+# gh runs at the agent's session tier (KTD2), so the command axis carries NO gh:
+# no sandbox entry, no deny rows. The boot read (~/.config/gh/config.yml) rides
+# the credential-bearing profiles' session read grants, gh state rides the
+# ~/.cache/gh-sandbox session write grant relocated by the launcher's
+# GH_CONFIG/DATA/CACHE_DIR exports, and egress rides the base github category —
+# boot measured OK with the command policy fully deleted (2026-10-13 spike:
+# gh --version rc 0 at session tier). hosts.yml stays on the git_gh_creds deny
+# floor; the mutation-shape gate is the DCG github pack (KTD3).
 
 # Per-command command-sandbox overrides keyed by command name (unlisted names
 # keep the default ["."]). The ["."] default is fatal for git (dies reading
@@ -197,11 +183,6 @@ deny = [
   # layer cannot gate them (hooks-only, direct-path exec bypasses it).
   "doas *",
   "fdisk *",
-  "gh * secret *",
-  "gh auth login *",
-  "gh auth logout *",
-  "gh auth token",
-  "gh auth token *",
   "git * push --force *",
   "git * push --force-with-lease *",
   "git * push -f *",

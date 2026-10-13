@@ -3,7 +3,7 @@
 id: user.github
 name: User GitHub rules
 version: "1.0.0"
-description: Custom denies for gh deletions, edits, variable sets, raw API mutations, generic HTTP-client mutations against the granted GitHub hosts, and local git commands core.git leaves open.
+description: Custom denies for gh deletions, edits, variable/secret sets, raw API mutations, generic HTTP-client mutations against the granted GitHub hosts, and local git commands core.git leaves open.
 keywords:
   - gh
   - git
@@ -29,6 +29,15 @@ destructive_patterns:
     severity: medium
     description: gh sets repository/organization variables
     explanation: Row gh * variable set *. Variable changes alter CI behavior for everyone.
+  # The gh command-policy deletion (KTD2) dropped the hard `gh * secret *` deny.
+  # gh auth login / gh auth token need NO row here: a token read returns the
+  # phantom (harmless), login writes the relocated state, and the real token is
+  # unobservable (env scrubbed, hosts.yml floored, keychain Mach-closed).
+  - name: gh-secret
+    pattern: '\bgh\b[^;&|\n]*?\bsecret\b[^;&|\n]*?\b(?:set|delete|remove)\b'
+    severity: high
+    description: gh mutates repository/organization secrets
+    explanation: Row gh secret set/delete/remove*. Actions secrets are supply-chain input; the session tier left no command-core gate here.
   - name: gh-api-delete
     pattern: '\bgh\b[^;&|\n]*?\bapi\b[^;&|\n]*?(?:-X\s*DELETE|--method\s+DELETE)'
     severity: high

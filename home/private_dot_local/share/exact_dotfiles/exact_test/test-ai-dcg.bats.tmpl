@@ -126,12 +126,17 @@ requireDcgPack() {
     "gh release create v1|gh-release-create"
     "curl -X POST https://api.github.com/repos/x/y/issues|http-client-write"
     "wget --post-data=a=b https://api.github.com/x|http-client-write"
+    "gh secret set FOO=1|gh-secret"
+    "gh secret delete FOO|gh-secret"
   )
   local allows=(
     "gh api /user"
     "gh api repos/x/y"
     "curl -s https://api.github.com/rate_limit"
     "curl -X GET https://github.com/x"
+    "gh secret list"
+    "gh auth login"
+    "gh auth token"
   )
   local case cmd rule
   local offenders=()
