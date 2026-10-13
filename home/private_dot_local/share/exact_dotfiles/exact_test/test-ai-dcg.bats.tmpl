@@ -127,7 +127,9 @@ requireDcgPack() {
     "curl -X POST https://api.github.com/repos/x/y/issues|http-client-write"
     "wget --post-data=a=b https://api.github.com/x|http-client-write"
     "gh secret set FOO=1|gh-secret"
-    "gh secret delete FOO|gh-secret"
+    # gh-delete matches "gh secret delete" first; the row named in output is the
+    # first match, not gh-secret. The set case pins the gh-secret row by name.
+    "gh secret delete FOO|gh-delete"
   )
   local allows=(
     "gh api /user"
