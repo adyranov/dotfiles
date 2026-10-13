@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# File-scope loads: bats executes `load` when the test file is loaded, so the
+# assert helpers are defined for EVERY phase — setup_file included. Helpers
+# used from setup_file (render_source → assert_success) need this; the loads in
+# common_setup stay for per-test contexts and are idempotent.
+load 'bats-support/load.bash'
+load 'bats-assert/load.bash'
+load 'bats-file/load.bash'
+
 common_setup() {
   bats_require_minimum_version 1.12.0
   load 'bats-support/load.bash'

@@ -41,15 +41,6 @@ command_sandbox_write = ["~/.cache/chezmoi", "~/.config/chezmoi"]
 # git aliases/hooksPath, mise [tasks]/env).
 destinations = ["~/.config/git/config", "~/.config/mise/mise.toml"]
 
-# gh runs at the agent's session tier (KTD2), so the command axis carries NO gh:
-# no sandbox entry, no deny rows. The boot read (~/.config/gh/config.yml) rides
-# the credential-bearing profiles' session read grants, gh state rides the
-# ~/.cache/gh-sandbox session write grant relocated by the launcher's
-# GH_CONFIG/DATA/CACHE_DIR exports, and egress rides the base github category —
-# boot measured OK with the command policy fully deleted (2026-10-13 spike:
-# gh --version rc 0 at session tier). hosts.yml stays on the git_gh_creds deny
-# floor; the mutation-shape gate is the DCG github pack (KTD3).
-
 # Per-command command-sandbox overrides keyed by command name (unlisted names
 # keep the default ["."]). The ["."] default is fatal for git (dies reading
 # ~/.config/git/config; cannot write worktrees, hook caches, TMPDIR) and mise
