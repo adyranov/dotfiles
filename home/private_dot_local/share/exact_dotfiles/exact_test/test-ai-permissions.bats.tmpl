@@ -832,6 +832,7 @@ FIXTURE
             ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (subpath \"{{ trimSuffix "/" .chezmoi.homeDir }}/.config/pi/profiles/factory/extensions\"))")) == null) | "seatbelt deny factory extensions writes")
             ,(select((.unsafe_macos_seatbelt_rules | index("(allow ipc-sysv-sem)")) == null) | "seatbelt ipc-sysv-sem (fff LMDB)")
             ,(select((.unsafe_macos_seatbelt_rules | index("(allow user-preference-read)")) == null) | "seatbelt user-preference-read")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny mach-lookup (global-name \"com.apple.SecurityServer\"))")) == null) | "seatbelt deny keychain mach-lookup (KTD4)")
 {{- end }}
             ,(select((.filesystem.deny | index("~/.config/pi/agent/auth.json")) != null) | "own auth store not denied")
             ,(select((.filesystem.allow | index("~/.config/pi/agent/auth.json")) == null) | "allow own auth store")
@@ -871,6 +872,7 @@ FIXTURE
             ,(select((.filesystem.bypass_protection // [] | index("~/Library/Keychains/login.keychain-db")) != null) | "keychain bypass grant present")
 {{- if eq .chezmoi.os "darwin" }}
             ,(select((.unsafe_macos_seatbelt_rules | index("(allow user-preference-read)")) == null) | "seatbelt user-preference-read")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny mach-lookup (global-name \"com.apple.SecurityServer\"))")) == null) | "seatbelt deny keychain mach-lookup (KTD4)")
 {{- end }}
           ] | .[]
         ' "$file"
@@ -903,6 +905,7 @@ FIXTURE
             ,(select((.filesystem.unix_socket_subtree | index("~/.local/state/omp/run")) == null) | "unix socket subtree omp run")
             ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (subpath \"{{ trimSuffix "/" .chezmoi.homeDir }}/.config/omp/agent/extensions\"))")) == null) | "seatbelt deny agent extensions writes")
             ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (regex #\"{{ trimSuffix "/" .chezmoi.homeDir }}/.\\.config/omp/profiles/[^/]+/agent/extensions\"))")) == null) | "seatbelt regex deny profile extensions writes")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny mach-lookup (global-name \"com.apple.SecurityServer\"))")) == null) | "seatbelt deny keychain mach-lookup (KTD4)")
             ,(select((.environment.deny_vars | index("GITHUB_TOKEN")) == null) | "denies GITHUB_TOKEN")
             ,(select((.environment.deny_vars | index("GH_TOKEN")) == null) | "denies GH_TOKEN")
             ,(select((.filesystem.read | index("~/.config/gh/config.yml")) != null) | "no gh config read (credential-free)")

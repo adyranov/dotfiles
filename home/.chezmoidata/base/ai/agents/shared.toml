@@ -2,6 +2,17 @@
 # here; agents/{pi,opencode,omp}.toml keep only true deltas. render-nono-profile
 # merges shared -> agent and interpolates the per-agent /tmp/agents/<agent>
 # scratch pair, so that pair stays out of data.
+[ai.base.agents.shared.sandbox]
+# Keychain IPC is closed at the session tier (Q1, KTD4): osxkeychain
+# authenticates through securityd over Mach IPC — measured: the keychain file
+# denies and the `security` CLI deny do NOT close it. A user-authored seatbelt
+# deny is the only lever (honoured: user rules are emitted last, last-match
+# wins). The global-name set and both-direction effect are spike-verified in
+# the user terminal (U3 spike).
+unsafe_macos_seatbelt_rules = [
+  '(deny mach-lookup (global-name "com.apple.SecurityServer"))'
+]
+
 [ai.base.agents.shared.sandbox.filesystem]
 # CodeGraph runtime state; project-local git worktrees (conventional path).
 # The ** glob is cwd-anchored (project dirs only); the tilde entry is the
