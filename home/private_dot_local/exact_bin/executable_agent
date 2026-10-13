@@ -201,6 +201,20 @@ print_profile_env() {
   esac
 }
 
+# gh at the session tier (KTD2): relocate gh's state into the sandbox-write dir
+# (~/.cache/gh-sandbox, granted in the pi/opencode nono profiles) so gh creates
+# its missing state instead of reading the floor-denied ~/.config/gh/hosts.yml.
+# Credential-bearing agents only; omp stays credential-free. Single quotes are
+# deliberate: the emitted lines expand $HOME at eval time.
+print_gh_state_env() {
+  # shellcheck disable=SC2016  # emitted for eval by the consumer
+  printf 'export GH_CONFIG_DIR="$HOME/.cache/gh-sandbox/config"\n'
+  # shellcheck disable=SC2016  # emitted for eval by the consumer
+  printf 'export GH_DATA_DIR="$HOME/.cache/gh-sandbox/data"\n'
+  # shellcheck disable=SC2016  # emitted for eval by the consumer
+  printf 'export GH_CACHE_DIR="$HOME/.cache/gh-sandbox/cache"\n'
+}
+
 print_env() {
   profile="$1"
   dir=$(profile_dir "$profile")
@@ -208,12 +222,14 @@ print_env() {
   pi)
     printf 'export PI_CODING_AGENT_DIR="%s"\n' "$dir"
     printf 'export PI_CODING_AGENT_SESSION_DIR="%s/sessions"\n' "$dir"
+    print_gh_state_env
     ;;
   opencode)
     # Scrub first: an eval consumer must not have its exports unset after.
     printf "for __v in \$(env | awk -F= '/^(OPENCODE_.*)/ { print \$1 }'); do unset \"\$__v\"; done 2>/dev/null || :\n"
     printf 'export OPENCODE_CONFIG="%s/opencode.jsonc"\n' "$dir"
     printf 'export OPENCODE_CONFIG_DIR="%s"\n' "$dir"
+    print_gh_state_env
     ;;
   omp)
     printf "for __v in \$(env | awk -F= '/^(OPENCODE_.*|PI_.*)/ || \$1 ~ /^(OMP_PROFILE)$/ { print \$1 }'); do unset \"\$__v\"; done 2>/dev/null || :\n"

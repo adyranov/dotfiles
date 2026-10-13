@@ -3,7 +3,7 @@
 id: user.github
 name: User GitHub rules
 version: "1.0.0"
-description: Custom denies for gh deletions, edits, variable sets, raw API DELETEEs, and local git commands core.git leaves open.
+description: Custom denies for gh deletions, edits, variable sets, raw API mutations, generic HTTP-client mutations against the granted GitHub hosts, and local git commands core.git leaves open.
 keywords:
   - gh
   - git
@@ -28,6 +28,41 @@ destructive_patterns:
     severity: high
     description: gh api DELETE bypasses CLI safety
     explanation: Row gh api repos/* -X DELETE*. Raw DELETEEs can remove arbitrary remote resources.
+  # KTD3 mutation-shape family: the gh session tier makes every process in the
+  # agent tree a write-capable client of api.github.com/github.com (the proxy
+  # attaches the real token at the host boundary), so the gate covers the
+  # mutation SHAPE, not one binary. Reads (gh api GET with no field flags;
+  # plain curl/wget GETs) never match.
+  - name: gh-api-write
+    pattern: '\bgh\b[^;&|\n]*?\bapi\b[^;&|\n]*?(?:-X\s*(?:POST|PATCH|PUT|DELETE)|--method\s+(?:POST|PATCH|PUT|DELETE))'
+    severity: high
+    description: gh api sends a mutating method
+    explanation: Row gh api -X POST|PATCH|PUT|DELETE* (--method alias too). Raw API writes mutate arbitrary remote resources.
+  - name: gh-api-field-write
+    pattern: '\bgh\b[^;&|\n]*?\bapi\b[^;&|\n]*?(?:-f\b|-F\b|--field\b|--raw-field\b|--input\b)'
+    severity: high
+    description: gh api sends a payload (implicit POST)
+    explanation: Row gh api -f key=value / --input body.json*. Field flags make gh api POST by default.
+  - name: gh-workflow-run
+    pattern: '\bgh\b[^;&|\n]*?\bworkflow\b[^;&|\n]*?\brun\b'
+    severity: medium
+    description: gh triggers a workflow run
+    explanation: Row gh workflow run *. Runs consume runner capacity and can publish artifacts.
+  - name: gh-pr-merge
+    pattern: '\bgh\b[^;&|\n]*?\bpr\b[^;&|\n]*?\bmerge\b'
+    severity: high
+    description: gh merges a pull request
+    explanation: Row gh pr merge *. A merge lands on the base branch; gh repo edit rides the gh-edit row.
+  - name: gh-release-create
+    pattern: '\bgh\b[^;&|\n]*?\brelease\b[^;&|\n]*?\bcreate\b'
+    severity: medium
+    description: gh publishes a release
+    explanation: Row gh release create *. Releases are public artifacts pinned to a tag.
+  - name: http-client-write
+    pattern: '\b(?:curl|wget|http|https)\b[^;&|\n]*?(?:(?:api\.github\.com|github\.com)[^;&|\n]*?(?:-X\s*(?:POST|PATCH|PUT|DELETE)|--request\s*(?:POST|PATCH|PUT|DELETE)|--data|-d\b|-T\b|--upload-file\b)|(?:-X\s*(?:POST|PATCH|PUT|DELETE)|--request\s*(?:POST|PATCH|PUT|DELETE)|--data|-d\b|-T\b|--upload-file\b)[^;&|\n]*?(?:api\.github\.com|github\.com))'
+    severity: high
+    description: generic HTTP client mutates a granted GitHub host
+    explanation: Row curl -X POST https://api.github.com/*, wget --data, http -d against github.com*. The proxy swaps the real token for ANY client of these hosts.
   # Local git destructive gate: completes the retired core.toml git policy.
   # core.git (built-in) already covers clean/reset --hard/push-force; the gaps
   # it leaves open are gated here (force-push stays on the nono hard core).

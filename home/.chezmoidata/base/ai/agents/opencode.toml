@@ -67,14 +67,21 @@ read = [
   "engram",
   "~/.local/share/opencode",
   "~/.local/state/opencode",
-  "/tmp/compound-engineering"
+  "/tmp/compound-engineering",
+  # gh session tier (KTD2): config.yml is gh's boot read; hosts.yml stays on the
+  # git_gh_creds deny floor; state rides the relocated write grant below.
+  "~/.config/gh/config.yml"
 ]
 write = [
   "~/.cache/opencode",
   "engram",
   "~/.local/share/opencode",
   "~/.local/state/opencode",
-  "/tmp/compound-engineering"
+  "/tmp/compound-engineering",
+  # Relocated gh state (KTD2): the launcher's GH_CONFIG/DATA/CACHE_DIR exports
+  # point here, so gh creates its missing state files instead of reading the
+  # floor-denied ~/.config/gh/hosts.yml.
+  "~/.cache/gh-sandbox"
 ]
 
 [ai.base.agents.opencode.settings]

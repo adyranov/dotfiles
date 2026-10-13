@@ -540,6 +540,32 @@ setup() {
   assert_success
 }
 
+# bats test_tags=kind:nono
+@test "gh hosts.yml stays on the credential floor under the session tier" {
+  # KTD2: the gh session tier grants the config.yml read and the relocated
+  # state write; hosts.yml is untouched — a git_gh_creds group member, and
+  # the rendered floor denies it.
+  run grep -F '"~/.config/gh/hosts.yml"' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
+  assert_success
+  run jq -e '
+    (.filesystem.deny | index("~/.config/gh/hosts.yml") != null) and
+    (.filesystem.deny | index("**/.config/gh/hosts.yml") != null)
+  ' "{{ $nonoProfiles }}/base.json"
+  assert_success
+}
+
+# bats test_tags=kind:nono
+@test "no credential deny group covers the relocated gh state dir" {
+  # Floor-vs-grant collision (gh session tier): the ~/.cache/gh-sandbox write
+  # grant renders outside every expanded credential deny path, or the grant
+  # silently dies under the floor.
+  run jq -e --argjson protected '{{ $guardProtected | toJson }}' -n '
+    def covers($p): (. | rtrimstr("/**")) as $b | ($p == $b) or ($p | startswith($b + "/"));
+    ([$protected[] | select(covers("~/.cache/gh-sandbox"))] | length) == 0
+  '
+  assert_success
+}
+
 {{- /* Route validation fixtures: every bad row must FAIL the render, naming the
      row and the reason. */ -}}
 {{- $routeNotSecretTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes" "NOT_A_SECRET_TYP0") "value" (dict "attach" "session" "upstream" "https://example.invalid" "env_var" "NOT_A_SECRET_TYP0")) | mustFromJson -}}
@@ -694,6 +720,29 @@ FIXTURE
   assert_output "1"
 }
 
+# bats test_tags=toolchain:ai,kind:launcher
+@test "launcher exports relocated gh state for pi and opencode, never omp" {
+  # gh session tier (KTD2): the GH_* exports point gh's state into
+  # ~/.cache/gh-sandbox (granted in the pi/opencode profiles); omp stays
+  # credential-free and its env block carries no gh state.
+  local a
+  for a in pi oc; do
+    run "$HOME/.local/bin/agent" "$a" --print-env factory
+    assert_success
+    run grep -F 'export GH_CONFIG_DIR="$HOME/.cache/gh-sandbox/config"' <<<"$output"
+    assert_success
+    run grep -F 'export GH_DATA_DIR="$HOME/.cache/gh-sandbox/data"' <<<"$output"
+    assert_success
+    run grep -F 'export GH_CACHE_DIR="$HOME/.cache/gh-sandbox/cache"' <<<"$output"
+    assert_success
+  done
+  run "$HOME/.local/bin/agent" omp --print-env
+  assert_success
+  refute_output --partial 'GH_CONFIG_DIR'
+  refute_output --partial 'GH_DATA_DIR'
+  refute_output --partial 'GH_CACHE_DIR'
+}
+
 {{- $nonoAgents := list -}}
 {{- if .toolchains.pi -}}
 {{-   $nonoAgents = append $nonoAgents (dict "name" "pi" "file" (printf "%s/pi.json" $nonoProfiles) "tag" "toolchain:pi") -}}
@@ -775,6 +824,8 @@ FIXTURE
             ,(select((.filesystem.allow | index("**/.codegraph/**")) == null) | "allow **/.codegraph/**")
             ,(select((.filesystem.allow | index("**/.slim/worktrees/**")) == null) | "allow **/.slim/worktrees/**")
             ,(select((.filesystem.read | index("**/node_modules/@earendil-works/pi-coding-agent/**")) == null) | "read pi-coding-agent package")
+            ,(select((.filesystem.read | index("~/.config/gh/config.yml")) == null) | "read gh config.yml (gh session tier)")
+            ,(select((.filesystem.allow | index("~/.cache/gh-sandbox")) == null) | "allow relocated gh state (gh session tier)")
 {{- if eq .chezmoi.os "darwin" }}
             ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (subpath \"{{ trimSuffix "/" .chezmoi.homeDir }}/.config/pi/agent/extensions\"))")) == null) | "seatbelt deny agent extensions writes")
             ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (subpath \"{{ trimSuffix "/" .chezmoi.homeDir }}/.config/pi/profiles/core/extensions\"))")) == null) | "seatbelt deny core extensions writes")
@@ -809,6 +860,8 @@ FIXTURE
             ,(select((.filesystem.allow | index("**/.codegraph/**")) == null) | "allow **/.codegraph/**")
             ,(select((.filesystem.allow | index("**/.slim/worktrees/**")) == null) | "allow **/.slim/worktrees/**")
             ,(select((.filesystem.read | index("~/.config/opencode/plugins/dcg-guard.js")) == null) | "read dcg-guard plugin")
+            ,(select((.filesystem.read | index("~/.config/gh/config.yml")) == null) | "read gh config.yml (gh session tier)")
+            ,(select((.filesystem.allow | index("~/.cache/gh-sandbox")) == null) | "allow relocated gh state (gh session tier)")
             ,(select((.filesystem.deny | index("~/.config/pi/agent/auth.json")) == null) | "denies pi agent auth store")
             ,(select((.filesystem.deny | index("~/.config/pi/profiles/core/auth.json")) == null) | "denies pi core auth store")
             ,(select((.filesystem.deny | index("~/.config/pi/profiles/factory/auth.json")) == null) | "denies pi factory auth store")
@@ -852,6 +905,8 @@ FIXTURE
             ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (regex #\"{{ trimSuffix "/" .chezmoi.homeDir }}/.\\.config/omp/profiles/[^/]+/agent/extensions\"))")) == null) | "seatbelt regex deny profile extensions writes")
             ,(select((.environment.deny_vars | index("GITHUB_TOKEN")) == null) | "denies GITHUB_TOKEN")
             ,(select((.environment.deny_vars | index("GH_TOKEN")) == null) | "denies GH_TOKEN")
+            ,(select((.filesystem.read | index("~/.config/gh/config.yml")) != null) | "no gh config read (credential-free)")
+            ,(select((.filesystem.allow | index("~/.cache/gh-sandbox")) != null) | "no relocated gh state write (credential-free)")
             ,(select((.network.allow_domain | index("infer01")) == null) | "network infer01")
           ] | .[]
         ' "$file"
