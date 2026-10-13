@@ -336,7 +336,7 @@ setup() {
     # bare-command denies, and eval/exec builtins absent (not PATH-shim mediable)
     (denied_only("pfctl")) and (denied_only("mkfs")) and (denied_only("fdisk")) and
     (denied_only("parted")) and (denied_only("mkcert")) and
-    # privesc / system-admin / raw-socket floor: hard kernel denies, not DCG's
+    # privesc / system-admin / raw-socket floor: hard kernel denies, not DCG
     # (prompt layer, hooks-only; direct-path exec bypasses DCG text analysis)
     (denied_only("sudo")) and (denied_only("su")) and (denied_only("doas")) and
     (denied_only("mount")) and (denied_only("umount")) and
