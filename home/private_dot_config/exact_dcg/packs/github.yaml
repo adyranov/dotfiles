@@ -7,6 +7,12 @@ description: Custom denies for gh deletions, edits, variable sets, raw API mutat
 keywords:
   - gh
   - git
+  # Pack-level keyword gate: without the client tokens, plain `curl … github.com`
+  # never reaches pattern evaluation and the http-client-write row is dead code.
+  - curl
+  - wget
+  - http
+  - https
 destructive_patterns:
   - name: gh-delete
     pattern: '\bgh\b[^;&|\n]*?\bdelete'
@@ -59,10 +65,10 @@ destructive_patterns:
     description: gh publishes a release
     explanation: Row gh release create *. Releases are public artifacts pinned to a tag.
   - name: http-client-write
-    pattern: '\b(?:curl|wget|http|https)\b[^;&|\n]*?(?:(?:api\.github\.com|github\.com)[^;&|\n]*?(?:-X\s*(?:POST|PATCH|PUT|DELETE)|--request\s*(?:POST|PATCH|PUT|DELETE)|--(?:post|body)-(?:data|file)|--data|-d\b|-T\b|--upload-file\b)|(?:-X\s*(?:POST|PATCH|PUT|DELETE)|--request\s*(?:POST|PATCH|PUT|DELETE)|--(?:post|body)-(?:data|file)|--data|-d\b|-T\b|--upload-file\b)[^;&|\n]*?(?:api\.github\.com|github\.com))'
+    pattern: '\b(?:curl|wget|http|https)\b[^;&|\n]*?(?:(?:api\.github\.com|github\.com)[^;&|\n]*?(?:-X\s*(?i:POST|PATCH|PUT|DELETE)|--request\s*(?i:POST|PATCH|PUT|DELETE)|--(?:post|body)-(?:data|file)|--data|-d\b|-T\b|--upload-file\b|-F\b|--form\b|--method\s+(?i:POST|PATCH|PUT|DELETE))|(?:-X\s*(?i:POST|PATCH|PUT|DELETE)|--request\s*(?i:POST|PATCH|PUT|DELETE)|--(?:post|body)-(?:data|file)|--data|-d\b|-T\b|--upload-file\b|-F\b|--form\b|--method\s+(?i:POST|PATCH|PUT|DELETE))[^;&|\n]*?(?:api\.github\.com|github\.com))'
     severity: high
     description: generic HTTP client mutates a granted GitHub host
-    explanation: Row curl -X POST https://api.github.com/*, wget --post-data, http -d against github.com*. The proxy swaps the real token for ANY client of these hosts.
+    explanation: Row curl -X POST https://api.github.com/*, curl -F file=@x https://api.github.com/y, wget --post-data, http -d against github.com*. The proxy swaps the real token for ANY client of these hosts.
   # Local git destructive gate: completes the retired core.toml git policy.
   # core.git (built-in) already covers clean/reset --hard/push-force; the gaps
   # it leaves open are gated here (force-push stays on the nono hard core).

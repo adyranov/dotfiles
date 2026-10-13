@@ -107,7 +107,7 @@
   does for its own printf rules); darwin-only — the field is silently ignored
   on Linux, so it is stripped there. */ -}}
 {{-   $seatbelt = includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $seatbelt "home" (trimSuffix "/" $root.chezmoi.homeDir)) | mustFromJson -}}
-{{-   if and $seatbelt (eq $root.chezmoi.os "darwin") -}}{{-   $_ := set $profile "unsafe_macos_seatbelt_rules" (includeTemplate "base/ai/security/uniq-sort" $seatbelt | mustFromJson) -}}{{- end -}}
+{{-   if and $seatbelt (eq $root.chezmoi.os "darwin") -}}{{-   $_ := set $profile "unsafe_macos_seatbelt_rules" ($seatbelt | uniq) -}}{{- end -}}
 {{- /* omp scrubs the full derived set; others inherit base's scrub and receive
   gap values by pass-through (gap names are excluded from deny_vars upstream). */ -}}
 {{-   if eq $agent "omp" -}}{{-   $_ := set $profile "environment" (dict "deny_vars" ($creds.secrets | default list)) -}}{{-   end -}}

@@ -743,6 +743,20 @@ FIXTURE
   refute_output --partial 'GH_CACHE_DIR'
 }
 
+# bats test_tags=toolchain:ai,kind:launcher
+@test "launcher stamps credential-mode into the log and seeds gh-sandbox" {
+  # R4 audit trail: every sandboxed launch appends the credential mode to
+  # $NONO_LOG_FILE. Linux first-write fix: the gh state root is pre-created
+  # (Landlock binds only paths existing at sandbox start).
+  local launcher="$HOME/.local/bin/agent"
+  run grep -F 'credential-mode:' "$launcher"
+  assert_success
+  run grep -F '"$cred_mode" >>"$NONO_LOG_FILE"' "$launcher"
+  assert_success
+  run grep -F 'mkdir -p "$HOME/.cache/gh-sandbox"' "$launcher"
+  assert_success
+}
+
 {{- $nonoAgents := list -}}
 {{- if .toolchains.pi -}}
 {{-   $nonoAgents = append $nonoAgents (dict "name" "pi" "file" (printf "%s/pi.json" $nonoProfiles) "tag" "toolchain:pi") -}}

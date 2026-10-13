@@ -141,15 +141,13 @@ launched by a human (`--no-sandbox`).
   `env_injected` in `home/.chezmoidata/base/ai/credentials.toml`: their real value
   reaches the agent env, redacted in logs.
 - Routes activate only on hosts that enforce the proxy (macOS; Linux once
-  `nono setup` reports Landlock per-port enforcement, declared per host). Elsewhere
-  the exported provider keys pass through into the agent env (names added to
-  `env_injected` per distro overlay, redacted in logs), and the launcher prints the
-  mode; on route-capable hosts it also names any route whose credential source is
-  missing from that shell.
-  `gh` keeps its
-  real `hosts.yml` denied and runs from a relocated state dir, and authenticates on the
-  phantom `GH_TOKEN`: the egress swap is measured (`gh api /user` returns the account,
-  rate limit 5000).
+  `nono setup` reports Landlock per-port enforcement, declared per host): `gh` keeps
+  its real `hosts.yml` denied, runs from a relocated state dir, and authenticates on
+  the phantom `GH_TOKEN` — the egress swap is measured (`gh api /user` returns the
+  account, rate limit 5000). Elsewhere the exported provider keys pass through into
+  the agent env, redacted in logs, and the launcher prints the mode; on
+  route-capable hosts it also names any route whose credential source is missing
+  from that shell.
 - The store is invisible to agents (`.envrc`, `.env*`, `.direnv/` on the deny
   floor); on Linux, denies cover only paths that exist at sandbox start.
 - `--no-sandbox` runs unscrubbed with the real values: debug only. Provider traffic

@@ -274,6 +274,8 @@ usage() {
   printf 'Flags:\n'
   printf '  --list              list available profiles\n'
   printf '  --print-env [prof]  print env vars for profile\n'
+  printf '                      (for launcher-internal use; eval-ing it in your\n'
+  printf '                      shell relocates your own gh state: GH_CONFIG_DIR)\n'
   printf '  --help              this message\n'
   printf '  --no-sandbox        launch without the nono sandbox and DCG guards\n'
   printf '  --profile NAME      named profile (accepted before or after the agent word;\n'
@@ -769,6 +771,7 @@ export NONO_LOG_FILE="$TMPDIR/nono.log"
 NONO_PROFILE_FILE="$HOME/.config/nono/profiles/$NONO_PROFILE.json"
 NONO_BASE_PROFILE="$HOME/.config/nono/profiles/base.json"
 if grep -q '"custom_credentials"' "$NONO_PROFILE_FILE" 2>/dev/null; then
+  cred_mode=routes
   dim "Credentials: routes on — the proxy injects values at egress"
   # A route whose env:// source is unset in THIS shell injects nothing: the proxy warns
   # and denies that route, so "routes on" alone would overstate what the agent gets.
@@ -782,14 +785,23 @@ if grep -q '"custom_credentials"' "$NONO_PROFILE_FILE" 2>/dev/null; then
 elif [ "$NONO_PROFILE" != omp ] && command -v jq >/dev/null 2>&1 &&
   jq -e '.environment.deny_vars | (index("ANTHROPIC_API_KEY") == null and
     index("OPENAI_API_KEY") == null)' "$NONO_BASE_PROFILE" >/dev/null 2>&1; then
+  cred_mode=pass-through
   dim "Credentials: pass-through — exported provider keys are in the agent env (names redacted in the audit trail); GitHub is not delegated: gh/git work stays in your terminal"
 else
+  cred_mode=scrub-only
   dim "Credentials: scrub-only — no credential values, provider calls unavailable"
 fi
+# R4 audit trail: the mode rides the event log, not just the TUI dim line.
+printf 'credential-mode: %s\n' "$cred_mode" >>"$NONO_LOG_FILE" 2>/dev/null || :
 # Audit-mode notice: a profile stamped with audit_mode logs without
 # enforcing. Dormant today: no rendered profile carries the field.
 if grep -q '"audit_mode"' "$NONO_PROFILE_FILE" 2>/dev/null; then
   warn "[nono: AUDIT mode — enforcing off]"
 fi
+# Landlock binds only paths existing at sandbox start (Linux): seed gh's
+# relocated state root so the first sandboxed gh write lands.
+case "$AGENT_NAME" in
+pi | opencode) mkdir -p "$HOME/.cache/gh-sandbox" 2>/dev/null || : ;;
+esac
 dim "Launch: nono run --profile $NONO_PROFILE ${open_port:+--open-port $open_port} -- $BINARY_NAME ..."
 exec nono run --profile "$NONO_PROFILE" ${open_port:+--open-port "$open_port"} -- "$BINARY_NAME" "$@"
