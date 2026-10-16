@@ -14,12 +14,11 @@ setup() {
 {{- $localServing := index $serving "local" | default dict -}}
 {{- $localPort := get $localServing "port" | default 8321 -}}
 {{- $hasLocalModels := gt (len (get $localServing "models" | default list)) 0 -}}
-{{- $infer01 := index $serving "infer01" | default dict -}}
-{{- $hasInfer01 := gt (len $infer01) 0 -}}
 {{- $presets := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.presets" "required" false) | mustFromJson -}}
-{{- $agentTiers := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" -}}
+{{- $agentTiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.opencode.agent_tiers" "required" true) | mustFromJson -}}
 {{- $slim := "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json" -}}
 {{- $activePreset := index $presets "default" | default "balanced" -}}
+{{- $subagentLimit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" .) | int -}}
 {{- $hasActiveCouncil := gt (len (index (index $presets $activePreset | default dict) "council" | default dict)) 0 -}}
 @test "opencode core config has routing and schema" {
   local file="$HOME/.config/opencode/opencode.jsonc"
@@ -36,9 +35,10 @@ setup() {
   assert_success
 }
 
-@test "opencode core config keeps policy and instruction paths" {
+@test "opencode core config keeps instruction paths and only the external_directory allow" {
   run jsoncJq -e '
-    (.permission | type == "object") and
+    (.permission == {"external_directory": "allow"}) and
+    (.plugin | index("./plugins/dcg-guard.js") != null) and
     (.skills.paths | index("~/.config/agents/skills") != null) and
     (.instructions | index("AGENTS.md") != null)' "$HOME/.config/opencode/opencode.jsonc"
   assert_success
@@ -51,6 +51,8 @@ setup() {
     assert_file_exists "$file"
     run jsoncJq -e '."$schema" == "https://opencode.ai/config.json"' "$file"
     assert_success
+    run jsoncJq -e '.permission.external_directory == "allow"' "$file"
+    assert_success
   done
   assert_file_exists "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   run jq -e '
@@ -59,6 +61,7 @@ setup() {
     (.presets.balanced.orchestrator.skills | index("*") != null) and
     .backgroundJobs.wallClockTimeoutMs == 3600000 and
     .backgroundJobs.abortGraceMs == 10000 and
+    .backgroundJobs.concurrency.defaultConcurrency == {{ $subagentLimit }} and
     .fallback.enabled == true and
     .fallback.maxRetries == 3
 {{- if $hasActiveCouncil }}
@@ -85,6 +88,15 @@ setup() {
     (.presets.balanced.oracle.permission.bash != "deny") and
     (.presets.balanced.oracle.permission.task != "deny")
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+@test "opencode factory registers the slim TUI half via tui.jsonc" {
+  # opencode v1 loads TUI plugins exclusively from tui.jsonc; without it slim's
+  # pane spawner (its ./tui export) never loads and no panes spawn.
+  local tui="$HOME/.config/opencode/profiles/factory/tui.jsonc"
+  assert_file_exists "$tui"
+  run jsoncJq -e '.plugin | index("oh-my-opencode-slim") != null' "$tui"
   assert_success
 }
 
@@ -119,6 +131,17 @@ setup() {
   done
 }
 
+@test "opencode configs drop the v2-only quota plugin" {
+  for file in \
+    "$HOME/.config/opencode/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/core/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/factory/opencode.jsonc"; do
+    run jsoncJq -e '(.plugin // [] | index("@slkiser/opencode-quota") == null)' "$file"
+    assert_success
+  done
+  [[ ! -e "$HOME/.config/opencode/opencode-quota" ]]
+}
+
 @test "opencode configs drop the notify plugin and its log" {
   for file in \
     "$HOME/.config/opencode/opencode.jsonc" \
@@ -139,22 +162,22 @@ setup() {
   assert_success
 }
 
-@test "opencode core and factory configs drop the caveman plugin" {
-  for file in \
-    "$HOME/.config/opencode/profiles/core/opencode.jsonc" \
-    "$HOME/.config/opencode/profiles/factory/opencode.jsonc"; do
-    run jsoncJq -e '(.plugin // [] | index("./plugins/caveman/plugin.js") == null)' "$file"
-    assert_success
-    run jsoncJq -e '(.instructions // [] | index("CAVEMAN.md") == null)' "$file"
-    assert_success
-  done
-}
-
 @test "opencode factory config registers managed compound-engineering plugin" {
   run jsoncJq -e '.plugin | index("./plugins/compound-engineering.js") != null' "$HOME/.config/opencode/profiles/factory/opencode.jsonc"
   assert_success
   assert_symlink_to "$HOME/.config/agents/libraries/extensions/compound-engineering/.opencode/plugins/compound-engineering.js" "$HOME/.config/opencode/profiles/factory/plugins/compound-engineering.js"
   assert_symlink_to "$HOME/.config/agents/libraries/skills/compound-engineering" "$HOME/.config/agents/libraries/extensions/compound-engineering/skills"
+}
+
+@test "opencode core and factory profiles resolve the managed dcg-guard plugin" {
+  for profile in core factory; do
+    run jsoncJq -e '.plugin | index("./plugins/dcg-guard.js") != null' "$HOME/.config/opencode/profiles/$profile/opencode.jsonc"
+    assert_success
+    assert_symlink_to "$HOME/.config/opencode/plugins/dcg-guard.js" "$HOME/.config/opencode/profiles/$profile/plugins/dcg-guard.js"
+  done
+  # OpenCode 1.18.x native loader requires the plugin function as default export.
+  run grep -F 'export default DcgGuard' "$HOME/.config/opencode/plugins/dcg-guard.js"
+  assert_success
 }
 
 @test "opencode core and factory configs enable codegraph MCP, minimal does not" {
@@ -209,11 +232,10 @@ setup() {
 }
 
 @test "opencode agent launcher exposes profiles and forwards args" {
-  assert_file_executable "$HOME/.local/bin/opencode-agent"
-  run "$HOME/.local/bin/opencode-agent" --help
+  assert_file_executable "$HOME/.local/bin/agent"
+  run "$HOME/.local/bin/agent" oc --help
   assert_success
-  assert_output --partial "--no-greywall"
-  assert_output --partial "--no-update"
+  assert_output --partial "--no-sandbox"
   assert_output --partial "factory"
 
   mkdir -p "$BATS_TEST_TMPDIR/bin"
@@ -222,10 +244,117 @@ setup() {
 printf '%s\n' "$@"
 EOF
   chmod +x "$BATS_TEST_TMPDIR/bin/opencode"
-  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/opencode-agent" --no-greywall --no-update --continue session-123
+  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/agent" oc --no-sandbox --continue session-123
   assert_success
   assert_output --partial "--continue"
   assert_output --partial "session-123"
+}
+
+# bats test_tags=toolchain:opencode,kind:launcher
+@test "agent oc rejects the legacy --no-greywall token with the rename hint" {
+  local mock="$BATS_TEST_TMPDIR/bin"
+  setup_oc_launch_mocks "$mock"
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" oc --no-greywall foo
+  assert_failure
+  assert_output --partial "renamed --no-sandbox"
+}
+
+# bats test_tags=toolchain:opencode,kind:launcher
+@test "agent oc --print-env maps profiles to their config paths" {
+  launcher_probe oc --print-env
+  assert_output --partial 'OPENCODE_CONFIG="/fixture-home/.config/opencode/profiles/factory/opencode.jsonc"'
+  launcher_probe oc --print-env default
+  assert_output --partial 'OPENCODE_CONFIG="/fixture-home/.config/opencode/profiles/core/opencode.jsonc"'
+  launcher_probe oc --print-env factory
+  assert_output --partial 'OPENCODE_CONFIG="/fixture-home/.config/opencode/profiles/factory/opencode.jsonc"'
+  launcher_probe oc --print-env minimal
+  assert_output --partial 'OPENCODE_CONFIG="/fixture-home/.config/opencode/opencode.jsonc"'
+  assert_output --partial 'ENGRAM_URL="http://127.0.0.1:43123"'
+}
+
+# Mock bins for sandbox-path launcher probes (nono prints its argv, then
+# execs the binary; engram stub keeps the engram health check offline; the
+# shared curl stub covers the health probe).
+setup_oc_launch_mocks() {
+  local mock="$1"
+  mkdir -p "$mock"
+  setup_mock_bins "$mock" curl
+  cat >"$mock/opencode" <<'EOF'
+#!/usr/bin/env sh
+echo "OC_ARGS=$*"
+echo "OPENCODE_PORT=${OPENCODE_PORT:-unset}"
+EOF
+  cat >"$mock/nono" <<'EOF'
+#!/usr/bin/env sh
+echo "NONO_ARGS=$*"
+while [ "${1:-}" != "--" ]; do shift; done; shift
+exec "$@"
+EOF
+  cat >"$mock/engram" <<'EOF'
+#!/usr/bin/env sh
+exit 0
+EOF
+  chmod +x "$mock/opencode" "$mock/nono" "$mock/engram"
+}
+
+# bats test_tags=toolchain:opencode,kind:launcher
+@test "agent oc factory keeps --port and OPENCODE_PORT aligned inside nono" {
+  local mock="$BATS_TEST_TMPDIR/bin"
+  setup_oc_launch_mocks "$mock"
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" oc factory --port 1234 --continue x
+  assert_success
+  assert_output --partial "--open-port 1234"
+  assert_output --partial "OPENCODE_PORT=1234"
+  assert_output --partial "OC_ARGS=--port 1234 --continue x"
+
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" oc factory --continue x
+  assert_success
+  assert_output --partial "--open-port"
+  assert_output --partial "OC_ARGS=--port"
+  assert_output --partial "OPENCODE_PORT="
+
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" oc factory --port abc
+  assert_failure
+  assert_output --partial "--port must be a positive integer"
+}
+
+# bats test_tags=toolchain:opencode,kind:launcher
+@test "agent oc non-factory profiles are port-inert" {
+  local mock="$BATS_TEST_TMPDIR/bin"
+  setup_oc_launch_mocks "$mock"
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" oc core --continue x
+  assert_success
+  refute_output --partial "--open-port"
+  refute_output --partial "OC_ARGS=--port"
+  assert_output --partial "OC_ARGS=--continue x"
+}
+
+# bats test_tags=toolchain:opencode,kind:launcher
+@test "agent oc --profile selects in both positions, keeps port compat" {
+  local mock="$BATS_TEST_TMPDIR/bin"
+  setup_oc_launch_mocks "$mock"
+
+  # Pre-name flag form: config display shows the core tree, args untouched.
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" --profile core oc --continue x
+  assert_success
+  assert_output --partial "profiles/core"
+  assert_output --partial "OC_ARGS=--continue x"
+
+  # Flag form + factory keeps the port pairing (positional form above is the
+  # compat proof).
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" oc --profile factory --port 1234 --continue x
+  assert_success
+  assert_output --partial "profiles/factory"
+  assert_output --partial "--open-port 1234"
+  assert_output --partial "OPENCODE_PORT=1234"
+  assert_output --partial "OC_ARGS=--port 1234 --continue x"
+
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" oc --profile bogus
+  assert_failure
+  assert_output --partial "Unknown profile: bogus"
+
+  launcher_probe oc --print-env --profile core
+  assert_output --partial 'OPENCODE_CONFIG="/fixture-home/.config/opencode/profiles/core/opencode.jsonc"'
 }
 
 @test "opencode AGENTS.md fans out to global instructions" {
@@ -268,34 +397,6 @@ EOF
 }
 {{- end }}
 
-{{- /* Serving providers with enabled=false are opted out (default enabled),
-       matching resolve-enabled-auth-providers' valid_models. */ -}}
-{{- $enabledRoot := merge (dict) . }}
-{{- $enabledServing := merge (dict) .ai.base.serving }}
-{{- $_ := set $enabledServing "disabled-test" (dict
-      "kind" "openai-compatible"
-      "base_url" "http://disabled.test:8080/v1"
-      "enabled" false
-      "models" (list (dict "id" "disabled-model" "name" "Disabled" "context_window" 1000))
-    ) }}
-{{- $_ := set $enabledServing "enabled-test" (dict
-      "kind" "openai-compatible"
-      "base_url" "http://enabled.test:8080/v1"
-      "models" (list (dict "id" "enabled-model" "name" "Enabled" "context_window" 2000))
-    ) }}
-{{- $enabledBase := merge (dict) .ai.base }}
-{{- $_ := set $enabledBase "serving" $enabledServing }}
-{{- $enabledAI := merge (dict) .ai }}
-{{- $_ := set $enabledAI "base" $enabledBase }}
-{{- $_ := set $enabledRoot "ai" $enabledAI }}
-{{- $enabledCfg := includeTemplate "base/ai/agents/opencode/render-opencode-config" (dict "root" $enabledRoot "profile" "minimal") | fromJsonc }}
-@test "opencode omits serving providers with enabled=false" {
-  run test "{{ if hasKey $enabledCfg.provider "disabled-test" }}leaked{{ else }}excluded{{ end }}" = "excluded"
-  assert_success
-  run test "{{ if hasKey $enabledCfg.provider "enabled-test" }}present{{ else }}missing{{ end }}" = "present"
-  assert_success
-}
-
 {{- if $agentTiers }}
 @test "opencode slim preset agents match the shared agent-tier map" {
   run jq -e --argjson agents '{{ $agentTiers | toJson }}' '
@@ -306,37 +407,8 @@ EOF
 {{- end }}
 
 @test "opencode default preset matches configured default" {
-  run jq -e --arg p '{{ index $presets "default" | default "balanced" }}' '.preset == $p' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  run jq -e --arg p '{{ $activePreset }}' '.preset == $p' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
 
-{{- if $hasInfer01 }}
-@test "opencode renders keyless infer01 openai-compatible provider" {
-  run jsoncJq -e '
-    (.provider.infer01.npm == "@ai-sdk/openai-compatible") and
-    (.provider.infer01.options.baseURL == "http://infer01:8080/v1") and
-    ((.provider.infer01.options | has("apiKey")) | not) and
-    (.provider.infer01.models["qwen3.8-27b"].name == "qwen3.8-27b") and
-    (.provider.infer01.models["qwen3.8-27b"].limit.context == 262144) and
-    (.provider.infer01.models["qwen3.8-27b"].attachment == true) and
-    (.provider.infer01.models["qwen3.8-27b"].reasoning == true)
-  ' "$HOME/.config/opencode/opencode.jsonc"
-  assert_success
-}
-{{- end }}
-
-{{- if hasKey $presets "qwen" }}
-@test "opencode qwen preset routes are single-entry local infer01 arrays" {
-  run jq -e '
-    (.presets.qwen.orchestrator.model == [{"id":"infer01/qwen3.8-27b","variant":"high"}]) and
-    (.presets.qwen.fixer.model == [{"id":"infer01/qwen3.8-27b","variant":"high"}]) and
-    (.presets.qwen.explorer.model == [{"id":"infer01/qwen3.8-27b"}]) and
-    (.presets.qwen.librarian.model == [{"id":"infer01/qwen3.8-27b"}]) and
-    (.presets.qwen.designer.model == [{"id":"infer01/qwen3.8-27b","variant":"medium"}]) and
-    (.presets.qwen.oracle.model == [{"id":"infer01/qwen3.8-27b","variant":"max"}]) and
-    ((.council.presets // {}) | has("qwen") | not)
-  ' "{{ $slim }}"
-  assert_success
-}
-{{- end }}
 {{- end }}

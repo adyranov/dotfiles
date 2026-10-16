@@ -1,0 +1,3 @@
+docs_root: .compound-engineering/artifacts # repo-relative dir (default: docs)
+plan_skip_scoping_confirm: true # true | false (default: false)
+cross_model_review_mode: "off" # auto | off (default: auto); quoted: YAML 1.1 coerces bare off to false

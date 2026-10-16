@@ -35,14 +35,18 @@ big = { provider = "openai-codex", model = "gpt-6-luna", thinking = "high" }
 oracle = { provider = "openai-codex", model = "gpt-6.1-sol", thinking = "high" }
 visual = { provider = "openai-codex", model = "gpt-6.1-sol", thinking = "medium" }
 
-# Qwen preset routes all tiers to local infer01/qwen3.8-27b with no fallbacks;
-# council is disabled under this preset.
+# Qwen preset: local infer01, no fallbacks, no council. Local model, so the
+# only cost of deep reasoning is wall-clock — off for trivial lookups, xhigh
+# for everything else.
+[ai.profile.personal.presets.qwen]
+subagent_limit = 4
+
 [ai.profile.personal.presets.qwen.tiers]
-small = { provider = "infer01", model = "qwen3.8-27b", thinking = "off" }
-medium = { provider = "infer01", model = "qwen3.8-27b", thinking = "high" }
-big = { provider = "infer01", model = "qwen3.8-27b", thinking = "high" }
-oracle = { provider = "infer01", model = "qwen3.8-27b", thinking = "max" }
-visual = { provider = "infer01", model = "qwen3.8-27b", thinking = "medium" }
+small = { provider = "infer01", model = "qwen3.8-flash-next", thinking = "off" }
+medium = { provider = "infer01", model = "qwen3.8-flash-next", thinking = "xhigh" }
+big = { provider = "infer01", model = "qwen3.8-flash-next", thinking = "xhigh" }
+oracle = { provider = "infer01", model = "qwen3.8-flash-next", thinking = "xhigh" }
+visual = { provider = "infer01", model = "qwen3.8-flash-next", thinking = "xhigh" }
 
 [ai.profile.personal.providers]
 deepseek = { enabled = true, models = ["deepseek-flash", "deepseek-v4-pro"] }
@@ -51,22 +55,21 @@ opencode-go = { enabled = false }
 opencode-zen = { api_key_env = "OPENCODE_API_KEY", auth_keys = ["opencode-zen"], enabled = true, models = ["deepseek-v4.1-flash"], opencode_alias = "opencode" }
 openrouter = { enabled = true, models = ["z-ai/glm-5.2", "moonshotai/kimi-k3", "anthropic/claude-sonnet-5"] }
 
-# Keyless OpenAI-compatible endpoint. Client-required limits/capabilities are
-# declared statically (R2, R3); no runtime /v1/models discovery.
-# infer01 /v1/models reported max_model_len=262144 for Qwen3.8; use it as the
-# static context window. Leave max_output unset per user preference so clients
-# use their own defaults rather than a guessed cap.
+# Keyless OpenAI-compatible endpoint; limits declared statically (no /v1/models discovery).
 [ai.profile.personal.serving.infer01]
 base_url = "http://infer01:8080/v1"
 kind = "openai-compatible"
 
 [[ai.profile.personal.serving.infer01.models]]
-id = "qwen3.8-27b"
-name = "qwen3.8-27b"
+id = "qwen3.8-flash-next"
+name = "qwen3.8-flash-next"
 reasoning = true
 context_window = 262144
 inputs = ["text", "image"]
 cost = { input = 0.0, output = 0.0 }
+max_output = 32768
+# qwen-fixed-v22.3.jinja; OMP resolves mode/efforts from its catalog.
+chat_format = "qwen-chat-template"
 
 [ai.profile.personal.serving.local]
 default_model = "qwen3-coder-30b-a3b"

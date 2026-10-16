@@ -1,0 +1,14 @@
+{{- /* Tool-gated DCG packs: toolchain off → pack file not rendered.
+      The remaining packs ride the whole-tree ai gate in home/.chezmoiignore.tmpl. */ -}}
+{{- if not (get .toolchains "kubernetes" | default false) }}
+kubernetes.yaml
+{{- end }}
+{{- if not (get .toolchains "docker" | default false) }}
+docker.yaml
+{{- end }}
+{{- if not (get .toolchains "iac" | default false) }}
+iac.yaml
+{{- end }}
+{{- if not (get .toolchains "cloud" | default false) }}
+cloud.yaml
+{{- end }}

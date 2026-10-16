@@ -57,6 +57,7 @@
         "package" $pkgName
         "pin" (printf "%s" (index $pkg "pin" | default ""))
         "extras" (printf "%s" (index $pkg "extras" | default ""))
+        "uvx_args" (printf "%s" (index $pkg "uvx_args" | default ""))
         "version" $pkgVersion
         "test" $pkgTest
         "platforms" (index $pkg "platforms" | default dict)

@@ -1,0 +1,45 @@
+{{- /* render-apply-dests — Validate the `chezmoi apply` destination allowlist and emit
+  it for both mediation surfaces: the session write tier (render-nono-fs) and
+  chezmoi's command-sandbox lists (render-nono-cmd) — a destination is applicable
+  if and only if it is granted.
+  Usage: {{ includeTemplate "base/ai/security/render-apply-dests" (dict "root" .) | mustFromJson }}
+  Output: JSON array of literal destinations, deduped and sorted.
+  Every entry of `destinations` and of every command-sandbox list (the chezmoi
+  pair plus the per-command `sandbox.<cmd>` overrides) goes through
+  apply-dest-guard — the sandbox lists are grants too. Two floors: destination
+  FILES get the full floor (expanded deny groups + built-in roots); sandbox
+  DIRECTORIES get the same floor with `allow_contains` set to the destination
+  parents (nono's lists are directories only, and a parent like `~/.config/git`
+  legitimately contains protected leaves, which stay file-denied in the session
+  tier). A data-authored broad parent (`~/.config`, `~/.local/share`, `~`)
+  still fails. `~/.config/chezmoi` is exempt on the sandbox side only: chezmoi
+  cannot run without its own config/state.
+  Fails the render naming every violation (globs, relative paths, protected
+  equality/containment), on expand-path-groups' loud-fail precedent.
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $apply := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.apply" "required" false) | mustFromJson) -}}
+{{- $fs := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem" "required" true) | mustFromJson) -}}
+{{- $dests := includeTemplate "base/ai/security/expand-tmpdir" (dict "list" (index $apply "destinations" | default list)) | mustFromJson -}}
+{{- $parents := list -}}
+{{- range $d := $dests -}}{{- $parents = append $parents (includeTemplate "base/ai/security/parent-dir" $d) -}}{{- end -}}
+{{- $dirs := concat (index $apply "command_sandbox_read" | default list) (index $apply "command_sandbox_write" | default list) -}}
+{{- range $name, $lists := dig "sandbox" dict $apply -}}
+{{-   $dirs = concat $dirs (index $lists "fs_read" | default list) (index $lists "fs_write" | default list)
+  (index $lists "fs_read_file" | default list) (index $lists "fs_write_file" | default list)
+  (index $lists "exec_paths" | default list) -}}
+{{- /* `unsafe_macos_seatbelt_rules` is deliberately NOT guarded: seatbelt
+  S-expressions, not paths (the darwin-only exec grants live in the
+  renderer; data review covers them). */ -}}
+{{- end -}}
+{{- $dirs = includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" $dirs "catalog" "ai.permissions.filesystem.paths") | mustFromJson -}}
+{{- $dirs = includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $dirs) | mustFromJson -}}
+{{- $protected := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $fs "deny" | default list)) | mustFromJson -}}
+{{- /* The guard is a template (shared python-anchor include): render it and run
+  the rendered source with `python3 -c` (argv[1] contract unchanged). */ -}}
+{{- $guard := includeTemplate "base/ai/security/apply-dest-guard" dict -}}
+{{- $violations := concat
+  (output "python3" "-c" $guard (dict "destinations" $dests "protected" $protected | toJson) | mustFromJson)
+  (output "python3" "-c" $guard (dict "destinations" $dirs "protected" $protected "exempt" (list "~/.config/chezmoi") "allow_contains" $parents "allow_globs" true | toJson) | mustFromJson) -}}
+{{- if $violations -}}{{- fail (printf "apply-dest-guard: %s" ($violations | join "; ")) -}}{{- end -}}
+{{- includeTemplate "base/ai/security/uniq-sort" $dests -}}

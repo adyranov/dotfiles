@@ -1,0 +1,18 @@
+#!/usr/bin/env bats
+
+# bats file_tags=suite:runner
+
+load 'common-helper'
+
+setup() {
+  common_setup
+  RUNNER="$HOME/.local/bin/check-dotfiles"
+  [ -x "$RUNNER" ] || skip "applied runner not present at $RUNNER"
+}
+
+# bats test_tags=suite:runner
+@test "runner rejects an unknown package key" {
+  run "$RUNNER" definitely-not-a-key
+  assert_failure
+  assert_output --partial "unknown package key"
+}

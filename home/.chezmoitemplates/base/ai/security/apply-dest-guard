@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""apply-dest-guard — Render-time validator for the `chezmoi apply` destination
+allowlist. The allowlist *is* the agent-writable set, so an entry equal to, an
+ancestor of, or a descendant of a protected root would hand an agent its own
+sandbox, its DCG gate, an agent runtime config, or a rendered shell file. The
+descendant direction is load-bearing: a literal directory deny covers only the
+directory itself (see the ssh group comment in permissions.toml), so
+`~/.config/nono/profiles/base.json` must be refused, not granted.
+
+Realpath-aware comparison (filter-shadowed-allow's pattern): `~/.pi` is a host
+symlink into `~/.config/pi`. On macOS the comparison is case-folded (the
+default volume is case-insensitive, so `~/.CONFIG/nono` is that root).
+Protected entries anchor on their glob-free prefix (`~/.claude/**` ->
+`~/.claude`); rootless globs (`**/.env`) anchor nowhere. Entries must be
+literal absolute or `~/` paths: a glob is not an apply target, and a relative
+path resolves against the runtime cwd, which no launch-time grant can bound.
+This is the protected floor, not a containment proof — an entry outside the
+home dir (e.g. `/tmp/x`) is accepted by design and bounded by the filesystem
+axis; `/` (and anything resolving to it, like `~/../..`) is refused.
+
+CLI: argv[1] = JSON {"destinations": [...], "protected": [...], "exempt": [...],
+"allow_contains": [...]}
+`exempt` drops built-in roots from this call's floor: the chezmoi command
+sandbox grants chezmoi's own config/state dir because the command cannot run
+without it, while the destination list must never touch it.
+`allow_contains` lists DIRECTORY grants that may CONTAIN a protected root
+(nono's command-sandbox lists are directories only, so a destination's parent
+must be granted and legitimately holds protected leaves — `~/.config/git`
+holds the git credentials deny entry). Callers pass exactly the destination
+parents; a data-authored broad parent (`~/.config`, `~/.local/share`, `~`)
+still fails the contains check. Equals/inside refusals are never relaxed.
+`allow_globs` (grant-list calls only) admits native-glob GRANT entries — nono
+renders fs globs verbatim, so a shim-scan grant like `installs/**` is a valid
+grant though never a valid apply target. Protected comparison anchors on the
+glob-free prefix (same as protected entries), so `~/.config/nono/**` is refused
+(inside protected) and `~/.config/**` fails the contains check; the
+destinations call stays strict.
+Provider tokens (`@provider:token`, e.g. `@git:config-files`) are skipped:
+nono expands them at sandbox build and the provider enforces its own trust.
+Output: JSON array of violation strings, each naming its entry (empty = accepted).
+Always exits 0 — the caller renders the loud `fail` (expand-path-groups'
+precedent), which also lets the suite assert on the report.
+"""
+import json
+import os
+import sys
+
+# Protected by construction, never allowlist members (not even nested ones);
+# the expanded deny groups arrive via argv. The shell-code roots are the rendered
+# shell files (~/.zshenv, ~/.config/{zsh,shell}) and the shell-init pair
+# (~/Library/Scripts/setenv.sh plus its LaunchAgents loader). ~/.config/chezmoi
+# is chezmoi's own config+state: an applicable config.toml would let an agent
+# redirect the source dir the user's next terminal apply renders.
+PROTECTED = [
+    "~/.config/chezmoi",
+    "~/.config/dcg",
+    "~/.config/nono",
+    "~/.config/omp",
+    "~/.config/opencode",
+    "~/.config/pi",
+    "~/.config/shell",
+    "~/.config/zsh",
+    "~/Library/LaunchAgents",
+    "~/Library/Scripts",
+    "~/.zshenv",
+]
+
+{{ includeTemplate "base/ai/security/python-anchor" (dict "casefold" true) }}
+
+
+def main():
+    data = json.loads(sys.argv[1])
+    exempt = {anchored(e) for e in data.get("exempt", [])}
+    allow_contains = {anchored(e) for e in data.get("allow_contains", [])}
+    allow_globs = bool(data.get("allow_globs"))
+    protected = [
+        r
+        for r in (anchored(glob_free_prefix(e)) for e in PROTECTED + data.get("protected", []))
+        if r and r not in exempt
+    ]
+
+    violations = []
+    for dest in data.get("destinations", []):
+        if dest == ".":
+            continue  # nono's own cwd entry in the command-sandbox lists, not an anchorable path
+        if dest.startswith("@"):
+            # nono provider token (@git:config-files): expanded at sandbox build,
+            # and the provider enforces its own trust — nothing to anchor here.
+            continue
+        if any(c in dest for c in GLOB_CHARS) and not allow_globs:
+            violations.append(f"{dest}: glob characters are not valid apply destinations")
+            continue
+        target = anchored(glob_free_prefix(dest)) if allow_globs else anchored(dest)
+        if not target:
+            violations.append(f"{dest}: entries must be literal absolute paths")
+            continue
+        for root in protected:
+            if target == root:
+                why = "equals protected path"
+            elif target.startswith(root + os.sep):
+                why = "is inside protected path"
+            elif target == os.sep:
+                # `/` is the ancestor of everything, including every protected root.
+                why = "contains protected path"
+            elif root.startswith(target + os.sep) and target not in allow_contains:
+                why = "contains protected path"
+            else:
+                continue
+            violations.append(f"{dest}: {why} {root}")
+            break
+
+    print(json.dumps(violations))
+
+
+if __name__ == "__main__":
+    main()

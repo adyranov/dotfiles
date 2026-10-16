@@ -1,33 +1,11 @@
 [packages.base.ai]
-aiperf = { manager = "mise", package = "pipx:aiperf", version = "aiperf --help" }
+# uvx_args pins uv's interpreter to 3.13: pyzmq ships no cp314+ wheels, so the
+# sdist build on newer Python fails (aiperf itself requires <3.14).
+aiperf = { manager = "mise", package = "pipx:aiperf", uvx_args = "--python 3.13", version = "aiperf --help" }
 codegraph = { manager = "mise", package = "github:colbymchenry/codegraph" }
 engram = { bin = "engram", manager = "mise", package = "github:Gentleman-Programming/engram", version = "engram version", platforms = { linux-arm64 = { asset_pattern = "engram_*_linux_arm64.tar.gz" }, linux-x64 = { asset_pattern = "engram_*_linux_amd64.tar.gz" }, macos-arm64 = { asset_pattern = "engram_*_darwin_arm64.tar.gz" }, macos-x64 = { asset_pattern = "engram_*_darwin_amd64.tar.gz" } } }
-hf = { completion = { generate = "env _HF_COMPLETE=zsh_source hf" }, manager = "mise", package = "pipx:huggingface_hub", version = "hf version", policy = { deny = ["hf auth *", "hf repo create *", "hf repo delete *", "hf repo upload *", "hf upload *"] } }
+hf = { completion = { generate = "env _HF_COMPLETE=zsh_source hf" }, manager = "mise", package = "pipx:huggingface_hub", version = "hf version" }
 llamacpp = { bin = "llama-server", manager = "mise", package = "github:ggml-org/llama.cpp" }
-runpod = { manager = "mise", package = "pipx:runpod", test = "runpod --help", completion = { generate = "env _RUNPOD_COMPLETE=zsh_source runpod" }, policy = { deny = [
-  "runpod pod create *",
-  "runpod pod sync *",
-  "runpod project start *",
-  "runpod project deploy *",
-  "runpod ssh add-key *",
-  "runpod exec *"
-] } }
-skypilot = { bin = "sky", completion = { generate = "env _SKY_COMPLETE=zsh_source sky" }, manager = "mise", package = "pipx:skypilot", extras = "runpod,vast,lambda", policy = { deny = [
-  "sky check",
-  "sky down *",
-  "sky exec * --secret *",
-  "sky jobs cancel *",
-  "sky jobs launch *",
-  "sky jobs launch * --secret *",
-  "sky jobs pool apply *",
-  "sky jobs pool down *",
-  "sky launch *",
-  "sky launch * --secret *",
-  "sky logs * --sync-down *",
-  "sky serve down *",
-  "sky serve up *",
-  "sky start *",
-  "sky storage delete *",
-  "sky volumes apply *",
-  "sky volumes delete *"
-] } }
+rtk = { manager = "mise", package = "github:rtk-ai/rtk", version = "rtk --version" }
+runpod = { manager = "mise", package = "pipx:runpod", test = "runpod --help", completion = { generate = "env _RUNPOD_COMPLETE=zsh_source runpod" } }
+skypilot = { bin = "sky", completion = { generate = "env _SKY_COMPLETE=zsh_source sky" }, manager = "mise", package = "pipx:skypilot", extras = "runpod,vast,lambda" }

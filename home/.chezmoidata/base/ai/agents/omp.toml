@@ -1,65 +1,99 @@
-[ai.base.agents.omp]
-
 [ai.base.agents.omp.mcp_servers.codegraph]
 args = ["serve", "--mcp"]
 command = "codegraph"
+instructions = false
 
-[ai.base.agents.omp.sandbox.network]
-hosts = ["api.openai.com", "auth.openai.com", "opencode.ai"]
-allow = [{ host = "infer01", port = 8080 }]
-allow_unix_sockets = ["/tmp/agents/omp", "~/.config/omp/run"]
+[ai.base.agents.omp.mcp_servers.engram]
+args = ["mcp", "--tools=agent"]
+command = "engram"
+instructions = false
 
-[ai.base.agents.omp.sandbox.paths]
-allow_read = [
-  "~/.config/omp/**",
-  "~/.config/agents/**",
+[ai.base.agents.omp.sandbox]
+# omp 18.8.x (dirs.ts) runs from an agent root at <config-root>/agent
+# (~/.config/omp/agent): config.yml flush + proper-lockfile lock dirs +
+# auth.json live there, so the agent root must be writable (the pi 1.0.4
+# contract). Named profiles (omp >=18.9, `agent omp --profile <name>`)
+# relocate the agent root to <config-root>/profiles/<name>/agent — the
+# profiles grant below covers those roots. The DCG hook write-denials ride
+# the seatbelt rules below (write-only deny inside writable roots —
+# last-match-wins); Linux renders NO deny rule: Landlock cannot express
+# deny-within-allow (documented ceiling, same as pi).
+unsafe_macos_seatbelt_rules = [
+  '(deny file-write* (subpath "$HOME/.config/omp/agent/extensions"))',
+  # Named-profile roots: seatbelt literal/subpath cannot glob, so the
+  # per-<name> extensions deny is a regex (dots escaped; $HOME expands via
+  # expand-tmpdir). Deny rides last-match-wins inside the profiles grant.
+  '(deny file-write* (regex #"$HOME/\.config/omp/profiles/[^/]+/agent/extensions"))'
+]
+
+[ai.base.agents.omp.sandbox.filesystem]
+deny = [
+  "opencode_auth_files",
+  "pi_auth_files",
+  "~/.local/share/pi-lens/**"
+]
+read = [
   "~/.local/share/omp",
-  "~/.local/share/omp/**",
-  "/tmp/agents/omp",
-  "/tmp/agents/omp/**"
+  "engram",
+  # omp's legacy home probe + macOS Applications scan: the agent's own dir
+  # and a public apps dir, granted read-only to silence startup noise.
+  "~/.omp",
+  "~/Applications"
 ]
-allow_write = [
-  "~/.config/omp",
-  "~/.config/omp/**",
-  # DB sidecars and runtime state
-  "~/.config/omp/agent.db",
-  "~/.config/omp/agent.db-wal",
-  "~/.config/omp/agent.db-shm",
-  # Session/sandbox runtime dirs
+unix_socket_subtree = ["/tmp/agents/omp", "~/.local/state/omp/run"]
+# ponytail: the write tier grants whole XDG directory subtrees, never agent.db
+# leaf literals — SQLite WAL sidecars (agent.db-wal/-shm) appear dynamically
+# next to the db and leaf grants cannot cover them; that is the floor. The
+# launcher's profile_env XDG exports are what move these roots out of
+# ~/.config/omp.
+write = [
+  # Agent root (config.yml flush, lock dirs, auth.json); extensions/ is
+  # write-denied by the seatbelt rule above (macOS).
+  "~/.config/omp/agent",
+  # Named-profile agent roots (omp >=18.9): ~/.config/omp/profiles/<name>/agent
+  # carries the same config.yml/lock/auth.json writes; per-name extensions
+  # are write-denied by the seatbelt rule above (macOS).
+  "~/.config/omp/profiles",
+  # omp cache category root
+  "~/.cache/omp",
+  # Session/sandbox runtime dirs + agent.db with its WAL sidecars (data root)
   "~/.local/share/omp",
-  "~/.local/share/omp/**",
-  "/tmp/agents/omp",
-  "/tmp/agents/omp/**",
-  # CodeGraph runtime state
-  "**/.codegraph/**"
-]
-deny_read = [
-  "~/.config/pi/agent/auth.json",
-  "~/.config/pi/profiles/core/auth.json",
-  "~/.config/pi/profiles/factory/auth.json",
-  "~/.local/share/opencode/auth.json",
-  "~/.local/share/pi-lens/**",
-  "~/.config/greywall/**",
-  "~/.local/share/engram/**",
-  "~/.config/age/**",
-  "~/.ssh/**",
-  "~/.gnupg/**",
-  "~/.password-store/**",
-  "~/.config/gh/hosts.yml",
-  "~/.config/git/credentials",
-  "**/.env",
-  "**/.env.*"
-]
-deny_write = [
-  "~/.config/pi/agent/auth.json",
-  "~/.config/pi/profiles/core/auth.json",
-  "~/.config/pi/profiles/factory/auth.json",
-  "~/.local/share/opencode/auth.json",
-  "~/.config/agents/**",
-  "~/.config/greywall/**"
+  # Engram memory store (MCP save tool; subagents inherit it)
+  "engram",
+  # Runtime state root (run/ carries the daemon sockets; state category)
+  "~/.local/state/omp"
 ]
 
 [ai.base.agents.omp.settings]
+append_only_context = "on"
+artifact_spill_threshold = 50
+# Prompt-cache lifetime (omp >=18.9): "idle" warms the cache when the agent
+# goes idle; "off" disables, "streaming" warms per stream.
+cache_warming = "idle"
+# Wave-2 tuning knobs (2026-10-12 wave). Defaults keep today's behavior:
+# A/B arms flip these in data, measure, and commit the winner.
+completion_probe = true
+compaction_method_order = ["remote", "snapcompact", "handoff", "shake", "soft"]
+compaction_model_thresholds = {}
+compaction_threshold_percent = 92
+# Composer draft predictions; empty keeps the key unmanaged until the resolved
+# OMP release exposes it, "on"/"off" manage it (A/B arms).
+composer_predictions = ""
+# Extra model roles as role -> tier key (e.g. judge = "small"). Post-adoption
+# role keys land here so the map stays complete without template edits.
+extra_model_roles = {}
+# Error classes that may trigger model fallback (e.g. ["network"]); empty
+# keeps the key unmanaged until the resolved OMP release exposes it.
+fallback_on = []
+# Shared-checkout guard (omp >=18.9): refuses destructive git mutations on
+# linked worktrees; "on"/"off" manage the key, "" leaves it unmanaged.
+git_guard = "on"
+personality = "none"
+# Credential-shaped token redaction in tool output (omp >=18.9).
+secrets_redaction = true
+# Specialist subagents as agent -> tier key; rendered to task.agentModelOverrides.
+subagent_tiers = { explorer = "small", librarian = "small", oracle = "oracle", fixer = "medium" }
+symbol_preset = "nerd"
+telemetry_otlp_export = false
 theme_dark = "dark-catppuccin"
 theme_light = "light-catppuccin"
-symbol_preset = "nerd"

@@ -1,0 +1,28 @@
+# DCG policy pack: kubectl/oc/helm overrides for families whose
+# built-in packs are partial or allow-by-default (kubectl delete pod x is
+# ALLOWED by kubernetes.kubectl by default).
+# Managed source — agents cannot write here; edit the chezmoi source.
+id: user.kubernetes
+name: User Kubernetes rules
+version: "1.0.0"
+description: Custom denies closing kubectl/oc delete verbs and helm destructive ops.
+keywords:
+  - helm
+  - kubectl
+  - oc
+destructive_patterns:
+  - name: kubectl-delete
+    pattern: '\bkubectl\b[^;&|\n]*?\bdelete\b'
+    severity: critical
+    description: kubectl delete removes cluster resources
+    explanation: kubernetes.kubectl only blocks mass-delete shapes (delete pod x is allowed by default); this closes every delete verb.
+  - name: openshift-delete
+    pattern: '\boc\b[^;&|\n]*?\bdelete\b'
+    severity: critical
+    description: oc delete removes cluster resources
+    explanation: Mirrors kubectl-delete for the oc CLI (same triage family).
+  - name: helm-destructive
+    pattern: '\bhelm\b[^;&|\n]*?\b(?:uninstall|delete|rollback)\b'
+    severity: high
+    description: helm uninstall/delete/rollback changes releases
+    explanation: Belt-and-suspenders for the helm delete/uninstall triage family.

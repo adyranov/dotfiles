@@ -1,0 +1,17 @@
+{{- /* expand-tmpdir — Replace the literal `$TMPDIR` sentinel in a path list
+  with this host's TMPDIR (trailing slash trimmed; default /tmp).
+  Usage: {{ includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $paths) | mustFromJson }}
+  Data files are static TOML and never templated, so per-machine temp paths
+  cannot carry Go template strings (the apply-dest guard would see braces as
+  globs); they carry the sentinel and are expanded here, at render time.
+  With a "home" key, the `$HOME` sentinel is likewise replaced (seatbelt rules
+  take literal canonical paths, and home is per-machine). */ -}}
+{{- $tmp := trimSuffix "/" (default "/tmp" (env "TMPDIR")) -}}
+{{- $home := index . "home" | default "" -}}
+{{- $out := list -}}
+{{- range $e := (index . "list" | default list) -}}
+{{-   $s := replace "$TMPDIR" $tmp $e -}}
+{{-   if $home -}}{{-   $s = replace "$HOME" $home $s -}}{{-   end -}}
+{{-   $out = append $out $s -}}
+{{- end -}}
+{{- $out | toJson -}}

@@ -9,7 +9,8 @@ aws = { disabled = ["headless"] }
 age-plugin-yubikey = {}
 atuin = { manager = "system" }
 coreutils = { version = "grealpath --version" }
-gnupg = { package = "gnupg2" }
+gnupg = { exclude_arch = ["arm64"], package = "gnupg2" }
+gnupg-arm64 = { bin = "gpg", exclude_arch = ["amd64"], manager = "brew", package = "gnupg" }
 mas = { manager = "brew", version = "mas version" }
 openssh-client = { exclude_arch = ["arm64"], package = "openssh +fido2", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }
 openssh-client-arm64 = { bin = "ssh", exclude_arch = ["amd64"], manager = "brew", package = "openssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }

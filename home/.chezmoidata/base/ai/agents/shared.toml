@@ -1,0 +1,29 @@
+# Cross-agent sandbox baseline: every grant shared by all agents lives once
+# here; agents/{pi,opencode,omp}.toml keep only true deltas. render-nono-profile
+# merges shared -> agent and interpolates the per-agent /tmp/agents/<agent>
+# scratch pair, so that pair stays out of data.
+[ai.base.agents.shared.sandbox]
+# Keychain IPC is closed at the session tier (Q1, KTD4): osxkeychain
+# authenticates through securityd over Mach IPC — measured: the keychain file
+# denies and the `security` CLI deny do NOT close it. A user-authored seatbelt
+# deny is the only lever (honoured: user rules are emitted last, last-match
+# wins). The global-name set and both-direction effect are spike-verified in
+# the user terminal (U3 spike).
+unsafe_macos_seatbelt_rules = [
+  '(deny mach-lookup (global-name "com.apple.SecurityServer"))'
+]
+
+[ai.base.agents.shared.sandbox.filesystem]
+# CodeGraph runtime state; project-local git worktrees (conventional path).
+# The ** glob is cwd-anchored (project dirs only); the tilde entry is the
+# home state dir (index, update-check.json) the MCP child reads at startup
+# and crashes without ("closed stdout before responding") — all three agents
+# run the codegraph server, so it lives here once.
+write = ["**/.codegraph/**", "**/.slim/worktrees/**", "~/.codegraph"]
+# SSH reuse lane: the user's ControlMaster sockets (ControlPath
+# ${SSH_DATA_HOME}/sockets/%C); agents ride an existing master over this dir
+# (no raw egress, no key reads — the ~/.ssh deny floor stays intact).
+unix_socket_subtree = ["~/.local/share/ssh/sockets"]
+
+[ai.base.agents.shared.sandbox.network]
+allow = [{ host = "infer01" }]

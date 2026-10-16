@@ -9,6 +9,15 @@ setup() {
   AGENTS_MD="${HOME}/.config/agents/AGENTS.md"
 }
 
+{{- if .toolchains.pi }}
+# The subagent fleet-config modify script is host-static: render it once for
+# the three fleet-config tests (setup_file vars do not reach tests; share via
+# $BATS_FILE_TMPDIR).
+setup_file() {
+  render_source "$("$(chezmoiBin)" source-path "$HOME/.config/pi/profiles/factory/extensions/subagent/config.json")" "$BATS_FILE_TMPDIR/subagent-config-modify.sh"
+}
+{{- end }}
+
 # --- Per-agent global context file fans out to the shared AGENTS.md ---
 
 {{- if .toolchains.pi }}
@@ -23,30 +32,15 @@ setup() {
 # --- Pi settings ---
 
 {{- if .toolchains.pi }}
-{{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
 {{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
-
-# bats test_tags=toolchain:pi,kind:permission
-@test "pi settings.json enables install telemetry" {
-  run grep -F '"enableInstallTelemetry": true' "$HOME/.config/pi/agent/settings.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:packages
-@test "pi settings.json contains core packages" {
-  assert_file_exists "$HOME/.config/pi/profiles/core/settings.json"
-  run grep -F '"npm:pi-lens"' "$HOME/.config/pi/profiles/core/settings.json"
-  assert_success
-  run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/core/settings.json"
-  assert_failure
-}
-
+{{- $subagentLimit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" .) | int }}
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi settings.json uses lightweight compaction for core" {
   run jq -e '
     .compaction.keepRecentTokens == 8000 and
-    .compaction.reserveTokens == 8192
+    .compaction.reserveTokens == 8192 and
+    .enableInstallTelemetry == false
   ' "$HOME/.config/pi/profiles/core/settings.json"
   assert_success
 }
@@ -60,41 +54,6 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:packages
-@test "pi factory settings.json contains rpiv-pi" {
-  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
-  run grep -F '"npm:@juicesharp/rpiv-pi"' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
-  run grep -F '"npm:pi-system-prompt"' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi SYSTEM.md has compact tool routing" {
-  assert_file_exists "$HOME/.config/pi/agent/SYSTEM.md"
-  run grep -F "fffind" "$HOME/.config/pi/agent/SYSTEM.md"
-  assert_success
-  run grep -F "module_report" "$HOME/.config/pi/agent/SYSTEM.md"
-  assert_success
-  run grep -F "web_search" "$HOME/.config/pi/agent/SYSTEM.md"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi factory settings.json renders agent routes" {
-  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
-  run jq -e '(.subagents.agentOverrides | type) == "object"' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi caveman package absent from core and factory" {
-  run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/core/settings.json"
-  assert_failure
-  run jq -e '.packages | index("npm:pi-caveman")' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_failure
-}
-
-# bats test_tags=toolchain:pi,kind:packages
 @test "pi ponytail package in core and factory, absent from minimal" {
   run jq -e '.packages | index("npm:@dietrichgebert/ponytail")' "$HOME/.config/pi/profiles/core/settings.json"
   assert_success
@@ -104,12 +63,26 @@ setup() {
   assert_failure
 }
 
-
-# bats test_tags=toolchain:pi,kind:config
-@test "pi caveman config is removed" {
-  assert_file_not_exists "$HOME/.config/pi/agent/caveman.json"
+# bats test_tags=toolchain:pi,kind:packages
+@test "pi core peers: web-access/advisor-flow/btw replace the rpiv trio, keepers stay" {
+  run jq -e '.packages | (index("npm:pi-web-access") and index("npm:pi-advisor-flow") and index("npm:pi-btw"))' "$HOME/.config/pi/profiles/core/settings.json"
+  assert_success
+  run jq -e '.packages | (index("npm:@juicesharp/rpiv-web-tools") or index("npm:@juicesharp/rpiv-advisor") or index("npm:@juicesharp/rpiv-btw")) | not' "$HOME/.config/pi/profiles/core/settings.json"
+  assert_success
+  run jq -e '.packages | (index("npm:@juicesharp/rpiv-ask-user-question") and index("npm:@juicesharp/rpiv-args") and index("npm:@juicesharp/rpiv-todo"))' "$HOME/.config/pi/profiles/core/settings.json"
+  assert_success
 }
 
+# bats test_tags=toolchain:pi,kind:packages
+@test "pi factory peers: CE plugin, pi-subagents, ask-user, goal-x; retired extras gone" {
+  run jq -e '.packages | (index("git:github.com/EveryInc/compound-engineering-plugin@v3.30.4") and index("npm:pi-subagents") and index("npm:pi-ask-user") and index("npm:pi-goal-x"))' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+  run jq -e '.packages | (index("npm:@tintinweb/pi-subagents") or index("npm:@juicesharp/rpiv-pi") or index("npm:@juicesharp/rpiv-workflow") or index("npm:@juicesharp/rpiv-i18n")) | not' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+  # One question surface per tier: the excluded core keeper is absent here.
+  run jq -e '.packages | index("npm:@juicesharp/rpiv-ask-user-question") | not' "$HOME/.config/pi/profiles/factory/settings.json"
+  assert_success
+}
 
 # bats test_tags=toolchain:pi,kind:config
 @test "pi factory profile symlinks resolve to agent config" {
@@ -140,13 +113,13 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi-agent is executable" {
-  assert_file_executable "$HOME/.local/bin/pi-agent"
+@test "agent launcher is executable" {
+  assert_file_executable "$HOME/.local/bin/agent"
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi-agent --list outputs profiles" {
-  run "$HOME/.local/bin/pi-agent" --list
+@test "agent pi --list outputs profiles" {
+  run "$HOME/.local/bin/agent" pi --list
   assert_success
   assert_output --partial "core"
   assert_output --partial "factory"
@@ -154,99 +127,108 @@ setup() {
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi-agent --help mentions --no-greywall and --no-update" {
-  run "$HOME/.local/bin/pi-agent" --help
+@test "agent pi --help mentions --no-sandbox" {
+  run "$HOME/.local/bin/agent" pi --help
   assert_success
-  assert_output --partial "--no-greywall"
-  assert_output --partial "--no-update"
-  assert_output --partial "pi args"
+  assert_output --partial "--no-sandbox"
+  assert_output --partial "agent args"
+  assert_output --partial "Config root:"
+  refute_output --partial "--no-greywall"
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi-agent forwards agent options" {
+@test "agent pi forwards agent options" {
   mkdir -p "$BATS_TEST_TMPDIR/bin"
-  cat >"$BATS_TEST_TMPDIR/bin/pi" <<'EOF'
-#!/usr/bin/env sh
-printf '%s\n' "$@"
-EOF
-  chmod +x "$BATS_TEST_TMPDIR/bin/pi"
+  setup_mock_bins "$BATS_TEST_TMPDIR/bin" echo:pi
 
-  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/pi-agent" --no-greywall --no-update -c session-123
+  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/agent" pi --no-sandbox -c session-123
   assert_success
   assert_output --partial "-c"
   assert_output --partial "session-123"
 }
 
-# bats test_tags=toolchain:pi,kind:config
-@test "agent-launch throttle supports GNU stat" {
-  mkdir -p "$BATS_TEST_TMPDIR/bin" "$BATS_TEST_TMPDIR/cache/pi"
-  cat >"$BATS_TEST_TMPDIR/bin/pi" <<'EOF'
+# bats test_tags=toolchain:pi,kind:launcher
+@test "agent pi --profile selects in both positions, prompts reach pi verbatim" {
+  local mock="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$mock"
+  setup_mock_bins "$mock" curl nc nono
+  cat >"$mock/pi" <<'EOF'
 #!/usr/bin/env sh
-printf 'launched\n'
+echo "PROFILE=${PI_CODING_AGENT_DIR:-unset}"
+echo "ARGS=$*"
 EOF
-  cat >"$BATS_TEST_TMPDIR/bin/stat" <<'EOF'
-#!/usr/bin/env sh
-case "$1" in
-  -c) printf '9999999999\n' ;;
-  -f) printf '  File: stamp\n'; exit 1 ;;
-  *) exit 1 ;;
-esac
-EOF
-  chmod +x "$BATS_TEST_TMPDIR/bin/pi" "$BATS_TEST_TMPDIR/bin/stat"
-  touch "$BATS_TEST_TMPDIR/cache/pi/.extensions-refresh-stamp"
+  chmod +x "$mock/pi"
 
-  run env XDG_CACHE_HOME="$BATS_TEST_TMPDIR/cache" PATH="$BATS_TEST_TMPDIR/bin:$PATH" \
-    "$HOME/.local/bin/pi-agent" --no-greywall
+  # Pre-name and post-name flag forms select the profile; the quoted prompt
+  # is the binary's entire argv (the R6 prompt-safety headline).
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" --profile core pi "Hi there"
   assert_success
-  assert_output --partial "updated within 24h"
-  assert_output --partial "launched"
+  assert_output --partial "PROFILE=$HOME/.config/pi/profiles/core"
+  assert_output --partial "ARGS=Hi there"
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" pi --profile core "Hi there"
+  assert_success
+  assert_output --partial "PROFILE=$HOME/.config/pi/profiles/core"
+  assert_output --partial "ARGS=Hi there"
+
+  # Unknown names die; after `--` flags and profile words reach pi verbatim.
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" pi --profile bogus
+  assert_failure
+  assert_output --partial "Unknown profile: bogus"
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" pi --profile core -- --weird-flag x
+  assert_success
+  assert_output --partial "ARGS=--weird-flag x"
+  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" pi -- factory
+  assert_success
+  assert_output --partial "ARGS=factory"
+  refute_output --partial "profiles/core"
+}
+
+# bats test_tags=toolchain:pi,kind:launcher
+@test "agent pi --print-env takes --profile, seeds from pre-name, dies on typos" {
+  launcher_probe pi --print-env --profile minimal
+  assert_output --partial 'PI_CODING_AGENT_DIR="/fixture-home/.config/pi/agent"'
+  launcher_probe pi --print-env --profile=core
+  assert_output --partial 'PI_CODING_AGENT_DIR="/fixture-home/.config/pi/profiles/core"'
+  run env HOME=/fixture-home XDG_CONFIG_HOME=/fixture-home/.config \
+    "$HOME/.local/bin/agent" --profile core pi --print-env
+  assert_success
+  assert_output --partial 'PI_CODING_AGENT_DIR="/fixture-home/.config/pi/profiles/core"'
+  # Flag-shaped garbage fails loudly: nonzero, names the arg, no env printed.
+  run "$HOME/.local/bin/agent" pi --print-env --typo
+  assert_failure
+  assert_output --partial "unknown argument --typo"
+  refute_output --partial "ENGRAM_URL"
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "agent-launch script has exec and unsafe-PWD guards" {
-  run grep -F 'exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME"' "$HOME/.local/bin/agent-launch"
+@test "agent script has exec and unsafe-PWD guards" {
+  run grep -F 'exec nono run --profile "$NONO_PROFILE" ${open_port:+--open-port "$open_port"} -- "$BINARY_NAME"' "$HOME/.local/bin/agent"
   assert_success
-  run grep -F 'exec "$BINARY_NAME" "$@"' "$HOME/.local/bin/agent-launch"
+  run grep -F 'exec "$BINARY_NAME" "$@"' "$HOME/.local/bin/agent"
   assert_success
-  run grep -F 'Refusing to launch from home directory' "$HOME/.local/bin/agent-launch"
+  run grep -F 'Refusing to launch from home directory' "$HOME/.local/bin/agent"
   assert_success
-  run grep -F 'Refusing to launch from root' "$HOME/.local/bin/agent-launch"
+  run grep -F 'Refusing to launch from root' "$HOME/.local/bin/agent"
   assert_success
 }
 
 # bats test_tags=toolchain:pi,kind:launcher
 # Exercises bootstrap_scratch against a Bats-owned root; it never mutates the
 # live agent scratch directory.
-@test "pi-agent rejects symlinks and normalizes scratch modes" {
+@test "agent pi rejects symlinks and normalizes scratch modes" {
   scratch_root="$BATS_TEST_TMPDIR/agents"
   mkdir -m 700 -p "$scratch_root"
   mkdir -p "$BATS_TEST_TMPDIR/bin"
-  cat >"$BATS_TEST_TMPDIR/bin/curl" <<'EOF'
-#!/usr/bin/env sh
-exit 0
-EOF
-  cat >"$BATS_TEST_TMPDIR/bin/nc" <<'EOF'
-#!/usr/bin/env sh
-exit 0
-EOF
-  cat >"$BATS_TEST_TMPDIR/bin/greyproxy" <<'EOF'
-#!/usr/bin/env sh
-echo "greyproxy 1.0.0"
-EOF
-  cat >"$BATS_TEST_TMPDIR/bin/greywall" <<'EOF'
-#!/usr/bin/env sh
-shift 3
-exec "$@"
-EOF
+  setup_mock_bins "$BATS_TEST_TMPDIR/bin"
   cat >"$BATS_TEST_TMPDIR/bin/pi" <<'EOF'
 #!/usr/bin/env sh
 echo "launched"
 EOF
-  chmod +x "$BATS_TEST_TMPDIR/bin/curl" "$BATS_TEST_TMPDIR/bin/nc" "$BATS_TEST_TMPDIR/bin/greyproxy" "$BATS_TEST_TMPDIR/bin/greywall" "$BATS_TEST_TMPDIR/bin/pi"
+  chmod +x "$BATS_TEST_TMPDIR/bin/pi"
 
   # Symlinked scratch dir must fail closed.
   ln -s /tmp "$scratch_root/pi"
-  run env AGENT_LAUNCH_TEST_MODE=1 AGENT_LAUNCH_TEST_SCRATCH_ROOT="$scratch_root" PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/pi-agent" minimal --no-update -c session-1
+  run env AGENT_LAUNCH_TEST_MODE=1 AGENT_LAUNCH_TEST_SCRATCH_ROOT="$scratch_root" PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/agent" pi minimal -c session-1
   assert_failure
   assert_output --partial "symlink"
 
@@ -254,37 +236,53 @@ EOF
   rm -f "$scratch_root/pi"
   mkdir "$scratch_root/pi"
   chmod 755 "$scratch_root" "$scratch_root/pi"
-  run env AGENT_LAUNCH_TEST_MODE=1 AGENT_LAUNCH_TEST_SCRATCH_ROOT="$scratch_root" PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/pi-agent" minimal --no-update -c session-2
+  run env AGENT_LAUNCH_TEST_MODE=1 AGENT_LAUNCH_TEST_SCRATCH_ROOT="$scratch_root" PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/agent" pi minimal -c session-2
   assert_success
   assert_output --partial "launched"
-  mode="$(stat -f %Lp "$scratch_root" 2>/dev/null || true)"
-  case "$mode" in ''|*[!0-9]*) mode="$(stat -c %a "$scratch_root" 2>/dev/null || true)" ;; esac
-  assert_equal "$mode" "700"
-  mode="$(stat -f %Lp "$scratch_root/pi" 2>/dev/null || true)"
-  case "$mode" in ''|*[!0-9]*) mode="$(stat -c %a "$scratch_root/pi" 2>/dev/null || true)" ;; esac
-  assert_equal "$mode" "700"
+  assert_scratch_mode_0700 "$scratch_root"
+  assert_scratch_mode_0700 "$scratch_root/pi"
+}
+
+# bats test_tags=toolchain:pi,kind:launcher
+@test "agent pi --print-env maps profiles to their dirs" {
+  launcher_probe pi --print-env
+  assert_output --partial 'PI_CODING_AGENT_DIR="/fixture-home/.config/pi/profiles/factory"'
+  launcher_probe pi --print-env default
+  assert_output --partial 'PI_CODING_AGENT_DIR="/fixture-home/.config/pi/profiles/core"'
+  launcher_probe pi --print-env factory
+  assert_output --partial 'PI_CODING_AGENT_DIR="/fixture-home/.config/pi/profiles/factory"'
+  launcher_probe pi --print-env minimal
+  assert_output --partial 'PI_CODING_AGENT_DIR="/fixture-home/.config/pi/agent"'
+  assert_output --partial 'ENGRAM_URL="http://127.0.0.1:43123"'
 }
 
 # bats test_tags=toolchain:pi,kind:config
-@test "pi-agent --print-env minimal" {
-  run "$HOME/.local/bin/pi-agent" --print-env minimal
+@test "agent pi --print-env minimal" {
+  run "$HOME/.local/bin/agent" pi --print-env minimal
   assert_success
   assert_output --partial "PI_CODING_AGENT_DIR"
   assert_output --partial "ENGRAM_URL"
 }
 
 # bats test_tags=toolchain:ai,kind:config
-@test "rpiv-advisor reads oracle model route from ai.tiers" {
-  assert_file_exists "$HOME/.config/rpiv-advisor/advisor.json"
+@test "pi-advisor-flow reads oracle model route from ai.tiers" {
+  assert_file_exists "$HOME/.config/pi/profiles/core/advisor.json"
 {{- $oracle := get $tiers "oracle" }}
-{{- $oracleKey := printf "%s:%s" $oracle.provider $oracle.model }}
-  run jq -e '.modelKey == "{{ $oracleKey }}"' "$HOME/.config/rpiv-advisor/advisor.json"
+{{- $oracleKey := includeTemplate "base/ai/agents/pi/render-pi-model-ref" $oracle }}
+  run jq -e --arg k "{{ $oracleKey }}" '.advisor == $k and .advisorDisableSameModel == true' "$HOME/.config/pi/profiles/core/advisor.json"
   assert_success
+  run readlink -f "$HOME/.config/pi/profiles/factory/advisor.json"
+  assert_success
+  assert_output "$HOME/.config/pi/profiles/core/advisor.json"
 }
 
 # bats test_tags=toolchain:pi,kind:mcp
-@test "pi mcp.json keeps adapter proxy-only defaults" {
-  run jq -e '.settings.directTools == false and .settings.disableProxyTool == false' "$HOME/.config/pi/profiles/core/mcp.json"
+# pi-mcp-adapter 3.x reads adapter settings from mcp-adapter.json only;
+# legacy keys in mcp.json trigger its rename warning.
+@test "pi mcp-adapter.json keeps adapter proxy-only defaults, mcp.json drops settings" {
+  run jq -e '.settings.directTools == false and .settings.disableProxyTool == false' "$HOME/.config/pi/profiles/core/mcp-adapter.json"
+  assert_success
+  run jq -e 'has("settings") | not' "$HOME/.config/pi/profiles/core/mcp.json"
   assert_success
 }
 
@@ -324,6 +322,15 @@ EOF
   assert_success
 }
 
+# bats test_tags=toolchain:pi,kind:mcp
+@test "pi factory mcp-adapter.json inherits settings via core symlink" {
+  run readlink -f "$HOME/.config/pi/profiles/factory/mcp-adapter.json"
+  assert_success
+  assert_output "$HOME/.config/pi/profiles/core/mcp-adapter.json"
+  run jq -e '.settings.autoAuth == false and .settings.idleTimeout == 10 and .settings.toolPrefix == "server"' "$HOME/.config/pi/profiles/factory/mcp-adapter.json"
+  assert_success
+}
+
 {{- $enabledAuth := includeTemplate "base/ai/auth/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson }}
 {{- if or (not $enabledAuth.has_enabled_data) ($enabledAuth.providers | has "openrouter") }}
 # bats test_tags=toolchain:pi,kind:config
@@ -354,31 +361,27 @@ EOF
 {{- $serving := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving" "required" false) | mustFromJson }}
 {{- $infer01 := index $serving "infer01" | default dict }}
 {{- $hasInfer01 := gt (len $infer01) 0 }}
-{{- $agentTiers := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" }}
+{{- $piSection := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
+{{- $agentTiers := get (get (get $piSection "profiles") "factory") "fleet_role_tiers" | default dict }}
 {{- $defaultTier := index $tiers $tiers.default }}
 
 {{- if $hasInfer01 }}
 # bats test_tags=toolchain:pi,kind:model
-@test "pi models.json renders keyless infer01 openai-compatible provider" {
-  assert_file_exists "$HOME/.config/pi/agent/models.json"
-  run jq -e '
-    (.providers.infer01.api == "openai-completions") and
-    (.providers.infer01.baseUrl == "http://infer01:8080/v1") and
-    (.providers.infer01.apiKey == "no-auth") and
-    (.providers.infer01.models
-      | map(select(.id == "qwen3.8-27b"))[0] as $m |
-        ($m.contextWindow == 262144) and
-        ($m.reasoning == true) and
-        (($m.input | index("image")) != null) and
-        (($m | has("maxTokens")) | not))
-  ' "$HOME/.config/pi/agent/models.json"
+@test "pi enabledModels unions serving and managed provider models" {
+  assert_file_exists "$HOME/.config/pi/agent/settings.json"
+  run jq -e '.enabledModels | index("infer01/qwen3.8-flash-next") != null' "$HOME/.config/pi/agent/settings.json"
   assert_success
 }
 
 # bats test_tags=toolchain:pi,kind:model
-@test "pi enabledModels unions serving and managed provider models" {
-  assert_file_exists "$HOME/.config/pi/agent/settings.json"
-  run jq -e '.enabledModels | index("infer01/qwen3.8-27b") != null' "$HOME/.config/pi/agent/settings.json"
+@test "pi qwen serving model routes thinking effort through chat template kwargs" {
+  assert_file_exists "$HOME/.config/pi/agent/models.json"
+  run jq -e '
+    .providers.infer01.models[] | select(.id == "qwen3.8-flash-next") |
+    (.compat.thinkingFormat == "chat-template") and
+    (.compat.chatTemplateKwargs.reasoning_effort["$var"] == "thinking.effort") and
+    (.thinkingLevelMap | (.off == "none") and (.xhigh == "xhigh"))
+  ' "$HOME/.config/pi/agent/models.json"
   assert_success
 }
 {{- end }}
@@ -387,35 +390,6 @@ EOF
 @test "pi enabledModels keeps local serving models selectable" {
   assert_file_exists "$HOME/.config/pi/agent/settings.json"
   run jq -e '.enabledModels | any(startswith("local/"))' "$HOME/.config/pi/agent/settings.json"
-  assert_success
-}
-
-{{- /* Regression: serving providers with enabled=false are opted out (default
-       enabled), matching resolve-enabled-auth-providers' valid_models. */ -}}
-{{- $piRoot := merge (dict) . }}
-{{- $piServing := merge (dict) .ai.base.serving }}
-{{- $_ := set $piServing "disabled-test" (dict
-      "kind" "openai-compatible"
-      "base_url" "http://disabled.test:8080/v1"
-      "enabled" false
-      "models" (list (dict "id" "disabled-model" "name" "Disabled" "context_window" 1000))
-    ) }}
-{{- $_ := set $piServing "enabled-test" (dict
-      "kind" "openai-compatible"
-      "base_url" "http://enabled.test:8080/v1"
-      "models" (list (dict "id" "enabled-model" "name" "Enabled" "context_window" 2000))
-    ) }}
-{{- $piBase := merge (dict) .ai.base }}
-{{- $_ := set $piBase "serving" $piServing }}
-{{- $piAI := merge (dict) .ai }}
-{{- $_ := set $piAI "base" $piBase }}
-{{- $_ := set $piRoot "ai" $piAI }}
-{{- $piCfg := includeTemplate "private_dot_config/exact_pi/exact_agent/private_models.json.tmpl" $piRoot | fromJson }}
-# bats test_tags=toolchain:pi,kind:model
-@test "pi models.json omits serving providers with enabled=false" {
-  run test "{{ if hasKey $piCfg.providers "disabled-test" }}leaked{{ else }}excluded{{ end }}" = "excluded"
-  assert_success
-  run test "{{ if hasKey $piCfg.providers "enabled-test" }}present{{ else }}missing{{ end }}" = "present"
   assert_success
 }
 
@@ -432,7 +406,48 @@ EOF
 }
 
 # bats test_tags=toolchain:pi,kind:model
-@test "pi factory subagent overrides resolve the shared agent-tier map" {
+@test "pi factory fleet config uses the preset concurrency budget" {
+  local file="$HOME/.config/pi/profiles/factory/extensions/subagent/config.json"
+  assert_file_exists "$file"
+  run jq -e --argjson limit {{ $subagentLimit }} '.globalConcurrencyLimit == $limit and .forceTopLevelAsync == true and .maxActiveAsyncRunsPerSession == (if $limit > 1 then $limit - 1 else 1 end)' "$file"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "pi factory fleet config preserves unrelated keys and restores managed values" {
+  local script="$BATS_FILE_TMPDIR/subagent-config-modify.sh"
+  run bash "$script" <<'JSON'
+{"globalConcurrencyLimit":99,"forceTopLevelAsync":false,"maxActiveAsyncRunsPerSession":9,"userKey":"preserved"}
+JSON
+  assert_success
+  run jq -e --argjson limit {{ $subagentLimit }} '.userKey == "preserved" and .globalConcurrencyLimit == $limit and .forceTopLevelAsync == true and .maxActiveAsyncRunsPerSession == (if $limit > 1 then $limit - 1 else 1 end)' <<< "$output"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "pi factory fleet config discard-and-warn on malformed existing JSON" {
+  local script="$BATS_FILE_TMPDIR/subagent-config-modify.sh"
+  run --separate-stderr bash "$script" <<'JSON'
+{"globalConcurrencyLimit":
+JSON
+  assert_success
+  assert_stderr --partial "chezmoi: warning:"
+  run jq -e --argjson limit {{ $subagentLimit }} '(keys | length) == 3 and .globalConcurrencyLimit == $limit and .forceTopLevelAsync == true and .maxActiveAsyncRunsPerSession == (if $limit > 1 then $limit - 1 else 1 end)' <<< "$output"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "pi factory fleet config emit managed defaults on empty stdin" {
+  local script="$BATS_FILE_TMPDIR/subagent-config-modify.sh"
+  run bash "$script" </dev/null
+  assert_success
+  assert_output --partial "globalConcurrencyLimit"
+  run jq -e --argjson limit {{ $subagentLimit }} '(keys | length) == 3 and .globalConcurrencyLimit == $limit and .forceTopLevelAsync == true and .maxActiveAsyncRunsPerSession == (if $limit > 1 then $limit - 1 else 1 end)' <<< "$output"
+  assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:model
+@test "pi factory fleet role overrides resolve the shared agent-tier map" {
   assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
   {{- $expectedOverrides := dict }}
   {{- range $name, $tierClass := $agentTiers }}
@@ -443,6 +458,26 @@ EOF
     .subagents.agentOverrides == $expected
   ' "$HOME/.config/pi/profiles/factory/settings.json"
   assert_success
+}
+
+# bats test_tags=toolchain:pi,kind:packages
+@test "pi npm roots carry no unmanaged packages" {
+  # KTD6 drift gate: pi writes direct deps into each root's npm/package.json;
+  # every dependency key must map to a managed npm: settings entry. git:
+  # entries clone outside the npm root and are excluded.
+  local dir checked=0
+  for dir in "$HOME/.config/pi/agent" "$HOME/.config/pi/profiles/core" "$HOME/.config/pi/profiles/factory"; do
+    [ -f "$dir/npm/package.json" ] || continue
+    checked=$((checked + 1))
+    run jq -e -n --slurpfile m "$dir/npm/package.json" --slurpfile s "$dir/settings.json" '
+      ($s[0].packages | map(if type == "object" then .source else . end)
+        | map(select(startswith("npm:")) | sub("^npm:"; "")) | unique) as $want |
+      (($m[0].dependencies // {} | keys) - $want | length) == 0
+    '
+    assert_success
+  done
+  # TAP-visible skip: a zero-root run (pi never booted) must not read green.
+  [ "$checked" -gt 0 ] || skip "no npm roots in any pi root (pi has never booted)"
 }
 
 {{- $presets := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.presets" "required" false) | mustFromJson }}
@@ -463,11 +498,10 @@ EOF
     --argjson qwen '{{ $qwenResolved | toJson }}' '
     ($map | keys) == ($bal | keys) and
     ($map | keys) == ($qwen | keys) and
-    ($qwen.explorer == "infer01/qwen3.8-27b") and
-    ($qwen.fixer == "infer01/qwen3.8-27b") and
-    ($qwen.orchestrator == "infer01/qwen3.8-27b") and
-    ($qwen.designer == "infer01/qwen3.8-27b") and
-    ($qwen.oracle == "infer01/qwen3.8-27b")
+    ($qwen.scout == "infer01/qwen3.8-flash-next") and
+    ($qwen.worker == "infer01/qwen3.8-flash-next") and
+    ($qwen.reviewer == "infer01/qwen3.8-flash-next") and
+    ($qwen.oracle == "infer01/qwen3.8-flash-next")
   '
   assert_success
 }
