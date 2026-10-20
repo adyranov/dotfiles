@@ -45,6 +45,12 @@ setup() {
   assert_equal "{{ contains "openssh" $brewPackages }}" "true"
   assert_equal "{{ contains "openssh" $macportsPackages }}" "false"
 }
+
+# bats test_tags=suite:packages,kind:selector
+@test "arm64 Homebrew selects the Homebrew gnupg formula name" {
+  assert_equal "{{ contains "gnupg2" $brewPackages }}" "false"
+  assert_equal "{{ contains "gnupg" $brewPackages }}" "true"
+}
 {{ end }}
 {{ end }}
 {{- /* Synthetic package map so routing assertions do not depend on real package data. */ -}}
@@ -157,6 +163,26 @@ TMPL
 # bats test_tags=suite:packages,kind:bootstrap
 @test "Intel bootstrap maps supported macOS releases to MacPorts assets" {
   assert_equal "{{ contains "15-Sequoia" $u2IntelBootstrap }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "Intel bootstrap selfupdates MacPorts and upgrades outdated ports" {
+  assert_equal "{{ contains "/opt/local/bin/port -N selfupdate" $u2IntelBootstrap }}" "true"
+  assert_equal "{{ contains "/opt/local/bin/port -N upgrade outdated" $u2IntelBootstrap }}" "true"
+  assert_equal "{{ contains "/opt/local/bin/port -N clean installed" $u2IntelBootstrap }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "arm64 bootstrap never runs port selfupdate" {
+  assert_equal "{{ contains "port -N selfupdate" $u2ArmBootstrap }}" "false"
+}
+
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "darwin update flow is unattended (no Homebrew ask mode)" {
+  assert_equal "{{ contains "export HOMEBREW_NO_ASK=1" $u2IntelBootstrap }}" "true"
+  assert_equal "{{ contains "export HOMEBREW_NO_ASK=1" $u2ArmBootstrap }}" "true"
+  assert_equal "{{ contains "export HOMEBREW_NO_ASK=1" $u2IntelInstall }}" "true"
 }
 
 # bats test_tags=suite:packages,kind:bootstrap

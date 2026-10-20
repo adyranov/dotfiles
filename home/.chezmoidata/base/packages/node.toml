@@ -1,60 +1,8 @@
-[packages.base.node]
-
 [packages.base.node.bun]
 completion = { generate = "bun completions zsh" }
 manager = "mise"
-
-[packages.base.node.bun.policy]
-deny = [
-  "bun login",
-  "bun login *",
-  "bun logout",
-  "bun logout *",
-  "bun publish",
-  "bun publish *"
-]
 
 [packages.base.node.node]
 manager = "mise"
 pin = "lts"
 test = "node --version && npm --version && yarn --version && pnpm --version"
-
-[packages.base.node.node.policy]
-deny = [
-  "npm access",
-  "npm access *",
-  "npm adduser",
-  "npm adduser *",
-  "npm login",
-  "npm login *",
-  "npm logout",
-  "npm logout *",
-  "npm owner",
-  "npm owner *",
-  "npm publish",
-  "npm publish *",
-  "npm token",
-  "npm token *",
-  "npm unpublish",
-  "npm unpublish *",
-  "pnpm login",
-  "pnpm login *",
-  "pnpm logout",
-  "pnpm logout *",
-  "pnpm publish",
-  "pnpm publish *",
-  "pnpm unpublish",
-  "pnpm unpublish *",
-  "yarn login",
-  "yarn login *",
-  "yarn logout",
-  "yarn logout *",
-  "yarn npm login",
-  "yarn npm login *",
-  "yarn npm logout",
-  "yarn npm logout *",
-  "yarn npm publish",
-  "yarn npm publish *",
-  "yarn publish",
-  "yarn publish *"
-]

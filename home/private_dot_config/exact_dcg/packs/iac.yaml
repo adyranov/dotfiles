@@ -1,0 +1,16 @@
+# DCG policy pack: Terraform-family destroy override.
+# Managed source — agents cannot write here; edit the chezmoi source.
+id: user.iac
+name: User IaC rules
+version: "1.0.0"
+description: Belt-and-suspenders deny for terraform/tofu/terragrunt destroy, force-unlock, state rm.
+keywords:
+  - terraform
+  - terragrunt
+  - tofu
+destructive_patterns:
+  - name: terraform-destroy
+    pattern: '\b(?:terraform|tofu|terragrunt)\b[^;&|\n]*?\b(?:destroy|force-unlock|state\s+rm)\b'
+    severity: critical
+    description: terraform/tofu/terragrunt destroy, force-unlock, state rm
+    explanation: Belt-and-suspenders for the destroy triage family.

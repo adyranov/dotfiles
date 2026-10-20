@@ -1,0 +1,130 @@
+{{- /* render-nono-cmd — Build the nono command_policies object from the command-deny core.
+  Usage: {{ includeTemplate "base/ai/security/render-nono-cmd" (dict "root" . "applyDests" $dests) | mustFromJson }}
+  applyDests (required): the render-apply-dests output list, computed ONCE per
+  base render by render-nono-profile (the guard chain runs one time, not per
+  consumer; fail-propagation is identical).
+  Output: JSON { commands: { <cmd>: deny-only | selective-invocation-policy } }
+  Input: ai.permissions.command_policies.deny — argv deny patterns, the sole
+  command-deny store (destructive-but-normal commands are gated by DCG, not nono).
+  nono-cmd-policy maps each pattern to nono 0.79 argv matchers (exact / prefix /
+  contains) and drops shell builtins (eval, exec) a PATH shim cannot mediate.
+  Invariants:
+  - The command sandbox REPLACES the session filesystem grants for that command
+    and nono accepts only DIRECTORIES in fs_read/fs_write (a file entry
+    policy-denies the whole invocation): the chezmoi entry carries destination
+    PARENT dirs (the same guard-validated allowlist render-nono-fs grants — the
+    surfaces cannot drift), never destination files and never `~/.config` itself
+    (a broad read there re-opens the credential deny groups: gh hosts.yml, git
+    credentials, configstore, pgpass). Single files ride fs_read_file/fs_write_file
+    (a symlink-to-file entry like `~/.local/bin/mise` cannot ride a dir entry).
+  - The `sandbox.<cmd>` map in the apply data carries per-command overrides for
+    the tools the ["."] default kills (git, mise). A per-command `network`
+    object (allow_domain) gets the same classify-refs discrimination as render-nono-net
+    ("."-containing literals and "@"-tokens pass through; dotless entries are
+    group refs resolved via ai.permissions.network.groups, loud-fail when
+    absent): mediation gives a sandboxed command proxy egress only for hosts
+    its own sandbox grants. The per-command fs lists (fs_read/fs_read_file/
+    fs_write/fs_write_file) get the same discrimination on the fs axis:
+    dotless-slashless entries are `filesystem.paths` group refs resolved
+    before `expand-tmpdir` (the chezmoi-synthesized command_sandbox_* lists
+    are classified the same way).
+  - `@provider:token` entries pass through verbatim for nono to expand, but are
+    unusable for git config on hosts with a system gitconfig: the expansion
+    emits FILE entries into dirs-only lists.
+  - Child-exec grants ride `exec_paths` (Linux) and
+    `unsafe_macos_seatbelt_rules` (darwin only, order-preserving — emitted
+    after the exec-gate deny, last-match-wins).
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $dests := index . "applyDests" -}}
+{{- if not (kindIs "slice" $dests) -}}{{- fail "render-nono-cmd: applyDests arg (render-apply-dests output list) is required; render-nono-profile computes it once per base render" -}}{{- end -}}
+{{- $fsCatalog := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem.paths" "required" true) | mustFromJson) -}}
+{{- $cmd := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.command_policies" "required" true) | mustFromJson -}}
+{{- $script := joinPath $root.chezmoi.sourceDir ".chezmoitemplates/base/ai/security/nono-cmd-policy" -}}
+{{- $deny := index $cmd "deny" | default list -}}
+{{- $joined := $deny | join "\n" -}}
+{{- $apply := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.apply" "required" false) | mustFromJson) -}}
+{{- $parents := list -}}
+{{- range $d := $dests -}}{{- $parents = append $parents (includeTemplate "base/ai/security/parent-dir" $d) -}}{{- end -}}
+{{- $sandbox := deepCopy (dig "sandbox" dict $apply) -}}
+{{- range $name, $lists := $sandbox -}}
+{{- /* classify-refs on the fs axis: `/`-containing entries, exact ".", and
+  "@"-prefixed tokens pass through; dotless-slashless names are
+  filesystem.paths group refs resolved BEFORE expand-tmpdir (group members may
+  carry the $TMPDIR sentinel), loud-fail when absent from the catalog. */ -}}
+{{-   $vals := dict -}}
+{{-   range $key := (list "fs_read" "fs_read_file" "fs_write" "fs_write_file") -}}
+{{-     $cls := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (index $lists $key | default list) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{-     $exp := includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $cls) | mustFromJson -}}
+{{-     $_ := set $vals $key (includeTemplate "base/ai/security/uniq-sort" $exp | mustFromJson) -}}
+{{-   end -}}
+{{-   $entry := dict "fs_read" (index $vals "fs_read") "fs_write" (index $vals "fs_write") -}}
+{{- /* set_vars values are literal to the child, so the $HOME/$TMPDIR sentinels are
+  expanded here (path lists take ~ and are expanded by nono; env values are not). */ -}}
+{{-   $sv := index $lists "set_vars" | default dict -}}
+{{-   if $sv -}}
+{{-     $svOut := dict -}}
+{{-     range $k, $v := $sv -}}
+{{-       $one := includeTemplate "base/ai/security/expand-tmpdir" (dict "list" (list $v) "home" (trimSuffix "/" $root.chezmoi.homeDir)) | mustFromJson -}}
+{{-       $_ := set $svOut $k (index $one 0) -}}
+{{-     end -}}
+{{-     $_ := set $entry "environment" (dict "set_vars" $svOut) -}}
+{{-   end -}}
+{{-   $rfile := index $vals "fs_read_file" -}}
+{{-   $wfile := index $vals "fs_write_file" -}}
+{{- /* exec_paths carries literal canonical binaries (all `/`-containing):
+  kept on plain expand-tmpdir, no group refs. */ -}}
+{{-   $xpath := includeTemplate "base/ai/security/expand-tmpdir" (dict "list" (index $lists "exec_paths" | default list)) | mustFromJson -}}
+{{-   $net := deepCopy (index $lists "network" | default dict) -}}
+{{-   $netAd := index $net "allow_domain" | default list -}}
+{{-   if $netAd -}}{{-   $_ := set $net "allow_domain" (includeTemplate "base/ai/security/uniq-sort" (includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" $netAd "catalog" "ai.permissions.network.groups") | mustFromJson) | mustFromJson) -}}{{- end -}}
+{{-   $cu := index $lists "can_use" | default list -}}
+{{-   $seat := includeTemplate "base/ai/security/expand-tmpdir" (dict "list" (index $lists "unsafe_macos_seatbelt_rules" | default list) "home" $root.chezmoi.homeDir) | mustFromJson -}}
+{{- /* $vals entries are already uniq-sort'ed above — set them directly. */ -}}
+{{-   if $rfile -}}{{-   $_ := set $entry "fs_read_file" $rfile -}}{{- end -}}
+{{-   if $wfile -}}{{-   $_ := set $entry "fs_write_file" $wfile -}}{{- end -}}
+{{-   if $xpath -}}{{-   $_ := set $entry "exec_paths" (includeTemplate "base/ai/security/uniq-sort" $xpath | mustFromJson) -}}{{- end -}}
+{{- /* Seatbelt S-expressions: order-sensitive (emitted after the exec-gate
+  deny, last-match wins), so uniq WITHOUT sortAlpha; darwin-only (the
+  renderer strips them elsewhere, where exec_paths carries the same need). */ -}}
+{{-   if and $seat (eq $root.chezmoi.os "darwin") -}}{{- $_ := set $entry "unsafe_macos_seatbelt_rules" ($seat | uniq) -}}{{- end -}}
+{{-   if $net -}}{{-   $_ := set $entry "network" $net -}}{{- end -}}
+{{-   if $cu -}}{{-   $_ := set $entry "can_use" (includeTemplate "base/ai/security/uniq-sort" $cu | mustFromJson) -}}{{- end -}}
+{{-   $_ := set $sandbox $name $entry -}}
+{{- end -}}
+{{- $czRead := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $apply "command_sandbox_read" | default list) $parents (list "/bin" "/usr/bin")) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{- $czWrite := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $apply "command_sandbox_write" | default list) $parents (list "/private/var/folders")) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{- $czfile := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (index $apply "command_sandbox_read_file" | default list) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{- $cz := dict "fs_read" (includeTemplate "base/ai/security/uniq-sort" (includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $czRead) | mustFromJson) | mustFromJson)
+  "fs_write" (includeTemplate "base/ai/security/uniq-sort" (includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $czWrite) | mustFromJson) | mustFromJson) -}}
+{{- /* Single-file reads (device nodes) cannot ride dir-only fs_read. */ -}}
+{{- $czfile = includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $czfile) | mustFromJson -}}
+{{- if $czfile -}}{{- $_ := set $cz "fs_read_file" (includeTemplate "base/ai/security/uniq-sort" $czfile | mustFromJson) -}}{{- end -}}
+{{- /* Child-exec carve: chezmoi and its run_* scripts fork system interpreters
+  and tools (env, sh, bash, uname, curl, …) plus the mise python3 shim for the
+  render-time guards; without a carve every in-sandbox render dies at the exec
+  gate. Mirror exec_paths: /bin and /usr/bin subpaths (the agent session
+  already execs them — no new authority), and because the gate matches canonical
+  paths, shim symlinks never match by name: allow the shim runner ~/.local/bin/
+  mise (literal) plus every tool mise execs under installs (subpath — the shim
+  chain reaches python3 AND, with shims first on PATH, the real chezmoi binary
+  under installs/chezmoi). */ -}}
+{{- $home := trimSuffix "/" $root.chezmoi.homeDir -}}
+{{- $cz = merge $cz (dict
+  "exec_paths" (list "/bin" "/usr/bin" (printf "%s/.local/bin" $home) (printf "%s/.local/share/mise/shims" $home) (printf "%s/.local/share/mise/installs/python" $home))
+  "unsafe_macos_seatbelt_rules" (list
+    "(allow process-exec* (subpath \"/bin\"))"
+    "(allow process-exec* (subpath \"/usr/bin\"))"
+    "(allow process-exec* (subpath \"/Library/Developer/CommandLineTools\"))"
+    (printf "(allow process-exec* (literal \"%s/.local/bin/mise\"))" $home)
+    (printf "(allow process-exec* (subpath \"%s/.local/share/mise/installs\"))" $home))) -}}
+{{- if not (eq $root.chezmoi.os "darwin") -}}{{- $_ := unset $cz "unsafe_macos_seatbelt_rules" -}}{{- end -}}
+{{- $_ := set $sandbox "chezmoi" $cz -}}
+{{- $out := output "python3" $script $joined ($sandbox | toJson) | mustFromJson -}}
+{{- /* The sandbox override only reaches the profile if chezmoi carries a selective
+  invocation policy; a `chezmoi *` deny in the core collapses the entry to
+  deny-all, which would silently kill the in-sandbox apply loop. */ -}}
+{{- if not (kindIs "map" (dig "commands" "chezmoi" "from" "session" nil $out)) -}}
+{{-   fail "render-nono-cmd: chezmoi session policy is not a map (a wildcard `chezmoi *` deny in the core collapses it to deny-all and kills the targeted-apply loop); keep the deny core in literal argv forms" -}}
+{{- end -}}
+{{- $out | toJson -}}

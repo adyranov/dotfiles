@@ -7,8 +7,10 @@ engram = { repo = "Gentleman-Programming/engram", ref = "main" }
 compound-engineering = { repo = "EveryInc/compound-engineering-plugin", ref = "main" }
 karpathy = { repo = "multica-ai/andrej-karpathy-skills", ref = "main" }
 oh-my-opencode-slim = { repo = "alvinunreal/oh-my-opencode-slim", ref = "master" }
+ponytail = { repo = "DietrichGebert/ponytail", ref = "main" }
 
 [ai.base.libraries.skills]
 compound-engineering = { repository = "compound-engineering", prefix = "skills" }
 karpathy = { repository = "karpathy" }
 "oh-my-opencode-slim" = { repository = "oh-my-opencode-slim", prefix = "src/skills" }
+ponytail = { repository = "ponytail", prefix = "skills" }

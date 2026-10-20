@@ -1,0 +1,807 @@
+#!/usr/bin/env sh
+# Universal launcher for sandboxed AI coding agents.
+# Invoked as: agent [--profile NAME] <pi|oc|opencode|omp> [profile] [flags...].
+# Agent identity is the first argument; every per-agent fact is a plain
+# literal below (dispatch case, profile_dir, print_profile_env, print_env,
+# set_runtime_env, list_profiles) — no templates, no data files.
+set -eu
+
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+ENGRAM_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/engram"
+ENGRAM_LOG="$ENGRAM_STATE/engram.log"
+ENGRAM_LOCK="$ENGRAM_STATE/.supervise.lock"
+ENGRAM_ID_FILE="$ENGRAM_STATE/daemon.identity"
+
+# Defaults so the daemon path is self-contained without the shell exports.d
+# layer (CI, cron, sh -c); print_env emits the same fallbacks.
+ENGRAM_PORT="${ENGRAM_PORT:-7437}"
+ENGRAM_URL="${ENGRAM_URL:-http://127.0.0.1:$ENGRAM_PORT}"
+ENGRAM_DATA_DIR="${ENGRAM_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/engram}"
+
+usage_hint() {
+  printf 'usage: agent [--profile NAME] <pi|oc|opencode|omp> [profile] [--no-sandbox] [--list] [--print-env [profile]] [--help]\n' >&2
+}
+
+# Pre-name flag position: `agent --profile NAME <agent> ...` selects the
+# profile before the agent word resolves (validation is agent-scoped and
+# happens after dispatch). The agent word stays required: there is no
+# default-agent concept, so an agent-less launch keeps the loud die below.
+pre_profile=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --profile)
+    [ $# -ge 2 ] || {
+      usage_hint
+      printf 'agent --profile requires a name\n' >&2
+      exit 1
+    }
+    pre_profile="$2"
+    shift 2
+    ;;
+  --profile=*)
+    pre_profile="${1#--profile=}"
+    shift
+    ;;
+  *) break ;;
+  esac
+done
+
+AGENT_ARG="${1:-}"
+
+# --profile NAME consumption (pre-name init and post-name loop): pi and
+# opencode validate against their own profile set and die on a miss; omp
+# keeps free-form names (settled: omp relocates its agent root to
+# <config-root>/profiles/<name>/agent via OMP_PROFILE on its own).
+select_profile() {
+  case "$AGENT_NAME" in
+  omp)
+    omp_profile="$1"
+    ;;
+  *)
+    case "$AGENT_PROFILES" in
+    *" $1 "*) profile="$1" ;;
+    *) die "Unknown profile: $1" ;;
+    esac
+    ;;
+  esac
+}
+
+# --print-env --profile NAME: same consumption contract as select_profile.
+# omp free-form names bypass profile_dir (no map entry exists; the runtime
+# evaluates the omp:default lines plus OMP_PROFILE, set separately).
+print_env_selected() {
+  case "$AGENT_NAME" in
+  omp)
+    print_env default
+    # Runtime parity: the launcher exports the name after set_runtime_env's
+    # scrub; named-root relocation is omp's own job via OMP_PROFILE.
+    printf 'export OMP_PROFILE="%s"\n' "$1"
+    ;;
+  *)
+    case "$AGENT_PROFILES" in
+    *" $1 "*) print_env "$1" ;;
+    *) die "Unknown profile: $1" ;;
+    esac
+    ;;
+  esac
+}
+case "$AGENT_ARG" in
+pi)
+  shift
+  AGENT_NAME=pi
+  BINARY_NAME=pi
+  NONO_PROFILE=pi
+  AGENT_CONFIG_DIR="$CONFIG_HOME/pi"
+  AGENT_DEFAULT_PROFILE=factory
+  AGENT_PROFILES=" core default factory minimal "
+  AGENT_SELECTABLE=true
+  AGENT_PROFILE_DESC="core factory minimal"
+  AGENT_SCRUB_DESC=''
+  AGENT_PORT_FLAG=''
+  ;;
+opencode | oc)
+  shift
+  AGENT_NAME=opencode
+  BINARY_NAME=opencode
+  NONO_PROFILE=opencode
+  AGENT_CONFIG_DIR="$CONFIG_HOME/opencode"
+  AGENT_DEFAULT_PROFILE=factory
+  AGENT_PROFILES=" core default factory minimal "
+  AGENT_SELECTABLE=true
+  AGENT_PROFILE_DESC="core factory minimal"
+  # RTK_TELEMETRY_DISABLED and friends live in the shell exports.d layer
+  # (exact_shell/exports.d/ai-agents.sh) and survive the scrub below; the
+  # OPENCODE_* profile flags must stay launcher-exported because the scrub
+  # clears inherited OPENCODE_* values.
+  AGENT_SCRUB_DESC='OPENCODE_*'
+  AGENT_PORT_FLAG='--port'
+  ;;
+omp)
+  shift
+  AGENT_NAME=omp
+  BINARY_NAME=omp
+  NONO_PROFILE=omp
+  AGENT_CONFIG_DIR="$CONFIG_HOME/omp/agent"
+  AGENT_DEFAULT_PROFILE=default
+  AGENT_PROFILES=" default "
+  AGENT_SELECTABLE=false
+  AGENT_PROFILE_DESC='single configuration root (no named profiles)'
+  AGENT_SCRUB_DESC='OPENCODE_* OMP_PROFILE PI_*'
+  AGENT_PORT_FLAG=''
+  ;;
+"")
+  usage_hint
+  exit 1
+  ;;
+*)
+  usage_hint
+  printf 'unknown agent "%s"\n' "$AGENT_ARG" >&2
+  exit 1
+  ;;
+esac
+
+# Color vars default empty: helpers printing before the tput init below
+# (e.g. die on an unknown profile) emit clean messages under set -u.
+_BO='' _DI='' _RE='' _GR='' _CY='' _NO=''
+
+info() { printf '%s  %s\n' "${_CY}•${_NO}" "$*" >&2; }
+ok() { printf '%s  %s\n' "${_GR}✓${_NO}" "$*" >&2; }
+warn() { printf '%s  %s\n' "${_BO}!${_NO}" "$*" >&2; }
+die() {
+  printf '%s  %s\n' "${_RE}✗${_NO}" "$*" >&2
+  exit 1
+}
+dim() { printf '   %s%s%s\n' "${_DI}" "$*" "${_NO}" >&2; }
+
+# Profile directory: one explicit map per agent.
+profile_dir() {
+  case "$AGENT_NAME:$1" in
+  pi:core | pi:default) printf '%s\n' "$CONFIG_HOME/pi/profiles/core" ;;
+  pi:factory) printf '%s\n' "$CONFIG_HOME/pi/profiles/factory" ;;
+  pi:minimal) printf '%s\n' "$CONFIG_HOME/pi/agent" ;;
+  opencode:core | opencode:default) printf '%s\n' "$CONFIG_HOME/opencode/profiles/core" ;;
+  opencode:factory) printf '%s\n' "$CONFIG_HOME/opencode/profiles/factory" ;;
+  opencode:minimal) printf '%s\n' "$CONFIG_HOME/opencode" ;;
+  omp:default) printf '%s\n' "$AGENT_CONFIG_DIR" ;;
+  *) die "Unknown profile: $1" ;;
+  esac
+}
+
+pick_high_port() {
+  awk 'BEGIN{srand();print int(rand()*16384)+49152}'
+}
+
+# Profile-scoped env: print_env prints these export lines, set_runtime_env
+# evals them. ${...} braces expand at use time.
+print_profile_env() {
+  case "$AGENT_NAME:$1" in
+  opencode:factory)
+    printf 'export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true\n'
+    printf 'export OPENCODE_ENABLE_EXA=1\n'
+    ;;
+  omp:default)
+    # omp 18.8.x (dirs.ts): PI_CONFIG_DIR is the home-relative config-root
+    # name; the agent root is <root>/agent (config.yml, auth.json, lock
+    # dirs, extensions). State/data/cache relocate under
+    # $XDG_{STATE,DATA,CACHE}_HOME/omp, each per-category root gated on
+    # that directory existing (isDefault check), and the whole scheme
+    # disabled by a PI_CODING_AGENT_DIR override.
+    # ponytail: env-relocated roots lean on this version-pinned dirs.ts
+    # behavior; never export PI_CODING_AGENT_DIR. Pin the omp version if dir
+    # resolution churns.
+    printf 'export PI_CONFIG_DIR=".config/omp"\n'
+    # Single quotes are deliberate: the emitted lines must expand at eval time.
+    # shellcheck disable=SC2016  # emitted for eval by the consumer
+    printf 'export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"\n'
+    # shellcheck disable=SC2016  # emitted for eval by the consumer
+    printf 'export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"\n'
+    # shellcheck disable=SC2016  # emitted for eval by the consumer
+    printf 'export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"\n'
+    ;;
+  esac
+}
+
+# gh at the session tier (KTD2): relocate gh's state into the sandbox-write dir
+# (~/.cache/gh-sandbox, granted in the pi/opencode nono profiles) so gh creates
+# its missing state instead of reading the floor-denied ~/.config/gh/hosts.yml.
+# Credential-bearing agents only; omp stays credential-free. Single quotes are
+# deliberate: the emitted lines expand $HOME at eval time.
+print_gh_state_env() {
+  # shellcheck disable=SC2016  # emitted for eval by the consumer
+  printf 'export GH_CONFIG_DIR="$HOME/.cache/gh-sandbox/config"\n'
+  # shellcheck disable=SC2016  # emitted for eval by the consumer
+  printf 'export GH_DATA_DIR="$HOME/.cache/gh-sandbox/data"\n'
+  # shellcheck disable=SC2016  # emitted for eval by the consumer
+  printf 'export GH_CACHE_DIR="$HOME/.cache/gh-sandbox/cache"\n'
+}
+
+print_env() {
+  profile="$1"
+  dir=$(profile_dir "$profile")
+  case "$AGENT_NAME" in
+  pi)
+    printf 'export PI_CODING_AGENT_DIR="%s"\n' "$dir"
+    printf 'export PI_CODING_AGENT_SESSION_DIR="%s/sessions"\n' "$dir"
+    print_gh_state_env
+    ;;
+  opencode)
+    # Scrub first: an eval consumer must not have its exports unset after.
+    printf "for __v in \$(env | awk -F= '/^(OPENCODE_.*)/ { print \$1 }'); do unset \"\$__v\"; done 2>/dev/null || :\n"
+    printf 'export OPENCODE_CONFIG="%s/opencode.jsonc"\n' "$dir"
+    printf 'export OPENCODE_CONFIG_DIR="%s"\n' "$dir"
+    print_gh_state_env
+    ;;
+  omp)
+    printf "for __v in \$(env | awk -F= '/^(OPENCODE_.*|PI_.*)/ || \$1 ~ /^(OMP_PROFILE)$/ { print \$1 }'); do unset \"\$__v\"; done 2>/dev/null || :\n"
+    ;;
+  esac
+  print_profile_env "$profile"
+  printf 'export ENGRAM_DATA_DIR="%s"\n' "$ENGRAM_DATA_DIR"
+  printf 'export ENGRAM_PORT="%s"\n' "$ENGRAM_PORT"
+  printf 'export ENGRAM_URL="http://127.0.0.1:%s"\n' "$ENGRAM_PORT"
+}
+
+# stat_field <bsd-flag> <bsd-format> <gnu-flag> <gnu-format> <path>:
+# BSD stat first, GNU fallback; prints '' when neither yields a value
+# (callers validate).
+stat_field() {
+  __v=$(stat "$1" "$2" "$5" 2>/dev/null || true)
+  case "$__v" in
+  '' | *[!0-9]*) __v=$(stat "$3" "$4" "$5" 2>/dev/null || true) ;;
+  esac
+  printf '%s\n' "$__v"
+}
+
+# One env source for both paths: the runtime evals exactly what
+# --print-env prints (scrub loops, exports, profile env, ENGRAM trio).
+set_runtime_env() {
+  profile="$1"
+  dir=$(profile_dir "$profile")
+  eval "$(print_env "$profile")"
+  dim "Config:  $dir"
+}
+
+# One generic help for every agent: all facts ride the dispatch vars above.
+usage() {
+  printf 'Usage: agent [--profile NAME] %s [profile] [--no-sandbox] [--list] [--print-env [profile]]%s\n' \
+    "$AGENT_NAME" "${AGENT_PORT_FLAG:+ [$AGENT_PORT_FLAG N]}"
+  printf '       then agent args are forwarded to %s\n' "$BINARY_NAME"
+  printf '\n'
+  printf 'Config root: %s\n' "$AGENT_CONFIG_DIR"
+  printf 'Profiles: %s\n' "$AGENT_PROFILE_DESC"
+  [ -n "$AGENT_SCRUB_DESC" ] && printf 'Scrub: %s\n' "$AGENT_SCRUB_DESC"
+  printf '\n'
+  printf 'Flags:\n'
+  printf '  --list              list available profiles\n'
+  printf '  --print-env [prof]  print env vars for profile\n'
+  printf '                      (for launcher-internal use; eval-ing it in your\n'
+  printf '                      shell relocates your own gh state: GH_CONFIG_DIR)\n'
+  printf '  --help              this message\n'
+  printf '  --no-sandbox        launch without the nono sandbox and DCG guards\n'
+  printf '  --profile NAME      named profile (accepted before or after the agent word;\n'
+  printf '                      pi/opencode: core|default|factory|minimal, positional words\n'
+  printf '                      stay compat aliases; omp: free-form, agent root\n'
+  printf '                      <config-root>/profiles/NAME/agent)\n'
+  printf '  Args after -- reach %s verbatim (profile words and flags not consumed).\n' "$BINARY_NAME"
+  printf '  Note: this --profile selects the agent config profile; the sandbox\n'
+  printf '  profile (nono run --profile) is a separate namespace, chosen per agent.\n'
+  [ -n "$AGENT_PORT_FLAG" ] && printf '  %s N            serve on this port\n' "$AGENT_PORT_FLAG"
+  exit 0
+}
+
+list_profiles() {
+  case "$AGENT_NAME" in
+  pi | opencode)
+    # shellcheck disable=SC2086  # profile words split by design
+    printf '%s\n' $AGENT_PROFILE_DESC
+    printf 'Flag form: --profile <name> (before or after the agent word); the\n'
+    printf '  positional word above is a compat alias.\n'
+    ;;
+  omp)
+    printf 'agent %s uses a single configuration root (no positional profiles).\n' "$AGENT_NAME"
+    printf 'Named profiles: --profile <name> relocates the agent root to\n'
+    printf '  %s/profiles/<name>/agent (omp >=18.9); the config root stays shared.\n' "${AGENT_CONFIG_DIR%/*}"
+    ;;
+  esac
+}
+
+pwd_guard() {
+  case "$(pwd)" in
+  "$HOME")
+    die "Refusing to launch from home directory: $(pwd)
+   Launch from a project directory inside a git worktree."
+    ;;
+  "/")
+    die "Refusing to launch from root: $(pwd)
+   Launch from a project directory inside a git worktree."
+    ;;
+  esac
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    die "Not inside a git worktree.
+   Launch from a project directory inside a git worktree."
+  fi
+}
+
+# Secure per-agent scratch root: the nono sandbox allow-lists writes under
+# /tmp/agents/<agent>; TMPDIR is scoped to it so agent temp APIs land inside
+# the sandbox. Fail closed on symlinks, foreign ownership, non-private modes.
+bootstrap_scratch() {
+  if [ "${AGENT_LAUNCH_TEST_MODE:-}" = 1 ] && [ -n "${BATS_TEST_TMPDIR:-}" ]; then
+    _agents_root="${AGENT_LAUNCH_TEST_SCRATCH_ROOT:-}"
+    [ -n "$_agents_root" ] || die "Test scratch root is not configured"
+  else
+    _agents_root="/tmp/agents"
+  fi
+  scratch_dir="$_agents_root/$AGENT_NAME"
+
+  if [ -e "$scratch_dir" ] || [ -L "$scratch_dir" ]; then
+    [ -L "$scratch_dir" ] && die "Scratch dir is a symlink: $scratch_dir"
+    [ -d "$scratch_dir" ] || die "Scratch dir is not a directory: $scratch_dir"
+  else
+    # die if either step fails (intended A && B || C semantics here).
+    # shellcheck disable=SC2015
+    mkdir -p "$_agents_root" 2>/dev/null && chmod 700 "$_agents_root" 2>/dev/null ||
+      die "Cannot create scratch root: $_agents_root"
+    [ -L "$_agents_root" ] && die "Scratch root is a symlink: $_agents_root"
+    mkdir -m 700 "$scratch_dir" 2>/dev/null || die "Cannot create scratch dir: $scratch_dir"
+  fi
+
+  [ -L "$_agents_root" ] && die "Scratch root is a symlink: $_agents_root"
+  [ -d "$_agents_root" ] || die "Scratch root is not a directory: $_agents_root"
+
+  # Reject symlinked parents: the resolved path must remain under the root.
+  _root_resolved=$(cd -P -- "$_agents_root" 2>/dev/null && pwd -P) ||
+    die "Cannot resolve scratch root: $_agents_root"
+  _resolved=$(cd -P -- "$scratch_dir" 2>/dev/null && pwd -P) ||
+    die "Cannot resolve scratch dir: $scratch_dir"
+  [ "$_resolved" = "$_root_resolved/$AGENT_NAME" ] ||
+    die "Scratch dir resolves outside expected root: $_resolved"
+
+  _uid=$(id -u)
+  _owner=$(stat_field -f %u -c %u "$_agents_root")
+  case "$_owner" in
+  '' | *[!0-9]*) die "Cannot determine scratch root owner: $_agents_root" ;;
+  esac
+  [ "$_owner" = "$_uid" ] || die "Scratch root owner mismatch: $_agents_root (owner $_owner)"
+
+  _owner=$(stat_field -f %u -c %u "$scratch_dir")
+  case "$_owner" in
+  '' | *[!0-9]*) die "Cannot determine scratch dir owner: $scratch_dir" ;;
+  esac
+  [ "$_owner" = "$_uid" ] || die "Scratch dir owner mismatch: $scratch_dir (owner $_owner)"
+
+  # Normalize inherited permissive modes before the exact-0700 check.
+  chmod 700 "$_agents_root" "$scratch_dir" 2>/dev/null ||
+    die "Cannot secure scratch directories"
+
+  _mode=$(stat_field -f %Lp -c %a "$_agents_root")
+  case "$_mode" in
+  '' | *[!0-9]*) die "Cannot determine scratch root mode: $_agents_root" ;;
+  esac
+  [ "$((0$_mode))" -eq $((0700)) ] || die "Scratch root is not private: $_agents_root (mode $_mode)"
+
+  _mode=$(stat_field -f %Lp -c %a "$scratch_dir")
+  case "$_mode" in
+  '' | *[!0-9]*) die "Cannot determine scratch dir mode: $scratch_dir" ;;
+  esac
+  [ "$((0$_mode))" -eq $((0700)) ] || die "Scratch dir is not private: $scratch_dir (mode $_mode)"
+
+  unset _agents_root _root_resolved _resolved _uid _owner _mode
+}
+
+engram_ready() {
+  curl --silent --fail --max-time 1 \
+    "${ENGRAM_URL}/health" >/dev/null 2>&1
+}
+
+# Daemon binary identity: version string + resolved binary path + binary
+# mtime, recorded on spawn and compared every launch. The version string
+# alone is not a skew signal (a ref=main rebuild can change the binary with
+# the string constant); a missing record counts as a mismatch.
+daemon_identity() {
+  __bin=$(command -v engram 2>/dev/null) || return 1
+  __ver=$(engram version 2>/dev/null) || return 1
+  __mtime=$(stat_field -f %m -c %Y "$__bin")
+  printf '%s\n%s\n%s\n' "$__ver" "$__bin" "$__mtime"
+}
+
+identity_current() {
+  [ -f "$ENGRAM_ID_FILE" ] || return 1
+  [ "$(cat "$ENGRAM_ID_FILE")" = "$(daemon_identity)" ]
+}
+
+# A crash between spawn and record costs one extra restart on the next
+# launch; self-converges, so a write failure is not fatal.
+write_identity() {
+  if ! daemon_identity >"$ENGRAM_ID_FILE"; then
+    rm -f "$ENGRAM_ID_FILE"
+  fi
+}
+
+# Supervisor lock: atomic mkdir carrying the holder PID. The success path
+# rmdir's it explicitly — the launcher ends in `exec nono run ...` and EXIT
+# traps do not fire through exec, so traps are the crash backstop only.
+lock_acquire() {
+  mkdir "$ENGRAM_LOCK" 2>/dev/null || return 1
+  printf '%s\n' "$$" >"$ENGRAM_LOCK/pid"
+}
+
+lock_release() {
+  rm -f "$ENGRAM_LOCK/pid" 2>/dev/null || true
+  rmdir "$ENGRAM_LOCK" 2>/dev/null || true
+}
+
+# A leaked lock (holder SIGKILL'd, empty pid file included) must never
+# wedge the supervisor: probe the holder PID and take over when dead.
+lock_takeover() {
+  __holder=$(cat "$ENGRAM_LOCK/pid" 2>/dev/null || true)
+  if kill -0 "$__holder" 2>/dev/null; then
+    return 1
+  fi
+  # A fresh holder mkdir's the lock before writing its pid file: an empty
+  # read is not proof of death. One bounded re-check after a grace sleep; a
+  # pid that lands late (live holder) keeps the lock.
+  sleep 1
+  __holder=$(cat "$ENGRAM_LOCK/pid" 2>/dev/null || true)
+  if kill -0 "$__holder" 2>/dev/null; then
+    return 1
+  fi
+  lock_release
+  lock_acquire
+}
+
+# Right-anchored port-scoped kill: the anchor is what scopes the pattern —
+# unanchored, pkill -f substring-matches dev daemons on ports that extend
+# the supervised port (7437 vs 74371).
+restart_daemon() {
+  __pattern="engram serve ${ENGRAM_PORT}( |$)"
+  pkill -f "$__pattern" 2>/dev/null || true
+  __waits=0
+  while [ "$__waits" -lt 5 ]; do
+    pgrep -f "$__pattern" >/dev/null 2>&1 || break
+    sleep 1
+    __waits=$((__waits + 1))
+  done
+  pkill -9 -f "$__pattern" 2>/dev/null || true
+}
+
+# argv stays exactly `engram serve <port>` — the anchored pattern above
+# matches this spawn form and nothing else.
+spawn_daemon() {
+  mkdir -p "$ENGRAM_DATA_DIR"
+  # Fully detach: a daemon spawned from a bats test inherits the worker's
+  # coordination fds (bats uses 3 and high fds, e.g. 10) and keeps the
+  # formatter pipe open, hanging the suite at EOF (bats-core FAQ). Close
+  # every fd >= 3 in the spawn child.
+  # Single quotes are deliberate: fds are closed and engram exec'd in the child.
+  # shellcheck disable=SC2016
+  nohup sh -c 'for __fd in $(seq 3 255); do eval "exec $__fd>&-" 2>/dev/null; done; exec engram serve "$1"' \
+    _ "$ENGRAM_PORT" >>"$ENGRAM_LOG" 2>&1 </dev/null &
+  __pid=$!
+  dim "PID: $__pid"
+  write_identity
+}
+
+wait_ready() {
+  __attempts=0
+  while [ "$__attempts" -lt 10 ]; do
+    if engram_ready; then
+      return 0
+    fi
+    sleep 1
+    __attempts=$((__attempts + 1))
+  done
+  die "Engram daemon did not become ready (see $ENGRAM_LOG)"
+}
+
+# Readiness = health probe plus binary-current identity; report on success.
+ready_and_report() {
+  engram_ready && identity_current && {
+    ok "Engram: daemon ready"
+    return 0
+  }
+  return 1
+}
+
+ensure_engram() {
+  command -v engram >/dev/null 2>&1 || die "engram not found on PATH"
+  command -v curl >/dev/null 2>&1 || die "curl not found (needed for engram health check)"
+
+  info "Engram: checking..."
+
+  # Fast path: one curl plus one cheap identity compare; a healthy,
+  # binary-current daemon is started by no one and killed by no one.
+  if ready_and_report; then
+    return 0
+  fi
+
+  mkdir -p "$ENGRAM_STATE"
+  dim "Log: $ENGRAM_LOG"
+
+  supervised=false
+  if lock_acquire; then
+    supervised=true
+  else
+    # Lost the race: the winner may already be ready.
+    if ready_and_report; then
+      return 0
+    fi
+    # Dead holder → taking the lock over makes this launch the supervisor.
+    if lock_takeover; then
+      supervised=true
+    fi
+  fi
+
+  if [ "$supervised" = true ]; then
+    trap 'lock_release' INT TERM
+    info "Engram: (re)starting daemon..."
+    restart_daemon
+    spawn_daemon
+  else
+    # Live holder: join its readiness pass; a loser never spawns.
+    info "Engram: waiting for daemon..."
+  fi
+
+  wait_ready
+
+  # Explicit release before the exec below erases the trap backstop.
+  if [ "$supervised" = true ]; then
+    lock_release
+    trap - INT TERM
+  fi
+  ok "Engram: daemon ready"
+}
+
+case "${1:-}" in
+--help | -h)
+  usage
+  ;;
+--list)
+  list_profiles
+  exit 0
+  ;;
+--print-env)
+  # Seed order: --profile flag, positional word, pre-name selection, agent
+  # default. Flag-shaped args other than --profile die: a flag-shaped
+  # argument must never silently print the default env (was: -* → factory).
+  profile="${2:-}"
+  case "$profile" in
+  --profile)
+    [ $# -ge 3 ] || die "--profile requires a name"
+    print_env_selected "$3"
+    ;;
+  --profile=*)
+    print_env_selected "${profile#--profile=}"
+    ;;
+  "")
+    # Bare probe: omp without a pre-name selection exports no OMP_PROFILE
+    # (runtime parity: the name is exported only when --profile was given).
+    if [ "$AGENT_NAME" = omp ] && [ -z "$pre_profile" ]; then
+      print_env "$AGENT_DEFAULT_PROFILE"
+    else
+      print_env_selected "${pre_profile:-$AGENT_DEFAULT_PROFILE}"
+    fi
+    ;;
+  -*)
+    die "--print-env: unknown argument $profile (use a profile word or --profile NAME)"
+    ;;
+  *)
+    case "$AGENT_PROFILES" in
+    *" $profile "*) ;;
+    *) die "Unknown profile: $profile" ;;
+    esac
+    print_env "$profile"
+    ;;
+  esac
+  exit 0
+  ;;
+esac
+
+# Color init after the exit-only dispatch: tput costs 9 subprocesses and the
+# exit-only paths (--help/--list/--print-env) never consume color vars.
+if [ -t 2 ] && [ -z "${NO_COLOR:-}" ] && command -v tput >/dev/null 2>&1; then
+  _BO=$(tput bold) _DI=$(tput dim)
+  _RE=$(tput setaf 1) _GR=$(tput setaf 2)
+  _CY=$(tput setaf 6) _NO=$(tput sgr0)
+else
+  _BO='' _DI='' _RE='' _GR='' _CY='' _NO=''
+fi
+
+no_sandbox=false
+open_port=""
+profile="$AGENT_DEFAULT_PROFILE"
+# omp named profile (omp >=18.9): name passed via --profile, exported as
+# OMP_PROFILE after set_runtime_env (its scrub clears inherited values).
+omp_profile=""
+# Pre-name --profile selection is the starting point; the post-name loop may
+# override it (last occurrence wins, matching multi-word consumption).
+if [ -n "$pre_profile" ]; then
+  if [ "$AGENT_NAME" = omp ]; then omp_profile="$pre_profile"; else profile="$pre_profile"; fi
+fi
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --)
+    shift
+    break
+    ;;
+  --no-sandbox)
+    no_sandbox=true
+    shift
+    ;;
+  --profile | --profile=*)
+    # Named profile selection for every agent (was omp-only, forwarded to
+    # the others): consumption shadows no binary flag (no repo evidence
+    # pi/opencode consume a native --profile); `--` stays the escape hatch.
+    if [ "$1" = --profile ]; then
+      [ $# -ge 2 ] || die "--profile requires a name"
+      select_profile "$2"
+      shift 2
+    else
+      select_profile "${1#--profile=}"
+      shift
+    fi
+    ;;
+  core | default | factory | minimal)
+    # Acceptance is per-agent: the word sets the profile only when it is in
+    # this agent's own profile set. Non-selectable agents (omp, the
+    # single-root agent) reject any word in the cross-agent profile union
+    # (the pattern above) with the generic single-root message.
+    if [ "$AGENT_SELECTABLE" = false ]; then
+      die "agent $AGENT_NAME uses a single configuration root; pass a named profile with --profile <name>"
+    fi
+    case "$AGENT_PROFILES" in
+    *" $1 "*)
+      profile="$1"
+      shift
+      ;;
+    *) break ;;
+    esac
+    ;;
+  *)
+    # Compatibility shim: the shipped greywall-era flag dies with a hint,
+    # not forwarded.
+    if [ "$1" = "--no-greywall" ]; then
+      die "--no-greywall was renamed --no-sandbox"
+    fi
+    break
+    ;;
+  esac
+done
+
+set_runtime_env "$profile"
+
+# Named profile: export rides AFTER set_runtime_env (its scrub clears
+# inherited OMP_PROFILE); the sandbox scrub (omp.toml deny_vars) keeps any
+# inherited value out of the agent env too. omp relocates the agent root to
+# <config-root>/profiles/<name>/agent on its own.
+if [ "$AGENT_NAME" = omp ] && [ -n "$omp_profile" ]; then
+  export OMP_PROFILE="$omp_profile"
+fi
+
+# opencode factory profile: keep --port and OPENCODE_PORT aligned for the
+# slim multiplexer integration. Runs after set_runtime_env: its scrub and
+# profile_env eval would otherwise wipe or re-roll an exported port.
+if [ -n "$AGENT_PORT_FLAG" ] && [ "$profile" = "factory" ]; then
+  _port=""
+  _next_is_port=false
+  for _arg; do
+    if [ "$_next_is_port" = true ]; then
+      _port="$_arg"
+      _next_is_port=false
+      break
+    fi
+    case "$_arg" in
+    "$AGENT_PORT_FLAG"=*)
+      _port="${_arg#"$AGENT_PORT_FLAG"=}"
+      break
+      ;;
+    "$AGENT_PORT_FLAG") _next_is_port=true ;;
+    esac
+  done
+  [ "$_next_is_port" = false ] || die "$AGENT_PORT_FLAG requires a value"
+  if [ -n "$_port" ]; then
+    case "$_port" in
+    *[!0-9]* | '') die "$AGENT_PORT_FLAG must be a positive integer" ;;
+    0) die "$AGENT_PORT_FLAG must be greater than 0" ;;
+    esac
+    export OPENCODE_PORT="$_port"
+  else
+    export OPENCODE_PORT="${OPENCODE_PORT:-$(pick_high_port)}"
+    set -- "$AGENT_PORT_FLAG" "$OPENCODE_PORT" "$@"
+  fi
+  # nono proxy mode denies outbound connects by default; the TUI must dial its
+  # own loopback port, so the launcher opens exactly that per-launch port.
+  open_port="$OPENCODE_PORT"
+  unset _port _next_is_port _arg
+fi
+
+if [ "$AGENT_NAME" = omp ] && [ -n "$omp_profile" ]; then
+  info "Profile: ${_BO}${omp_profile}${_NO} (named root: ${AGENT_CONFIG_DIR%/*}/profiles/${omp_profile}/agent)"
+else
+  info "Profile: ${_BO}${profile}${_NO}"
+fi
+
+if [ "$no_sandbox" = true ]; then
+  if [ -n "${AGENT_SANDBOX:-}" ]; then
+    ok "Sandbox: inherited (nested launch); DCG guards: active"
+  else
+    ok "Sandbox: disabled (--no-sandbox); DCG guards: bypassed; the agent env carries REAL credential values"
+  fi
+  # Honored at boot by the shared DCG guard-core hooks; only meaningful here because the nono profiles scrub DCG_* from sandboxed agent env.
+  export DCG_BYPASS=1
+  exec "$BINARY_NAME" "$@"
+fi
+
+# Engram must start before the sandboxed launch: its curl health-check must
+# reach localhost directly, not through the nono proxy.
+ensure_engram
+
+bootstrap_scratch
+dim "Scratch: $scratch_dir (TMPDIR scoped to nono)"
+export TMPDIR="$scratch_dir"
+# rtk state rides the same per-agent scratch root, so test scratch overrides
+# and the sandbox write grant cover it.
+export RTK_RECALL_DB="$scratch_dir/rtk/recall.db"
+export RTK_TEE_DIR="$scratch_dir/rtk/tee"
+unset scratch_dir
+
+# Sandbox PATH parity: the MacPorts `git` dies on a blocked dylib inside nono,
+# so /usr/bin first gives a working binary (the enforcement suite pins the
+# same PATH). This shadows mise shims by name; narrow to a git-only dir if a
+# hook needs a mise interpreter by bare name. Host runs keep PATH.
+export PATH="/usr/bin:$PATH"
+
+# Runner-context marker: exported immediately before the sandbox exec so the
+# nono env scrub (deny_vars) cannot strip it. Suites gate live/DCG probes on
+# it (loud skips in-sandbox); host shells stay marker-free and run for real.
+export AGENT_SANDBOX=1
+
+# Denials stay silent EPERM (agents report them): nono's post-run "Review
+# denied paths" selector is the only prompt UI; also blocks saved-grant drift.
+export NONO_NO_SAVE_PROMPT=1
+
+# Full event log (incl. denials) to the scratch dir, which the sandbox grants
+# r+w — durable, agent-readable triage trail; the in-band denial summary stays.
+export NONO_LOG_FILE="$TMPDIR/nono.log"
+
+# Credential mode of the applied profile: routes on, pass-through (KTD5), or
+# scrub-only. The scrub lives in the base profile; agent profiles inherit it
+# (omp re-declares the full set, so it never reads as pass-through).
+NONO_PROFILE_FILE="$HOME/.config/nono/profiles/$NONO_PROFILE.json"
+NONO_BASE_PROFILE="$HOME/.config/nono/profiles/base.json"
+if grep -q '"custom_credentials"' "$NONO_PROFILE_FILE" 2>/dev/null; then
+  cred_mode=routes
+  dim "Credentials: routes on — the proxy injects values at egress"
+  # A route whose env:// source is unset in THIS shell injects nothing: the proxy warns
+  # and denies that route, so "routes on" alone would overstate what the agent gets.
+  if command -v jq >/dev/null 2>&1; then
+    missing_creds="$(jq -r '[(.network.custom_credentials // {}) | to_entries[]
+      | select((.value.credential_key // "") | startswith("env://"))
+      | select(((.value.credential_key | sub("^env://"; "")) as $n | ($ENV[$n] // "")) == "")
+      | .key] | join(" ")' "$NONO_PROFILE_FILE" 2>/dev/null)"
+    [ -n "$missing_creds" ] && warn "Routes without a credential source in this shell: $missing_creds — the proxy denies them (export the var, e.g. via direnv)"
+  fi
+elif [ "$NONO_PROFILE" != omp ] && command -v jq >/dev/null 2>&1 &&
+  jq -e '.environment.deny_vars | (index("ANTHROPIC_API_KEY") == null and
+    index("OPENAI_API_KEY") == null)' "$NONO_BASE_PROFILE" >/dev/null 2>&1; then
+  cred_mode=pass-through
+  dim "Credentials: pass-through — exported provider keys are in the agent env (names redacted in the audit trail); GitHub is not delegated: gh/git work stays in your terminal"
+else
+  cred_mode=scrub-only
+  dim "Credentials: scrub-only — no credential values, provider calls unavailable"
+fi
+# R4 audit trail: the mode rides the event log, not just the TUI dim line.
+printf 'credential-mode: %s\n' "$cred_mode" >>"$NONO_LOG_FILE" 2>/dev/null || :
+# Audit-mode notice: a profile stamped with audit_mode logs without
+# enforcing. Dormant today: no rendered profile carries the field.
+if grep -q '"audit_mode"' "$NONO_PROFILE_FILE" 2>/dev/null; then
+  warn "[nono: AUDIT mode — enforcing off]"
+fi
+# Landlock binds only paths existing at sandbox start (Linux): seed gh's
+# relocated state root so the first sandboxed gh write lands.
+case "$AGENT_NAME" in
+pi | opencode) mkdir -p "$HOME/.cache/gh-sandbox" 2>/dev/null || : ;;
+esac
+dim "Launch: nono run --profile $NONO_PROFILE ${open_port:+--open-port $open_port} -- $BINARY_NAME ..."
+exec nono run --profile "$NONO_PROFILE" ${open_port:+--open-port "$open_port"} -- "$BINARY_NAME" "$@"

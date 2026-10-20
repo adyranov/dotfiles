@@ -7,14 +7,4 @@
 {{-     $_ := unset $config "command_path" -}}
 {{-   end -}}
 {{- end -}}
-{{- dict
-  "mcpServers" $mcpServers
-  "settings" (dict
-    "autoAuth" false
-    "directTools" false
-    "disableProxyTool" false
-    "idleTimeout" 10
-    "sampling" false
-    "toolPrefix" "server"
-  )
-| toPrettyJson -}}
+{{- dict "mcpServers" $mcpServers | toPrettyJson -}}

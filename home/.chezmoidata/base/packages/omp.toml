@@ -1,5 +1,3 @@
-[packages.base.omp]
-
 [packages.base.omp.omp]
 manager = "mise"
 package = "github:can1357/oh-my-pi"

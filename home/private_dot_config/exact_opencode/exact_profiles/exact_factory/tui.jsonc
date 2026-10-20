@@ -1,0 +1,6 @@
+// opencode v1 loads TUI plugins exclusively from this file (the TUI registration
+// axis); opencode.jsonc's plugin array registers the server half only. slim's
+// pane spawner and TUI features live in its TUI half, so it must be listed here.
+{
+  "plugin": ["oh-my-opencode-slim"]
+}

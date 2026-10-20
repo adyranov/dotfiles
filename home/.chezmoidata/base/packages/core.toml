@@ -3,6 +3,7 @@ atuin = { completion = { generate = "atuin gen-completions --shell zsh" }, manag
 bat = { completion = { generate = "if bat --help 2>&1 | grep -q -- '--completion'; then bat --completion zsh; fi" } }
 btop = { disabled = ["ephemeral"] }
 curl = {}
+dcg = { manager = "mise", package = "github:Dicklesworthstone/destructive_command_guard" }
 direnv = { version = "direnv version" }
 difftastic = { manager = "mise", bin = "difft" }
 doggo = { completion = { generate = "doggo completions zsh" }, manager = "mise", package = "github:mr-karan/doggo" }
@@ -10,32 +11,30 @@ dust = { manager = "mise", package = "github:bootandy/dust" }
 eza = { manager = "mise" }
 fd = {}
 fzf = {}
+git = {}
 git-delta = { bin = "delta", completion = { generate = "delta --generate-completion zsh" } }
 glow = { completion = true, manager = "mise", package = "github:charmbracelet/glow" }
 gnupg = { bin = "gpg" }
-greyproxy = { disabled = [
+# Load-bearing pin: top-level seatbelt rules rely on nono's last-match-wins
+# ordering (see render-nono-profile); bump only with a live-probe pass.
+nono = { disabled = [
   "ephemeral"
-], manager = "mise", package = "github:GreyhavenHQ/greyproxy" }
-greywall = { disabled = [
-  "ephemeral"
-], manager = "mise", package = "github:GreyhavenHQ/greywall", completion = true }
+], manager = "mise", package = "github:nolabs-ai/nono", pin = "0.79.0" }
 hyperfine = { manager = "mise" }
 jnv = { manager = "mise", package = "github:ynqa/jnv" }
 jq = {}
 lazygit = { completion = { generate = "lazygit completion zsh" }, manager = "mise" }
-mkcert = { manager = "mise", policy = { deny = ["mkcert *"] } }
+mkcert = { manager = "mise" }
 neovim = { bin = "nvim" }
 openssh-client = { bin = "ssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }
 ouch = { manager = "mise", package = "github:ouch-org/ouch" }
 rage = { manager = "mise", package = "github:str4d/rage" }
+rclone = {}
 ripgrep = { bin = "rg" }
 sd = { manager = "mise" }
 tealdeer = { bin = "tldr" }
 tmux = { version = "tmux -V" }
-topgrade = { completion = { generate = "topgrade --gen-completion zsh" }, manager = "mise", package = "github:topgrade-rs/topgrade", policy = { deny = [
-  "topgrade",
-  "topgrade *"
-] } }
+topgrade = { completion = { generate = "topgrade --gen-completion zsh" }, manager = "mise", package = "github:topgrade-rs/topgrade" }
 vivid = { manager = "mise" }
 wget = {}
 xh = { completion = { generate = "xh --generate complete-zsh" }, manager = "mise", package = "github:ducaale/xh" }
@@ -45,87 +44,12 @@ zoxide = {}
 [packages.base.core.chezmoi]
 completion = true
 
-[packages.base.core.chezmoi.policy]
-allow = [
-  "chezmoi execute-template *",
-  "chezmoi data *",
-  "chezmoi diff *",
-  "chezmoi doctor *",
-  "chezmoi managed *",
-  "chezmoi status *",
-  "chezmoi verify *"
-]
-deny = ["chezmoi --remove *", "chezmoi apply"]
-
 [packages.base.core.coreutils]
 version = "realpath --version"
-
-[packages.base.core.coreutils.policy]
-deny = [
-  # actual coreutils commands
-  "rm -rf /*",
-  "rm -rf ~/*",
-  "shred *",
-  "dd *",
-  "chmod 777 *",
-  "chmod -R 777 *",
-  "chmod o+w *",
-  "chown * /*",
-  "chown -R * /*",
-  "mv /* *",
-  "mv /etc/* *",
-  "mv /usr/* *",
-  "ln -sf * /etc/*",
-  "ln -sf * /usr/*"
-]
 
 [packages.base.core.gh]
 completion = { generate = "gh completion -s zsh" }
 
-[packages.base.core.gh.policy]
-deny = [
-  "gh * delete*",
-  "gh * edit *",
-  "gh * secret *",
-  "gh * variable set *",
-  "gh api repos/* -X DELETE*",
-  "gh auth login *",
-  "gh auth logout *",
-  "gh auth refresh *",
-  "gh auth setup-git *",
-  "gh auth token",
-  "gh auth token *"
-]
-
-[packages.base.core.git]
-
-[packages.base.core.git.policy]
-deny = [
-  "git * clean *",
-  "git * push --force*",
-  "git * push -f *",
-  "git * rebase *",
-  "git * reset --hard *",
-  "git * stash drop *",
-  "git * stash pop *",
-  "git * tag -d *",
-  "git * worktree remove *",
-  "git clean *",
-  "git push --force*",
-  "git push -f *",
-  "git rebase *",
-  "git reset --hard *",
-  "git stash drop *",
-  "git stash pop *",
-  "git tag -d *",
-  "git worktree remove *"
-]
-
 [packages.base.core.mise]
 manager = "external"
 completion = true
-
-[packages.base.core.mise.policy]
-deny = ["mise run apply", "mise run apply *", "mise trust *", "mise untrust *"]
-
-[packages.base.core.rclone]

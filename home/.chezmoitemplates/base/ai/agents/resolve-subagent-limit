@@ -1,0 +1,28 @@
+{{- /*
+  Resolve the concurrent subagent limit for the active model preset.
+  Pi maps this to independent pools: foreground stays at 1 and background
+  uses limit-1, floored at 1 (so a limit of 1 allows 2 total).
+*/ -}}
+{{- $root := .root -}}
+{{- $presets := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.presets" "required" true) | mustFromJson -}}
+{{- $presetName := get $presets "default" | default "" -}}
+{{- if not $presetName -}}{{- fail "resolve-subagent-limit: active preset missing from ai.presets.default" -}}{{- end -}}
+{{- $preset := get $presets $presetName | default dict -}}
+{{- $limit := 0 -}}
+{{- if and (kindIs "map" $preset) (hasKey $preset "subagent_limit") -}}
+  {{- $limit = get $preset "subagent_limit" -}}
+{{- else -}}
+  {{- $base := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.subagent_limit" "required" true) | mustFromJson -}}
+  {{- $limit = get $base "value" -}}
+{{- end -}}
+{{- if not (or (kindIs "int" $limit) (kindIs "int64" $limit) (kindIs "float64" $limit)) -}}
+  {{- fail (printf "resolve-subagent-limit: preset %q has non-integer limit %v" $presetName $limit) -}}
+{{- end -}}
+{{- if and (kindIs "float64" $limit) (ne $limit (float64 (int64 $limit))) -}}
+  {{- fail (printf "resolve-subagent-limit: preset %q has non-integer limit %v" $presetName $limit) -}}
+{{- end -}}
+{{- $limit = int64 $limit -}}
+{{- if or (lt $limit 1) (gt $limit 1024) -}}
+  {{- fail (printf "resolve-subagent-limit: preset %q limit %v must be between 1 and 1024" $presetName $limit) -}}
+{{- end -}}
+{{- $limit -}}

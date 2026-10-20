@@ -1,5 +1,3 @@
-[ai.profile.work.presets]
-
 [ai.profile.work.presets.balanced.council]
 # councillors — 3 for work (has github-copilot diversity)
 alpha = { provider = "github-copilot", model = "gpt-6.1-sol", thinking = "high" }

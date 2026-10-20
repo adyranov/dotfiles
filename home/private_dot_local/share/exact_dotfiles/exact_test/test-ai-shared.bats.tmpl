@@ -48,90 +48,965 @@ setup() {
 }
 
 # bats test_tags=kind:config
-@test "all rpiv configs have guidance" {
-  for cfg in rpiv-advisor/advisor rpiv-ask-user-question/config rpiv-todo/config; do
+@test "kept rpiv configs carry guidance" {
+  for cfg in rpiv-ask-user-question/config rpiv-todo/config; do
     run jq -e '.guidance.promptSnippet | length > 0' "{{ .chezmoi.homeDir }}/.config/${cfg}.json"
     assert_success
     run jq -e '.guidance.promptGuidelines | length > 0' "{{ .chezmoi.homeDir }}/.config/${cfg}.json"
     assert_success
   done
-  run jq -e '(.guidance.web_search.promptGuidelines | length > 0) and (.guidance.web_fetch.promptGuidelines | length > 0)' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
-  assert_success
-  run jq -e 'any(.guidance.web_search.promptGuidelines[]; contains("plan or final answer"))' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
-  assert_success
-  run jq -e 'any(.guidance.web_fetch.promptGuidelines[]; contains("plan or final answer"))' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
-  assert_success
-  run jq -e '.interceptors.github.enabled == true' "{{ .chezmoi.homeDir }}/.config/rpiv-web-tools/config.json"
-  assert_success
   run jq -r '.guidance.promptGuidelines | join(" ")' "{{ .chezmoi.homeDir }}/.config/rpiv-ask-user-question/config.json"
   assert_success
   assert_output --partial "material ambiguity"
 }
+{{- if .toolchains.pi }}
 
-# bats test_tags=toolchain:ai,kind:symlink
-@test "shared caveman skill directory is not linked" {
-  assert_file_not_exists "$HOME/.config/agents/skills/caveman"
+# bats test_tags=toolchain:pi,kind:config
+@test "pi-web-access config carries citation guidance and the github clone lane" {
+  run jq -e '.githubClone.enabled == true' "{{ .chezmoi.homeDir }}/.config/pi/profiles/core/web-search.json"
+  assert_success
+  run jq -e 'any(.summaryInstructions[]; contains("plan or final answer"))' "{{ .chezmoi.homeDir }}/.config/pi/profiles/core/web-search.json"
+  assert_success
+  run readlink -f "{{ .chezmoi.homeDir }}/.config/pi/profiles/factory/web-search.json"
+  assert_success
+  assert_output "{{ .chezmoi.homeDir }}/.config/pi/profiles/core/web-search.json"
 }
+{{- end }}
 
-# bats test_tags=toolchain:ai,kind:symlink
-@test "shared caveman commands are not installed via library" {
-  assert_file_not_exists "$HOME/.config/agents/libraries/commands/caveman"
-}
+# --- Shared rendered-fact loops ---
+#
+# Each shared rendered-data fact is asserted once, looping a tool→config-entry
+# table collected into a single failure that names every offending tool.
+# Entry conditions are render-time data flags only: a disabled toolchain drops
+# the entry; an enabled tool with a missing config file is a named offender.
+# Failure bodies print tool name plus the failing path/boolean only — checks
+# run under `run`, so config content never reaches gate output. The @test
+# bodies render from the checks dicts via base/test/shared-fact-loop.
 
-# bats test_tags=toolchain:ai,kind:symlink
-@test "shared caveman installation instructions are not installed" {
-  assert_file_not_exists "$HOME/.config/agents/libraries/commands/caveman-instructions"
+{{- $serving := dict -}}
+{{- $presets := dict -}}
+{{- if .toolchains.ai -}}
+{{-   $serving = includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving" "required" false) | mustFromJson -}}
+{{-   $presets = includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.presets" "required" false) | mustFromJson -}}
+{{- end -}}
+{{- $ompOn := get .toolchains "omp" | default false -}}
+{{- $infer01 := index $serving "infer01" | default dict -}}
+{{- $hasInfer01 := gt (len $infer01) 0 -}}
+{{- $qwenPreset := index $presets "qwen" | default dict -}}
+{{- $hasQwen := hasKey $presets "qwen" -}}
+{{- $qwenTiers := get $qwenPreset "tiers" | default dict -}}
+{{- $qwenModel := index (get $infer01 "models" | default list) 0 | default dict -}}
+{{- $activePreset := index $presets "default" | default "balanced" -}}
+{{- $agentTiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.opencode.agent_tiers" "required" true) | mustFromJson -}}
+{{- /* Loop entry/applicable sets are top-level so the companion test always
+       renders; gated loops fill them with `=` assignments. */ -}}
+{{- $infer01Applicable := list -}}
+{{- $infer01Checks := list -}}
+{{- $infer01Tools := list -}}
+{{- $qwenApplicable := list -}}
+{{- $qwenChecks := list -}}
+{{- $qwenTools := list -}}
+
+{{ if $hasInfer01 }}
+{{- /* Fact 2: keyless infer01 provider, projected per agent config. */ -}}
+{{-   $infer01Checks = list
+        (dict "kind" "run" "tool" "serving-data" "label" "metadata.context_window" "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%v\" = \"262144\"" (get $qwenModel "context_window" | default 0)))
+        (dict "kind" "run" "tool" "serving-data" "label" "metadata.max_output" "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%v\" = \"32768\"" (get $qwenModel "max_output" | default 0))) -}}
+{{-   if .toolchains.pi -}}
+{{-     $infer01Applicable = append $infer01Applicable "pi" -}}
+{{-     $infer01Checks = append $infer01Checks (dict "kind" "cmd" "tool" "pi" "label" "providers.infer01" "cmd" "jq -e" "arg" "" "filepart" " \"$HOME/.config/pi/agent/models.json\""
+          "prog" `
+    (.providers.infer01.api == "openai-completions") and
+    (.providers.infer01.baseUrl == "http://infer01:8080/v1") and
+    (.providers.infer01.apiKey == "no-auth") and
+    (.providers.infer01.models
+      | map(select(.id == "qwen3.8-flash-next"))[0] as $m |
+        ($m.contextWindow == 262144) and
+        ($m.reasoning == true) and
+        (($m.input | index("image")) != null) and
+        (($m | has("maxTokens")) | not))
+  `) -}}
+{{-     $infer01Checks = append $infer01Checks (dict "kind" "cmd" "tool" "pi" "label" "no bare remote id in enabledModels" "cmd" "jq -e" "arg" "" "filepart" " \"$HOME/.config/pi/agent/settings.json\""
+          "prog" `(.enabledModels | index("qwen3.8-flash-next")) == null`) -}}
+{{-   end -}}
+{{-   if .toolchains.opencode -}}
+{{-     $infer01Applicable = append $infer01Applicable "opencode" -}}
+{{-     $infer01Checks = append $infer01Checks (dict "kind" "cmd" "tool" "opencode" "label" "provider.infer01" "cmd" "jsoncJq -e" "arg" "" "filepart" " \"$HOME/.config/opencode/opencode.jsonc\""
+          "prog" `
+    (.provider.infer01.npm == "@ai-sdk/openai-compatible") and
+    (.provider.infer01.options.baseURL == "http://infer01:8080/v1") and
+    ((.provider.infer01.options | has("apiKey")) | not) and
+    (.provider.infer01.models["qwen3.8-flash-next"].name == "qwen3.8-flash-next") and
+    (.provider.infer01.models["qwen3.8-flash-next"].limit.context == 262144) and
+    (.provider.infer01.models["qwen3.8-flash-next"].attachment == true) and
+    (.provider.infer01.models["qwen3.8-flash-next"].reasoning == true)
+  `) -}}
+{{-   end -}}
+{{-   if $ompOn -}}
+{{-     $infer01Applicable = append $infer01Applicable "omp" -}}
+{{-     $infer01Checks = append $infer01Checks (dict "kind" "cmd" "tool" "omp" "label" "providers.infer01+no-local" "cmd" "yq -e" "arg" "" "filepart" " \"$HOME/.config/omp/agent/models.yml\""
+          "prog" `
+    (.providers | has("local") | not) and
+    (.providers | has("infer01")) and (.providers | length == 1) and
+    (.providers.infer01.api == "openai-completions" and .providers.infer01.auth == "none") and
+    (.providers.infer01.baseUrl == "http://infer01:8080/v1") and
+    (.providers.infer01.models
+      | map(select(.id == "qwen3.8-flash-next"))[0] as $m |
+        (($m.contextWindow == 262144) and ($m.reasoning == true) and (($m.input | join("|")) == "text|image") and ($m.maxTokens == 32768) and ($m.compat.thinkingFormat == "qwen-chat-template") and ($m.thinking.mode == "effort") and (($m.thinking.efforts | join("|")) == "low|medium|xhigh") and ($m.thinking.requiresEffort == false) and ($m.thinking.defaultLevel == "xhigh")))
+  `) -}}
+{{-   end -}}
+{{-   range $c := $infer01Checks -}}
+{{-     if ne (get $c "tool") "serving-data" -}}
+{{-       $infer01Tools = append $infer01Tools (get $c "tool") -}}
+{{-     end -}}
+{{-   end }}
+
+{{ includeTemplate "base/test/shared-fact-loop" (dict
+        "title" "keyless infer01 provider renders in every applicable agent config (shared fact loop)"
+        "tags" "toolchain:ai,kind:config"
+        "message" "infer01 provider wrong or missing (offending tools):"
+        "checks" $infer01Checks) }}
+{{ end }}
+
+{{- if $hasQwen }}
+{{- /* Fact 3: qwen-preset routing: data-side routes plus per-agent render. */ -}}
+{{-   $qwenExpect := dict -}}
+{{-   range $agent, $tier := $agentTiers -}}
+{{-     $route := index $qwenTiers $tier | default dict -}}
+{{-     $entry := dict "id" (printf "%s/%s" (get $route "provider" | default "") (get $route "model" | default "")) -}}
+{{-     $thinking := get $route "thinking" | default "off" -}}
+{{-     if ne $thinking "off" }}{{ $_ := set $entry "variant" $thinking }}{{ end -}}
+{{-     $_ := set $qwenExpect $agent (list $entry) -}}
+{{-   end -}}
+{{-   range $tier := list "small" "medium" "big" "visual" -}}
+{{-     $route := index $qwenTiers $tier | default dict -}}
+{{-     $qwenChecks = concat $qwenChecks (list
+          (dict "kind" "run" "tool" "presets-data" "label" (printf "tiers.%s.route" $tier) "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%s/%s\" = \"infer01/%s\"" (get $route "provider" | default "") (get $route "model" | default "") (get $qwenModel "id" | default "")))
+          (dict "kind" "run" "tool" "presets-data" "label" (printf "tiers.%s.no-fallbacks" $tier) "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%s\" = \"ok\"" (ternary "bad" "ok" (hasKey $route "fallbacks"))))) -}}
+{{-   end -}}
+{{-   $oracleRoute := get $qwenTiers "oracle" | default dict -}}
+{{-   $qwenChecks = concat $qwenChecks (list
+        (dict "kind" "run" "tool" "presets-data" "label" "tiers.oracle.route" "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%s/%s\" = \"infer01/%s\"" (get $oracleRoute "provider" | default "") (get $oracleRoute "model" | default "") (get $qwenModel "id" | default "")))
+        (dict "kind" "run" "tool" "presets-data" "label" "tiers.oracle.thinking" "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%s\" = \"xhigh\"" (get $oracleRoute "thinking" | default "")))
+        (dict "kind" "run" "tool" "presets-data" "label" "preset.no-council" "prog" "" "arg" "" "filepart" "" "run" (printf "jq -e 'has(\"council\") | not' <<< '%s'" ($qwenPreset | toJson)))) -}}
+{{-   if .toolchains.opencode -}}
+{{-     $qwenApplicable = append $qwenApplicable "opencode" -}}
+{{-     $qwenChecks = append $qwenChecks (dict "kind" "cmd" "tool" "opencode" "label" "presets.qwen.routes+no-council" "cmd" "jq -e" "filepart" " \"$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json\""
+          "arg" (printf "--argjson expected '%s' " ($qwenExpect | toJson))
+          "prog" `
+    ([.presets.qwen | to_entries[]
+      | select(.value.model | type == "array")
+      | {key, value: .value.model}] | from_entries) == $expected
+      and ((.council.presets // {}) | has("qwen") | not)
+  `) -}}
+{{-   end -}}
+{{-   if $ompOn -}}
+{{-     $qwenApplicable = append $qwenApplicable "omp" -}}
+{{-     $qwenChecks = append $qwenChecks (dict "kind" "cmd" "tool" "omp" "label" "tiers.local-infer01+no-council" "cmd" "jq -e -n" "filepart" ""
+          "arg" (printf "--argjson qtiers '%s' --argjson qpreset '%s' " ($qwenTiers | toJson) ($qwenPreset | toJson))
+          "prog" `
+    ([$qtiers[] | has("fallbacks") | not] | all) and
+    ($qtiers.oracle.provider == "infer01" and $qtiers.oracle.model == "qwen3.8-flash-next" and $qtiers.oracle.thinking == "xhigh") and
+    ($qpreset | has("council") | not)
+  `) -}}
+{{-     if eq $activePreset "qwen" -}}
+{{-       $qwenChecks = append $qwenChecks (dict "kind" "cmd" "tool" "omp" "label" "modelRoles+empty-fallbacks" "cmd" "yq -e" "arg" "" "filepart" " \"$HOME/.config/omp/agent/config.yml\"" "prog" `.modelRoles.oracle == "infer01/qwen3.8-flash-next:xhigh" and .modelRoles.slow == "infer01/qwen3.8-flash-next:xhigh" and (.modelRoles | to_entries | map(.value | test("^infer01/qwen3.8-flash-next")) | all) and (.retry.fallbackChains | to_entries | map(.value | length == 0) | all)`) -}}
+{{-     end -}}
+{{-   end -}}
+{{-   range $c := $qwenChecks -}}
+{{-     if ne (get $c "tool") "presets-data" -}}
+{{-       $qwenTools = append $qwenTools (get $c "tool") -}}
+{{-     end -}}
+{{-   end }}
+
+{{ includeTemplate "base/test/shared-fact-loop" (dict
+      "title" "qwen preset routes every applicable agent config to local infer01 (shared fact loop)"
+      "tags" "toolchain:ai,kind:config"
+      "message" "qwen routing wrong (offending tools):"
+      "checks" $qwenChecks) }}
+{{- end -}}
+
+{{- /* Fact 4: enabled=false serving-provider omission (render-time injection). */ -}}
+{{- $enabledApplicable := list -}}
+{{- $enabledChecks := list -}}
+{{- if .toolchains.ai -}}
+{{-   $enabledServing := merge (dict) .ai.base.serving -}}
+{{-   $_ := set $enabledServing "disabled-test" (dict
+        "kind" "openai-compatible"
+        "base_url" "http://disabled.test:8080/v1"
+        "enabled" false
+        "models" (list (dict "id" "disabled-model" "name" "Disabled" "context_window" 1000))
+      ) -}}
+{{-   $_ := set $enabledServing "enabled-test" (dict
+        "kind" "openai-compatible"
+        "base_url" "http://enabled.test:8080/v1"
+        "models" (list (dict "id" "enabled-model" "name" "Enabled" "context_window" 2000))
+      ) -}}
+{{-   $enabledBase := merge (dict) .ai.base -}}
+{{-   $_ := set $enabledBase "serving" $enabledServing -}}
+{{-   $enabledAI := merge (dict) .ai -}}
+{{-   $_ := set $enabledAI "base" $enabledBase -}}
+{{-   $enabledRoot := merge (dict) . -}}
+{{-   $_ := set $enabledRoot "ai" $enabledAI -}}
+{{-   if .toolchains.pi -}}
+{{-     $enabledApplicable = append $enabledApplicable "pi" -}}
+{{-     $piCfg := includeTemplate "private_dot_config/exact_pi/exact_agent/private_models.json.tmpl" $enabledRoot | fromJson -}}
+{{-     $enabledChecks = concat $enabledChecks (list
+          (dict "kind" "run" "tool" "pi" "label" "providers.disabled-test" "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%s\" = \"excluded\"" (ternary "leaked" "excluded" (hasKey $piCfg.providers "disabled-test"))))
+          (dict "kind" "run" "tool" "pi" "label" "providers.enabled-test" "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%s\" = \"present\"" (ternary "present" "missing" (hasKey $piCfg.providers "enabled-test"))))) -}}
+{{-   end -}}
+{{-   if .toolchains.opencode -}}
+{{-     $enabledApplicable = append $enabledApplicable "opencode" -}}
+{{-     $ocCfg := includeTemplate "base/ai/agents/opencode/render-opencode-config" (dict "root" $enabledRoot "profile" "minimal") | fromJsonc -}}
+{{-     $enabledChecks = concat $enabledChecks (list
+          (dict "kind" "run" "tool" "opencode" "label" "providers.disabled-test" "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%s\" = \"excluded\"" (ternary "leaked" "excluded" (hasKey $ocCfg.provider "disabled-test"))))
+          (dict "kind" "run" "tool" "opencode" "label" "providers.enabled-test" "prog" "" "arg" "" "filepart" "" "run" (printf "test \"%s\" = \"present\"" (ternary "present" "missing" (hasKey $ocCfg.provider "enabled-test"))))) -}}
+{{-   end -}}
+{{- end -}}
+{{- $enabledTools := list -}}
+{{- range $c := $enabledChecks -}}
+{{-   $enabledTools = append $enabledTools (get $c "tool") -}}
+{{- end -}}
+
+{{- if .toolchains.ai }}
+{{ includeTemplate "base/test/shared-fact-loop" (dict
+      "title" "serving providers with enabled=false are omitted by every applicable agent (shared fact loop)"
+      "tags" "toolchain:ai,kind:config"
+      "message" "enabled=false provider omission broken (offending tools):"
+      "checks" $enabledChecks) }}
+{{- end }}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "shared-fact loops cover exactly this host's applicable toolchains" {
+  local offenders="" fact have want
+  while IFS=$'\t' read -r fact have want; do
+    run test "$have" = "$want"
+    [ "$status" -eq 0 ] || offenders="$offenders $fact"
+  done <<'ENTRY_SET'
+{{- range $e := list
+      (dict "fact" "infer01" "have" ($infer01Tools | sortAlpha | uniq | join ",") "want" ($infer01Applicable | sortAlpha | uniq | join ","))
+      (dict "fact" "qwen" "have" ($qwenTools | sortAlpha | uniq | join ",") "want" ($qwenApplicable | sortAlpha | uniq | join ","))
+      (dict "fact" "enabled" "have" ($enabledTools | sortAlpha | uniq | join ",") "want" ($enabledApplicable | sortAlpha | uniq | join ","))
+  }}
+{{ $e.fact }}	{{ $e.have }}	{{ $e.want }}
+{{- end }}
+ENTRY_SET
+  if [ -n "$offenders" ]; then
+    printf 'loop entry set drift (fact):%s\n' "$offenders"
+    return 1
+  fi
 }
 
 # --- Shared agent launcher scratch root ---
+#
+# Launcher line-presence facts collapse into one aggregate offender pass via
+# base/test/shared-fact-loop; ordering/behavior probes stay as their own tests.
+
+{{- $launchLines := list
+      (dict "label" "scratch-bootstrap" "line" "bootstrap_scratch")
+      (dict "label" "agents-root" "line" "_agents_root=\"/tmp/agents\"")
+      (dict "label" "scratch-dir-var" "line" "scratch_dir=\"$_agents_root/$AGENT_NAME\"")
+      (dict "label" "tmpdir-scope" "line" "export TMPDIR=\"$scratch_dir\"")
+      (dict "label" "nono-exec" "line" "exec nono run --profile \"$NONO_PROFILE\" ${open_port:+--open-port \"$open_port\"} -- \"$BINARY_NAME\" \"$@\"")
+      (dict "label" "port-init" "line" "open_port=\"\"")
+      (dict "label" "port-wire" "line" "open_port=\"$OPENCODE_PORT\"")
+      (dict "label" "sandbox-marker" "line" "export AGENT_SANDBOX=1")
+      (dict "label" "no-save-prompt" "line" "export NONO_NO_SAVE_PROMPT=1")
+      (dict "label" "nono-log" "line" "export NONO_LOG_FILE=\"$TMPDIR/nono.log\"")
+      (dict "label" "usr-bin-first" "line" "export PATH=\"/usr/bin:$PATH\"")
+      (dict "label" "test-mode-var" "line" "AGENT_LAUNCH_TEST_MODE")
+      (dict "label" "test-tmpdir-var" "line" "BATS_TEST_TMPDIR")
+      (dict "label" "test-scratch-root-var" "line" "AGENT_LAUNCH_TEST_SCRATCH_ROOT")
+      (dict "label" "deny-symlink-dir" "line" "Scratch dir is a symlink")
+      (dict "label" "deny-symlink-root" "line" "Scratch root is a symlink")
+      (dict "label" "deny-root-escape" "line" "Scratch dir resolves outside expected root")
+      (dict "label" "deny-owner" "line" "Scratch dir owner mismatch")
+      (dict "label" "deny-root-mode" "line" "Scratch root is not private")
+      (dict "label" "deny-dir-mode" "line" "Scratch dir is not private")
+      (dict "label" "exact-0700" "line" "-eq $((0700))")
+      (dict "label" "pkill-anchor" "line" "__pattern=\"engram serve ${ENGRAM_PORT}( |$)\"")
+      (dict "label" "supervise-lock" "line" "ENGRAM_LOCK=\"$ENGRAM_STATE/.supervise.lock\"")
+      (dict "label" "identity-record" "line" "ENGRAM_ID_FILE=\"$ENGRAM_STATE/daemon.identity\"")
+      (dict "label" "lock-rmdir" "line" "rmdir \"$ENGRAM_LOCK\"")
+      (dict "label" "lock-takeover-probe" "line" "kill -0 \"$__holder\"") -}}
+{{- $launchChecks := list -}}
+{{- range $c := $launchLines -}}
+{{-   $launchChecks = append $launchChecks (dict "kind" "cmd" "tool" "launcher" "label" $c.label "cmd" "grep -Fq -e" "arg" "" "prog" $c.line "filepart" " \"$HOME/.local/bin/agent\"") -}}
+{{- end -}}
+{{- /* Identity triple carries single quotes: run-kind check (the cmd form
+       single-quotes prog). */ -}}
+{{- $launchChecks = append $launchChecks (dict "kind" "run" "tool" "launcher" "label" "identity-triple" "run" "grep -Fq '$__ver\" \"$__bin\" \"$__mtime' \"$HOME/.local/bin/agent\"") }}
+
+{{ includeTemplate "base/test/shared-fact-loop" (dict
+      "title" "launcher carries the scratch, port, marker, PATH, fail-closed and supervisor lines (shared fact loop)"
+      "tags" "kind:launcher"
+      "message" "launcher line(s) missing (offenders):"
+      "checks" $launchChecks) }}
 
 # bats test_tags=kind:launcher
-@test "agent-launch bootstraps per-agent scratch root and scopes TMPDIR" {
-  local launch="$HOME/.local/bin/agent-launch"
+@test "agent exports the AGENT_SANDBOX marker before exec nono run" {
+  local launch="$HOME/.local/bin/agent"
   assert_file_exists "$launch"
-  run grep -F 'bootstrap_scratch' "$launch"
-  assert_success
-  run grep -F '_agents_root="/tmp/agents"' "$launch"
-  assert_success
-  run grep -F 'scratch_dir="$_agents_root/$AGENT_NAME"' "$launch"
-  assert_success
-  # TMPDIR must be scoped to the greywall invocation, after daemon startup
-  run grep -F 'export TMPDIR="$scratch_dir"' "$launch"
-  assert_success
-  run grep -F 'exec greywall --profile "$GREYWALL_PROFILE" -- "$BINARY_NAME" "$@"' "$launch"
+  # The marker must precede the sandbox exec so nested test runs see it.
+  run awk '/export AGENT_SANDBOX=1/{m=NR} /exec nono run --profile/{e=NR} END{exit !(m>0 && e>0 && m<e)}' "$launch"
   assert_success
 }
 
 # bats test_tags=kind:launcher
-@test "agent-launch test scratch override requires explicit BATS markers" {
-  local launch="$HOME/.local/bin/agent-launch"
+@test "agent puts /usr/bin first on PATH inside the sandbox only" {
+  local launch="$HOME/.local/bin/agent"
   assert_file_exists "$launch"
-  # Override is gated on AGENT_LAUNCH_TEST_MODE=1 AND a non-empty BATS_TEST_TMPDIR
-  run grep -F 'AGENT_LAUNCH_TEST_MODE' "$launch"
-  assert_success
-  run grep -F 'BATS_TEST_TMPDIR' "$launch"
-  assert_success
-  run grep -F 'AGENT_LAUNCH_TEST_SCRATCH_ROOT' "$launch"
+  # Sandbox branch only: the export lands after the --no-sandbox exec and before
+  # `exec nono run`, so unsandboxed launches keep the inherited PATH.
+  run awk '/exec "\$BINARY_NAME" "\$@"/{n=NR} /export PATH="\/usr\/bin:\$PATH"/{p=NR} /exec nono run --profile/{e=NR} END{exit !(n>0 && p>n && p<e)}' "$launch"
   assert_success
 }
 
 # bats test_tags=kind:launcher
-@test "agent-launch scratch bootstrap fails closed on unsafe paths and enforces exact 0700" {
-  local launch="$HOME/.local/bin/agent-launch"
+@test "agent exports DCG_BYPASS only inside the unsandboxed branch" {
+  local launch="$HOME/.local/bin/agent"
   assert_file_exists "$launch"
-  run grep -F 'Scratch dir is a symlink' "$launch"
+  # Exactly one export, after the --no-sandbox) case arm and before the
+  # unsandboxed exec, so sandboxed launches and --print-env never carry it.
+  run awk '/export DCG_BYPASS=1/{c++;e=NR} /--no-sandbox\)/{b=NR} /exec "\$BINARY_NAME" "\$@"/{n=NR} END{exit !(c==1 && b>0 && b<e && e<n)}' "$launch"
   assert_success
-  run grep -F 'Scratch root is a symlink' "$launch"
+}
+
+# bats test_tags=kind:launcher
+@test "agent warns when an activated route has no credential source in the shell" {
+  local launch="$HOME/.local/bin/agent"
+  assert_file_exists "$launch"
+  # "routes on" must not overstate: after the mode line the profile's env:// sources are
+  # checked against this shell and the missing names are printed (nono only warns per
+  # route, deep in its own output). warn() must exist for that call to survive set -u.
+  run awk '/^warn\(\)/{d=NR} /Credentials: routes on/{m=NR} /credential_key/{c=NR} /Routes without a credential source/{w=NR} END{exit !(d>0 && m>0 && c>m && w>c)}' "$launch"
   assert_success
-  run grep -F 'Scratch dir resolves outside expected root' "$launch"
+}
+
+# --- Launcher word and route invariants ---
+
+{{- /* Routes ride the enabled agent toolchains so partial-toolchain hosts
+       stay green; the word/profile sets are static literals matching the
+       static launcher and _agent completion files. */ -}}
+{{- $routes := list -}}
+{{- $agentWords := list -}}
+{{- if get .toolchains "pi" | default false }}{{ $routes = append $routes "pi" }}{{ $agentWords = append $agentWords "pi" }}{{ end -}}
+{{- if get .toolchains "opencode" | default false }}{{ $routes = concat $routes (list "opencode" "oc") }}{{ $agentWords = concat $agentWords (list "opencode" "oc") }}{{ end -}}
+{{- if get .toolchains "omp" | default false }}{{ $routes = append $routes "omp" }}{{ $agentWords = append $agentWords "omp" }}{{ end -}}
+{{- $binWords := list "pi" "opencode" "oc" "omp" -}}
+{{- $profileUnion := list "core" "default" "factory" "minimal" -}}
+{{- $piProfiles := list "core" "default" "factory" "minimal" -}}
+{{- $ocProfiles := list "core" "default" "factory" "minimal" -}}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "single-profile agent profile_dir emits its config dir value, not the profile key" {
+  # The static launcher's profile_dir must print the omp config DIR for its
+  # single profile, never the profile key.
+  local launch
+  launch="$HOME/.local/bin/agent"
+  run grep -F 'printf '"'"'%s\n'"'"' "$AGENT_CONFIG_DIR"' "$launch"
   assert_success
-  run grep -F 'Scratch dir owner mismatch' "$launch"
+  run grep -F 'printf '"'"'%s\n'"'"' "default"' "$launch"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "agent --print-env rejects a profile outside the agent's own set" {
+{{- if get .toolchains "omp" | default false }}
+  # core belongs to pi/opencode; the single-root agent must refuse it.
+  run "$HOME/.local/bin/agent" omp --print-env core
+  assert_failure
+  assert_output --partial "Unknown profile"
+{{- else }}
+  skip "omp toolchain is off"
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "agent dispatches every enabled subcommand route" {
+{{- if $routes }}
+  local route
+  for route in {{ $routes | join " " }}; do
+    run "$HOME/.local/bin/agent" "$route" --print-env
+    assert_success
+  done
+{{- else }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- end }}
+}
+
+# bats test_tags=toolchain:opencode,kind:launcher
+@test "agent oc --print-env with no profile defaults to factory" {
+  run "$HOME/.local/bin/agent" oc --print-env
   assert_success
-  # Private mode is enforced as an exact 0700 equality, not a loosenable mask
-  run grep -F 'Scratch root is not private' "$launch"
+  assert_output --partial "OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true"
+  assert_output --partial "OPENCODE_ENABLE_EXA=1"
+}
+
+# bats test_tags=toolchain:opencode,kind:launcher
+@test "agent oc --list prints its profile words" {
+  run "$HOME/.local/bin/agent" oc --list
   assert_success
-  run grep -F 'Scratch dir is not private' "$launch"
+  assert_output --partial "core"
+  assert_output --partial "factory"
+  assert_output --partial "minimal"
+}
+
+# --- Subcommand contract ---
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "agent with no args prints usage naming every launcher word and exits nonzero" {
+  run "$HOME/.local/bin/agent"
+  assert_failure
+{{- range $w := $binWords }}
+  assert_output --partial "{{ $w }}"
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "agent rejects an unknown agent subcommand" {
+  run "$HOME/.local/bin/agent" definitely-not-an-agent
+  assert_failure
+}
+
+# bats test_tags=toolchain:opencode,kind:launcher
+@test "agent oc --help succeeds" {
+  run "$HOME/.local/bin/agent" oc --help
   assert_success
-  run grep -F '-eq $((0700))' "$launch"
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "agent nested launch keeps the flag form on the sandbox-inherited path" {
+  # AGENT_SANDBOX set (inside a sandboxed parent) + --no-sandbox: the bypass
+  # is off (guards stay active) and the flag-parsed profile still dispatches.
+  local mock
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  setup_mock_bins "$mock" curl nc nono
+  cat >"$mock/pi" <<'EOF'
+#!/usr/bin/env sh
+echo "launched ARGS=$*"
+EOF
+  chmod +x "$mock/pi"
+  run env $(scratch_env) AGENT_SANDBOX=1 PATH="$mock:$PATH" \
+    "$HOME/.local/bin/agent" pi --profile core --no-sandbox "Hi there"
   assert_success
+  assert_output --partial "Sandbox: inherited"
+  refute_output --partial "Sandbox: disabled"
+  assert_output --partial "launched ARGS=Hi there"
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "launcher grammar aggregate: flag/positional/print-env forms resolve for every agent" {
+  # One pass over every grammar form; reports ALL offenders at once
+  # (corner-cases-only policy: single gate, bounded runtime).
+  local mock offenders="" launch
+  launch="$HOME/.local/bin/agent"
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  setup_mock_bins "$mock" curl nc nono
+  local b
+  for b in pi opencode omp; do
+    cat >"$mock/$b" <<'EOF'
+#!/usr/bin/env sh
+echo "PROFILE=${PI_CODING_AGENT_DIR:-${OPENCODE_CONFIG_DIR:-${PI_CONFIG_DIR:-unset}}}"
+echo "OMP_PROFILE=[${OMP_PROFILE:-unset}]"
+echo "OPENCODE_PORT=[${OPENCODE_PORT:-unset}]"
+echo "ARGS=$*"
+EOF
+  done
+  chmod +x "$mock"/*
+
+  probe() { # probe DESC NEEDLE AGENT ARGS...
+    local desc="$1" needle="$2"
+    shift 2
+    local out
+    out="$(env $(scratch_env) AGENT_SANDBOX="${AGENT_SANDBOX:-}" PATH="$mock:$PATH" \
+      "$launch" "$@" 2>&1)" || true
+    case "$out" in *"$needle"*) ;; *) offenders="$offenders [$desc]";; esac
+  }
+  probe_neg() { # probe_neg DESC NEEDLE AGENT ARGS... — must fail, naming NEEDLE
+    local desc="$1" needle="$2"
+    shift 2
+    local out rc
+    out="$(env $(scratch_env) PATH="$mock:$PATH" "$launch" "$@" 2>&1)" && rc=0 || rc=$?
+    case "$out" in
+    *"$needle"*) [ "$rc" -ne 0 ] || offenders="$offenders [$desc:exit0]" ;;
+    *) offenders="$offenders [$desc]" ;;
+    esac
+  }
+
+  probe "pi pre-name flag" "profiles/core" --profile core pi "Hi there"
+  probe "pi prompt passthrough" "ARGS=Hi there" pi --profile core "Hi there"
+  probe "pi positional compat" "profiles/factory" pi factory
+  probe "oc flag factory port" "OPENCODE_PORT=[1234]" oc --profile factory --port 1234 --continue x
+  probe "oc positional compat" "ARGS=--continue x" oc core --continue x
+  probe "omp named profile" "OMP_PROFILE=[work]" omp --profile work -c s
+  probe "omp pre-name equals" "OMP_PROFILE=[work]" --profile=work omp -c s
+  probe_neg "pi unknown profile dies" "Unknown profile: bogus" pi --profile bogus
+  probe_neg "omp positional dies" "--profile <name>" omp core
+  probe_neg "print-env typo dies" "unknown argument --typo" pi --print-env --typo
+  probe_neg "agent-less pre-name dies" "unknown agent" --profile core "Hi there"
+
+  AGENT_SANDBOX=1
+  probe "nested sandbox flag form" "Sandbox: inherited" pi --profile core --no-sandbox
+  unset AGENT_SANDBOX
+  unset -f probe probe_neg 2>/dev/null || true
+  if [ -n "$offenders" ]; then
+    printf 'failing grammar forms:%s\n' "$offenders"
+    return 1
+  fi
+}
+
+# --- Engram daemon supervisor ---
+#
+# ensure_engram supervises one shared daemon: healthy+current fast path,
+# lock-guarded restart for unhealthy/binary-stale, detached spawn, identity
+# record (version + resolved path + mtime). The probes below drive the
+# applied launcher end-to-end with PATH-pinned stubs: a stateful mock engram
+# (spawn log + health mode file), a stub curl (health = mode file), the
+# passthrough nono, and a mock agent binary.
+# Isolation contract: ENGRAM_PORT is pinned to a dedicated ephemeral port
+# and ENGRAM_STATE/ENGRAM_DATA_DIR ride BATS_TEST_TMPDIR — no probe touches
+# port 7437, the real state dir, or the real engram. The kill paths are
+# anchored to the test port, so teardown can reach only mock daemons.
+
+{{- /* Drive agent: the selectable multi-profile agent (opencode) when its
+       toolchain is enabled; the supervisor is agent-agnostic, so one drive
+       covers it. `agent <one> <profile>` needs a selectable agent. */ -}}
+{{- $sup := dict -}}
+{{- if get .toolchains "opencode" | default false -}}
+{{-   $sup = dict "name" "opencode" "binary" "opencode" "profile" "factory" -}}
+{{- end }}
+
+
+setup_file() {
+  # Dedicated ephemeral port (49152-65535): 7437 is structurally excluded,
+  # and the anchored pkill/pgrep pattern scopes every kill to it. The probe
+  # mirrors the launcher's pick_high_port ephemeral range: if that range
+  # changes, this probe and the 49152-65535 assertion must follow.
+  ENGRAM_TEST_PORT=$(awk 'BEGIN{srand();print int(rand()*16384)+49152}')
+  [ "$ENGRAM_TEST_PORT" != 7437 ]
+  # setup_file vars do not reach per-test processes; share via file.
+  printf '%s' "$ENGRAM_TEST_PORT" >"$BATS_FILE_TMPDIR/port"
+  SUP_PATTERN="engram serve ${ENGRAM_TEST_PORT}( |$)"
+  # Stub bins staged once per file; sup_init copies them per test.
+  mkdir -p "$BATS_FILE_TMPDIR/bin"
+  setup_mock_bins "$BATS_FILE_TMPDIR/bin" curl nc nono git
+  # Stub curl: asserts the real health contract (an argument equal to
+  # $ENGRAM_URL/health, fail-closed when unset) and answers iff mode says up.
+  cat >"$BATS_FILE_TMPDIR/bin/curl" <<'EOF'
+#!/usr/bin/env sh
+for __a in "$@"; do [ "$__a" = "$ENGRAM_URL/health" ] && __hit=1; done
+[ "${__hit:-}" = 1 ] || exit 7
+[ -f "$ENGRAM_TEST_HEALTH" ] || exit 7
+[ "$(cat "$ENGRAM_TEST_HEALTH")" = up ] || exit 7
+EOF
+  # Mock engram: `serve` logs the spawn, flips health up (ENGRAM_TEST_
+  # AUTOPUP=0 keeps the spawn unready), and keeps the exact
+  # `engram serve <port>` argv so the anchored pkill pattern matches it.
+  cat >"$BATS_FILE_TMPDIR/bin/engram" <<'EOF'
+#!/usr/bin/env sh
+case "$1" in
+  version) printf 'engram 9.9.9-test\n' ;;
+  serve)
+    printf 'spawn\n' >> "$ENGRAM_TEST_SPAWNS"
+    [ "${ENGRAM_TEST_AUTOPUP:-1}" = 1 ] && printf 'up\n' > "$ENGRAM_TEST_HEALTH"
+    while :; do sleep 1; done
+    ;;
+  *) exit 1 ;;
+esac
+EOF
+  printf '#!/usr/bin/env sh\nprintf "launched\\n"\n' >"$BATS_FILE_TMPDIR/bin/{{ $sup.binary }}"
+  chmod +x "$BATS_FILE_TMPDIR/bin/curl" "$BATS_FILE_TMPDIR/bin/engram" "$BATS_FILE_TMPDIR/bin/{{ $sup.binary }}"
+  # Shared static renders: the _agent completion and the launcher are
+  # host-static; render once for the word/flag-drift/zsh-parse tests.
+  render_source "{{ .chezmoi.sourceDir }}/private_dot_config/exact_zsh/exact_completions/_agent" "$BATS_FILE_TMPDIR/_agent"
+  render_source "{{ .chezmoi.sourceDir }}/private_dot_local/exact_bin/executable_agent" "$BATS_FILE_TMPDIR/launcher.sh"
+}
+
+teardown_file() {
+  local port
+  port=$(cat "$BATS_FILE_TMPDIR/port" 2>/dev/null || true)
+  [ -n "$port" ] || return 0
+  pkill -f "engram serve ${port}( |\$)" 2>/dev/null || true
+}
+
+sup_init() {
+  # Per-test copy: PATH pins $BATS_TEST_TMPDIR/bin and tests mutate it.
+  cp -R "$BATS_FILE_TMPDIR/bin" "$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$BATS_TEST_TMPDIR/state" "$BATS_TEST_TMPDIR/data"
+  : >"$BATS_TEST_TMPDIR/spawns"
+  printf 'down\n' >"$BATS_TEST_TMPDIR/mode"
+  ENGRAM_TEST_PORT=$(cat "$BATS_FILE_TMPDIR/port")
+  SUP_PATTERN="engram serve ${ENGRAM_TEST_PORT}( |$)"
+}
+
+# Array, not a space-joined string: the host PATH can contain spaces
+# (e.g. "VMware Fusion.app"), and unquoted $(sup_env) splits mid-value.
+sup_env_args() {
+  sup_args=(
+    "ENGRAM_TEST_HEALTH=$BATS_TEST_TMPDIR/mode"
+    "ENGRAM_TEST_SPAWNS=$BATS_TEST_TMPDIR/spawns"
+    "ENGRAM_PORT=$ENGRAM_TEST_PORT"
+    "ENGRAM_URL=http://127.0.0.1:$ENGRAM_TEST_PORT"
+    "XDG_STATE_HOME=$BATS_TEST_TMPDIR/state"
+    "ENGRAM_DATA_DIR=$BATS_TEST_TMPDIR/data"
+    AGENT_LAUNCH_TEST_MODE=1
+    "AGENT_LAUNCH_TEST_SCRATCH_ROOT=$BATS_TEST_TMPDIR/agents"
+    # Pinned minimal PATH: the host PATH carries the real engram, which the
+    # no-engram fail-closed probe must not see.
+    "PATH=$BATS_TEST_TMPDIR/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  )
+}
+
+sup_launch() {
+  sup_env_args
+  run env "${sup_args[@]}" "$HOME/.local/bin/agent" {{ $sup.name }}{{ with $sup.profile }} {{ . }}{{ end }}
+}
+
+sup_pids() { pgrep -f "$SUP_PATTERN" 2>/dev/null | sort | tr '\n' ' '; }
+sup_spawns() { wc -l < "$BATS_TEST_TMPDIR/spawns" | tr -d ' '; }
+sup_state() { printf '%s' "$BATS_TEST_TMPDIR/state/engram"; }
+
+# Warmup: first supervised launch (daemon absent, health down) spawns the
+# mock daemon and writes the identity record; resets the spawn log.
+sup_warm() {
+  sup_launch
+  assert_success
+  assert_output --partial "launched"
+  : >"$BATS_TEST_TMPDIR/spawns"
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "engram supervisor leaves a healthy, current daemon alone" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else }}
+  sup_init
+  sup_warm
+  local pids
+  pids=$(sup_pids)
+  sup_launch
+  assert_success
+  assert_output --partial "Engram: daemon ready"
+  assert [ "$(sup_spawns)" -eq 0 ]
+  assert [ "$(sup_pids)" = "$pids" ]
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "engram supervisor daemon inherits no coordination fds (bats EOF hang)" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else }}
+  command -v lsof >/dev/null || skip "lsof not available"
+  sup_init
+  sup_warm
+  local pid
+  pid=$(sup_pids | awk '{print $1}')
+  [ -n "$pid" ]
+  # fd 0 is /dev/null, 1/2 go to the log. The daemon may own regular files
+  # (bash's script fd 255), but no inherited pipe/socket (bats coordination
+  # lives at fd 3 and high fds) may survive, or the suite hangs at EOF.
+  run sh -c 'lsof -a -p "$1" -d 3-255 2>/dev/null | grep -Eq "PIPE|unix|FIFO"; [ "$?" -eq 1 ]' _ "$pid"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "engram supervisor restarts a daemon whose health fails" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else }}
+  sup_init
+  sup_warm
+  local pids
+  pids=$(sup_pids)
+  printf 'down\n' >"$BATS_TEST_TMPDIR/mode"
+  sup_launch
+  assert_success
+  assert_output --partial "(re)starting daemon"
+  assert [ "$(sup_spawns)" -eq 1 ]
+  assert [ "$(sup_pids)" != "$pids" ]
+  run head -n 1 "$(sup_state)/daemon.identity"
+  assert_output "engram 9.9.9-test"
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "engram supervisor restarts on mtime-only binary skew" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else }}
+  sup_init
+  sup_warm
+  local pids
+  pids=$(sup_pids)
+  # Rebuild shape: version and path identical, mtime moves.
+  sleep 1
+  touch "$BATS_TEST_TMPDIR/bin/engram"
+  sup_launch
+  assert_success
+  assert_output --partial "(re)starting daemon"
+  assert [ "$(sup_spawns)" -eq 1 ]
+  assert [ "$(sup_pids)" != "$pids" ]
+  # Record was rewritten: the next launch takes the fast path.
+  : >"$BATS_TEST_TMPDIR/spawns"
+  sup_launch
+  assert_success
+  assert [ "$(sup_spawns)" -eq 0 ]
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "engram supervisor dies fail-closed with no engram on PATH" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else }}
+  sup_init
+  rm "$BATS_TEST_TMPDIR/bin/engram"
+  sup_launch
+  assert_failure
+  assert_output --partial "engram not found on PATH"
+  assert [ "$(sup_spawns)" -eq 0 ]
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "engram supervisor dies fail-closed when the spawn never readies" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else }}
+  sup_init
+  # ~10s: the full readiness loop runs out before the die.
+  sup_env_args
+  run env "${sup_args[@]}" ENGRAM_TEST_AUTOPUP=0 "$HOME/.local/bin/agent" {{ $sup.name }}{{ with $sup.profile }} {{ . }}{{ end }}
+  assert_failure
+  assert_output --partial "did not become ready"
+  assert [ "$(sup_spawns)" -eq 1 ]
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "three concurrent launches converge to one daemon" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else }}
+  sup_init
+  sup_env_args
+  local p rc=0
+  for p in 1 2 3; do
+    env "${sup_args[@]}" "$HOME/.local/bin/agent" {{ $sup.name }}{{ with $sup.profile }} {{ . }}{{ end }} >"$BATS_TEST_TMPDIR/$p.out" 2>&1 &
+  done
+  for p in $(jobs -p); do wait "$p" || rc=1; done
+  [ "$rc" -eq 0 ]
+  assert [ "$(sup_spawns)" -eq 1 ]
+  assert [ "$(sup_pids | wc -w | tr -d ' ')" -eq 1 ]
+  [ ! -d "$(sup_state)/.supervise.lock" ]
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "supervisor takes over a lock left by a dead holder" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else }}
+  sup_init
+  mkdir -p "$(sup_state)/.supervise.lock"
+  printf '%s\n' 2147483647 >"$(sup_state)/.supervise.lock/pid"
+  sup_launch
+  assert_success
+  assert_output --partial "(re)starting daemon"
+  assert [ "$(sup_spawns)" -eq 1 ]
+  [ ! -d "$(sup_state)/.supervise.lock" ]
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "success path releases the lock before the exec (not trap-only)" {
+  # The launcher ends in `exec nono run ...` and traps never fire through
+  # exec: the readiness loop must be followed by a bare lock_release call
+  # (rmdir) before that exec.
+  local launch="$HOME/.local/bin/agent"
+  assert_file_exists "$launch"
+  run awk '/^  wait_ready$/{w=NR} /^    lock_release$/{r=NR} /exec nono run --profile/{e=NR} END{exit !(w>0 && r>w && r<e)}' "$launch"
+  assert_success
+}
+
+# --- Shared sandbox baseline merge ---
+
+{{- if ne .host.type "ephemeral" }}
+{{- $nonoProfiles := "$HOME/.config/nono/profiles" }}
+{{- $sharedAgents := list -}}
+{{- if .toolchains.pi -}}{{-   $sharedAgents = append $sharedAgents (dict "name" "pi" "tag" "toolchain:pi") -}}{{- end -}}
+{{- if .toolchains.opencode -}}{{-   $sharedAgents = append $sharedAgents (dict "name" "opencode" "tag" "toolchain:opencode") -}}{{- end -}}
+{{- if (get .toolchains "omp" | default false) -}}{{-   $sharedAgents = append $sharedAgents (dict "name" "omp" "tag" "toolchain:omp") -}}{{- end -}}
+{{- range $a := $sharedAgents }}
+
+# bats test_tags={{ $a.tag }},kind:nono
+@test "shared sandbox baseline renders into the {{ $a.name }} profile" {
+  run jq -e '
+    (.filesystem.allow | index("**/.slim/worktrees/**") != null) and
+    (.filesystem.allow | index("**/.codegraph/**") != null) and
+    (.filesystem.unix_socket_subtree | index("~/.local/share/ssh/sockets") != null) and
+    (.network.allow_domain | index("infer01") != null)
+  ' "{{ $nonoProfiles }}/{{ $a.name }}.json"
+  assert_success
+}
+{{- end }}
+{{- end }}
+
+# --- nono ignore gating & launch-agent retirement ---
+
+# bats test_tags=toolchain:ai,kind:config
+@test "chezmoiignore gates .config/nono to the ai toolchain" {
+  local tmpl cb
+  tmpl="{{ .chezmoi.sourceDir }}/.chezmoiignore.tmpl"
+  cb="$(chezmoiBin)"
+  run "$cb" execute-template -f "$tmpl" --override-data '{"toolchains":{"ai":false}}'
+  assert_success
+  assert_output --partial ".config/nono/**"
+  run "$cb" execute-template -f "$tmpl" --override-data '{"toolchains":{"ai":true}}'
+  assert_success
+  refute_output --partial ".config/nono/**"
+}
+
+# bats test_tags=toolchain:omp,kind:config
+# omp dirs.ts adopts the per-category XDG roots only when <root>/omp exists;
+# chezmoi creates the gate dirs (the launcher no longer mkdirs at launch).
+@test "chezmoi manages the omp XDG gate dirs" {
+  local cb
+  cb="$(chezmoiBin)"
+  run "$cb" managed --include=dirs
+  assert_success
+  assert_output --partial ".local/share/omp"
+  assert_output --partial ".local/state/omp"
+  assert_output --partial ".cache/omp"
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "retire-stale-launch-agents bootout is idempotent for an absent label" {
+  local script rendered
+  script="{{ .chezmoi.sourceDir }}/.chezmoiscripts/os/darwin/run_onchange_after_25_retire-stale-launch-agents.tmpl"
+  assert_file_exists "$script"
+  rendered="$BATS_TEST_TMPDIR/retire-stale.sh"
+  render_source "$script" "$rendered"
+  run bash "$rendered" com.example.absent-label
+  assert_success
+  assert_output --partial "not loaded"
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "chezmoidata carries no template directives (data is static TOML)" {
+  # .chezmoidata is parsed as plain TOML: template directives in data reach
+  # the apply-dest guard verbatim and their braces read as globs, failing
+  # every render. Per-machine values ride sentinels (e.g. $TMPDIR + the
+  # expand-tmpdir renderer).
+  run grep -RnF '{{"{{"}}' "{{ .chezmoi.sourceDir }}/.chezmoidata"
+  assert_failure
+}
+
+# --- _agent zsh completion ---
+
+# bats test_tags=toolchain:ai,kind:config
+@test "rendered _agent completes agent words, per-agent profiles, and flags" {
+  local tmpl rendered block word
+  tmpl="{{ .chezmoi.sourceDir }}/private_dot_config/exact_zsh/exact_completions/_agent"
+  assert_file_exists "$tmpl"
+  rendered="$BATS_FILE_TMPDIR/_agent"
+  assert_file_exists "$rendered"
+  run head -n 1 "$rendered"
+  assert_success
+  assert_line --index 0 "#compdef agent"
+  # Level 1: agent names and aliases (binary-bearing launchers, from data).
+  for word in {{ $binWords | join " " }}; do
+    run grep -F -- "'$word'" "$rendered"
+    assert_success
+  done
+  # The shared peer carries no launcher map and must not leak into the completion.
+  run grep -Fw shared "$rendered"
+  assert_failure
+  # Level 2: selectable agents offer their own profile words (from data).
+  block=$(awk '/^  pi[|)]/{f=1} f{print} f&&/;;/{exit}' "$rendered")
+  for word in {{ $piProfiles | join " " }}; do
+    run grep -Ew -- "$word" <<<"$block"
+    assert_success
+  done
+  block=$(awk '/^  opencode[|)]/{f=1} f{print} f&&/;;/{exit}' "$rendered")
+  for word in {{ $ocProfiles | join " " }}; do
+    run grep -Ew -- "$word" <<<"$block"
+    assert_success
+  done
+  # The non-selectable agent's arm omits every profile word of the union.
+  block=$(awk '/^  omp[|)]/{f=1} f{print} f&&/;;/{exit}' "$rendered")
+  run grep -Ew '{{ $profileUnion | join "|" }}' <<<"$block"
+  assert_failure
+  # Global flag set on the completion arms.
+  for flag in -h --help --list --print-env --no-sandbox; do
+    run grep -F -- "'$flag'" "$rendered"
+    assert_success
+  done
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "every launcher arg-loop flag appears in the rendered _agent" {
+  # Drift channel: a flag added to the launcher arg loop must show up in the
+  # completion. Extract the case-arm flag tokens from the rendered launcher
+  # and require each in the rendered _agent.
+  local launcher comp offenders flag
+  launcher="$BATS_FILE_TMPDIR/launcher.sh"
+  comp="$BATS_FILE_TMPDIR/_agent"
+  assert_file_exists "$launcher"
+  assert_file_exists "$comp"
+  offenders=""
+  while IFS= read -r flag; do
+    grep -Fq -e "$flag" "$comp" || offenders="$offenders $flag"
+  done < <(awk '{tok=$1; sub(/\)$/,"",tok); n=split(tok,a,"|"); for(i=1;i<=n;i++) if (a[i] ~ /^--?[a-z][a-z0-9-]*$/) print a[i]}' "$launcher" | sort -u)
+  if [ -n "$offenders" ]; then
+    printf 'launcher flags missing from _agent:%s\n' "$offenders"
+    return 1
+  fi
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "ignore gates prune _agent and .local/bin/agent with no agent toolchain" {
+  # All agent toolchains off → both gates emit their entries; any one
+  # agent toolchain on → neither.
+  local home_ignore comp_ignore off on d
+  home_ignore="{{ .chezmoi.sourceDir }}/.chezmoiignore.tmpl"
+  comp_ignore="{{ .chezmoi.sourceDir }}/private_dot_config/exact_zsh/exact_completions/.chezmoiignore.tmpl"
+  off='{"toolchains":{"ai":false,"pi":false,"opencode":false,"omp":false}}'
+  on='{"toolchains":{"ai":true,"pi":true,"opencode":false,"omp":false}}'
+  d="$BATS_TEST_TMPDIR"
+  render_source "$home_ignore" "$d/off-home" "$off"
+  run grep -Fx .local/bin/agent "$d/off-home"
+  assert_success
+  render_source "$comp_ignore" "$d/off-comp" "$off"
+  run grep -Fx _agent "$d/off-comp"
+  assert_success
+  render_source "$home_ignore" "$d/on-home" "$on"
+  run grep -Fx .local/bin/agent "$d/on-home"
+  assert_failure
+  render_source "$comp_ignore" "$d/on-comp" "$on"
+  run grep -Fx _agent "$d/on-comp"
+  assert_failure
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "rendered _agent parses clean under zsh -n" {
+  local tmpl rendered
+  tmpl="{{ .chezmoi.sourceDir }}/private_dot_config/exact_zsh/exact_completions/_agent"
+  assert_file_exists "$tmpl"
+  rendered="$BATS_FILE_TMPDIR/_agent"
+  assert_file_exists "$rendered"
+  run zsh -n "$rendered"
+  assert_success
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "template comments use the single-space form (Go lexer breaks on wider gaps)" {
+  # The single-space form after the trim marker parses; wider gaps make the
+  # Go parser treat "/" as a command, and the whole template library fails
+  # to render at apply time.
+  run grep -RnE '\{\{-[[:space:]]{2,}/\*|\{\{[[:space:]]{2,}/\*' "{{ .chezmoi.sourceDir }}/.chezmoitemplates"
+  assert_failure
 }

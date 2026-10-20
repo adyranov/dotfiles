@@ -1,0 +1,27 @@
+{{- /* base/ai/security/resolve-path-refs — Expand a list that mixes path-group
+  names with literal glob paths into a flat, deduped, sorted list.
+  Usage:
+    {{ includeTemplate "base/ai/security/resolve-path-refs" (dict "root" . "refs" $list) | mustFromJson }}
+  Group names are resolved against ai.permissions.filesystem.paths via
+  expand-path-groups; anything not a catalog key passes through verbatim.
+  Globs (* and **) are kept native — no concretization.
+  Typo policy diverges from classify-refs BY DESIGN: this agent-overlay axis
+  dispatches on catalog membership (unknown names pass through verbatim),
+  while the sandbox axis uses syntax-dispatch with loud-fail (classify-refs).
+  Do not unify the two.
+*/ -}}
+{{- $root := .root -}}
+{{- $refs := index . "refs" | default list -}}
+{{- $catalog := 0 -}}
+{{- if hasKey . "catalogJson" -}}{{- $catalog = index . "catalogJson" -}}{{- else -}}{{- $catalog = (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem.paths" "required" true) | mustFromJson) -}}{{- end -}}
+{{- $groups := list -}}
+{{- $literals := list -}}
+{{- range $ref := $refs -}}
+{{-   if hasKey $catalog $ref -}}
+{{-     $groups = append $groups $ref -}}
+{{-   else -}}
+{{-     $literals = append $literals $ref -}}
+{{-   end -}}
+{{- end -}}
+{{- $resolved := concat $literals (includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" $groups "catalogJson" $catalog) | mustFromJson) -}}
+{{- includeTemplate "base/ai/security/uniq-sort" $resolved -}}

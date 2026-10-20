@@ -1,1 +1,7 @@
+{{- /* The `_agent` completion shares the launcher's toolchain gate (same
+       predicate as home/.chezmoiignore.tmpl): visible only while any agent
+       toolchain is enabled. */ -}}
+{{- if not (or (get .toolchains "pi" | default false) (get .toolchains "opencode" | default false) (get .toolchains "omp" | default false)) }}
+_agent
+{{- end }}
 {{- includeTemplate "base/packages/collect-completions" (dict "root" . "format" "completion-ignore") -}}

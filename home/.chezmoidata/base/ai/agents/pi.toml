@@ -5,15 +5,6 @@ settings = { bash_mode = { toggle_shortcut = "ctrl+shift+b", transcript_max_byte
 args = ["serve", "--mcp"]
 command = "codegraph"
 
-[ai.base.agents.pi.permissions.agent]
-allow = []
-ask = []
-deny = [
-  "~/.config/pi/agent/auth.json",
-  "~/.config/pi/profiles/core/auth.json",
-  "~/.config/pi/profiles/factory/auth.json"
-]
-
 [ai.base.agents.pi.profiles.core]
 extends = "minimal"
 compaction = { keep_recent_tokens = 8000, reserve_tokens = 8192 }
@@ -23,12 +14,12 @@ packages = [
   "pi-hashline-readmap",
   "pi-mcp-adapter",
   "@dietrichgebert/ponytail",
-  "@juicesharp/rpiv-web-tools",
-  "@juicesharp/rpiv-advisor",
   "@juicesharp/rpiv-ask-user-question",
-  "@juicesharp/rpiv-btw",
   "@juicesharp/rpiv-args",
   "@juicesharp/rpiv-todo",
+  "pi-advisor-flow",
+  "pi-btw",
+  "pi-web-access",
   "pi-context",
   "gentle-engram"
 ]
@@ -38,62 +29,106 @@ skills = ["karpathy-guidelines"]
 extends = "core"
 compaction = { keep_recent_tokens = 20000, reserve_tokens = 16384 }
 packages = [
-  "@juicesharp/rpiv-i18n",
-  "@juicesharp/rpiv-workflow",
-  "@juicesharp/rpiv-pi",
-  "@tintinweb/pi-subagents",
-  "pi-observational-memory"
+  # Pin: the CE skills tree (libraries.toml) and this plugin must not drift
+  # apart; bump with the tag-existence probe in the operator terminal.
+  "git:github.com/EveryInc/compound-engineering-plugin@v3.30.4",
+  "pi-ask-user",
+  "pi-goal-x",
+  "pi-observational-memory",
+  "pi-subagents",
+  # One question surface per tier: factory answers through pi-ask-user (the
+  # tool Compound Engineering names), so the core-inherited rpiv question
+  # tool is subtracted (resolve-profile's `-` syntax).
+  "-@juicesharp/rpiv-ask-user-question"
 ]
 skills = []
+
+# Fleet builtin -> tier class (resolved per preset by
+# render-model-category-map into settings subagents.agentOverrides).
+[ai.base.agents.pi.profiles.factory.fleet_role_tiers]
+evidence-auditor = "oracle"
+oracle = "oracle"
+researcher = "small"
+reviewer = "oracle"
+scout = "small"
+worker = "medium"
 
 [ai.base.agents.pi.profiles.minimal]
 compaction = { keep_recent_tokens = 4000, reserve_tokens = 4096 }
 packages = [
-  "@gotgenes/pi-permission-system",
   "@sherif-fanous/pi-catppuccin",
   "pi-powerline-footer",
   "pi-system-prompt"
 ]
 skills = []
 
-[ai.base.agents.pi.sandbox.network]
-hosts = ["pi.dev"]
-allow = [{ host = "infer01", port = 8080 }]
+[ai.base.agents.pi.sandbox]
+# pi 1.0.4 requires WRITABLE agent dirs: proper-lockfile creates <file>.lock/
+# dirs beside settings.json/auth.json/models-store.json/trust.json, seeds
+# models-store, and keeps runtime state (state.json, run-history.jsonl,
+# keybindings.json) in the profile dir; no env knobs beyond
+# PI_CODING_AGENT_DIR. The DCG hook write-denial rides these top-level rules
+# (write-only deny inside the writable dir — macOS seatbelt last-match-wins);
+# Linux renders NO deny rules: Landlock cannot express deny-within-allow, so
+# hooks stay agent-writable there (documented ceiling; DCG stores stay
+# read-only, no self-allow). $HOME is a render-time sentinel (expand-tmpdir).
+unsafe_macos_seatbelt_rules = [
+  '(deny file-write* (subpath "$HOME/.config/pi/agent/extensions"))',
+  '(deny file-write* (subpath "$HOME/.config/pi/profiles/core/extensions"))',
+  '(deny file-write* (subpath "$HOME/.config/pi/profiles/factory/extensions"))',
+  # pi TUI + pi-powerline-footer read global preferences (CFPreferences
+  # any-application domain); nono gates user-preference-read as a platform
+  # operation, grantable only via a user-authored rule (nono's own denial
+  # hint). Read-only: user-preference-write stays denied.
+  '(allow user-preference-read)',
+  # fff.nvim's LMDB (heed -> lmdb-master-sys) compiles with MDB_USE_SYSV_SEM
+  # on darwin: env-open calls semget/semctl/semop, gated as ipc-sysv-sem with
+  # no path filter. Without it mdb_env_open returns EPERM (the fff boot
+  # warning). Same grant shipped by agent-safehouse #101 / codex #28921;
+  # LMDB sem keys are FNV hashes of the db path, no external-IPC exposure.
+  '(allow ipc-sysv-sem)'
+]
 
-[ai.base.agents.pi.sandbox.paths]
-allow_read = [
-  "~/.config/pi/**",
-  "~/.config/rpiv-advisor/**",
-  "~/.config/rpiv-pi/**",
-  "~/.config/rpiv-web-tools/**",
-  "~/.config/rpiv-todo/**",
-  "~/.config/rpiv-ask-user-question/**",
+[ai.base.agents.pi.sandbox.filesystem]
+# pi's own auth stores (pi_auth_files) must be readable by the sandboxed pi
+# runtime — Seatbelt has no parent-read/child-deny tier, so denying them here
+# kills the runtime's login/refresh, not just tool children. Model-side
+# protection is the other guards (command sandboxes never grant pi paths,
+# proxy credential injection, DCG). Cross-agent theft stays denied
+# (opencode_auth_files, omp_auth_files here; pi_auth_files denied in
+# opencode/omp profiles).
+deny = ["omp_auth_files", "opencode_auth_files"]
+read = [
+  # pi-powerline-footer scans the legacy ~/.pi/sessions dir next to the
+  # profile session dir. ~/.pi symlinks into ~/.config/pi (pi's own tree;
+  # base never grants ~/.pi — cross-agent symlink escape, pinned in
+  # test-ai-permissions), and the footer only reads.
+  "~/.pi",
   "~/.cache/pi",
-  "~/.cache/pi/**",
-  "/tmp/agents/pi",
-  "/tmp/agents/pi/**",
+  # gh session tier (KTD2): config.yml is gh's boot read; hosts.yml stays on the
+  # git_gh_creds deny floor; state rides the relocated write grant below.
+  "~/.config/gh/config.yml",
   "**/node_modules/@earendil-works/pi-coding-agent/**"
 ]
-allow_write = [
+write = [
+  # agent root: pi 1.0.4 lockdirs + runtime state (see the sandbox header);
+  # the DCG hook write-denial rides the seatbelt denies above (macOS; on Linux
+  # hooks are agent-writable — documented ceiling). The leaves below are
+  # subsumed by this grant, kept as test-pinned contract.
+  "~/.config/pi/agent",
   "~/.cache/pi",
-  "~/.cache/pi/**",
   "~/.config/pi/agent/npm",
-  "~/.config/pi/agent/npm/**",
   "~/.config/pi/agent/sessions",
-  "~/.config/pi/agent/sessions/**",
+  # OIDC token refresh rewrites the minimal-profile store in place.
+  "~/.config/pi/agent/auth.json",
   "~/.config/pi/profiles/core",
-  "~/.config/pi/profiles/core/**",
   "~/.config/pi/profiles/factory",
-  "~/.config/pi/profiles/factory/**",
-  "/tmp/agents/pi",
-  "/tmp/agents/pi/**",
+  # Demoted from the base write tier (cross-agent config-tampering surface):
+  # models.json/settings.json ride the agent-root grant above; ~/.pi-lens is
+  # pi-only.
   "~/.pi-lens",
-  # CodeGraph runtime state
-  "**/.codegraph/**"
-]
-deny_read = [
-  "~/.local/share/opencode/auth.json"
-]
-deny_write = [
-  "~/.local/share/opencode/auth.json"
+  # Relocated gh state (KTD2): the launcher's GH_CONFIG/DATA/CACHE_DIR exports
+  # point here, so gh creates its missing state files instead of reading the
+  # floor-denied ~/.config/gh/hosts.yml.
+  "~/.cache/gh-sandbox"
 ]

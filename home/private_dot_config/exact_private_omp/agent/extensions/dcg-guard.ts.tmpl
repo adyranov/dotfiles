@@ -1,0 +1,31 @@
+// dcg-guard: chezmoi-managed DCG hook (do not edit in-agent — nono denies
+// agent writes to this file). Routes every command-executing tool call
+// (bash, eval, computer — oh-my-pi v18.7.0 registry) through
+// `dcg hook --robot --batch` before execution. The mise-pinned dcg binary is
+// resolved at spawn time; a missing binary degrades permissively, a
+// dcg that runs but yields no verdict fails closed. Approval is
+// operator-side only: `dcg allow <rule>` in your terminal (allow-once is
+// inert in-sandbox: the store is read-only and DCG fails closed on it).
+{{ (includeTemplate "base/ai/security/dcg-guard-core") | trim }}
+
+// bash spawns the real shell; eval runs persistent Python/JS kernels and
+// computer drives the desktop — both execute arbitrary host code, so their
+// payloads go to DCG as text (shell-grammar rules mostly pass code cells;
+// the gate exists so destructive shell text inside them is analyzed).
+// task/learn subagents are covered because extension factories rebind to
+// every subagent session (tool_call fires in each).
+const GUARDED_TOOLS = new Set(["bash", "eval", "computer"]);
+
+export default function dcgRobot(pi) {
+  pi.on("tool_call", async (event) => {
+    if (!event || !GUARDED_TOOLS.has(event.toolName)) return;
+    const input = event.input || {};
+    const text = event.toolName === "bash"
+      ? input.command
+      : event.toolName === "eval"
+        ? input.code
+        : JSON.stringify(input.actions ?? "");
+    const reason = dcgBlockReason(text, event.toolName === "bash" ? input.cwd : undefined);
+    if (reason) return { block: true, reason };
+  });
+}
