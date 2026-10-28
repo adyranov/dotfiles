@@ -1,0 +1,50 @@
+#!/usr/bin/env bats
+
+# bats file_tags=suite:ai
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+{{- if .toolchains.ai }}
+{{- $workRoot := merge (dict) . }}
+{{- $workHost := merge (dict) .host }}
+{{- $_ := set $workHost "profile" "work" }}
+{{- $_ := set $workRoot "host" $workHost }}
+{{- $workSubagentLimit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" $workRoot) | int }}
+@test "work profile resolves the default subagent limit to 8" {
+  run test "{{ $workSubagentLimit }}" = 8
+  assert_success
+}
+
+@test "subagent limit resolver uses the active preset override" {
+  local template="$BATS_TEST_TMPDIR/resolve.tmpl" cb
+  cb="$(chezmoiBin)"
+  printf '%s%s includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" (dict "host" (dict "profile" "personal" "distro" (dict "id" "darwin")) "ai" (dict "base" (dict "agents" (dict "subagent_limit" 8)) "profile" (dict "personal" (dict "presets" (dict "default" "qwen" "qwen" (dict "subagent_limit" 4))))))) %s%s\n' '{' '{' '}' '}' >"$template"
+  run "$cb" execute-template -f "$template"
+  assert_success
+  assert_output "4"
+}
+
+@test "subagent limit resolver falls back to the base default" {
+  local template="$BATS_TEST_TMPDIR/resolve.tmpl" cb
+  cb="$(chezmoiBin)"
+  printf '%s%s includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" (dict "host" (dict "profile" "personal" "distro" (dict "id" "darwin")) "ai" (dict "base" (dict "agents" (dict "subagent_limit" 8)) "profile" (dict "personal" (dict "presets" (dict "default" "balanced" "balanced" (dict "tiers" (dict)))))))) %s%s\n' '{' '{' '}' '}' >"$template"
+  run "$cb" execute-template -f "$template"
+  assert_success
+  assert_output "8"
+}
+
+@test "subagent limit resolver rejects out-of-range and non-integer values" {
+  local template="$BATS_TEST_TMPDIR/resolve.tmpl" cb
+  cb="$(chezmoiBin)"
+  for value in 0 1025 '"4"'; do
+    printf '%s%s includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" (dict "host" (dict "profile" "personal" "distro" (dict "id" "darwin")) "ai" (dict "base" (dict "agents" (dict "subagent_limit" 8)) "profile" (dict "personal" (dict "presets" (dict "default" "qwen" "qwen" (dict "subagent_limit" %s))))))) %s%s\n' '{' '{' "$value" '}' '}' >"$template"
+    run "$cb" execute-template -f "$template"
+    assert_failure
+    assert_output --partial "qwen"
+  done
+}
+{{- end }}

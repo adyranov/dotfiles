@@ -1,0 +1,103 @@
+# DCG policy pack: GitHub CLI.
+# Managed source — agents cannot write here; edit the chezmoi source.
+id: user.github
+name: User GitHub rules
+version: "1.0.0"
+description: Custom denies for gh deletions, edits, variable/secret sets, raw API mutations, generic HTTP-client mutations against the granted GitHub hosts, and local git commands core.git leaves open.
+keywords:
+  - gh
+  - git
+  # Pack-level keyword gate: without the client tokens, plain `curl … github.com`
+  # never reaches pattern evaluation and the http-client-write row is dead code.
+  - curl
+  - wget
+  - http
+  - https
+destructive_patterns:
+  - name: gh-delete
+    pattern: '\bgh\b[^;&|\n]*?\bdelete'
+    severity: high
+    description: gh deletes remote GitHub objects
+    explanation: Row gh * delete*. Releases, branches, PRs and workflows are gone server-side.
+  - name: gh-edit
+    pattern: '\bgh\b[^;&|\n]*?\bedit\b'
+    severity: medium
+    description: gh edits PRs/issues/releases in place
+    explanation: Row gh * edit *. Title/body/branch edits change review state.
+  - name: gh-variable-set
+    pattern: '\bgh\b[^;&|\n]*?\bvariable\s+set\b'
+    severity: medium
+    description: gh sets repository/organization variables
+    explanation: Row gh * variable set *. Variable changes alter CI behavior for everyone.
+  # The gh command-policy deletion (KTD2) dropped the hard `gh * secret *` deny.
+  # gh auth login / gh auth token need NO row here: a token read returns the
+  # phantom (harmless), login writes the relocated state, and the real token is
+  # unobservable (env scrubbed, hosts.yml floored, keychain Mach-closed).
+  - name: gh-secret
+    pattern: '\bgh\b[^;&|\n]*?\bsecret\b[^;&|\n]*?\b(?:set|delete|remove)\b'
+    severity: high
+    description: gh mutates repository/organization secrets
+    explanation: Row gh secret set/delete/remove*. Actions secrets are supply-chain input; the session tier left no command-core gate here.
+  - name: gh-api-delete
+    pattern: '\bgh\b[^;&|\n]*?\bapi\b[^;&|\n]*?(?:-X\s*DELETE|--method\s+DELETE)'
+    severity: high
+    description: gh api DELETE bypasses CLI safety
+    explanation: Row gh api repos/* -X DELETE*. Raw DELETEEs can remove arbitrary remote resources.
+  # KTD3 mutation-shape family: the gh session tier makes every process in the
+  # agent tree a write-capable client of api.github.com/github.com (the proxy
+  # attaches the real token at the host boundary), so the gate covers the
+  # mutation SHAPE, not one binary. Reads (gh api GET with no field flags;
+  # plain curl/wget GETs) never match.
+  - name: gh-api-write
+    pattern: '\bgh\b[^;&|\n]*?\bapi\b[^;&|\n]*?(?:-X\s*(?:POST|PATCH|PUT|DELETE)|--method\s+(?:POST|PATCH|PUT|DELETE))'
+    severity: high
+    description: gh api sends a mutating method
+    explanation: Row gh api -X POST|PATCH|PUT|DELETE* (--method alias too). Raw API writes mutate arbitrary remote resources.
+  - name: gh-api-field-write
+    pattern: '\bgh\b[^;&|\n]*?\bapi\b[^;&|\n]*?(?:-f\b|-F\b|--field\b|--raw-field\b|--input\b)'
+    severity: high
+    description: gh api sends a payload (implicit POST)
+    explanation: Row gh api -f key=value / --input body.json*. Field flags make gh api POST by default.
+  - name: gh-workflow-run
+    pattern: '\bgh\b[^;&|\n]*?\bworkflow\b[^;&|\n]*?\brun\b'
+    severity: medium
+    description: gh triggers a workflow run
+    explanation: Row gh workflow run *. Runs consume runner capacity and can publish artifacts.
+  - name: gh-pr-merge
+    pattern: '\bgh\b[^;&|\n]*?\bpr\b[^;&|\n]*?\bmerge\b'
+    severity: high
+    description: gh merges a pull request
+    explanation: Row gh pr merge *. A merge lands on the base branch; gh repo edit rides the gh-edit row.
+  - name: gh-release-create
+    pattern: '\bgh\b[^;&|\n]*?\brelease\b[^;&|\n]*?\bcreate\b'
+    severity: medium
+    description: gh publishes a release
+    explanation: Row gh release create *. Releases are public artifacts pinned to a tag.
+  - name: http-client-write
+    pattern: '\b(?:curl|wget|http|https)\b[^;&|\n]*?(?:(?:api\.github\.com|github\.com)[^;&|\n]*?(?:-X\s*(?i:POST|PATCH|PUT|DELETE)|--request\s*(?i:POST|PATCH|PUT|DELETE)|--(?:post|body)-(?:data|file)|--data|-d\b|-T\b|--upload-file\b|-F\b|--form\b|--method\s+(?i:POST|PATCH|PUT|DELETE))|(?:-X\s*(?i:POST|PATCH|PUT|DELETE)|--request\s*(?i:POST|PATCH|PUT|DELETE)|--(?:post|body)-(?:data|file)|--data|-d\b|-T\b|--upload-file\b|-F\b|--form\b|--method\s+(?i:POST|PATCH|PUT|DELETE))[^;&|\n]*?(?:api\.github\.com|github\.com))'
+    severity: high
+    description: generic HTTP client mutates a granted GitHub host
+    explanation: Row curl -X POST https://api.github.com/*, curl -F file=@x https://api.github.com/y, wget --post-data, http -d against github.com*. The proxy swaps the real token for ANY client of these hosts.
+  # Local git destructive gate: completes the retired core.toml git policy.
+  # core.git (built-in) already covers clean/reset --hard/push-force; the gaps
+  # it leaves open are gated here (force-push stays on the nono hard core).
+  - name: git-rebase
+    pattern: '\bgit\b[^;&|\n]*?\brebase\b'
+    severity: high
+    description: git rebase rewrites commit history
+    explanation: Row git rebase *. Conflicts and rewritten SHAs can strand commits.
+  - name: git-stash-drop-pop
+    pattern: '\bgit\b[^;&|\n]*?\bstash\b[^;&|\n]*?\b(?:drop|pop)\b'
+    severity: high
+    description: git stash drop/pop consumes the stash entry
+    explanation: Row git stash drop/pop *. A conflicted pop drops the entry, losing the stashed work.
+  - name: git-tag-delete
+    pattern: '\bgit\b[^;&|\n]*?\btag\b[^;&|\n]*?(?:\s-d\b|--delete\b)'
+    severity: medium
+    description: git tag -d deletes local tags
+    explanation: Row git tag -d *. Release tags lost locally drift from the remote.
+  - name: git-worktree-remove
+    pattern: '\bgit\b[^;&|\n]*?\bworktree\b[^;&|\n]*?\bremove\b'
+    severity: high
+    description: git worktree remove deletes a worktree directory
+    explanation: Row git worktree remove *. --force removes it with uncommitted work inside.

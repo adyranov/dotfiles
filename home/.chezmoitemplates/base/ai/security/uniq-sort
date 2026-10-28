@@ -1,0 +1,6 @@
+{{- /* uniq-sort — Dedupe and sort a string list (the renderers' canonical fold).
+  Usage: {{ includeTemplate "base/ai/security/uniq-sort" $list | mustFromJson }}
+  Output: JSON array (deduped, sorted). Seatbelt S-expression lists must NOT
+  use this: they are order-sensitive (uniq WITHOUT sortAlpha, last-match-wins).
+*/ -}}
+{{- . | uniq | sortAlpha | toJson -}}

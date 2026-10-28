@@ -7,3 +7,25 @@ setup() {
 }
 
 {{ includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "mise" "format" "test") }}
+
+{{- /* Synthetic map pinning the format/mise TOML shapes; aiperf pin below guards the
+  pyzmq/py3.13 wheel-gap fix in the real data. */ -}}
+{{- $fmt := includeTemplate "base/packages/format/mise" (dict "packages" (dict
+  "plain" (dict "package" "pipx:plain" "extras" "" "uvx_args" "" "platforms" (dict))
+  "extra" (dict "package" "pipx:extra" "extras" "a,b" "uvx_args" "" "platforms" (dict))
+  "uvx" (dict "package" "pipx:uvx" "extras" "" "uvx_args" "--python 3.13" "platforms" (dict))
+  "combo" (dict "package" "pipx:combo" "extras" "x" "uvx_args" "--python 3.13" "platforms" (dict))
+)) }}
+# bats test_tags=suite:packages,kind:format
+@test "format/mise renders plain, extras, uvx_args, and combined entries" {
+  assert_equal "{{ contains "'pipx:plain' = 'latest'" $fmt }}" "true"
+  assert_equal "{{ contains "'pipx:extra' = {version = 'latest', extras = 'a,b'}" $fmt }}" "true"
+  assert_equal "{{ contains "'pipx:uvx' = {version = 'latest', uvx_args = '--python 3.13'}" $fmt }}" "true"
+  assert_equal "{{ contains "'pipx:combo' = {version = 'latest', extras = 'x', uvx_args = '--python 3.13'}" $fmt }}" "true"
+}
+
+{{- $mise := includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "mise" "format" "mise") }}
+# bats test_tags=suite:packages,kind:selector
+@test "aiperf pins uv's Python to 3.13 for the pyzmq wheel gap" {
+  assert_equal "{{ contains "'pipx:aiperf' = {version = 'latest', uvx_args = '--python 3.13'}" $mise }}" "true"
+}

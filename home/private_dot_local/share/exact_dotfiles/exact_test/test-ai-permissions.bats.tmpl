@@ -8,119 +8,11 @@ setup() {
   common_setup
 }
 
-# --- Pi permission-system ---
-
-{{- if .toolchains.pi }}
-{{- $pi := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.pi" "required" true) | mustFromJson }}
-{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
-{{- $agentDeny := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) }}
-{{- $denyPaths := includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (index $agentDeny "deny_paths" | default list)) | mustFromJson }}
-
-# bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system config renders secure defaults" {
-  assert_file_exists "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  run jsoncJq -e '
-    .yoloMode == false and
-    .permissionReviewLog == true and
-    .permission["*"] == "allow" and
-    .permission.bash["*"] == "allow"
-  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
-
-# bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system config protects key sensitive paths" {
-  run jsoncJq -e '
-    .permission.path["**/.env"] == "deny" and
-    .permission.path["~/.ssh/**"] == "deny" and
-    .permission.path["~/.config/pi/agent/auth.json"] == "deny"
-  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
-
-
-{{- if .toolchains.cloud }}
-# bats test_tags=toolchain:pi,kind:permission,toolchain:cloud
-@test "pi permission-system: cloud toolchain rules" {
-  run jsoncJq -e '
-    .permission.bash["az * delete*"] == "deny"
-  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
-{{- end }}
-
-{{- if .toolchains.docker }}
-# bats test_tags=toolchain:pi,kind:permission,toolchain:docker
-@test "pi permission-system: docker toolchain rules" {
-  run jsoncJq -e '
-    .permission.bash["docker * system prune *"] == "deny" and
-    .permission.bash["docker * run * --privileged *"] == "deny"
-  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
-{{- end }}
-
-{{- if .toolchains.iac }}
-# bats test_tags=toolchain:pi,kind:permission,toolchain:iac
-@test "pi permission-system: iac toolchain rules" {
-  run jsoncJq -e '
-    .permission.bash["tofu * destroy *"] == "deny"
-  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
-{{- end }}
-
-{{- if .toolchains.kubernetes }}
-# bats test_tags=toolchain:pi,kind:permission,toolchain:kubernetes
-@test "pi permission-system: kubernetes toolchain rules" {
-  run jsoncJq -e '
-    .permission.bash["kubectl * delete *"] == "deny" and
-    .permission.bash["helm * upgrade *"] == "deny"
-  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
-{{- end }}
-
-# bats test_tags=toolchain:pi,kind:permission
-@test "pi permission-system config: mcp and skills allowed by default" {
-  run jsoncJq -e '
-    # With default "*" = "allow", mcp and skill are allowed without explicit sub-namespaces
-    .permission["*"] == "allow" and
-    (.permission.mcp == null or .permission.mcp == "allow") and
-    (.permission.skill == null or .permission.skill == "allow" or .permission.skill["*"] == "allow")
-  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
-
-{{- if .toolchains.ai }}
-# bats test_tags=toolchain:pi,kind:permission,toolchain:ai
-@test "pi permission-system: AI package rules" {
-  run jsoncJq -e '
-    .permission.bash["hf auth *"] == "deny" and
-    .permission.bash["hf repo delete *"] == "deny" and
-    .permission.bash["hf upload *"] == "deny"
-  ' "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json"
-  assert_success
-}
-{{- end }}
-{{- end }}
-
-# --- OpenCode permission tests ---
+# --- OpenCode config shape: no interactive permission layer; the managed
+#     single-key external_directory allow is the only key agents carry; the
+#     sandbox is the enforcer ---
 
 {{- if .toolchains.opencode }}
-{{- $ocTiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
-
-# bats test_tags=toolchain:opencode,kind:permission
-@test "opencode.json permission defaults" {
-  run jsoncJq -e '
-    .permission["*"] == "allow" and
-    .permission.doom_loop == "deny" and
-    .permission.bash["*"] == "allow" and
-    .permission.read != null and
-    .permission.edit != null
-  ' "$HOME/.config/opencode/opencode.jsonc"
-  assert_success
-}
 
 # bats test_tags=toolchain:opencode,kind:config
 @test "opencode.json autoupdate stays non-mutating" {
@@ -128,378 +20,1062 @@ setup() {
   assert_success
 }
 
-
 # bats test_tags=toolchain:opencode,kind:permission
-@test "opencode.json path permissions block key secrets" {
-  run jsoncJq -e '
-    .permission.read["**/.env"] == "deny" and
-    .permission.read["**/.npmrc"] == "deny" and
-    .permission.edit["**/.env"] == "deny"
-  ' "$HOME/.config/opencode/opencode.jsonc"
-  assert_success
-}
-
-
-# bats test_tags=toolchain:opencode,kind:permission
-@test "opencode.json edit denies infra config" {
-  run jsoncJq -e '
-    .permission.edit["~/.ssh/**"] == "deny" and
-    .permission.edit["**/.env"] == "deny"
-  ' "$HOME/.config/opencode/opencode.jsonc"
-  assert_success
+@test "opencode configs carry no in-agent permission map beyond the managed external_directory allow" {
+  for file in \
+    "$HOME/.config/opencode/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/core/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/factory/opencode.jsonc"; do
+    run jsoncJq -e '
+      ((.permission == null) or (.permission == {"external_directory": "allow"})) and
+      (.agent.plan | has("permission") | not)' "$file"
+    assert_success
+  done
 }
 {{- end }}
 
-# --- Shared bash permission tests (generated for all enabled agents) ---
+# --- Nono sandbox profiles ---
 
-{{- $permAgents := list -}}
-{{- if .toolchains.pi -}}
-{{-   $permAgents = append $permAgents (dict "name" "pi" "config" "$HOME/.config/pi/agent/extensions/pi-permission-system/config.json" "tag" "toolchain:pi") -}}
-{{- end }}
-{{- if .toolchains.opencode -}}
-{{-   $permAgents = append $permAgents (dict "name" "opencode" "config" "$HOME/.config/opencode/opencode.jsonc" "tag" "toolchain:opencode") -}}
-{{- end -}}
-
-{{- range $agent := $permAgents }}
-
-# bats test_tags={{ $agent.tag }},kind:permission
-@test "{{ $agent.name }} bash: core deny rules" {
-  run jsoncJq -e '
-    .permission.bash["git * push --force*"] == "deny" and
-    .permission.bash["rm -rf /*"] == "deny" and
-    .permission.bash["sudo *"] == "deny" and
-    .permission.bash["chezmoi apply"] == "deny" and
-    (.permission.bash["chezmoi apply *"] | not) and
-    (.permission.bash["gh auth token"] == "deny" or .permission.bash["gh auth token"] == "ask") and
-    (.permission.bash["mise run apply"] == "deny" or .permission.bash["mise run apply"] == "ask")
-  ' "{{ $agent.config }}"
-  assert_success
-}
-{{- end }}
-
-# --- Per-agent permission settings (from ai path data and package policy) ---
-
-{{- $greywallDir := "$HOME/.config/greywall" }}
-{{- if eq .host.distro.family "darwin" }}
-{{- $greywallDir = "$HOME/Library/Application Support/greywall" }}
-{{- end }}
 {{- if ne .host.type "ephemeral" }}
-{{- $agentDeny := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.agent" "required" true) | mustFromJson) }}
-{{- $denyPaths := includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (index $agentDeny "deny_paths" | default list)) | mustFromJson }}
-{{- $localResolved := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson }}
-{{- $configuredLocalPort := $localResolved.port | toString }}
-
-{{- if eq .host.distro.family "darwin" }}
-# bats test_tags=kind:greywall
-@test "greywall macOS config path points at managed config" {
-  run readlink "$HOME/Library/Application Support/greywall"
-  assert_success
-  assert_output "$HOME/.config/greywall"
-}
+{{- $nonoProfiles := "$HOME/.config/nono/profiles" }}
+{{- $src := .chezmoi.sourceDir }}
+{{- $creds := includeTemplate "base/ai/auth/render-credentials" (dict "root" .) | mustFromJson }}
+{{- /* Routed names and the gap set, derived from the data the renderer reads. */ -}}
+{{- $routedNames := list -}}
+{{- range $r := ($creds.routes | default list) -}}{{- $routedNames = append $routedNames $r.name -}}{{- end -}}
+{{- $routedNames = $routedNames | uniq | sortAlpha -}}
+{{- $sessionRouteNames := list -}}
+{{- if $creds.routes_enabled -}}
+{{-   range $r := ($creds.routes | default list) -}}{{-   $sessionRouteNames = append $sessionRouteNames (index $r "custom_name" | default (index $r "preset") | default (index $r "name" | lower)) -}}{{-   end -}}
+{{- end -}}
+{{- $sessionRouteNames = $sessionRouteNames | uniq | sortAlpha -}}
+{{- $allRouteNames := $sessionRouteNames -}}
+{{- $netCredsRender := includeTemplate "base/ai/security/render-nono-net" (dict "root" . "credentials" $creds) | mustFromJson -}}
+{{- $applyData := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.apply" "required" false) | mustFromJson) }}
+{{- $applyDests := includeTemplate "base/ai/security/uniq-sort" (index $applyData "destinations" | default list) | mustFromJson }}
+{{- /* Presence pins are derived at render time from the data: concat every
+   [network.allow_domain] category value (base categories carry literals
+   only — group refs are sandbox-side by design). */ -}}
+{{- $netData := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.network" "required" false) | mustFromJson) -}}
+{{- $wantHosts := list -}}
+{{- range $hosts := (index $netData "allow_domain" | default dict) -}}
+{{-   $wantHosts = concat $wantHosts ($hosts | default list) -}}
+{{- end -}}
+{{- $wantHosts = includeTemplate "base/ai/security/uniq-sort" $wantHosts | mustFromJson }}
+{{- /* Destination parents computed template-side (parent-dir template is the
+   single source of the parent idiom; the jq `def parent` copy is gone). */ -}}
+{{- $applyPairs := list -}}
+{{- range $d := $applyDests -}}
+{{-   $applyPairs = append $applyPairs (dict "dest" $d "parent" (includeTemplate "base/ai/security/parent-dir" $d)) -}}
 {{- end }}
 
-# bats test_tags=kind:greywall
-@test "greywall.json is deployed from ai permissions" {
-  assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jsoncJq -e '
-    .filesystem.defaultDenyRead == true and
-    .filesystem.allowGitConfig == true and
-    (.filesystem.allowWrite | index("**") == null) and
-    (.filesystem.allowWrite | index(".*/**") == null) and
-    (.filesystem.denyRead | index("~/.ssh/id_*") != null) and
-    (.filesystem.denyRead | index("~/.config/colima/**") == null) and
-    (.filesystem.denyRead | index("~/.config/colima/**/id_*") != null) and
-    (.filesystem.denyRead | index("**/.env.*") != null) and
-    (.filesystem.denyWrite | index("**/.env") != null) and
-    (.filesystem.denyWrite | index("**/.env.*") != null) and
-    (.filesystem.denyWrite | index("~/.config/greywall/**") != null) and
-    (.filesystem.allowWrite | index("~/.config/greywall/**") != null) and
-    (.filesystem.allowRead | index("~/.cache/pre-commit/**") != null) and
-    (.filesystem.allowWrite | index("~/.cache/pre-commit/**") != null) and
-    (.filesystem.denyWrite | index("~/Library/Application Support/greywall") != null) and
-    (.filesystem.allowWrite | index("~/Library/Application Support/greywall") != null) and
-    (.filesystem.denyWrite | index("~/.config/agents/**") == null) and
-    (.filesystem.allowWrite | index("~/.config/agents/**") != null) and
-    (.filesystem.denyWrite | index("~/.config/docker/config.json") != null) and
-    (.filesystem.denyWrite | index("~/.config/git/credentials") != null) and
-    (.filesystem.denyWrite | index("~/.local/share/mkcert/rootCA-key.pem") != null) and
-    (.command.allow | not) and
-    (.command.deny | index("chezmoi apply") != null) and
-    (.command.deny | index("chezmoi apply *") == null) and
-    .network.proxyUrl == "socks5://localhost:43052" and
-    (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
-    .ssh.allowedHosts == ["github.com"] and
-    .ssh.inheritDeny == true and
-    (.network.allowUnixSockets | index("~/.local/share/tmux") != null) and
-    (.filesystem.denyWrite | index("~/.config/pi/**") == null) and
-    (.filesystem.denyWrite | index("~/.config/pi/profiles/core/**") == null) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/.models.json*") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/.settings.json*") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/models.json") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/settings.json") != null) and
-    (.filesystem.allowWrite | index("~/.config/rpiv-pi") != null) and
-    (.filesystem.allowWrite | index("~/.config/opencode/**") != null) and
-    (.filesystem.allowWrite | index("~/.config/rpiv-pi/**") != null) and
-    (.filesystem.allowWrite | index("~/.local/share/dotfiles/test") != null) and
-    (.filesystem.allowWrite | index("~/.local/share/dotfiles/test/**") != null) and
-    # Shared scratch parent only: base profile must not allow other agent scratch dirs
-    (.filesystem.allowRead | index("/tmp/agents") != null) and
-    (.filesystem.allowRead | index("/tmp/agents/**") == null) and
-    (.filesystem.allowWrite | index("/tmp/agents") != null) and
-    (.filesystem.allowWrite | index("/tmp/agents/**") == null) and
-    (.filesystem.denyWrite | index("~/.config/pi/agent/auth.json") == null) and
-    (.filesystem.denyWrite | index("~/.config/pi/profiles/core/auth.json") == null) and
-    (.filesystem.denyWrite | index("~/.config/pi/profiles/factory/auth.json") == null)
-  ' "{{ $greywallDir }}/greywall.json"
+# bats test_tags=kind:nono
+@test "nono base profile is deployed and valid" {
+  assert_file_exists "{{ $nonoProfiles }}/base.json"
+  run nono profile validate "{{ $nonoProfiles }}/base.json"
   assert_success
 }
 
-# bats test_tags=kind:greywall,kind:permission
-@test "greywall allows pi agent auth: in allowRead, not in denyRead" {
-  assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jsoncJq -e '
-    (.filesystem.allowRead | index("~/.config/pi/**") != null) and
-    (.filesystem.denyRead | index("~/.config/pi/agent/auth.json") == null) and
-    (.filesystem.denyRead | index("~/.config/pi/profiles/core/auth.json") == null) and
-    (.filesystem.denyRead | index("~/.config/pi/profiles/factory/auth.json") == null)
-  ' "{{ $greywallDir }}/greywall.json"
+# bats test_tags=kind:nono
+@test "filesystem rules render as native globs verbatim" {
+  # Glob shapes survive to the rendered profile untouched; the concretizer is gone.
+  assert_file_not_exists "{{ $src }}/.chezmoitemplates/base/ai/security/concretize-paths"
+  assert_file_not_exists "{{ $src }}/.chezmoitemplates/base/ai/security/cached-run"
+  run jq -e '
+    (.filesystem.deny | index("**/.env") != null) and
+    (.filesystem.deny | index("**/.aws/**") != null) and
+    ((.filesystem.deny + .filesystem.read + .filesystem.allow)
+      | all(test("[?[\\]{}]") | not))
+  ' "{{ $nonoProfiles }}/base.json"
   assert_success
 }
 
-# bats test_tags=kind:greywall,kind:permission
-@test "greywall deny-wins: SSH managed root allowed but identity/environment denied" {
-  assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jsoncJq -e '
-    (.filesystem.denyRead | index("~/.ssh/identity") != null) and
-    (.filesystem.denyRead | index("~/.ssh/environment") != null) and
-    (.filesystem.denyWrite | index("~/.ssh/identity") != null) and
-    (.filesystem.denyWrite | index("~/.ssh/environment") != null) and
-    (.filesystem.allowRead | index("~/.config/ssh/**") != null) and
-    (.filesystem.denyRead | index("~/.config/ssh/**") == null)
-  ' "{{ $greywallDir }}/greywall.json"
+# bats test_tags=kind:nono
+@test "base profile has no tilde-anchored /** glob whose root exists (SIGILL strip)" {
+  # nono walks existing-root `~/X/**` at sandbox start (SIGILL at scale); the
+  # renderer must collapse those to the literal root prefix. Missing roots stay native.
+  local root
+  while IFS= read -r root; do
+    if [ -d "${root/#\~/$HOME}" ]; then
+      echo "unstripped tilde-tail glob: $root"
+      false
+    fi
+  done < <(jq -r '[.filesystem.allow[], .filesystem.read[], .filesystem.deny[]]
+    | .[] | select(startswith("~/") and (rtrimstr("/") | endswith("/**")))
+    | rtrimstr("/") | rtrimstr("/**")' "{{ $nonoProfiles }}/base.json")
+}
+
+# bats test_tags=kind:nono
+@test "base profile denies custom secret groups and self-protects" {
+  run jq -e '
+    (.filesystem.deny | index("~/.config/nono") != null) and
+    # engram is agent-granted (MCP children); base must neither deny nor grant it
+    ((.filesystem.deny + .filesystem.read + .filesystem.allow)
+      | map(select(. == "~/.local/share/engram")) | length) == 0 and
+    # ~/.pi symlinks into ~/.config/pi: never a base grant (cross-agent pi-tree write)
+    (.filesystem.allow | index("~/.pi") == null) and
+    # pi-specific state is pi-only (demoted from base: settings.json/models.json/
+    # pi-lens writes from other agents = config-tampering surface)
+    ((.filesystem.read + .filesystem.allow)
+      | map(select(startswith("~/.config/pi/") or startswith("~/.pi-lens")))
+      | length) == 0 and
+    (.filesystem.deny | index("~/.config/gh/hosts.yml") != null) and
+    (.filesystem.deny | index("~/.pgpass") != null) and
+    (.filesystem.deny | index("~/.config/ssh") != null) and
+    (.filesystem.deny | index("**/.secrets/**") != null) and
+    # No custom grants survive for built-in-floor paths; ~/.ssh is
+    # renderer-denied because the 0.79.0 deny_credentials group lacks it
+    ((.filesystem.read + .filesystem.allow)
+      | map(select(startswith("~/.ssh") or startswith("~/Library/Keychains") or startswith("~/.zshenv")))
+      | length) == 0 and
+    (.filesystem.deny | index("~/.ssh") != null)
+  ' "{{ $nonoProfiles }}/base.json"
   assert_success
 }
 
-# bats test_tags=kind:greywall,kind:permission
-@test "greywall allows opencode auth: in allowRead, not in denyRead" {
-  assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jsoncJq -e '
-    (.filesystem.denyRead | index("~/.config/gh/hosts.yml") != null) and
-    (.filesystem.allowRead | index("~/.local/share/opencode/**") != null) and
-    (.filesystem.denyRead | index("~/.local/share/opencode/auth.json") == null) and
-    (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
-    (.filesystem.allowWrite | index("~/.config/opencode/**") != null) and
-    (.filesystem.denyRead | index("~/.config/opencode/auth.json") == null)
-  ' "{{ $greywallDir }}/greywall.json"
+# bats test_tags=kind:nono
+@test "DCG stores are read-tier carve-outs, never denied" {
+  run jq -e '
+    (.filesystem.read | index("~/Library/Application Support/dcg") != null) and
+    (.filesystem.read | index("~/.config/dcg") != null) and
+    ((.filesystem.deny + .filesystem.allow)
+      | map(select(contains("/dcg") or endswith("/dcg")))
+      | length) == 0
+  ' "{{ $nonoProfiles }}/base.json"
   assert_success
 }
 
-# bats test_tags=kind:greywall,toolchain:ai
-@test "greywall command policy includes AI package denies" {
-  assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jsoncJq -e '
-    (.command.allow | not) and
-    (.command.deny | index("hf auth *") != null) and
-    (.command.deny | index("sudo *") != null) and
-    (.command.deny | index("chezmoi apply") != null)
-  ' "{{ $greywallDir }}/greywall.json"
+# bats test_tags=kind:nono
+@test "base profile grants agent tooling state dirs (chezmoi, mise)" {
+  # Without dir-level grants, agents hit EPERM on chezmoi state open and
+  # mise's trusted-configs symlink inside the sandbox.
+  run jq -e '
+    (.filesystem.allow | index("~/.config/chezmoi") != null) and
+    (.filesystem.allow | index("~/.local/state/mise") != null)
+  ' "{{ $nonoProfiles }}/base.json"
   assert_success
 }
 
-# bats test_tags=kind:greywall
-@test "greywall pi profile allows managed additions" {
-  assert_file_exists "{{ $greywallDir }}/learned/pi.json"
-  run jsoncJq -e --slurpfile global "{{ $greywallDir }}/greywall.json" '
-    .schemaVersion == 1 and
-    (.credentials == $global[0].credentials) and
-    (.filesystem.allowWrite | index("~/.config/pi/agent/sessions/**") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/profiles/core/**") != null) and
-    (.filesystem.allowWrite | index("~/.config/pi/profiles/factory/**") != null) and
-    (.filesystem.allowWrite | index("~/.cache/pi/**") != null) and
-    (.filesystem.allowWrite | index("/tmp/agents/pi/**") != null) and
-    (.filesystem.allowRead | index("~/.config/pi/**") != null) and
-    (.filesystem.allowRead | index("~/.cache/pi/**") != null) and
-    (.filesystem.allowRead | index("/tmp/agents/pi/**") != null) and
-    (.filesystem.denyRead | index("~/.local/share/opencode/auth.json") != null) and
-    (.filesystem.denyWrite | index("~/.local/share/opencode/auth.json") != null) and
-    (.filesystem.denyRead | index("~/.config/opencode/**") == null) and
-    (.filesystem.denyRead | index("~/.config/omp/**") == null) and
-    (.filesystem.denyRead | index("~/.local/share/opencode/**") == null) and
-    (.filesystem.denyWrite | index("~/.config/opencode/**") == null) and
-    (.filesystem.denyWrite | index("~/.config/omp/**") == null) and
-    (.filesystem.denyWrite | index("~/.local/share/opencode/**") == null) and
-    (.network.rules[] | select(.destination == "pi.dev" and (.port | tostring) == "443" and .action == "allow")) and
-    ($global[0].filesystem.allowGitConfig == true)
-  ' "{{ $greywallDir }}/learned/pi.json"
-  assert_success
-  run jsoncJq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/pi.json"
-  assert_success
-  run jsoncJq -e '.filesystem.denyWrite | index("~/.config/pi/**") == null' "{{ $greywallDir }}/learned/pi.json"
-  assert_success
-  run jsoncJq -e '.filesystem.denyWrite | index("~/.config/pi/profiles/core/**") == null' "{{ $greywallDir }}/learned/pi.json"
+# bats test_tags=kind:nono
+@test "apply grants: file-granular session tier, parent-dir chezmoi sandbox, git/mise overrides" {
+  # Grants are the allowlist: the same data renders the session write tier (file
+  # granular) and the chezmoi command sandbox that replaces it for chezmoi — and
+  # nono takes DIRECTORIES only in the sandbox lists, so chezmoi's tier carries the
+  # destination PARENTS and never the destination files (a file entry policy-denies
+  # every chezmoi invocation). fs_read also carries the source dir, and never a
+  # broad config parent: `~/.config`/`~/.local/share` reads would re-open the
+  # credential deny groups living under them — gh hosts.yml, git credentials,
+  # configstore, pgpass, amazon/azure/engram state (user-terminal probe: `nono run
+   # --profile base -- cat ~/.config/gh/hosts.yml` must EPERM). The git/mise keys
+  # are the overrides (live A/B tested, nono 0.79.0): the ["."] default is
+  # fatal for both; git reads `~/.config/git` as a DIR — the `@git:config-files`
+  # token is fatal on hosts with a system gitconfig (file entries in dirs-only
+  # lists) — writes `/dev/dtracehelper` like every macOS binary, and reaches
+  # git-core/hooks via `unsafe_macos_seatbelt_rules` (macOS exec gate: literals,
+  # no globs; `exec_paths` is Linux-only); mise's symlinked binary rides
+  # `fs_read_file`.
+  run jq -e --argjson d '{{ $applyDests | toJson }}' --argjson pairs '{{ $applyPairs | toJson }}' '
+    . as $r |
+    ($r.command_policies.commands.chezmoi.from.session.sandbox) as $cz |
+    ($r.command_policies.commands.git.from.session.sandbox) as $git |
+    ($r.command_policies.commands.mise.from.session.sandbox) as $mise |
+    ($d | length) > 0 and
+    all($d[]; . as $p | ($r.filesystem.allow | index($p)) != null) and
+    all($pairs[]; . as $pr | ($cz.fs_write | index($pr.parent)) != null) and
+    all($pairs[]; . as $pr | ($cz.fs_read | index($pr.parent)) != null) and
+    all($d[]; . as $p | ($cz.fs_write | index($p)) == null) and
+    ($cz.fs_write | index("~/.config/chezmoi") != null) and
+    ($cz.fs_read | index("~/.config/chezmoi") != null) and
+    ($cz.fs_read | index("~/.local/share/chezmoi") != null) and
+    ($cz.fs_read | index("~/.config") | not) and
+    ($cz.fs_read | index("~/.local/share") | not) and
+    ($cz.exec_paths | index("/usr/bin") != null) and
+    ($cz.exec_paths | index("{{ trimSuffix "/" .chezmoi.homeDir }}/.local/share/mise/shims") != null) and
+{{- if eq .chezmoi.os "darwin" }}
+    ($cz.unsafe_macos_seatbelt_rules | index("(allow process-exec* (subpath \"/usr/bin\"))") != null) and
+{{- end }}
+    ($git.fs_read | index("@git:config-files") | not) and
+    ($git.fs_read | index("~/.config/git") != null) and
+    ($git.fs_read | index("/opt/local") != null) and
+    ($git.fs_write_file | index("/dev/dtracehelper") != null) and
+    # the session exports GIT_SSL_CAINFO at the house bundle; ungranted in the
+    # command sandbox every HTTPS op fails at certificate loading (measured)
+    ($git.fs_read_file | index("~/.config/certificates/ca-bundle.pem") != null) and
+    ($git.exec_paths | index("/opt/local/libexec/git-core") != null) and
+{{- if eq .chezmoi.os "darwin" }}
+    ($git.unsafe_macos_seatbelt_rules | index("(allow process-exec* (literal \"/opt/local/libexec/git-core/git\"))") != null) and
+{{- end }}
+    ($git.fs_read | index("~/.local/share/chezmoi") != null) and
+    ($git.fs_write | index("{{ trimSuffix "/" (env "TMPDIR" | default "/tmp") }}") != null) and
+    # fs group members (tmp_workspace) expand at render: the expanded TMPDIR
+    # is present and the raw $TMPDIR sentinel never survives into the profile
+    ($git.fs_write | index("$TMPDIR") | not) and
+    ($mise.fs_read | index("~/.config/mise") != null) and
+    ($mise.fs_write | index("{{ trimSuffix "/" (env "TMPDIR" | default "/tmp") }}") != null) and
+    ($mise.fs_write | index("$TMPDIR") | not) and
+    ($mise.fs_read | index("~/.local/bin") | not) and
+    ($mise.fs_read_file | index("~/.local/bin/mise") != null) and
+    ($mise.fs_write | index("~/.local/state/mise") != null) and
+    ($mise.fs_read | index("~/Library/Caches/mise") != null) and
+    ($mise.fs_write | index("~/Library/Caches/mise") != null) and
+    # Sandbox network lists resolve through the [network.groups] catalog; the
+    # pins are EXACT sets (group refs are narrow by design — a base-category
+    # reference would widen the mediated sandbox and must never render).
+    ($git.network.allow_domain | sort) == ["*.githubusercontent.com", "codeload.github.com", "github.com"] and
+    ($mise.network.allow_domain | sort) == ["*.crates.io", "*.golang.org", "*.jdx.dev", "*.nodejs.org", "*.npmjs.org", "*.pythonhosted.org", "api.github.com", "cdn.jsdelivr.net", "nodejs.org", "pypi.org", "static.rust-lang.org"]
+  ' "{{ $nonoProfiles }}/base.json"
   assert_success
 }
 
-# bats test_tags=kind:greywall
-@test "greywall opencode profile allows shared and sandbox paths" {
-  assert_file_exists "{{ $greywallDir }}/learned/opencode.json"
-  run jsoncJq -e --slurpfile global "{{ $greywallDir }}/greywall.json" '
-    .schemaVersion == 1 and
-    (.credentials == $global[0].credentials) and
-    (.filesystem.allowWrite | index("~/.cache/opencode/**") != null) and
-    (.filesystem.allowWrite | index("~/.local/share/opencode/**") != null) and
-    (.filesystem.allowWrite | index("~/.local/state/opencode/**") != null) and
-    (.filesystem.allowWrite | index("/tmp/agents/opencode/**") != null) and
-    (.filesystem.allowWrite | index("/tmp/compound-engineering") != null) and
-    (.filesystem.allowRead | index("~/.config/opencode/**") != null) and
-    (.filesystem.allowRead | index("~/.cache/opencode/**") != null) and
-    (.filesystem.allowRead | index("~/.local/share/opencode/**") != null) and
-    (.filesystem.allowRead | index("~/.local/state/opencode/**") != null) and
-    (.filesystem.allowRead | index("/tmp/agents/opencode/**") != null) and
-    (.filesystem.allowRead | index("/tmp/compound-engineering") != null) and
-    (.filesystem.denyRead | index("~/.config/pi/agent/auth.json") != null) and
-    (.filesystem.denyRead | index("~/.config/pi/profiles/core/auth.json") != null) and
-    (.filesystem.denyRead | index("~/.config/pi/profiles/factory/auth.json") != null) and
-    (.filesystem.denyWrite | index("~/.config/pi/agent/auth.json") != null) and
-    (.filesystem.denyWrite | index("~/.config/pi/profiles/core/auth.json") != null) and
-    (.filesystem.denyWrite | index("~/.config/pi/profiles/factory/auth.json") != null) and
-    (.filesystem.denyRead | index("~/.config/pi/**") == null) and
-    (.filesystem.denyRead | index("~/.config/omp/**") == null) and
-    (.filesystem.denyWrite | index("~/.config/pi/**") == null) and
-    (.filesystem.denyWrite | index("~/.config/omp/**") == null) and
-    (.network.forwardPorts // [] | map(tostring) | index("7437") != null) and
-    ($global[0].filesystem.allowGitConfig == true)
-  ' "{{ $greywallDir }}/learned/opencode.json"
-  assert_success
-  run jsoncJq -e ".network.allowUnixSockets | index(\"~/.local/share/tmux\") != null" "{{ $greywallDir }}/learned/opencode.json"
+# Render-time guard fixtures: the seed passes, every poisoned entry is
+# refused by name — the same fixture pattern as the cmd converter below (the
+# guard reports and exits 0; render-apply-dests turns a report into a loud `fail`).
+{{- $guardScript := includeTemplate "base/ai/security/apply-dest-guard" dict }}
+{{- $guardProtected := includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (index (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.filesystem" "required" true) | mustFromJson) "deny" | default list)) | mustFromJson }}
+{{- $guardCases := list }}
+{{- range $d := $applyDests }}
+{{-   $guardCases = append $guardCases (dict "dest" $d "expect" "ok") }}
+{{- end }}
+{{- range $c := list "~/.config/nono" "~/.config/nono/profiles/base.json" "~/.config/opencode/opencode.jsonc" "~/.config" "~/.config/tmux/**" "relative/config.json" "/" "~/../.." "~@evil" }}
+{{-   $guardCases = append $guardCases (dict "dest" $c "expect" "refused") }}
+{{- end }}
+{{- /* Provider tokens are the guard's blind spot BY DESIGN (the provider enforces
+     its own trust), and a file grant rides the dir floor untouched: both pass.
+     exec_paths dirs pass the floor too; a seatbelt S-expression is refused as a
+     non-path (render-apply-dests never feeds it to the guard; defense in depth). */}}
+{{- $guardCases = append $guardCases (dict "dest" "@git:config-files" "expect" "ok") }}
+{{- $guardCases = append $guardCases (dict "dest" "~/.local/bin/mise" "expect" "ok") }}
+{{- $guardCases = append $guardCases (dict "dest" "/opt/local/libexec/git-core" "expect" "ok") }}
+{{- $guardCases = append $guardCases (dict "dest" "(allow process-exec* (literal \"/bin/sh\"))" "expect" "refused") }}
+{{- /* The symlink case needs the managed ~/.pi symlink present to resolve into
+     the protected ~/.config/pi root (fresh installs render before it exists). */}}
+{{- $piRoot := stat (joinPath .chezmoi.homeDir ".pi") }}
+{{- if and $piRoot $piRoot.isDir }}
+{{-   $guardCases = append $guardCases (dict "dest" "~/.pi/agent/settings.json" "expect" "refused") }}
+{{- end }}
+{{- /* Case-alias fixture: the ~/.CONFIG stat only resolves on a case-insensitive
+     volume, which is exactly when the guard must fold case to refuse the alias
+     of the protected ~/.config root. */}}
+{{- if stat (joinPath .chezmoi.homeDir ".CONFIG") }}
+{{-   $guardCases = append $guardCases (dict "dest" "~/.CONFIG/nono" "expect" "refused") }}
+{{- end }}
+{{- /* Batched: the guard validates every entry independently against the
+     protected floor, so one call per expectation group proves the whole
+     matrix (empty output = every ok entry passes; refused entries are
+     asserted by name, per-entry attribution preserved). */}}
+{{- $guardOk := list }}
+{{- $guardRefused := list }}
+{{- range $c := $guardCases }}
+{{-   if eq $c.expect "ok" }}{{- $guardOk = append $guardOk $c.dest }}{{- else }}{{- $guardRefused = append $guardRefused $c.dest }}{{- end }}
+{{- end }}
+{{- $guardViolOk := output "python3" "-c" $guardScript (dict "destinations" $guardOk "protected" $guardProtected | toJson) | mustFromJson }}
+{{- $guardViolRefused := output "python3" "-c" $guardScript (dict "destinations" $guardRefused "protected" $guardProtected | toJson) | mustFromJson }}
+{{- /* allow_globs mode (sandbox grant lists): globs pass, and protected roots
+     stay refused through the glob (anchor the pattern, compare protected). */}}
+{{- $globOk := list "~/.local/share/mise/installs/**" "~/.local/share/mise/installs/x/**/y" "~/.config/tmux/**" }}
+{{- $globRefused := list "~/.config/nono/**" "~/.config/**" }}
+{{- $globViolations := output "python3" "-c" $guardScript (dict "destinations" (concat $globOk $globRefused) "protected" $guardProtected "allow_globs" true | toJson) | mustFromJson }}
+
+# bats test_tags=kind:nono
+@test "apply-dest-guard refuses protected, ancestor, descendant, glob, root, case-alias and symlinked entries" {
+  run jq -e --argjson ok '{{ $guardOk | toJson }}' --argjson refused '{{ $guardRefused | toJson }}' --argjson vOk '{{ $guardViolOk | toJson }}' --argjson vRefused '{{ $guardViolRefused | toJson }}' --argjson gok '{{ $globOk | toJson }}' --argjson grefused '{{ $globRefused | toJson }}' --argjson vGlob '{{ $globViolations | toJson }}' -n '
+    ($refused | length) >= 7 and
+    ($ok | length) > 0 and
+    ($vOk | length) == 0 and
+    all($refused[]; . as $d | any($vRefused[]; startswith($d + ":"))) and
+    all($gok[]; . as $d | (any($vGlob[]; startswith($d + ":"))) | not) and
+    all($grefused[]; . as $d | any($vGlob[]; startswith($d + ":")))
+  '
   assert_success
 }
 
-{{- $codegraphAgents := list -}}
+# Render-time filter fixture: direct invocation of filter-shadowed-allow (the
+# shared python-anchor with casefold OFF): a strict-ancestor allow entry is
+# dropped; non-anchorable entries (`.`, rootless globs), exact matches and
+# siblings are kept; the host ~/.pi symlink resolves through realpath.
+{{- $filterScript := includeTemplate "base/ai/security/filter-shadowed-allow" dict }}
+{{- $filterCases := list }}
+{{- $filterCases = append $filterCases (dict "allow" (list "~/.config/pi") "read" (list "~/.config/pi/hooks") "keep" (list)) }}
+{{- $filterCases = append $filterCases (dict "allow" (list "." "profiles/*/extensions/hook") "read" (list "/private/etc/pi/hooks" "profiles/core/hooks") "keep" (list "." "profiles/*/extensions/hook")) }}
+{{- $filterCases = append $filterCases (dict "allow" (list "~/.config/pi") "read" (list "~/.config/pi") "keep" (list "~/.config/pi")) }}
+{{- $filterCases = append $filterCases (dict "allow" (list "~/.config/omp") "read" (list "~/.config/pi/hooks") "keep" (list "~/.config/omp")) }}
+{{- /* The symlink case mirrors the guard fixture: ~/.pi resolves into the
+     protected pi tree, so its covering allow grant must drop. */}}
+{{- $filterPi := stat (joinPath .chezmoi.homeDir ".pi") }}
+{{- if and $filterPi $filterPi.isDir }}
+{{-   $filterCases = append $filterCases (dict "allow" (list "~/.pi") "read" (list "~/.config/pi/agent/hooks") "keep" (list)) }}
+{{- end }}
+{{- $filterResults := list }}
+{{- range $c := $filterCases }}
+{{-   $filterResults = append $filterResults (dict "allow" $c.allow "keep" $c.keep "kept" (output "python3" "-c" $filterScript (dict "allow" $c.allow "read" $c.read | toJson) | mustFromJson)) }}
+{{- end }}
+
+# bats test_tags=kind:nono
+@test "filter-shadowed-allow drops covering ancestors and keeps non-anchorable, exact and sibling entries" {
+  run jq -e --argjson f '{{ $filterResults | toJson }}' -n '
+    ([$f[] | select(.keep == [])] | length) >= 1 and
+    all($f[]; . as $e | ($e.kept | sort) == ($e.keep | sort))
+  '
+  assert_success
+}
+
+# Command-policy matrix: asserts the hard-core deny intent under nono 0.79
+# matcher semantics (matchers compare argv after the command name; prefix is a
+# literal token prefix; contains is a contiguous token window).
+# bats test_tags=kind:nono
+@test "nono base profile enforces command control-axis invariants" {
+  run jq -e '
+    def amatch($a):
+      if .exact then .exact == $a
+      elif .prefix then (($a | length) >= (.prefix | length)) and ($a[0:(.prefix | length)] == .prefix)
+      elif .contains then ((.contains) as $c | (($a | length) >= ($c | length)) and any(range(0; (($a | length) - ($c | length) + 1)); . as $i | $a[$i:($i + ($c | length))] == $c))
+      else false end;
+    def rules($cmd): (.command_policies.commands[$cmd].from.session.invocation_policy.deny // []) | map(.argv);
+    def hit($cmd; $a): rules($cmd) | any(amatch($a));
+    def denied_only($cmd): (.command_policies.commands[$cmd].from.session) == "deny";
+    # bare-command denies, and eval/exec builtins absent (not PATH-shim mediable)
+    (denied_only("pfctl")) and (denied_only("mkfs")) and (denied_only("fdisk")) and
+    (denied_only("parted")) and (denied_only("mkcert")) and
+    # privesc / system-admin / raw-socket floor: hard kernel denies, not DCG
+    # (prompt layer, hooks-only; direct-path exec bypasses DCG text analysis)
+    (denied_only("sudo")) and (denied_only("su")) and (denied_only("doas")) and
+    (denied_only("mount")) and (denied_only("umount")) and
+    (denied_only("swapon")) and (denied_only("swapoff")) and
+    (denied_only("iptables")) and (denied_only("ip6tables")) and
+    (denied_only("nft")) and (denied_only("ufw")) and
+    (denied_only("useradd")) and (denied_only("userdel")) and (denied_only("usermod")) and
+    (denied_only("groupadd")) and (denied_only("groupdel")) and
+    (denied_only("nc")) and (denied_only("ncat")) and
+    (denied_only("netcat")) and (denied_only("socat")) and
+    (.command_policies.commands | (has("eval") or has("exec")) | not) and
+    # keychain mutators: token-prefix glob tokens (add-*, delete-*) collapse the
+    # whole command to session-deny (converter has no glob matcher; the data pins
+    # this shape deliberately — mutator-heavy tool, conservative floor)
+    (denied_only("security")) and
+    (.command_policies.commands.git.from.session.invocation_policy.default == "allow") and
+    # destructive-but-normal commands left nono for DCG ownership
+    (.command_policies.commands | (has("kubectl") or has("helm") or has("docker") or has("tofu") or has("rm") or has("sed")) | not) and
+    # chezmoi: global applies denied (exact variants + --remove prefix); targeted apply unblocked
+    (rules("chezmoi") | any(.exact == ["apply"])) and
+    (rules("chezmoi") | any(.prefix == ["--remove"])) and
+    (hit("chezmoi"; ["apply"])) and (hit("chezmoi"; ["--remove","apply"])) and
+    (hit("chezmoi"; ["apply","--remove"])) and (hit("chezmoi"; ["apply","--force"])) and (hit("chezmoi"; ["--force","apply"])) and
+    (hit("chezmoi"; ["apply","~/.zshrc"]) | not) and (hit("chezmoi"; ["diff","~/.zshrc"]) | not) and
+    # global-flag-leading forms are literal prefix variants (no --global flag in
+    # chezmoi: a global apply is the bare form above)
+    (rules("chezmoi") | any(.prefix == ["--force"])) and (rules("chezmoi") | any(.prefix == ["--include"])) and
+    (rules("chezmoi") | any(.prefix == ["--exclude"])) and (rules("chezmoi") | any(.prefix == ["--destination"])) and
+    (rules("chezmoi") | any(.prefix == ["--source"])) and (rules("chezmoi") | any(.prefix == ["-i"])) and
+    (rules("chezmoi") | any(.prefix == ["-x"])) and (rules("chezmoi") | any(.prefix == ["-D"])) and
+    (rules("chezmoi") | any(.prefix == ["-S"])) and (rules("chezmoi") | any(.prefix == ["apply","--force"])) and
+    (hit("chezmoi"; ["--force","apply","~/.zshrc"])) and (hit("chezmoi"; ["--include","files","apply"])) and
+    (hit("chezmoi"; ["--exclude","files","apply","~/.zshrc"])) and (hit("chezmoi"; ["--destination","/tmp","apply"])) and
+    (hit("chezmoi"; ["--source","/tmp","apply"])) and (hit("chezmoi"; ["-D","/tmp","apply"])) and
+    (hit("chezmoi"; ["-S","/tmp","apply"])) and (hit("chezmoi"; ["-i","files","apply"])) and (hit("chezmoi"; ["-x","files","apply"])) and
+    (hit("chezmoi"; ["apply","--force","~/.zshrc"])) and (hit("chezmoi"; ["apply","--include","files","~/.zshrc"])) and
+    (hit("chezmoi"; ["apply","-D","/tmp","~/.zshrc"])) and
+    # clone-and-apply / update forms apply globally: no allowlist bounds them
+    (rules("chezmoi") | any(.prefix == ["init","--apply"])) and (rules("chezmoi") | any(.prefix == ["init","-a"])) and
+    (rules("chezmoi") | any(.prefix == ["up"])) and (rules("chezmoi") | any(.prefix == ["update"])) and
+    (hit("chezmoi"; ["init","--apply"])) and (hit("chezmoi"; ["init","--apply","https://example.com/dotfiles"])) and
+    (hit("chezmoi"; ["init","-a","https://example.com/dotfiles"])) and (hit("chezmoi"; ["update"])) and
+    (hit("chezmoi"; ["update","--force"])) and (hit("chezmoi"; ["up"])) and
+    # Boundary: a positional apply — with or without a trailing flag — matches
+    # no deny rule; the command-sandbox write list confines it (the command-policy matrix pins it).
+    # The =-valued equals form is the same boundary on the flag-leading side.
+    (hit("chezmoi"; ["apply","~/.config/git/config","--force"]) | not) and
+    (hit("chezmoi"; ["apply","~/.config/git/config","-i","files"]) | not) and
+    (hit("chezmoi"; ["--force=true","apply"]) | not) and
+    (hit("chezmoi"; ["--force=true","apply","~/.config/git/config"]) | not) and
+    # force-push family denied; ordinary pushes allowed
+    (hit("git"; ["push","--force"])) and (hit("git"; ["push","--force","origin","main"])) and
+    (hit("git"; ["push","-f","origin","main"])) and
+    (hit("git"; ["push","--force-with-lease"])) and (hit("git"; ["push","--force-with-lease","origin","main"])) and
+    (hit("git"; ["-c","pull.rebase=false","push","--force"])) and (hit("git"; ["-c","x.y=z","push","--force-with-lease"])) and
+    (hit("git"; ["push","origin","main"]) | not) and (hit("git"; ["push"]) | not) and (hit("git"; ["push","--tags","origin","v1"]) | not) and
+    # secret egress denied; ordinary verbs outside the families allowed
+    (hit("gpg"; ["--export-secret-keys"])) and (hit("gpg"; ["--export-secret-subkeys"])) and
+    (hit("gpg"; ["--export","me@example.com"]) | not) and (hit("gpg"; ["--export-ssh-key","me"]) | not) and
+    (hit("aws"; ["secretsmanager","get-secret-value","--secret-id","x"])) and (hit("aws"; ["s3","ls"]) | not) and
+    (hit("sky"; ["launch","--secret","k=v"])) and (hit("sky"; ["status"]) | not) and
+    # disk erase/partition families denied; other verbs allowed
+    (hit("diskutil"; ["eraseDisk","APFS","New","disk4"])) and (hit("diskutil"; ["partitionDisk","disk4"])) and
+    (hit("diskutil"; ["list"]) | not) and (hit("diskutil"; ["mountDisk","eject","disk4"]) | not) and
+    # mise global apply denied; ordinary runs allowed
+    (hit("mise"; ["run","apply"])) and (hit("mise"; ["run"]) | not) and
+    (hit("hf"; ["auth","login"])) and
+    # hf repo mutations are DCG-owned (custom pack hf-write), not nono denies
+    (hit("hf"; ["repo","delete","r"]) | not) and (hit("hf"; ["upload","f"]) | not) and
+    (hit("hf"; ["repo","view","r"]) | not)
+  ' "{{ $nonoProfiles }}/base.json"
+  assert_success
+}
+
+# Render-time converter fixture: one pattern per mapping class (deny, prefix,
+# exact, contains, builtin drop), evaluated at template render.
+{{- $cmdFixture := list "sudo *" "su" "pacman -R*" "chezmoi apply" "chezmoi --remove *" "git push --force *" "git * push --force *" "sed * -i *" "eval *" "exec x" | join "\n" -}}
+{{- $cmdScript := joinPath .chezmoi.sourceDir ".chezmoitemplates/base/ai/security/nono-cmd-policy" -}}
+{{- $cmdConv := output "python3" $cmdScript $cmdFixture | mustFromJson -}}
+
+# bats test_tags=kind:nono
+@test "nono cmd converter maps each pattern class faithfully" {
+  run jq -e --argjson c '{{ $cmdConv | toJson }}' -n '
+    def denyargs($cmd): [$c.commands[$cmd].from.session.invocation_policy.deny[].argv];
+    ($c.commands.su.from.session == "deny") and
+    ($c.commands.sudo.from.session == "deny") and
+    ($c.commands.pacman.from.session == "deny") and
+    (denyargs("chezmoi") | any(.exact == ["apply"])) and
+    (denyargs("chezmoi") | any(.prefix == ["--remove"])) and
+    (denyargs("git") | any(.prefix == ["push","--force"])) and
+    (denyargs("git") | any(.contains == ["push","--force"])) and
+    (denyargs("sed") | any(.contains == ["-i"])) and
+    (denyargs("sed") | all(has("exact") or has("prefix") or has("contains"))) and
+    ($c.commands | (has("eval") or has("exec")) | not)
+  '
+  assert_success
+}
+
+# bats test_tags=kind:nono
+@test "nono base profile enforces network and environment control-axis invariants" {
+  run jq -e --argjson want '{{ $wantHosts | toJson }}' --argjson inject '{{ $creds.inject | sortAlpha | toJson }}' --argjson routed '{{ $routedNames | toJson }}' '
+    . as $r |
+    # Presence derived from the data at render time: every category value must
+    # land in the rendered profile. pi.dev stays an explicit pin: the
+    # pi.dev relocation into base is the load-bearing half of this assertion.
+    ($want - .network.allow_domain | length) == 0 and
+    (.network.allow_domain | index("pi.dev")) != null and
+    # browsable docs / search-site hosts are gone
+    (["docs.comfy.org", "docs.litellm.ai", "docs.runpod.io", "docs.sglang.ai",
+      "docs.vllm.ai", "support.apple.com", "www.anthropic.com", "ai.google.dev",
+      "brave.com", "infer01"]
+      | all(. as $h | ($r.network.allow_domain | index($h)) == null)) and
+    # flat render, deduped, bounded; the base total is pinned at the rendered
+    # data count (the group-catalog refactor is value-neutral in base: no base
+    # category references a group, so flattening equals the literal set; the
+    # count includes the coding-plan auth-store host approved for omp)
+    ((.network.allow_domain | unique | length) == (.network.allow_domain | length)) and
+    ((.network.allow_domain | length) == {{ len $wantHosts }}) and
+    ((.network.allow_domain | length) <= 200) and
+    (.network.open_port | index(7437) != null) and
+    (.network.open_port | index(8321) != null) and
+    (.filesystem.unix_socket_subtree | index("~/.local/share/tmux") != null) and
+    # environment: DCG_* scrub is load-bearing; ambient injects and ignores stay out;
+    # wildcard denies repeat into diagnostics.redaction (nono redacts exact names only)
+    (.environment.deny_vars | index("DCG_*") != null) and
+    (.diagnostics.redaction.extra_env_vars | index("DCG_*") != null) and
+    (.environment.deny_vars | index("PUBLIC_API_TOKEN") == null) and
+    (all($inject[]; . as $k | ($r.environment.deny_vars | index($k)) == null)) and
+    # routed names are scrubbed, gap names are not (they pass through, redacted);
+    # env_credentials are fatal at launch on unset sources, so nothing emits them.
+    (all($routed[]; . as $k | ($r.environment.deny_vars | index($k)) != null)) and
+    (has("env_credentials") | not) and
+    (all($inject[]; . as $k | (.diagnostics.redaction.extra_env_vars | index($k)) != null))
+  ' "{{ $nonoProfiles }}/base.json"
+  assert_success
+}
+
+{{- /* Every row is defined as custom_credentials and every upstream is a host the
+     base floor already grants: routes add no egress. */ -}}
+{{- $routeRender := omit $netCredsRender "allow_domain" "open_port" -}}
+
+# bats test_tags=kind:nono
+@test "credential routes render as custom_credentials with no new egress" {
+  run jq -e --argjson keys '{{ $allRouteNames | toJson }}' --argjson want '{{ $wantHosts | toJson }}' '{{ $routeRender | toJson }}' '
+    . as $r |
+    (($r.custom_credentials // {}) | keys | sort) == $keys and
+    (all(($r.custom_credentials // {}) | values[]; .upstream | sub("^https?://"; "") | . as $h | ($want | index($h)) != null)) and
+    (all(($r.custom_credentials // {}) | values[]; .credential_key | startswith("env://"))) and
+    # exact entry shape: the proxy route is host/key/env/header/format only
+    (all(($r.custom_credentials // {}) | values[]; (. | keys | sort) == ["credential_format", "credential_key", "env_var", "inject_header", "upstream"]))
+  '
+  assert_success
+}
+
+# bats test_tags=kind:nono
+@test "agent profiles carry the routes; omp renders no credential keys" {
+  for agent in pi opencode; do
+    # No env_credentials: nono 0.79.0 loads them at startup and dies when an
+    # env:// source is unset; gap values reach the agent by pass-through instead.
+    run jq -e --argjson keys '{{ $allRouteNames | toJson }}' '
+      ((.network.custom_credentials // {}) | keys | sort) == $keys and
+      (.env_credentials == null)
+    ' "{{ $nonoProfiles }}/$agent.json"
+    assert_success
+    # 0.79.0 cannot resolve a credential on a command sandbox, so no profile
+    # may reference one there: an orphan reference fails the whole profile.
+    run jq -e 'all((.command_policies.commands // {}) | values[] | .from.session;
+                  type == "map" and ((.sandbox // {}) | has("credentials") | not))' \
+        "{{ $nonoProfiles }}/$agent.json"
+    assert_success
+  done
+  run jq -e '(.network | has("custom_credentials") | not) and (.env_credentials == null) and
+             (.command_policies == null) and
+             (.environment.deny_vars | index("GITHUB_TOKEN") != null) and
+             (.environment.deny_vars | index("GH_TOKEN") != null) and
+             (.environment.deny_vars | index("GEMINI_API_KEY") != null)' "{{ $nonoProfiles }}/omp.json"
+  assert_success
+  run jq -e 'all(.command_policies.commands[].from.session; type == "map" and ((.sandbox // {}) | has("credentials") | not))' "{{ $nonoProfiles }}/base.json"
+  assert_success
+  run jq -e '.network | has("custom_credentials") | not' "{{ $nonoProfiles }}/base.json"
+  assert_success
+}
+
+# bats test_tags=kind:nono
+@test "the credential store and its caches sit on the deny floor" {
+  run jq -e '
+    (.filesystem.deny | index("**/.envrc") != null) and
+    (.filesystem.deny | index(".envrc") != null) and
+    (.filesystem.deny | index("**/.direnv/**") != null) and
+    (.filesystem.deny | index("**/.envrc.private") != null)' "{{ $nonoProfiles }}/base.json"
+  assert_success
+}
+
+# bats test_tags=kind:nono
+@test "gh hosts.yml stays on the credential floor under the session tier" {
+  # KTD2: the gh session tier grants the config.yml read and the relocated
+  # state write; hosts.yml is untouched — a git_gh_creds group member, and
+  # the rendered floor denies it.
+  run grep -F '"~/.config/gh/hosts.yml"' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
+  assert_success
+  run jq -e '
+    (.filesystem.deny | index("~/.config/gh/hosts.yml") != null) and
+    (.filesystem.deny | index("**/.config/gh/hosts.yml") != null)
+  ' "{{ $nonoProfiles }}/base.json"
+  assert_success
+}
+
+# bats test_tags=kind:nono
+@test "the command axis carries no gh: session tier replaces it (KTD2)" {
+  # U2 deletion (boot measured OK 2026-10-13): gh runs at the agent's session
+  # tier, so the command policy is gone entirely — no apply.sandbox.gh entry,
+  # no deny rows. gh auth login/auth token are NO LONGER command-denied (no
+  # pin needed): the token read returns the phantom and login writes the
+  # relocated state. The secret-mutation gate rides the DCG github pack.
+  run jq -e '.command_policies.commands | has("gh") | not' "{{ $nonoProfiles }}/base.json"
+  assert_success
+  run grep -F -e '"gh ' -e 'sandbox.gh' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
+  assert_failure
+}
+
+# bats test_tags=kind:nono
+@test "no credential deny group covers the relocated gh state dir" {
+  # Floor-vs-grant collision (gh session tier): the ~/.cache/gh-sandbox write
+  # grant renders outside every expanded credential deny path, or the grant
+  # silently dies under the floor.
+  run jq -e --argjson protected '{{ $guardProtected | toJson }}' -n '
+    def covers($p): (. | rtrimstr("/**")) as $b | ($p == $b) or ($p | startswith($b + "/"));
+    ([$protected[] | select(covers("~/.cache/gh-sandbox"))] | length) == 0
+  '
+  assert_success
+}
+
+{{- /* Route validation fixtures: every bad row must FAIL the render, naming the
+     row and the reason. */ -}}
+{{- $routeNotSecretTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes" "NOT_A_SECRET_TYP0") "value" (dict "attach" "session" "upstream" "https://example.invalid" "env_var" "NOT_A_SECRET_TYP0")) | mustFromJson -}}
+{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
+{{- $routeGapDupTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "env_injected") "value" (dict "ANTHROPIC_API_KEY" "delivered two ways")) | mustFromJson -}}
+{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
+{{- $routeHttpTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes" "ANTHROPIC_API_KEY" "upstream") "value" "http://insecure.invalid") | mustFromJson -}}
+{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
+
+# bats test_tags=kind:nono
+@test "credential route validation fails the render naming the offending row" {
+  local cb offenders=""
+  cb="$(chezmoiBin)"
+
+  cat >"$BATS_TEST_TMPDIR/route-not-secret.tmpl" <<'FIXTURE'
+{{ $routeNotSecretTpl }}
+FIXTURE
+  cat >"$BATS_TEST_TMPDIR/route-gap-dup.tmpl" <<'FIXTURE'
+{{ $routeGapDupTpl }}
+FIXTURE
+  cat >"$BATS_TEST_TMPDIR/route-http.tmpl" <<'FIXTURE'
+{{ $routeHttpTpl }}
+FIXTURE
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-not-secret.tmpl"
+  [ "$status" -ne 0 ] || offenders="$offenders not-secret:fails-render"
+  [[ "$output" == *NOT_A_SECRET_TYP0* ]] || offenders="$offenders not-secret:named"
+  [[ "$output" == *"is not in the derived secret set"* ]] || offenders="$offenders not-secret:reason-marker"
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-gap-dup.tmpl"
+  [ "$status" -ne 0 ] || offenders="$offenders gap-dup:fails-render"
+  [[ "$output" == *ANTHROPIC_API_KEY* ]] || offenders="$offenders gap-dup:named"
+  [[ "$output" == *"also in env_injected"* ]] || offenders="$offenders gap-dup:reason-marker"
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-http.tmpl"
+  [ "$status" -ne 0 ] || offenders="$offenders http:fails-render"
+  [[ "$output" == *"must be https"* ]] || offenders="$offenders http:reason-marker"
+
+  if [ -n "$offenders" ]; then
+    printf 'credential route validation (offending checks):%s\n' "$offenders"
+    return 1
+  fi
+}
+
+{{- /* Absent-serving edge: with no local serving port configured, open_port
+     keeps forward_ports and does not gain a null/absent entry. */ -}}
+{{- $noServingServing := merge (dict) .ai.base.serving }}
+{{- $_ := unset $noServingServing "local" }}
+{{- $noServingRoot := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "serving") "value" $noServingServing) | mustFromJson }}
+{{- $noServingNet := includeTemplate "base/ai/security/render-nono-net" (dict "root" $noServingRoot) | mustFromJson }}
+
+# bats test_tags=kind:nono
+@test "nono net renders forward_ports without a local serving port" {
+  run test "{{ if contains "7437" ($noServingNet | toJson) }}present{{ else }}missing{{ end }}" = "present"
+  assert_success
+  run test "{{ if contains "8321" ($noServingNet | toJson) }}leaked{{ else }}excluded{{ end }}" = "excluded"
+  assert_success
+}
+
+{{- /* Loud-fail + resolution edges: a dotless entry in a sandbox list
+      is a group reference — a typo FAILS the render naming it (net axis via
+      the classify-refs classifier; fs axis via render-apply-dests' pre-guard
+      resolution), while a valid group ref resolves and its `$TMPDIR`-sentinel
+      member expands before the profile sees it. The fixture templates are
+      BAKED here and rendered at TEST time: each nested chezmoi boot re-runs
+      the render-apply-dests guard chain (two python spawns), so render-time
+      nesting charged every routine apply four extra chezmoi boots. The
+      fixtures ride the shared deep-copy-set-path preamble. */ -}}
+{{- $typoTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "network" "allow_domain") "value" (list "git_forge_typo")) | mustFromJson -}}
+{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r "applyDests" (includeTemplate "base/ai/security/render-apply-dests" (dict "root" $r) | mustFromJson)) -}}` }}
+{{- $fsTypoTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "fs_read") "value" (list "no_such_fs_group_typo")) | mustFromJson -}}
+{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r "applyDests" (includeTemplate "base/ai/security/render-apply-dests" (dict "root" $r) | mustFromJson)) -}}` }}
+{{- $fsGoodTpl := `{{- $r1 := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "fs_read") "value" (list "core_unix" "agents_scratch" ".")) | mustFromJson -}}
+{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" $r1 "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "fs_write") "value" (list "tmp_workspace" "agents_scratch" "/private/var/folders")) | mustFromJson -}}
+{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r "applyDests" (includeTemplate "base/ai/security/render-apply-dests" (dict "root" $r) | mustFromJson)) -}}` }}
+{{- $badDestsTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "destinations") "value" (list "~/.config/nono")) | mustFromJson -}}
+{{- includeTemplate "base/ai/security/render-apply-dests" (dict "root" $r) -}}` }}
+
+# bats test_tags=kind:nono
+@test "sandbox resolvers loud-fail on typos and resolve fs group refs" {
+  # Reason markers: the loud-fail reason must be IN the output — EXIT!=0 plus
+  # the typo name alone is vacuously green on a fixture-internal crash (the
+  # name sits on the echoed template line). Both typo axes route through
+  # expand-path-groups, whose fail() carries this marker. The fsGood EXIT:0
+  # canary proves the nested-render harness itself works. Violations→fail
+  # wiring: a protected destination must die in the nested render-apply-dests
+  # naming apply-dest-guard (only this fixture reaches its fail line).
+  local cb json offenders=""
+  cb="$(chezmoiBin)"
+
+  cat >"$BATS_TEST_TMPDIR/net-typo.tmpl" <<'FIXTURE'
+{{ $typoTpl }}
+FIXTURE
+  cat >"$BATS_TEST_TMPDIR/fs-typo.tmpl" <<'FIXTURE'
+{{ $fsTypoTpl }}
+FIXTURE
+  cat >"$BATS_TEST_TMPDIR/fs-good.tmpl" <<'FIXTURE'
+{{ $fsGoodTpl }}
+FIXTURE
+  cat >"$BATS_TEST_TMPDIR/bad-dests.tmpl" <<'FIXTURE'
+{{ $badDestsTpl }}
+FIXTURE
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/net-typo.tmpl"
+  [ "$status" -ne 0 ] || offenders="$offenders net:typo.fails-render"
+  [[ "$output" == *git_forge_typo* ]] || offenders="$offenders net:typo.named"
+  [[ "$output" == *"expand-path-groups: unknown path group"* ]] || offenders="$offenders net:typo.reason-marker"
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/fs-typo.tmpl"
+  [ "$status" -ne 0 ] || offenders="$offenders fs:typo.fails-render"
+  [[ "$output" == *no_such_fs_group_typo* ]] || offenders="$offenders fs:typo.named"
+  [[ "$output" == *"expand-path-groups: unknown path group"* ]] || offenders="$offenders fs:typo.reason-marker"
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/fs-good.tmpl"
+  [ "$status" -eq 0 ] || offenders="$offenders fs-resolve:canary.renders"
+  json="$(sed -n '/^{/,$p' <<<"$output")"
+  jq -e '(.commands.git.from.session.sandbox.fs_read | index("/bin") != null) and
+         (.commands.git.from.session.sandbox.fs_write | index("'"${TMPDIR:-/tmp}"'" | rtrimstr("/")) != null)' <<<"$json" >/dev/null ||
+    offenders="$offenders fs-resolve:group-ref+tmpdir-expanded"
+  [[ "$output" != *'$TMPDIR'* ]] || offenders="$offenders fs-resolve:no.tmpdir-leak"
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-dests.tmpl"
+  { [ "$status" -ne 0 ] && [[ "$output" == *apply-dest-guard* ]]; } || offenders="$offenders dests-guard:wiring.fails-render"
+
+  if [ -n "$offenders" ]; then
+    printf 'loud-fail/resolve fixtures (offending checks):%s\n' "$offenders"
+    return 1
+  fi
+}
+
+# bats test_tags=kind:nono
+@test "cross-agent grants live once in shared.toml and never in per-agent files" {
+  local dir="{{ $src }}/.chezmoidata/base/ai/agents"
+  run grep -l -F -e 'infer01' -e '**/.codegraph/**' -e '**/.slim/worktrees/**' -e '~/.codegraph' \
+    "$dir/pi.toml" "$dir/opencode.toml" "$dir/omp.toml"
+  assert_failure
+  run grep -c -F 'infer01' "$dir/shared.toml"
+  assert_output "1"
+  run grep -c -F '**/.codegraph/**' "$dir/shared.toml"
+  assert_output "1"
+  run grep -c -F '~/.codegraph' "$dir/shared.toml"
+  assert_output "1"
+  run grep -c -F '**/.slim/worktrees/**' "$dir/shared.toml"
+  assert_output "1"
+  # The scratch pair is renderer-interpolated: absent from data (omp keeps its
+  # /tmp/agents/omp entry only as a unix-socket grant).
+  run grep -c -F '/tmp/agents/' "$dir/pi.toml"
+  assert_output "0"
+  run grep -c -F '/tmp/agents/' "$dir/opencode.toml"
+  assert_output "0"
+  run grep -c -F '/tmp/agents/omp' "$dir/omp.toml"
+  assert_output "1"
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "launcher exports relocated gh state for pi and opencode, never omp" {
+  # gh session tier (KTD2): the GH_* exports point gh's state into
+  # ~/.cache/gh-sandbox (granted in the pi/opencode profiles); omp stays
+  # credential-free and its env block carries no gh state.
+  local a
+  for a in pi oc; do
+    run "$HOME/.local/bin/agent" "$a" --print-env factory
+    assert_success
+    run grep -F 'export GH_CONFIG_DIR="$HOME/.cache/gh-sandbox/config"' <<<"$output"
+    assert_success
+    run grep -F 'export GH_DATA_DIR="$HOME/.cache/gh-sandbox/data"' <<<"$output"
+    assert_success
+    run grep -F 'export GH_CACHE_DIR="$HOME/.cache/gh-sandbox/cache"' <<<"$output"
+    assert_success
+  done
+  run "$HOME/.local/bin/agent" omp --print-env
+  assert_success
+  refute_output --partial 'GH_CONFIG_DIR'
+  refute_output --partial 'GH_DATA_DIR'
+  refute_output --partial 'GH_CACHE_DIR'
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "launcher stamps credential-mode into the log and seeds gh-sandbox" {
+  # R4 audit trail: every sandboxed launch appends the credential mode to
+  # $NONO_LOG_FILE. Linux first-write fix: the gh state root is pre-created
+  # (Landlock binds only paths existing at sandbox start).
+  local launcher="$HOME/.local/bin/agent"
+  run grep -F 'credential-mode:' "$launcher"
+  assert_success
+  run grep -F '"$cred_mode" >>"$NONO_LOG_FILE"' "$launcher"
+  assert_success
+  run grep -F 'mkdir -p "$HOME/.cache/gh-sandbox"' "$launcher"
+  assert_success
+}
+
+{{- $nonoAgents := list -}}
 {{- if .toolchains.pi -}}
-{{-   $codegraphAgents = append $codegraphAgents (dict "name" "pi" "file" (printf "%s/learned/pi.json" $greywallDir) "tag" "toolchain:pi") -}}
+{{-   $nonoAgents = append $nonoAgents (dict "name" "pi" "file" (printf "%s/pi.json" $nonoProfiles) "tag" "toolchain:pi") -}}
 {{- end -}}
 {{- if .toolchains.opencode -}}
-{{-   $codegraphAgents = append $codegraphAgents (dict "name" "opencode" "file" (printf "%s/learned/opencode.json" $greywallDir) "tag" "toolchain:opencode") -}}
+{{-   $nonoAgents = append $nonoAgents (dict "name" "opencode" "file" (printf "%s/opencode.json" $nonoProfiles) "tag" "toolchain:opencode") -}}
 {{- end -}}
 {{- if (get .toolchains "omp" | default false) -}}
-{{-   $codegraphAgents = append $codegraphAgents (dict "name" "omp" "file" (printf "%s/learned/omp.json" $greywallDir) "tag" "toolchain:omp") -}}
+{{-   $nonoAgents = append $nonoAgents (dict "name" "omp" "file" (printf "%s/omp.json" $nonoProfiles) "tag" "toolchain:omp") -}}
 {{- end -}}
 
-{{- range $agent := $codegraphAgents }}
+{{- /* Edge (per agent): with the agent's
+     own sandbox.network.allow key removed, the shared baseline still supplies
+     the model-endpoint grant and its plain hosts survive. Render one no-LAN
+     profile per agent for the folded overlay loop. */ -}}
+{{- $noLan := dict -}}
+{{- $noLanHosts := dict -}}
+{{- range $a := $nonoAgents -}}
+{{-   $noLanNet := merge (dict) (dig "sandbox" "network" dict (index $.ai.base.agents $a.name)) -}}
+{{-   $_ := unset $noLanNet "allow" -}}
+{{-   $noLanRoot := includeTemplate "base/test/deep-copy-set-path" (dict "root" $ "path" (list "ai" "base" "agents" $a.name "sandbox" "network") "value" $noLanNet) | mustFromJson -}}
+{{-   $_ := set $noLan $a.name (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $noLanRoot "agent" $a.name) | mustFromJson) -}}
+{{-   $_ := set $noLanHosts $a.name (dig "sandbox" "network" "allow_domain" list (index $.ai.base.agents $a.name)) -}}
+{{- end }}
 
-# bats test_tags={{ $agent.tag }},kind:greywall,kind:permission
-@test "{{ $agent.name }} greywall profile allows codegraph runtime state without broad home access" {
+# bats test_tags=kind:nono
+@test "nono per-agent overlay set extends base with managed additions" {
+  # Folded per-agent overlay tests: one runtime loop over $nonoAgents; each
+  # case arm runs ONE labeled-array jq over the profile (the program labels
+  # every conjunct and prints only failing labels) plus the non-jq probes,
+  # offenders collected and every offending agent+assertion named in a single
+  # failure.
+  local offenders="" agent file
+  checkOverlay() {
+    local name="$1"
+    shift
+    if ! "$@" >/dev/null 2>&1; then
+      offenders="$offenders $agent:$name"
+    fi
+  }
+  checkLabels() {
+    # One jq pass per profile; empty output = all conjuncts green.
+    local out l
+    if ! out=$(jq -r "$1" "$2" 2>/dev/null); then
+      offenders="$offenders $agent:profile-unreadable-by-jq"
+      return
+    fi
+    while IFS= read -r l; do
+      if [ -n "$l" ]; then offenders="$offenders $agent:$l"; fi
+    done <<<"$out"
+  }
+  # The provider-domain overlay is gone: the base catalog grants them.
+  agent="base"
+  checkOverlay "base grants provider domains" jq -e '
+    (.network.allow_domain) as $a |
+    all(["*.openai.com", "opencode.ai"][];
+        . as $h | ($a | index($h)) != null)
+  ' "{{ $nonoProfiles }}/base.json"
+  for agent in{{- range $a := $nonoAgents }} {{ $a.name }}{{- end }}; do
+    file="{{ $nonoProfiles }}/${agent}.json"
+    checkOverlay "profile file exists" test -f "$file"
+    checkOverlay "nono profile validate" nono profile validate "$file"
+    case "$agent" in
+{{- if .toolchains.pi }}
+      pi)
+        # Hook write-denials ride the top-level seatbelt denies (macOS only;
+        # the renderer strips the field on Linux).
+        checkLabels '
+          [
+            (select(.extends != "base") | "extends == base")
+            ,(select((.filesystem.allow | index("~/.config/pi/agent")) == null) | "allow ~/.config/pi/agent")
+            ,(select((.filesystem.allow | index("~/.config/pi/agent/sessions")) == null) | "allow ~/.config/pi/agent/sessions")
+            ,(select((.filesystem.allow | index("~/.config/pi/profiles/core")) == null) | "allow ~/.config/pi/profiles/core")
+            ,(select((.filesystem.allow | index("~/.config/pi/profiles/factory")) == null) | "allow ~/.config/pi/profiles/factory")
+            ,(select((.filesystem.allow | index("~/.cache/pi")) == null) | "allow ~/.cache/pi")
+            ,(select((.filesystem.read | index("~/.pi")) == null) | "read ~/.pi (footer legacy scan)")
+            ,(select((.filesystem.allow | index("~/.codegraph")) == null) | "allow ~/.codegraph (codegraph MCP state)")
+            ,(select((.filesystem.allow | index("/tmp/agents/pi")) == null) | "allow /tmp/agents/pi")
+            ,(select((.filesystem.allow | index("**/.codegraph/**")) == null) | "allow **/.codegraph/**")
+            ,(select((.filesystem.allow | index("**/.slim/worktrees/**")) == null) | "allow **/.slim/worktrees/**")
+            ,(select((.filesystem.read | index("**/node_modules/@earendil-works/pi-coding-agent/**")) == null) | "read pi-coding-agent package")
+            ,(select((.filesystem.read | index("~/.config/gh/config.yml")) == null) | "read gh config.yml (gh session tier)")
+            ,(select((.filesystem.allow | index("~/.cache/gh-sandbox")) == null) | "allow relocated gh state (gh session tier)")
+{{- if eq .chezmoi.os "darwin" }}
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (subpath \"{{ trimSuffix "/" .chezmoi.homeDir }}/.config/pi/agent/extensions\"))")) == null) | "seatbelt deny agent extensions writes")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (subpath \"{{ trimSuffix "/" .chezmoi.homeDir }}/.config/pi/profiles/core/extensions\"))")) == null) | "seatbelt deny core extensions writes")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (subpath \"{{ trimSuffix "/" .chezmoi.homeDir }}/.config/pi/profiles/factory/extensions\"))")) == null) | "seatbelt deny factory extensions writes")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(allow ipc-sysv-sem)")) == null) | "seatbelt ipc-sysv-sem (fff LMDB)")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(allow user-preference-read)")) == null) | "seatbelt user-preference-read")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny mach-lookup (global-name \"com.apple.SecurityServer\"))")) == null) | "seatbelt deny keychain mach-lookup (KTD4)")
+{{- end }}
+            ,(select((.filesystem.deny | index("~/.config/pi/agent/auth.json")) != null) | "own auth store not denied")
+            ,(select((.filesystem.allow | index("~/.config/pi/agent/auth.json")) == null) | "allow own auth store")
+            ,(select((.filesystem.deny | index("~/.local/share/opencode/auth.json")) == null) | "denies opencode auth store")
+            ,(select((.filesystem.deny | index("~/.config/omp/agent/auth.json")) == null) | "denies omp auth store")
+            ,(select((.network.allow_domain | index("infer01")) == null) | "network infer01")
+          ] | .[]
+        ' "$file"
+{{ $piNl := index $noLan "pi" -}}
+        checkOverlay "no-LAN render keeps shared model endpoint" test present = "{{ if contains "infer01" ($piNl | toJson) }}present{{ else }}missing{{ end }}"
+{{- range $h := (index $noLanHosts "pi") }}
+        checkOverlay "no-LAN render keeps plain host {{ $h }}" test present = "{{ if has $h (dig "network" "allow_domain" list $piNl) }}present{{ else }}missing{{ end }}"
+{{- end }}
+        ;;
+{{- end }}
+{{- if .toolchains.opencode }}
+      opencode)
+        checkLabels '
+          [
+            (select(.extends != "base") | "extends == base")
+            ,(select((.filesystem.allow | index("~/.local/share/opencode")) == null) | "allow ~/.local/share/opencode")
+            ,(select((.filesystem.allow | index("~/.local/state/opencode")) == null) | "allow ~/.local/state/opencode")
+            ,(select((.filesystem.allow | index("/tmp/agents/opencode")) == null) | "allow /tmp/agents/opencode")
+            ,(select((.filesystem.allow | index("~/.cache/opencode")) == null) | "allow ~/.cache/opencode")
+            ,(select((.filesystem.allow | index("~/.local/share/engram")) == null) | "allow ~/.local/share/engram (group-ref expansion)")
+            ,(select((.filesystem.allow | index("**/.codegraph/**")) == null) | "allow **/.codegraph/**")
+            ,(select((.filesystem.allow | index("**/.slim/worktrees/**")) == null) | "allow **/.slim/worktrees/**")
+            ,(select((.filesystem.read | index("~/.config/opencode/plugins/dcg-guard.js")) == null) | "read dcg-guard plugin")
+            ,(select((.filesystem.read | index("~/.config/gh/config.yml")) == null) | "read gh config.yml (gh session tier)")
+            ,(select((.filesystem.allow | index("~/.cache/gh-sandbox")) == null) | "allow relocated gh state (gh session tier)")
+            ,(select((.filesystem.deny | index("~/.config/pi/agent/auth.json")) == null) | "denies pi agent auth store")
+            ,(select((.filesystem.deny | index("~/.config/pi/profiles/core/auth.json")) == null) | "denies pi core auth store")
+            ,(select((.filesystem.deny | index("~/.config/pi/profiles/factory/auth.json")) == null) | "denies pi factory auth store")
+            ,(select((.filesystem.deny | index("~/.config/omp/agent/auth.json")) == null) | "denies omp auth store")
+            ,(select((.filesystem.deny | index("~/.local/share/opencode/auth.json")) != null) | "own auth store not denied")
+            ,(select((.filesystem.read_file // [] | index("~/Library/Keychains/login.keychain-db")) != null) | "keychain read grant present")
+            ,(select((.filesystem.bypass_protection // [] | index("~/Library/Keychains/login.keychain-db")) != null) | "keychain bypass grant present")
+{{- if eq .chezmoi.os "darwin" }}
+            ,(select((.unsafe_macos_seatbelt_rules | index("(allow user-preference-read)")) == null) | "seatbelt user-preference-read")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny mach-lookup (global-name \"com.apple.SecurityServer\"))")) == null) | "seatbelt deny keychain mach-lookup (KTD4)")
+{{- end }}
+          ] | .[]
+        ' "$file"
+{{ $ocNl := index $noLan "opencode" -}}
+        checkOverlay "no-LAN render keeps shared model endpoint" test present = "{{ if contains "infer01" ($ocNl | toJson) }}present{{ else }}missing{{ end }}"
+{{- range $h := (index $noLanHosts "opencode") }}
+        checkOverlay "no-LAN render keeps plain host {{ $h }}" test present = "{{ if has $h (dig "network" "allow_domain" list $ocNl) }}present{{ else }}missing{{ end }}"
+{{- end }}
+        ;;
+{{- end }}
+{{- if (get .toolchains "omp" | default false) }}
+      omp)
+        # XDG relocation: whole data/state/cache roots, no agent.db leaf
+        # literals (WAL sidecars appear dynamically).
+        checkLabels '
+          [
+            (select(.extends != "base") | "extends == base")
+            ,(select((.filesystem.allow | index("~/.local/share/omp")) == null) | "allow ~/.local/share/omp")
+            ,(select((.filesystem.allow | index("~/.local/share/engram")) == null) | "allow ~/.local/share/engram (group-ref expansion)")
+            ,(select((.filesystem.allow | index("~/.local/state/omp")) == null) | "allow ~/.local/state/omp")
+            ,(select((.filesystem.allow | index("/tmp/agents/omp")) == null) | "allow /tmp/agents/omp")
+            ,(select((.filesystem.allow | index("**/.codegraph/**")) == null) | "allow **/.codegraph/**")
+            ,(select((.filesystem.allow | index("~/.codegraph")) == null) | "allow ~/.codegraph (codegraph MCP state)")
+            ,(select((.filesystem.allow | index("**/.slim/worktrees/**")) == null) | "allow **/.slim/worktrees/**")
+            ,(select((.filesystem.allow | index("~/.config/omp/agent")) == null) | "allow agent root")
+            ,(select((.filesystem.allow | index("~/.config/omp/profiles")) == null) | "allow named-profile roots")
+            ,(select((.filesystem.deny | index("~/.config/omp/security.yml")) != null) | "own security.yml not denied")
+            ,(select((.filesystem.deny | index("~/.config/agents")) != null) | "shared agents config denied (blocks omp skills)")
+            ,(select((.filesystem.deny | index("~/.config/pi/agent/auth.json")) == null) | "denies pi agent auth store")
+            ,(select((.filesystem.unix_socket_subtree | index("~/.local/state/omp/run")) == null) | "unix socket subtree omp run")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (subpath \"{{ trimSuffix "/" .chezmoi.homeDir }}/.config/omp/agent/extensions\"))")) == null) | "seatbelt deny agent extensions writes")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny file-write* (regex #\"{{ trimSuffix "/" .chezmoi.homeDir }}/.\\.config/omp/profiles/[^/]+/agent/extensions\"))")) == null) | "seatbelt regex deny profile extensions writes")
+            ,(select((.unsafe_macos_seatbelt_rules | index("(deny mach-lookup (global-name \"com.apple.SecurityServer\"))")) == null) | "seatbelt deny keychain mach-lookup (KTD4)")
+            ,(select((.environment.deny_vars | index("GITHUB_TOKEN")) == null) | "denies GITHUB_TOKEN")
+            ,(select((.environment.deny_vars | index("GH_TOKEN")) == null) | "denies GH_TOKEN")
+            ,(select((.filesystem.read | index("~/.config/gh/config.yml")) != null) | "no gh config read (credential-free)")
+            ,(select((.filesystem.allow | index("~/.cache/gh-sandbox")) != null) | "no relocated gh state write (credential-free)")
+            ,(select((.network.allow_domain | index("infer01")) == null) | "network infer01")
+          ] | .[]
+        ' "$file"
+{{ $ompNl := index $noLan "omp" -}}
+        checkOverlay "no-LAN render keeps shared model endpoint" test present = "{{ if contains "infer01" ($ompNl | toJson) }}present{{ else }}missing{{ end }}"
+{{- range $h := (index $noLanHosts "omp") }}
+        checkOverlay "no-LAN render keeps plain host {{ $h }}" test present = "{{ if has $h (dig "network" "allow_domain" list $ompNl) }}present{{ else }}missing{{ end }}"
+{{- end }}
+        ;;
+{{- end }}
+      *) offenders="$offenders $agent:no-overlay-case" ;;
+    esac
+  done
+  if [ -n "$offenders" ]; then
+    printf 'per-agent overlay violations (offending agents):%s\n' "$offenders"
+    return 1
+  fi
+}
+
+{{- range $agent := $nonoAgents }}
+{{-   $want := list -}}
+{{-   range $e := concat (dig "sandbox" "network" "allow" list $.ai.base.agents.shared) (dig "sandbox" "network" "allow" list (index $.ai.base.agents $agent.name)) -}}
+{{-     $want = append $want (index $e "host") -}}
+{{-   end }}
+
+# bats test_tags={{ $agent.tag }},kind:nono
+@test "{{ $agent.name }} nono profile grants configured model endpoints in its overlay" {
   assert_file_exists "{{ $agent.file }}"
-  run jsoncJq -e '
-    (.filesystem.allowWrite | index("**/.codegraph/**") != null) and
-    (.filesystem.denyWrite | index("**/.codegraph/**") == null) and
-    (.filesystem.allowWrite | index("**") == null) and
-    (.filesystem.allowWrite | index("**/**") == null) and
-    (.filesystem.allowWrite | index("**/*") == null) and
-    (.filesystem.allowWrite | index("~/**") == null) and
-    (.filesystem.allowWrite | index("~/*") == null) and
-    (.filesystem.allowWrite | index("*") == null) and
-    (.filesystem.allowWrite | index("~") == null)
+  run jq -e --argjson want '{{ $want | toJson }}' '
+    . as $r |
+    ((.network.allow_domain // []) as $a |
+      all($want[]; . as $h | ($a | index($h)) != null))
   ' "{{ $agent.file }}"
   assert_success
 }
 {{- end }}
 
-# bats test_tags=kind:greywall
-@test "greywall global policy includes shared network hosts" {
-  assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jsoncJq -e '
-    (.network.rules[] | select(.destination == "api.anthropic.com" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "api.github.com" and (.port | tostring) == "443" and .action == "allow")) and
-    (.network.rules[] | select(.destination == "registry.npmjs.org" and (.port | tostring) == "443" and .action == "allow")) and
-    (([
-      "ai.google.dev",
-      "api.npmjs.org",
-      "docs.comfy.org",
-      "docs.litellm.ai",
-      "docs.runpod.io",
-      "docs.sglang.ai",
-      "docs.sglang.io",
-      "docs.vllm.ai",
-      "hacker-news.firebaseio.com",
-      "support.apple.com",
-      "www.anthropic.com",
-      "www.npmjs.com"
-    ] - (.network.rules | map(.destination))) | length == 0) and
-    ((.network.rules | map(.destination) | index("brave.com")) | not)
-  ' "{{ $greywallDir }}/greywall.json"
-  assert_success
-}
+{{- range $agent := $nonoAgents }}
 
-# bats test_tags=toolchain:pi,toolchain:opencode,kind:greywall
-@test "greywall base config allows engram loopback outbound" {
-  run jsoncJq -e '.network.allowLocalOutbound == true' "{{ $greywallDir }}/greywall.json"
-  assert_success
-  run jsoncJq -e --arg port '{{ $configuredLocalPort }}' '
-    (.network.forwardPorts // [] | map(tostring)) as $ports |
-    ($ports | index("7437") != null) and ($ports | index($port) != null)
-  ' "{{ $greywallDir }}/greywall.json"
-  assert_success
-}
-
-# bats test_tags=kind:greywall
-@test "greywall global config adds no infer01 rule" {
-  assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jsoncJq -e '([.network.rules[] | select(.destination == "infer01")] | length) == 0' "{{ $greywallDir }}/greywall.json"
-  assert_success
-}
-
-{{- $inferAgents := list -}}
-{{- if .toolchains.pi -}}
-{{-   $inferAgents = append $inferAgents (dict "name" "pi" "file" (printf "%s/learned/pi.json" $greywallDir) "tag" "toolchain:pi") -}}
-{{- end -}}
-{{- if .toolchains.opencode -}}
-{{-   $inferAgents = append $inferAgents (dict "name" "opencode" "file" (printf "%s/learned/opencode.json" $greywallDir) "tag" "toolchain:opencode") -}}
-{{- end -}}
-{{- if (get .toolchains "omp" | default false) -}}
-{{-   $inferAgents = append $inferAgents (dict "name" "omp" "file" (printf "%s/learned/omp.json" $greywallDir) "tag" "toolchain:omp") -}}
-{{- end -}}
-
-{{- range $agent := $inferAgents }}
-
-# bats test_tags={{ $agent.tag }},kind:greywall,kind:permission
-@test "{{ $agent.name }} greywall session profile allows infer01:8080" {
+# bats test_tags={{ $agent.tag }},kind:nono
+@test "{{ $agent.name }} nono profile keeps read-only paths out of allow" {
   assert_file_exists "{{ $agent.file }}"
-  run jsoncJq -e '
-    (.network.rules[] | select(.destination == "infer01" and (.port | tostring) == "8080" and .action == "allow"))
-  ' "{{ $agent.file }}"
-  assert_success
-}
-
-# bats test_tags={{ $agent.tag }},kind:greywall,kind:permission
-@test "{{ $agent.name }} greywall session profile forwards preserved and local serving ports" {
-  assert_file_exists "{{ $agent.file }}"
-  run jsoncJq -e --arg port '{{ $configuredLocalPort }}' '
-    (.network.forwardPorts // [] | map(tostring)) as $ports |
-    ($ports | index("7437") != null) and ($ports | index($port) != null)
-  ' "{{ $agent.file }}"
+  run jq -e '(((.filesystem.allow // []) - (.filesystem.read // [])) | length) == ((.filesystem.allow // []) | length)' "{{ $agent.file }}"
   assert_success
 }
 {{- end }}
 
-# bats test_tags=kind:greywall
-@test "greywall pi learned profile is valid JSON" {
-  assert_file_exists "{{ $greywallDir }}/learned/pi.json"
-  run jsoncJq -e '.schemaVersion == 1' "{{ $greywallDir }}/learned/pi.json"
+# --- DCG footgun layer (render shape) ---
+
+# bats test_tags=toolchain:ai,kind:dcg
+@test "dcg config and custom pack render with the user deny pack wired" {
+  assert_file_exists "$HOME/.config/dcg/config.toml"
+  assert_file_exists "$HOME/.config/dcg/packs/system.yaml"
+  run grep -F 'custom_paths = ["~/.config/dcg/packs/*.yaml"]' "$HOME/.config/dcg/config.toml"
+  assert_success
+  local pack
+  for pack in system package_managers github compute cloud kubernetes docker iac publish; do
+    run grep -F "\"user.$pack\" = \"deny\"" "$HOME/.config/dcg/config.toml"
+    assert_success
+  done
+  run grep -F 'kubectl-delete' "$HOME/.config/dcg/packs/kubernetes.yaml"
   assert_success
 }
 
-{{ $enabledAuth := includeTemplate "base/ai/auth/resolve-enabled-auth-providers" (dict "root" .) | mustFromJson }}
-# bats test_tags=kind:greywall
-@test "greywall credentials inject enabled API keys" {
-  assert_file_exists "{{ $greywallDir }}/greywall.json"
-  run jsoncJq -e --argjson expected '{{ $enabledAuth.enabled_api_key_envs | sortAlpha | toJson }}' '
-    . as $root |
-    all($expected[]; . as $k | ($root.credentials.inject | index($k) != null)) and
-    all($expected[]; . as $k | ($root.credentials.secrets | index($k) | not))
-  ' "{{ $greywallDir }}/greywall.json"
+# bats test_tags=toolchain:ai,kind:dcg
+@test "apply-time dcg checksum verifier is gone" {
+  # The settled drop: the verifier wrote nothing, so it was never the
+  # apply-collision source; its absence is pinned here.
+  assert_file_not_exists "{{ $src }}/.chezmoiscripts/toolchains/ai/run_onchange_after_84_verify-dcg-checksum.sh.tmpl"
+  local cb
+  cb="$(chezmoiBin)"
+  run "$cb" managed
+  assert_success
+  refute_output --partial "run_onchange_after_84_verify-dcg-checksum"
+}
+
+# bats test_tags=toolchain:ai,kind:dcg
+@test "dcg hooks are installed at the paths nono write-denies" {
+  assert_file_exists "$HOME/.config/opencode/plugins/dcg-guard.js"
+  assert_file_exists "$HOME/.config/pi/agent/extensions/dcg-robot.ts"
+  assert_file_exists "$HOME/.config/omp/agent/extensions/dcg-guard.ts"
+  run readlink -f "$HOME/.config/pi/profiles/core/extensions/dcg-robot.ts"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/extensions/dcg-robot.ts"
+  run readlink -f "$HOME/.config/pi/profiles/factory/extensions/dcg-robot.ts"
+  assert_success
+  assert_output "$HOME/.config/pi/agent/extensions/dcg-robot.ts"
+  run grep -F '"hook", "--robot", "--batch"' "$HOME/.config/omp/agent/extensions/dcg-guard.ts"
   assert_success
 }
+
+# bats test_tags=toolchain:ai,kind:dcg
+@test "dcg hook keeps quoted-caret grep payloads on the posix dialect (0.15.3 semantics)" {
+  # v0.15.3 (3a8c330, #520/#523/#524): a caret inside quotes no longer assembles
+  # a cmd.exe word and windows.* packs activate only at real command positions,
+  # so the hook refines this Bash payload to posix and allows it (the 0.15.2
+  # deny was the pinned false positive). dcg test --dialect posix agrees.
+  require_dcg
+  local fixture='RUN_DIR="$SCRATCH_ROOT/ce-code-review/$RUN_ID"
+git ls-files | grep -E '"'"'(^|/)(CODING_STANDARDS|CLAUDE|AGENTS)\.md$'"'"' || true'
+  run dcg test --with-packs windows.filesystem --dialect posix "$fixture"
+  assert_output --partial "ALLOWED"
+  local payload
+  payload=$(jq -nc --arg c "$fixture" '{tool_name:"Bash",tool_input:{command:$c}}')
+  run bash -c 'printf "%s\n" "$1" | dcg hook --robot --batch' - "$payload"
+  assert_output --partial '"decision":"allow"'
+}
+
+# bats test_tags=toolchain:ai,kind:dcg
+@test "dcg hook still widens real windows shapes to deny" {
+  # The pinned-negative class survives the 0.15.3 tightening: a caret at an
+  # executable command position (g^it) is real cmd.exe assembly and must deny.
+  require_dcg
+  local payload
+  payload=$(jq -nc '{tool_name:"Bash",tool_input:{command:"g^it reset --hard"}}')
+  run bash -c 'printf "%s\n" "$1" | dcg hook --robot --batch' - "$payload"
+  assert_output --partial '"decision":"deny"'
+}
+
+{{- range $agent := $nonoAgents }}
+{{- /* pi and omp are exempt: hooks are readable via the writable agent root; the
+     write denial rides the seatbelt rules (agent profile tests + live enforcement
+     probe). */}}
+{{- if and (ne $agent.name "pi") (ne $agent.name "omp") }}
+
+# bats test_tags={{ $agent.tag }},kind:dcg
+@test "{{ $agent.name }} profile grants read on its own DCG hook file" {
+  run jq -e '
+    ((.filesystem.read // [])
+      | map(select(contains("dcg-guard") or contains("dcg-robot")))
+      | length) > 0
+  ' "{{ $agent.file }}"
+  assert_success
+}
+{{- end }}
+{{- end }}
+
+{{- if .toolchains.opencode }}
+
+# bats test_tags=toolchain:opencode,kind:dcg
+@test "every opencode profile config loads the dcg-guard plugin" {
+  for file in \
+    "$HOME/.config/opencode/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/core/opencode.jsonc" \
+    "$HOME/.config/opencode/profiles/factory/opencode.jsonc"; do
+    run jsoncJq -e '.plugin | index("./plugins/dcg-guard.js") != null' "$file"
+    assert_success
+  done
+}
+{{- end }}
 
 {{- end }}

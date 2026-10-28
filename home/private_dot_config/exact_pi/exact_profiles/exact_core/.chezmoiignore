@@ -1,6 +1,14 @@
+# profile dir == PI_CODING_AGENT_DIR for this tier: agent-writable root, pi
+# lands runtime files here; the exact_ deletion law would remove them.
+*.lock
 context-mode/
+keybindings.json
+lastChangelogVersion
 mcp-cache.json
+mcp-onboarding.json
 models-store.json
 npm/
+run-history.jsonl
 sessions/**
+state.json
 trust.json

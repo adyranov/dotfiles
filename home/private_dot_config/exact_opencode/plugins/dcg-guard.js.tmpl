@@ -1,0 +1,27 @@
+// dcg-guard: chezmoi-managed DCG plugin (do not edit in-agent — nono
+// denies agent writes to this file). Routes every OpenCode bash tool call
+// through `dcg hook --robot --batch` before execution. The default export is
+// the v1 plugin function (hook map) required by the OpenCode 1.18.x native
+// loader, which rejects object defaults lacking server(); the named
+// `DcgGuard` export serves shim loaders. A missing binary degrades
+// permissively; a dcg that runs without a verdict fails closed.
+// Approval is operator-side only.
+// ponytail: v2 hosts want default { id, setup(ctx) }; restore dual contract
+// (default = plugin function here, v2 shape behind host detection) when the
+// v2 host ships.
+{{ (includeTemplate "base/ai/security/dcg-guard-core") | trim }}
+
+// OpenCode v1: named export, hook map, command in `output.args`.
+export const DcgGuard = async () => {
+  return {
+    "tool.execute.before": async (input, output) => {
+      if (!input || input.tool !== "bash") return;
+      const args = (output && output.args) || {};
+      const reason = dcgBlockReason(args.command, args.cwd);
+      if (reason) throw new Error(reason);
+    },
+  };
+};
+
+// OpenCode 1.18.x native loader: default export must be the plugin function.
+export default DcgGuard;

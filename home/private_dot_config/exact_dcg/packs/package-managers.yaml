@@ -1,0 +1,40 @@
+# DCG policy pack: package managers + mass upgrade.
+# Managed source — agents cannot write here; edit the chezmoi source.
+id: user.package_managers
+name: User package manager rules
+version: "1.0.0"
+description: Custom denies for package-manager removals and mass upgrades beyond the built-in package_managers pack.
+keywords:
+  - apt
+  - apt-get
+  - brew
+  - dnf
+  - pacman
+  - snap
+  - topgrade
+destructive_patterns:
+  - name: pkg-brew-destructive
+    pattern: '\bbrew\b[^;&|\n]*?\b(?:uninstall|remove|untap)\b'
+    severity: medium
+    description: brew uninstall/remove/untap removes packages or taps
+    explanation: brew uninstall/remove/untap. Removed formulae and taps affect every shell on this machine.
+  - name: pkg-apt-remove
+    pattern: '\b(?:apt|apt-get|dnf)\b[^;&|\n]*?\b(?:remove|purge)\w*\b'
+    severity: medium
+    description: apt/apt-get/dnf remove or purge packages
+    explanation: apt remove/purge, apt-get remove/purge, dnf remove. Purging drops config too.
+  - name: pkg-pacman-remove
+    pattern: '\bpacman\b[^;&|\n]*?-R'
+    severity: medium
+    description: pacman -R removes packages
+    explanation: Row pacman -R*. -Rns also drops deps and config.
+  - name: pkg-snap-remove
+    pattern: '\bsnap\b[^;&|\n]*?\bremove\b'
+    severity: medium
+    description: snap remove uninstalls snaps
+    explanation: Row snap remove.
+  - name: topgrade-mass-upgrade
+    pattern: '(?:^|[;&|]\s*)topgrade\b'
+    severity: medium
+    description: topgrade upgrades everything at once
+    explanation: topgrade and topgrade *. A mass upgrade can silently move many toolchains.

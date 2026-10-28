@@ -1,0 +1,16 @@
+// dcg-robot: chezmoi-managed DCG hook (do not edit in-agent — nono denies
+// agent writes to this file). Routes every bash tool call through
+// `dcg hook --robot --batch` before execution. The mise-pinned dcg binary is
+// resolved at spawn time; a missing binary degrades permissively, a
+// dcg that runs but yields no verdict fails closed. Approval is
+// operator-side only: `dcg allow <rule>` / `dcg allow-once <code>` in your terminal.
+{{ (includeTemplate "base/ai/security/dcg-guard-core") | trim }}
+
+export default function dcgRobot(pi) {
+  pi.on("tool_call", async (event) => {
+    if (!event || event.toolName !== "bash") return;
+    const input = event.input || {};
+    const reason = dcgBlockReason(input.command, input.cwd);
+    if (reason) return { block: true, reason };
+  });
+}

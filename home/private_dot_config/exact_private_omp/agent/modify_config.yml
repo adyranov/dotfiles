@@ -1,0 +1,227 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* OMP config — managed routing, resilience, and core settings.
+  User-owned keys outside the managed sections are preserved.
+  Managed sections are overwritten on next apply. */ -}}
+{{- /*
+  render-omp-config — Shared modify-template body for OMP config.yml.
+
+  Input (dict):
+    root     — chezmoi data root
+    chezmoi  — the .chezmoi context (provides stdin for modify-template)
+
+  Parses existing OMP config YAML, renders managed modelRoles and fallback
+  chains from ai.tiers, then applies static memory, theme, and retry
+  settings. User-owned keys outside those managed sections are preserved
+  via mergeOverwrite.
+*/ -}}
+{{- $current := dict -}}
+{{- $rawStdin := get .chezmoi "stdin" | default "" | trim -}}
+{{- if and (not (empty $rawStdin)) (ne $rawStdin "null") -}}
+{{-   $current = fromYaml $rawStdin -}}
+{{-   if not (kindIs "map" $current) -}}{{- $current = dict -}}{{- end -}}
+{{- end -}}
+{{- /* Drop staged incidental blocks that mergeOverwrite would otherwise preserve. */ -}}
+{{- $deferredKeys := list "async" "bashInterceptor" "codexResets" "display" "features" "goal" "lsp" "model" "plan" "provider" "todo" "textVerbosity" -}}
+{{- range $key := $deferredKeys -}}
+{{-   if hasKey $current $key -}}{{- $_ := unset $current $key -}}{{- end -}}
+{{- end -}}
+{{- /* Replace managed maps wholesale so stale keys (e.g. the removed
+  `designer` role) and previous-preset fallback chains cannot survive
+  mergeOverwrite's deep merge. Unrelated top-level config is preserved. */ -}}
+{{- $_ := unset $current "modelRoles" -}}
+{{- /* Unset blocks and retry fields no longer managed so previously
+  applied configs migrate instead of retaining them. */ -}}
+{{- $_ := unset $current "advisor" -}}
+{{- $currentCompaction := get $current "compaction" | default dict -}}
+{{- if kindIs "map" $currentCompaction -}}
+{{-   $_ := unset $currentCompaction "strategy" -}}
+{{-   $_ := unset $currentCompaction "modelThresholds" -}}
+{{-   $_ := unset $currentCompaction "methodOrder" -}}
+{{- end -}}
+{{- $currentRetry := get $current "retry" | default dict -}}
+{{- if kindIs "map" $currentRetry -}}
+{{-   $_ := unset $currentRetry "fallbackChains" -}}
+{{-   $_ := unset $currentRetry "enabled" -}}
+{{-   $_ := unset $currentRetry "baseDelayMs" -}}
+{{-   $_ := unset $currentRetry "modelFallback" -}}
+{{-   $_ := unset $currentRetry "fallbackRevertPolicy" -}}
+{{-   $_ := unset $currentRetry "fallbackOn" -}}
+{{- end -}}
+{{- $currentComposer := get $current "composer" | default dict -}}
+{{- if kindIs "map" $currentComposer -}}
+{{-   $_ := unset $currentComposer "predictions" -}}
+{{- end -}}
+{{- /* bash is user-owned; only the managed gitGuard migrates, user keys
+  survive. */ -}}
+{{- $currentBash := get $current "bash" | default dict -}}
+{{- if kindIs "map" $currentBash -}}
+{{-   $_ := unset $currentBash "gitGuard" -}}
+{{- end -}}
+{{- $currentTask := get $current "task" | default dict -}}
+{{- if kindIs "map" $currentTask -}}
+{{-   $_ := unset $currentTask "agentModelOverrides" -}}
+{{- end -}}
+
+{{- /* ── Load tier data --- */ -}}
+{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson -}}
+{{- $settings := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.omp.settings" "required" true) | mustFromJson -}}
+{{- $subagentLimit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" .) | int -}}
+{{- $defaultTier := "big" -}}
+{{- $defaultRoute := get $tiers $defaultTier | default dict -}}
+
+{{- /* Validate orchestrator tier */ -}}
+{{- if or (not $defaultRoute) (not (kindIs "map" $defaultRoute)) -}}
+  {{- fail (printf "omp config: orchestrator tier %q missing or not a map" $defaultTier) -}}
+{{- end -}}
+{{- if not (and $defaultRoute.provider $defaultRoute.model) -}}
+  {{- fail (printf "omp config: orchestrator tier %q must have provider and model" $defaultTier) -}}
+{{- end -}}
+
+{{- /* ── Build model roles and fallback selectors from shared tier data.
+  Each primary and fallback model carries its own thinking variant. */ -}}
+{{- $fmtRef := printf "%s/%s:%s" $defaultRoute.provider $defaultRoute.model ($defaultRoute.thinking | default "high") -}}
+
+{{- $tierKeys := list "big" "oracle" "small" "medium" "visual" -}}
+{{- $tierConfigs := dict -}}
+{{- $tierFallbacks := dict -}}
+{{- range $key := $tierKeys -}}
+{{-   $tier := get $tiers $key | default dict -}}
+{{-   $ref := "" -}}
+{{-   $fallbackRefs := list -}}
+{{-   if $tier -}}
+{{-     if and $tier.provider $tier.model -}}
+{{-       $ref = printf "%s/%s:%s" $tier.provider $tier.model ($tier.thinking | default "high") -}}
+{{-     else if or $tier.provider $tier.model -}}
+{{-       fail (printf "omp config: tier %q is partially specified (need provider + model)" $key) -}}
+{{-     end -}}
+{{-     range $idx, $fallback := get $tier "fallbacks" | default list -}}
+{{-       if not (kindIs "map" $fallback) -}}
+{{-         fail (printf "omp config: tier %q fallback[%d] is not a map" $key $idx) -}}
+{{-       end -}}
+{{-       if not (and $fallback.provider $fallback.model) -}}
+{{-         fail (printf "omp config: tier %q fallback[%d] needs provider + model" $key $idx) -}}
+{{-       end -}}
+{{-       $fallbackRefs = append $fallbackRefs (printf "%s/%s:%s" $fallback.provider $fallback.model ($fallback.thinking | default "high")) -}}
+{{-     end -}}
+{{-   end -}}
+{{-   $_ := set $tierConfigs $key $ref -}}
+{{-   $_ := set $tierFallbacks $key $fallbackRefs -}}
+{{- end -}}
+
+{{- /* Emit every managed role key, including explicit empty [] chains, so a
+  Qwen request with no fallbacks never activates OMP's built-in fallback
+  priority. `designer` is omitted (removed in OMP 18.3.5). */ -}}
+{{- $fallbackChains := dict -}}
+{{- $_ := set $fallbackChains "default" $tierFallbacks.big -}}
+{{- $_ := set $fallbackChains "plan" $tierFallbacks.big -}}
+{{- $_ := set $fallbackChains "advisor" $tierFallbacks.oracle -}}
+{{- $_ := set $fallbackChains "oracle" $tierFallbacks.oracle -}}
+{{- $_ := set $fallbackChains "slow" $tierFallbacks.oracle -}}
+{{- $_ := set $fallbackChains "smol" $tierFallbacks.small -}}
+{{- $_ := set $fallbackChains "tiny" $tierFallbacks.small -}}
+{{- $_ := set $fallbackChains "commit" $tierFallbacks.medium -}}
+{{- $_ := set $fallbackChains "task" $tierFallbacks.medium -}}
+{{- $_ := set $fallbackChains "vision" $tierFallbacks.visual -}}
+
+{{- $managed := dict
+  "compaction" (dict
+    "thresholdPercent" ($settings.compaction_threshold_percent | int)
+  )
+  "memory" (dict
+    "backend" "off"
+  )
+  "modelRoles" (dict
+    "default" $fmtRef
+    "plan" ($tierConfigs.big | default $fmtRef)
+    "slow" ($tierConfigs.oracle | default ($tierConfigs.big | default $fmtRef))
+  )
+  "personality" $settings.personality
+  "provider" (dict
+    "appendOnlyContext" $settings.append_only_context
+  )
+  "providers" (dict
+    "cacheWarming" $settings.cache_warming
+  )
+  "retry" (dict
+    "fallbackChains" $fallbackChains
+    "maxDelayMs" 30000
+    "maxRetries" 3
+  )
+ "skills" (dict
+     "customDirectories" (list
+       (printf "%s/.config/agents/libraries/extensions/compound-engineering/skills" .chezmoi.homeDir)
+       (printf "%s/.config/agents/libraries/skills/ponytail" .chezmoi.homeDir))
+   )
+  "symbolPreset" $settings.symbol_preset
+  "task" (dict
+    "maxConcurrency" $subagentLimit
+    "completionProbe" $settings.completion_probe
+  )
+  "secrets" (dict
+    "enabled" $settings.secrets_redaction
+  )
+  "telemetry" (dict
+    "otlpExportEnabled" $settings.telemetry_otlp_export
+  )
+  "theme" (dict
+    "dark" $settings.theme_dark
+    "light" $settings.theme_light
+  )
+  "tools" (dict
+    "artifactSpillThreshold" ($settings.artifact_spill_threshold | int)
+  )
+-}}
+{{- /* composer is user-owned; predictions ships only once the knob opts in
+  (the key lands with the release that exposes it). */ -}}
+{{- if $settings.composer_predictions -}}
+{{-   $_ := set $managed "composer" (dict "predictions" (eq $settings.composer_predictions "on")) -}}
+{{- end -}}
+{{- /* Wave-2 conditional keys: emitted only when the knob opts in, so
+  defaults render today's behavior and A/B arms flip the knob. */ -}}
+{{- if $settings.compaction_model_thresholds -}}
+{{-   $_ := set $managed.compaction "modelThresholds" $settings.compaction_model_thresholds -}}
+{{- end -}}
+{{- if $settings.compaction_method_order -}}
+{{-   $_ := set $managed.compaction "methodOrder" $settings.compaction_method_order -}}
+{{- end -}}
+{{- if $settings.git_guard -}}
+{{-   $_ := set $managed "bash" (dict "gitGuard" (eq $settings.git_guard "on")) -}}
+{{- end -}}
+{{- if $settings.fallback_on -}}
+{{-   $_ := set $managed.retry "fallbackOn" $settings.fallback_on -}}
+{{- end -}}
+{{- $overrides := dict -}}
+{{- range $agent, $tierKey := ($settings.subagent_tiers | default dict) -}}
+{{-   $ref := get $tierConfigs $tierKey | default "" -}}
+{{-   if $ref -}}{{- $_ := set $overrides $agent $ref -}}{{- end -}}
+{{- end -}}
+{{- if $overrides -}}
+{{-   $_ := set $managed.task "agentModelOverrides" $overrides -}}
+{{- end -}}
+
+{{- /* Add optional roles */ -}}
+{{- if $tierConfigs.oracle -}}
+{{-   $_ := set $managed.modelRoles "advisor" $tierConfigs.oracle -}}
+{{-   $_ := set $managed.modelRoles "oracle" $tierConfigs.oracle -}}
+{{- end -}}
+{{- if $tierConfigs.small -}}
+{{-   $_ := set $managed.modelRoles "smol" $tierConfigs.small -}}
+{{-   $_ := set $managed.modelRoles "tiny" $tierConfigs.small -}}
+{{- end -}}
+{{- if $tierConfigs.medium -}}
+{{-   $_ := set $managed.modelRoles "task" $tierConfigs.medium -}}
+{{-   $_ := set $managed.modelRoles "commit" $tierConfigs.medium -}}
+{{- end -}}
+{{- if $tierConfigs.visual -}}
+{{-   $_ := set $managed.modelRoles "vision" $tierConfigs.visual -}}
+{{- end -}}
+{{- /* Post-adoption role keys (e.g. judge/title) mapped to tier refs from data. */ -}}
+{{- range $role, $tierKey := ($settings.extra_model_roles | default dict) -}}
+{{-   $ref := get $tierConfigs $tierKey | default "" -}}
+{{-   if $ref -}}{{- $_ := set $managed.modelRoles $role $ref -}}{{- end -}}
+{{- end -}}
+
+{{- /* Merge: managed overrides current config, user-owned keys preserved */ -}}
+{{- $final := mergeOverwrite $current $managed -}}
+
+{{- toYaml $final -}}

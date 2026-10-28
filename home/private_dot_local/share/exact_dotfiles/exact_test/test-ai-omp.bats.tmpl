@@ -7,10 +7,10 @@ load 'common-helper'
 setup() {
   common_setup
   AGENTS_MD="${HOME}/.config/agents/AGENTS.md"
-  OMP_DIR="$HOME/.config/omp"
-  MODELS_FILE="$OMP_DIR/models.yml"
+  OMP_DIR="$HOME/.config/omp/agent"
+  OMP_ROOT="$HOME/.config/omp"
   CONFIG_FILE="$OMP_DIR/config.yml"
-  GREYWALL_FILE="$HOME/.config/greywall/learned/omp.json"
+  NONO_FILE="$HOME/.config/nono/profiles/omp.json"
 }
 
 
@@ -18,11 +18,9 @@ setup() {
 
 {{- $creds := includeTemplate "base/ai/auth/render-credentials" . | mustFromJson }}
 {{- $ompCreds := includeTemplate "base/ai/auth/render-credentials" (dict "root" . "agent" "omp") | mustFromJson }}
-{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving" "required" false) | mustFromJson }}
-{{- $infer01 := index $serving "infer01" | default dict }}
-{{- $hasInfer01 := gt (len $infer01) 0 }}
 {{- $presets := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.presets" "required" false) | mustFromJson }}
 {{- $activePreset := index $presets "default" | default "balanced" }}
+{{- $subagentLimit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" .) | int }}
 
 # ── Helpers ──
 
@@ -32,35 +30,11 @@ assert_yq() { run yq -e "$1" "$2"; assert_success; }
 # assert_jq EXPR FILE — compact jq -e + assert_success for JSON artifacts
 assert_jq() { run jq -e "$1" "$2"; assert_success; }
 
-# setup_mock_bins DIR — create curl/nc/greyproxy stubs for dispatch tests
-setup_mock_bins() {
-  local d="$1"
-  cat > "$d/curl" <<'EOF'
-#!/usr/bin/env sh
-exit 0
-EOF
-  cat > "$d/nc" <<'EOF'
-#!/usr/bin/env sh
-exit 0
-EOF
-  cat > "$d/greyproxy" <<'EOF'
-#!/usr/bin/env sh
-echo "greyproxy 1.0.0"
-EOF
-  chmod +x "$d/curl" "$d/nc" "$d/greyproxy"
-}
-
 # make_test_home — isolated empty HOME for dispatch tests
 make_test_home() {
   local d
   d="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
   printf '%s\n' "$d"
-}
-
-# scratch_env — env args that route launcher scratch bootstrap into a Bats-owned
-# root instead of the live /tmp/agents tree (see AGENT_LAUNCH_TEST_MODE).
-scratch_env() {
-  printf 'AGENT_LAUNCH_TEST_MODE=1 AGENT_LAUNCH_TEST_SCRATCH_ROOT=%s' "$BATS_TEST_TMPDIR/agents"
 }
 
 # ── Package / Mise ──
@@ -84,14 +58,6 @@ scratch_env() {
 # ── Symlinks ──
 
 # bats test_tags=toolchain:omp,kind:symlink
-@test "omp-agent symlink resolves to agent-launch and is executable" {
-  run readlink -f "$HOME/.local/bin/omp-agent"
-  assert_success
-  assert_output "$HOME/.local/bin/agent-launch"
-  assert_file_executable "$HOME/.local/bin/omp-agent"
-}
-
-# bats test_tags=toolchain:omp,kind:symlink
 @test "omp AGENTS.md fans out to global AGENTS.md" {
   run readlink -f "$OMP_DIR/AGENTS.md"
   assert_success
@@ -102,71 +68,180 @@ scratch_env() {
 @test "omp legacy root symlink resolves to XDG root" {
   run readlink -f "$HOME/.omp"
   assert_success
-  assert_output "$OMP_DIR"
+  assert_output "$OMP_ROOT"
 }
 
 # ── Launcher boundaries ──
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent management flags show greywall and single config root" {
-  run "$HOME/.local/bin/omp-agent" --help
+@test "agent omp management flags show nono and single config root" {
+  run "$HOME/.local/bin/agent" omp --help
   assert_success
-  assert_output --partial "greywall"
+  assert_output --partial "nono"
   assert_output --partial ".config/omp"
-  run "$HOME/.local/bin/omp-agent" --help --no-greywall
+  run "$HOME/.local/bin/agent" omp --list
   assert_success
-  assert_output --partial "greywall"
-  run "$HOME/.local/bin/omp-agent" --list --no-greywall
-  assert_success
+  assert_output --partial "uses a single configuration root (no positional profiles)"
+  assert_output --partial "--profile <name>"
 }
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent rejects --no-greywall and positional profile names" {
-  run "$HOME/.local/bin/omp-agent" --no-greywall
-  assert_failure
-  assert_output --partial "rejected"
-  for prof in core default factory minimal; do
-    run "$HOME/.local/bin/omp-agent" "$prof"
+@test "agent omp rejects positional profile names, points at --profile" {
+  # Profile words owned by the selectable agents (pi/opencode); the
+  # single-root omp arm must reject each and point at the named-profile flag.
+  for prof in core factory minimal; do
+    run "$HOME/.local/bin/agent" omp "$prof"
     assert_failure
-    assert_output --partial "rejected"
+    assert_output --partial "--profile <name>"
   done
 }
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent --print-env scrubs injected vars and does not leak OMP_PROFILE" {
+@test "agent omp --profile exports OMP_PROFILE and forwards args untouched" {
+  local mockdir
+  local test_home
+  mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  test_home="$(make_test_home)"
+  setup_mock_bins "$mockdir"
+
+  cat >"$mockdir/omp" <<'SCRIPT'
+#!/usr/bin/env sh
+echo "OMP_PROFILE=[${OMP_PROFILE:-unset}]"
+echo "OMP_ARGS=$*"
+SCRIPT
+  chmod +x "$mockdir/nono" "$mockdir/omp"
+
+  run env $(scratch_env) PATH="$mockdir:$PATH" OMP_PROFILE=inherit-me \
+    XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
+    "$HOME/.local/bin/agent" omp --profile work -c session-p
+  assert_success
+  # The launcher exports the selected name (inherited value scrubbed first);
+  # omp relocates its own agent root; user args pass through untouched.
+  assert_output --partial "OMP_PROFILE=[work]"
+  assert_output --partial "OMP_ARGS=-c session-p"
+  refute_output --partial "OMP_PROFILE=[inherit-me]"
+  # Missing value is fatal.
+  run env $(scratch_env) PATH="$mockdir:$PATH" XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
+    "$HOME/.local/bin/agent" omp --profile
+  assert_failure
+}
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "agent omp --profile= equals form resolves pre-name; print-env stays free-form" {
+  local mockdir test_home
+  mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  test_home="$(make_test_home)"
+  setup_mock_bins "$mockdir"
+  cat >"$mockdir/omp" <<'SCRIPT'
+#!/usr/bin/env sh
+echo "OMP_PROFILE=[${OMP_PROFILE:-unset}]"
+echo "OMP_ARGS=$*"
+SCRIPT
+  chmod +x "$mockdir/nono" "$mockdir/omp"
+
+  # Pre-name equals form feeds the same omp_profile variable as the space form.
+  run env $(scratch_env) PATH="$mockdir:$PATH" \
+    XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
+    "$HOME/.local/bin/agent" --profile=work omp -c session-p
+  assert_success
+  assert_output --partial "OMP_PROFILE=[work]"
+  assert_output --partial "OMP_ARGS=-c session-p"
+
+  # print-env accepts free-form flag names (no validation die, no root export).
+  run env HOME=/fixture-home XDG_CONFIG_HOME=/fixture-home/.config \
+    "$HOME/.local/bin/agent" omp --print-env --profile work
+  assert_success
+  assert_output --partial 'OMP_PROFILE="work"'
+  assert_output --partial 'PI_CONFIG_DIR=".config/omp"'
+}
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "agent omp --no-sandbox runs omp directly without the nono sandbox" {
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  setup_mock_bins "$BATS_TEST_TMPDIR/bin" echo:omp
+  cat >"$BATS_TEST_TMPDIR/bin/nono" <<'EOF'
+#!/usr/bin/env sh
+echo "NONO_CALLED=unexpected"
+exit 1
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/omp" "$BATS_TEST_TMPDIR/bin/nono"
+
+  run env -u AGENT_SANDBOX PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/agent" omp --no-sandbox -c session-123
+  assert_success
+  assert_output --partial "-c"
+  assert_output --partial "session-123"
+  # Machine-read stderr contract: parent agents grep the bypass status line.
+  assert_output --partial "DCG guards: bypassed"
+  refute_output --partial "NONO_CALLED=unexpected"
+}
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "agent omp --print-env default exports the omp roots" {
+  launcher_probe omp --print-env default
+  assert_output --partial 'PI_CONFIG_DIR=".config/omp"'
+  assert_output --partial 'XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"'
+  assert_output --partial 'ENGRAM_URL="http://127.0.0.1:43123"'
+}
+
+# bats test_tags=toolchain:omp,kind:launcher
+@test "agent omp --print-env scrubs injected vars and does not leak OMP_PROFILE" {
   run env PI_CODING_AGENT_DIR=/evil PI_CODING_AGENT_SESSION_DIR=/evil PI_PROFILE=evil \
     PI_ARBITRARY=should-scrub \
     OPENCODE_CONFIG=/evil OPENCODE_PORT=/evil \
     OMP_PROFILE=should-not-appear \
-    "$HOME/.local/bin/omp-agent" --print-env
+    "$HOME/.local/bin/agent" omp --print-env
   assert_success
   assert_output --partial "for __v in"
-  assert_output --partial "unset OMP_PROFILE"
-  assert_output --partial "PI_CODING_AGENT_DIR="
+  assert_output --partial '$1 ~ /^(OMP_PROFILE)$/'
+  # XDG-relocated roots (omp dirs.ts): PI_CONFIG_DIR is the home-relative
+  # config-root name; PI_CODING_AGENT_DIR disables that scheme and is never
+  # exported.
+  assert_output --partial 'PI_CONFIG_DIR=".config/omp"'
+  assert_output --partial 'XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"'
+  assert_output --partial 'XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"'
+  assert_output --partial 'XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"'
   refute_output --partial "OMP_PROFILE="
+  refute_output --partial "PI_CODING_AGENT_DIR="
 }
 
 # ── Config YAML ──
 
 # bats test_tags=toolchain:omp,kind:config
 @test "omp config.yml has managed routing, resilience, and core settings" {
-  assert_yq 'has("modelRoles") and has("retry") and has("memory") and (has("advisor") | not) and (has("compaction") | not) and .memory.backend == "local" and .theme.dark == "dark-catppuccin" and .theme.light == "light-catppuccin" and .symbolPreset == "nerd" and (has("mcp") | not) and (has("task") | not)' "$OMP_DIR/config.yml"
-  # Skills are loaded from the managed compound-engineering library.
-  assert_yq '.skills.customDirectories | length == 1' "$OMP_DIR/config.yml"
+  assert_yq 'has("modelRoles") and has("retry") and has("memory") and (has("advisor") | not) and .memory.backend == "off" and .theme.dark == "dark-catppuccin" and .theme.light == "light-catppuccin" and .symbolPreset == "nerd" and (has("mcp") | not) and .task.maxConcurrency == {{ $subagentLimit }} and .task.completionProbe == true and .personality == "none" and .provider.appendOnlyContext == "on" and .providers.cacheWarming == "idle" and .secrets.enabled == true and .bash.gitGuard == true and (.compaction.methodOrder | join(",")) == "remote,snapcompact,handoff,shake,soft" and .tools.artifactSpillThreshold == 50 and .compaction.thresholdPercent == 92 and .telemetry.otlpExportEnabled == false' "$OMP_DIR/config.yml"
+  # Skills are loaded from the managed compound-engineering and ponytail libraries.
+  assert_yq '.skills.customDirectories | length == 2' "$OMP_DIR/config.yml"
   assert_yq ".skills.customDirectories[0] == \"${HOME}/.config/agents/libraries/extensions/compound-engineering/skills\"" "$OMP_DIR/config.yml"
+  assert_yq ".skills.customDirectories[1] == \"${HOME}/.config/agents/libraries/skills/ponytail\"" "$OMP_DIR/config.yml"
   # retry carries only non-default values plus the explicit empty fallback
   # chains that disable OMP's built-in fallback priority.
   assert_yq '.retry.maxRetries == 3 and .retry.maxDelayMs == 30000 and (.retry | has("enabled") | not) and (.retry | has("baseDelayMs") | not) and (.retry | has("modelFallback") | not) and (.retry | has("fallbackRevertPolicy") | not)' "$OMP_DIR/config.yml"
   assert_yq '(.retry.fallbackChains | keys | length == 10)' "$OMP_DIR/config.yml"
+  # Gated keys are unmanaged at default knobs: never present, even alongside
+  # user-owned sections (migration unsets run unconditionally). Null-idiom
+  # (`X.key == null`), not `X | has("key") | not`: yq emits an EMPTY stream
+  # when X is missing, and `and` over an empty operand fails ("no matches
+  # found") — the renderer prunes emptied maps, so .composer is absent.
+  assert_yq '.composer.predictions == null and .retry.fallbackOn == null and .compaction.modelThresholds == null' "$OMP_DIR/config.yml"
+  # Specialist subagent model pins render from tier data. The `and` rides
+  # INSIDE the pipe parens: yq v4 fails (`no matches found`) when `and` sits
+  # outside a piped context (`X | a and b`), even when both sides are true.
+  assert_yq '.task.agentModelOverrides | ((keys | length) == 4 and (has("explorer") and has("librarian") and has("oracle") and has("fixer")))' "$OMP_DIR/config.yml"
+  assert_yq '.task.agentModelOverrides.explorer == .modelRoles.smol and .task.agentModelOverrides.fixer == .modelRoles.task' "$OMP_DIR/config.yml"
 }
+
+{{- if eq $activePreset "qwen" }}
+# bats test_tags=toolchain:omp,kind:config
+@test "omp Qwen preset resolves the subagent limit to 4" {
+  assert_yq '.task.maxConcurrency == 4' "$CONFIG_FILE"
+}
+{{- end }}
 
 # bats test_tags=toolchain:omp,kind:config
 @test "omp config.yml has no advisor block and defers incidental blocks" {
   assert_yq '(has("advisor") | not)' "$OMP_DIR/config.yml"
-  for block in async bashInterceptor codexResets display features goal lsp model plan provider providers todo tools textVerbosity; do
-    run yq -e "has(\"${block}\") | not" "$OMP_DIR/config.yml"
-    assert_success "deferred block present: $block"
-  done
+  run yq -e '([keys[] | select(. == "async" or . == "bashInterceptor" or . == "codexResets" or . == "display" or . == "goal" or . == "lsp" or . == "model" or . == "plan" or . == "todo" or . == "textVerbosity" or . == "features")] | length) == 0' "$OMP_DIR/config.yml"
+  assert_success "a deferred block is present"
 }
 
 # ── Model roles ──
@@ -201,52 +276,23 @@ scratch_env() {
 {{- end }}
 }
 
-{{- if hasKey $presets "qwen" }}
-{{- $qwenTiers := index (index $presets "qwen") "tiers" }}
-
-# bats test_tags=toolchain:omp,kind:model,tier:routing
-@test "omp qwen preset routes every tier to local infer01 with no fallbacks or council" {
-  run jq -e -n \
-    --argjson qtiers '{{ $qwenTiers | toJson }}' \
-    --argjson qpreset '{{ index $presets "qwen" | toJson }}' '
-    ([$qtiers[] | has("fallbacks") | not] | all) and
-    ($qtiers.oracle.provider == "infer01" and $qtiers.oracle.model == "qwen3.8-27b" and $qtiers.oracle.thinking == "max") and
-    ($qpreset | has("council") | not)
-  '
-  assert_success
-{{- if eq $activePreset "qwen" }}
-  # Active-preset render: every tier routes local, oracle/slow are :max, and
-  # fallback chains are fully empty.
-  assert_yq '.modelRoles.oracle == "infer01/qwen3.8-27b:max" and .modelRoles.slow == "infer01/qwen3.8-27b:max" and (.modelRoles | to_entries | map(.value | test("^infer01/qwen3.8-27b")) | all) and (.retry.fallbackChains | to_entries | map(.value | length == 0) | all)' "$CONFIG_FILE"
-{{- end }}
-}
-{{- end }}
-
-# ── Custom model registry ──
-
-# bats test_tags=toolchain:omp,kind:model
-@test "omp models.yml registers only infer01 keylessly with nested models" {
-  assert_file_exists "$MODELS_FILE"
-  # The local loopback engine is intentionally not registered for OMP.
-  assert_yq '(.providers | has("local") | not)' "$MODELS_FILE"
-{{- if $hasInfer01 }}
-  # A missing `enabled` key defaults to true, so the keyless provider registers.
-  assert_yq '(.providers | has("infer01")) and (.providers | length == 1)' "$MODELS_FILE"
-  assert_yq '.providers.infer01.api == "openai-completions" and .providers.infer01.auth == "none"' "$MODELS_FILE"
-  assert_yq '.providers.infer01.baseUrl == "http://infer01:8080/v1"' "$MODELS_FILE"
-  assert_yq '(.providers.infer01.models | map(select(.id == "qwen3.8-27b"))[0] as $m | (($m.contextWindow == 262144) and ($m.reasoning == true) and (($m.input | join("|")) == "text|image") and (($m | has("maxTokens")) | not)))' "$MODELS_FILE"
-{{- end }}
-}
-
 # bats test_tags=toolchain:omp,kind:model
 @test "omp config modify replaces managed role and fallback maps" {
   local tmpl
-  tmpl="$(chezmoi source-path "$HOME/.config/omp/config.yml")"
+  tmpl="$(chezmoi source-path "$HOME/.config/omp/agent/config.yml")"
   assert_file_exists "$tmpl"
   run chezmoi execute-template -f "$tmpl" --with-stdin 2>/dev/null <<'YAML'
 advisor:
   model: stale/advisor:high
+bash:
+  gitGuard: false
+  userFlag: keep-me
+composer:
+  predictions: false
 compaction:
+  methodOrder: ["stale"]
+  modelThresholds:
+    stale/model: f1
   strategy: auto
 modelRoles:
   designer: stale/model:high
@@ -255,11 +301,21 @@ retry:
   baseDelayMs: 500
   enabled: false
   fallbackRevertPolicy: revert
+  fallbackOn: ["stale"]
   modelFallback: stale/model:high
   userField: keep-me
   fallbackChains:
     designer: ["stale/model:high"]
     task: ["stale/model:high"]
+providers:
+  userProviderKey: keep-me
+tools:
+  artifactSpillThreshold: 99
+  userOwned: keep-me
+task:
+  agentModelOverrides:
+    stale: stale/model:high
+  userKey: keep-me
 YAML
   assert_success
   local rendered="$output"
@@ -267,67 +323,82 @@ YAML
   assert_success
   # Previously applied retired blocks and retry fields migrate out; user-owned
   # fields survive.
-  run yq -e '(has("advisor") | not) and (has("compaction") | not) and (.retry.fallbackChains | has("designer") | not) and (.retry.fallbackChains | has("vision")) and (.retry.userField == "keep-me") and (.retry | has("enabled") | not) and (.retry | has("baseDelayMs") | not) and (.retry | has("modelFallback") | not) and (.retry | has("fallbackRevertPolicy") | not)' <<< "$rendered"
+  # Previously applied retired blocks and retry fields migrate out.
+  run yq -e '(has("advisor") | not) and (.compaction | has("strategy") | not) and (.compaction | has("modelThresholds") | not) and (.retry | has("enabled") | not) and (.retry | has("baseDelayMs") | not) and (.retry | has("modelFallback") | not) and (.retry | has("fallbackRevertPolicy") | not) and (.retry | has("fallbackOn") | not) and (.task.agentModelOverrides | has("stale") | not)' <<< "$rendered"
+  assert_success
+  # Managed values win; user-owned fields survive.
+  run yq -e '.compaction.thresholdPercent == 92 and (.compaction.methodOrder | join(",")) == "remote,snapcompact,handoff,shake,soft" and .providers.cacheWarming == "idle" and .providers.userProviderKey == "keep-me" and .secrets.enabled == true and .bash.gitGuard == true and (.retry.fallbackChains | has("designer") | not) and (.retry.fallbackChains | has("vision")) and (.retry.userField == "keep-me") and .bash.userFlag == "keep-me" and (.task.agentModelOverrides | keys | length == 4) and .task.userKey == "keep-me" and .tools.artifactSpillThreshold == 50 and .tools.userOwned == "keep-me" and .task.maxConcurrency == {{ $subagentLimit }} and .task.completionProbe == true and .composer.predictions == null and .personality == "none" and .provider.appendOnlyContext == "on"' <<< "$rendered"
   assert_success
 }
 
-# ── Greywall learned profile ──
-
-# bats test_tags=toolchain:omp,kind:greywall
-@test "omp greywall profile exists with valid schema" {
-  assert_file_exists "$GREYWALL_FILE"
-  assert_jq '.schemaVersion == 1' "$GREYWALL_FILE"
-}
-
-# bats test_tags=toolchain:omp,kind:greywall
-@test "omp greywall enforces allow-read and deny-write for OMP paths" {
-  assert_file_exists "$GREYWALL_FILE"
-  assert_jq '.filesystem.allowRead | index("~/.config/omp/**") != null' "$GREYWALL_FILE"
-  assert_jq '.filesystem.allowRead | index("~/.local/share/omp/**") != null' "$GREYWALL_FILE"
-  assert_jq '.filesystem.allowRead | index("/tmp/agents/omp/**") != null' "$GREYWALL_FILE"
-  assert_jq '.filesystem.allowWrite | index("~/.local/share/omp/**") != null' "$GREYWALL_FILE"
-  assert_jq '.filesystem.allowWrite | index("/tmp/agents/omp/**") != null' "$GREYWALL_FILE"
-  assert_jq '(.filesystem.allowRead | index("~/.config/pi/**") | not)' "$GREYWALL_FILE"
-  assert_jq '(.filesystem.allowRead | index("~/.config/opencode/**") | not)' "$GREYWALL_FILE"
-  # OMP root is not deny-written (allow-writable, modify-managed)
-  assert_jq '.filesystem.denyWrite | index("~/.config/omp/**") == null' "$GREYWALL_FILE"
-  # config.yml is allow-writable (modify-managed)
-  assert_jq '(.filesystem.allowWrite | index("~/.config/omp/config.yml") != null) or (.filesystem.allowWrite | index("~/.config/omp/**") != null)' "$GREYWALL_FILE"
-  assert_jq '.filesystem.denyWrite | index("~/.config/omp/config.yml") | not' "$GREYWALL_FILE"
-  # The retired security overlay is no longer deny-written.
-  assert_jq '.filesystem.denyWrite | index("~/.config/omp/security.yml") | not' "$GREYWALL_FILE"
-}
-
-# bats test_tags=toolchain:omp,kind:greywall
-@test "omp greywall credentials and network include secrets, sockets, and ports" {
-  assert_file_exists "$GREYWALL_FILE"
-  assert_jq '.credentials.inject == []' "$GREYWALL_FILE"
-  assert_jq '.credentials.secrets | length > 0' "$GREYWALL_FILE"
-  assert_jq '.network.allowUnixSockets | index("~/.local/share/tmux") != null' "$GREYWALL_FILE"
-  # OMP's tiny worker listens on unix sockets under ~/.config/omp/run
-  # (the runtime dir; the ~/.omp symlink canonicalizes to it, so one
-  # spelling covers both). The daemon broker listens under the scratch
-  # root /tmp/agents/omp (greywall-<pid>/omp-daemon-smoke-*/run/broker.sock).
-  # Both entries must be literal dirs: greywall emits them as seatbelt
-  # subpath entries with no glob support, so a trailing /** is a dead rule
-  # and omp --smoke-test fails (tiny worker: "no tagged pong"; broker:
-  # "Failed to start daemon broker ... connect ENOENT").
-  assert_jq '.network.allowUnixSockets | index("~/.config/omp/run") != null' "$GREYWALL_FILE"
-  assert_jq '.network.allowUnixSockets | index("/tmp/agents/omp") != null' "$GREYWALL_FILE"
-  assert_jq '(.network.forwardPorts // []) | index(7437) != null' "$GREYWALL_FILE"
-}
-
-# bats test_tags=toolchain:omp,kind:greywall
-@test "omp greywall learned profile inherits allowGitConfig from base" {
-  local BASE_GREYWALL="$HOME/.config/greywall/greywall.json"
-  assert_file_exists "$GREYWALL_FILE"
-  assert_file_exists "$BASE_GREYWALL"
-  # Confirms learned profile does not override allowGitConfig (inherits from base)
-  run jq -e '(.filesystem | has("allowGitConfig") | not)' "$GREYWALL_FILE"
+# bats test_tags=toolchain:omp,kind:config
+@test "omp SYSTEM.md is the tailored prompt at the config root" {
+  local sys="${OMP_DIR}/SYSTEM.md"
+  assert_file_exists "$sys"
+  run grep -q "OMP coding agent" "$sys"
   assert_success
-  # Confirms base config has the flag enabled
-  run jq -e '.filesystem.allowGitConfig == true' "$BASE_GREYWALL"
+  # The tool path must point at the per-agent scratch root, not bare /tmp.
+  run grep -q "/tmp/agents/omp" "$sys"
   assert_success
+  # Wave-2 prompt gates: structured reads via ?q= and the no-check-no-claim rule.
+  run grep -qF 'q=<jq-filter>' "$sys"
+  assert_success
+  run grep -q "No check, no claim" "$sys"
+  assert_success
+}
+# bats test_tags=toolchain:omp,kind:config
+@test "omp specialist subagent definitions exist with frontmatter" {
+  local f
+  for f in explorer librarian oracle fixer; do
+    assert_file_exists "${OMP_DIR}/agents/${f}.md"
+    run grep -q "^name: ${f}$" "${OMP_DIR}/agents/${f}.md"
+    assert_success
+    run grep -q "^description: " "${OMP_DIR}/agents/${f}.md"
+    assert_success
+  done
+}
+
+# ── Nono profile ──
+
+# bats test_tags=toolchain:omp,kind:nono
+@test "omp nono profile exists and validates" {
+  assert_file_exists "$NONO_FILE"
+  run nono profile validate "$NONO_FILE"
+  assert_success
+}
+
+# bats test_tags=toolchain:omp,kind:nono
+@test "omp nono profile grants OMP paths and denies other agents' config" {
+  assert_file_exists "$NONO_FILE"
+  assert_jq '.extends == "base"' "$NONO_FILE"
+  assert_jq '.filesystem.allow | index("~/.local/share/omp") != null' "$NONO_FILE"
+  assert_jq '.filesystem.allow | index("/tmp/agents/omp") != null' "$NONO_FILE"
+  # XDG state/data/cache roots carry the writes (agent.db + WAL sidecars live
+  # under ~/.local/share/omp); the config write grant is the agent root, never
+  # the bare config root.
+  assert_jq '.filesystem.allow | index("~/.local/state/omp") != null' "$NONO_FILE"
+  assert_jq '.filesystem.allow | index("~/.cache/omp") != null' "$NONO_FILE"
+  assert_jq '.filesystem.allow | index("~/.config/omp/agent") != null' "$NONO_FILE"
+  assert_jq '.filesystem.allow | index("~/.config/omp") == null' "$NONO_FILE"
+  assert_jq '.filesystem.allow | index("~/.config/omp/agent.db") == null' "$NONO_FILE"
+  assert_jq '.filesystem.unix_socket_subtree | index("~/.local/state/omp/run") != null' "$NONO_FILE"
+  assert_jq '.filesystem.unix_socket_subtree | index("~/.config/omp/run") == null' "$NONO_FILE"
+  assert_jq '(.filesystem.deny | index("~/.config/omp/security.yml") == null)' "$NONO_FILE"
+  # Other agent config trees are not granted
+  assert_jq '(.filesystem.read | index("~/.config/pi/**") == null)' "$NONO_FILE"
+  assert_jq '(.filesystem.read | index("~/.config/opencode/**") == null)' "$NONO_FILE"
+}
+
+# bats test_tags=toolchain:omp,kind:nono
+@test "omp nono profile denies ambient secrets and allows managed hosts" {
+  assert_file_exists "$NONO_FILE"
+  assert_jq '.environment.deny_vars | (index("GITHUB_TOKEN") != null and index("GH_TOKEN") != null)' "$NONO_FILE"
+  # provider hosts live once in base (extends appends them at runtime);
+  # the overlay carries only its managed additions
+  assert_jq '.network.allow_domain | index("infer01") != null' "$NONO_FILE"
+  local base="$HOME/.config/nono/profiles/base.json"
+  assert_jq '.network.allow_domain | index("*.openai.com") != null' "$base"
+  assert_jq '.network.allow_domain | index("opencode.ai") != null' "$base"
 }
 
 # ── Credentials renderer ──
@@ -346,44 +417,41 @@ YAML
   assert_success
 }
 
-# ── Isolation / Auth ──
-
-# bats test_tags=toolchain:omp,kind:isolation
-@test "omp config root does not overlap Pi/OpenCode and does not manage auth files" {
-  assert [ "$OMP_DIR" != "$HOME/.config/pi" ]
-  assert [ "$OMP_DIR" != "$HOME/.config/opencode" ]
-  assert [ ! -f "$OMP_DIR/keys.yaml" ]
-  assert [ ! -f "$OMP_DIR/auth.json" ]
-}
-
 # ── Agent launcher script ──
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent agent-launch script dispatches via greywall --profile omp" {
-  run grep -F 'greywall --profile "$GREYWALL_PROFILE"' "$HOME/.local/bin/agent-launch"
+@test "agent omp dispatches via nono --profile omp" {
+  run grep -F 'nono run --profile "$NONO_PROFILE"' "$HOME/.local/bin/agent"
   assert_success
-  run grep -F 'AGENT_NAME="omp"' "$HOME/.local/bin/agent-launch"
+  run grep -F 'AGENT_NAME=omp' "$HOME/.local/bin/agent"
   assert_success
-  run grep -F 'BINARY_NAME="omp"' "$HOME/.local/bin/agent-launch"
+  run grep -F 'BINARY_NAME=omp' "$HOME/.local/bin/agent"
+  assert_success
+}
+
+# bats test_tags=toolchain:omp,kind:package
+# The permissions suite owns hook existence; this keeps the fail-closed env pin.
+@test "omp dcg-guard extension pins fail-closed DCG verdicts" {
+  run grep -F 'DCG_FAIL_CLOSED: "1"' "$OMP_DIR/extensions/dcg-guard.ts"
   assert_success
 }
 
 # ── Full dispatch ──
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent full dispatch: greywall --profile omp passes user args through unmodified" {
+@test "agent omp full dispatch: nono --profile omp passes user args through unmodified" {
   local mockdir
   local test_home
   mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
   test_home="$(make_test_home)"
   setup_mock_bins "$mockdir"
 
-  cat >"$mockdir/greywall" <<'SCRIPT'
+  cat >"$mockdir/nono" <<'SCRIPT'
 #!/usr/bin/env sh
-echo "GREYWALL_CALLED=true"
-echo "GREYWALL_PROFILE=$2"
-echo "GREYWALL_TMPDIR=${TMPDIR:-unset}"
-shift 3
+echo "NONO_CALLED=true"
+echo "NONO_PROFILE=$3"
+echo "NONO_TMPDIR=${TMPDIR:-unset}"
+shift 4
 [ "${1:-}" = "--" ] && shift
 echo "OMP_PATH=$1"
 shift
@@ -391,51 +459,51 @@ echo "OMP_ARGS=$*"
 exit 0
 SCRIPT
 
-  chmod +x "$mockdir/greywall"
+  chmod +x "$mockdir/nono"
 
   run env $(scratch_env) PATH="$mockdir:$PATH" XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
-    "$HOME/.local/bin/omp-agent" -c session-abc
+    "$HOME/.local/bin/agent" omp -c session-abc
   assert_success
-  assert_output --partial "GREYWALL_CALLED=true"
-  assert_output --partial "GREYWALL_PROFILE=omp"
-  assert_output --partial "GREYWALL_TMPDIR=$BATS_TEST_TMPDIR/agents/omp"
+  assert_output --partial "NONO_CALLED=true"
+  assert_output --partial "NONO_PROFILE=omp"
+  assert_output --partial "NONO_TMPDIR=$BATS_TEST_TMPDIR/agents/omp"
   assert_output --partial "OMP_ARGS=-c session-abc"
   refute_output --partial "--no-extensions"
   refute_output --partial "--config"
 }
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent full dispatch: env isolation scrubs injected PI_* and OPENCODE_*" {
+@test "agent omp full dispatch: env isolation scrubs injected PI_* and OPENCODE_*" {
   local mockdir
   local test_home
   mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
   test_home="$(make_test_home)"
+  # Default setup_mock_bins ships the nono passthrough this test needs.
   setup_mock_bins "$mockdir"
-
-  cat >"$mockdir/greywall" <<'SCRIPT'
-#!/usr/bin/env sh
-shift 2
-[ "${1:-}" = "--" ] && shift
-exec "$@"
-SCRIPT
 
   cat >"$mockdir/omp" <<'SCRIPT'
 #!/usr/bin/env sh
 echo "PI_ARBITRARY=[${PI_ARBITRARY:-unset}]"
 echo "OPENCODE_CONFIG=[${OPENCODE_CONFIG:-unset}]"
 echo "OPENCODE_PORT=[${OPENCODE_PORT:-unset}]"
+echo "PI_CODING_AGENT_DIR=[${PI_CODING_AGENT_DIR:-unset}]"
+echo "PI_CONFIG_DIR=[${PI_CONFIG_DIR:-unset}]"
 SCRIPT
-  chmod +x "$mockdir/greywall" "$mockdir/omp"
+  chmod +x "$mockdir/nono" "$mockdir/omp"
 
   run env $(scratch_env) PATH="$mockdir:$PATH" PI_CODING_AGENT_DIR=/leak PI_ARBITRARY=bad \
     OPENCODE_CONFIG=/leak OPENCODE_PORT=9999 \
     XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
-    "$HOME/.local/bin/omp-agent" -c session-abc
+    "$HOME/.local/bin/agent" omp -c session-abc
   assert_success
   assert_output --partial "PI_ARBITRARY=[unset]"
   assert_output --partial "OPENCODE_CONFIG=[unset]"
   assert_output --partial "OPENCODE_PORT=[unset]"
   refute_output --partial "PI_CODING_AGENT_DIR=/leak"
+  # The scrub loop removes PI_CODING_AGENT_DIR and it is never re-exported;
+  # only the home-relative PI_CONFIG_DIR reaches the runtime (dirs.ts scheme).
+  assert_output --partial "PI_CODING_AGENT_DIR=[unset]"
+  assert_output --partial "PI_CONFIG_DIR=[.config/omp]"
 }
 
 # ── Managed user-level MCP (codegraph) ──
@@ -451,44 +519,42 @@ SCRIPT
              (.mcpServers.codegraph.args | index("index")) == null and
              (.mcpServers.codegraph.args | index("sync")) == null and
              (.mcpServers.codegraph.args | length) == 2' "$OMP_DIR/.mcp.json"
+  # Engram is OMP's primary memory; instructions trimmed.
+  assert_jq '.mcpServers.engram.command == "engram" and
+             .mcpServers.engram.args == ["mcp", "--tools=agent"] and
+             .mcpServers.engram.instructions == false' "$OMP_DIR/.mcp.json"
 }
 
 # ── Isolated scratch bootstrap ──
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "omp-agent bootstraps an isolated exact-0700 scratch root and scopes TMPDIR" {
+@test "agent omp bootstraps an isolated exact-0700 scratch root and scopes TMPDIR" {
   local mockdir
   local test_home
   local scratch_root="$BATS_TEST_TMPDIR/agents"
-  local mode
   mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
   test_home="$(make_test_home)"
   setup_mock_bins "$mockdir"
 
-  cat >"$mockdir/greywall" <<'SCRIPT'
+  cat >"$mockdir/nono" <<'SCRIPT'
 #!/usr/bin/env sh
-echo "GREYWALL_TMPDIR=${TMPDIR:-unset}"
+echo "NONO_TMPDIR=${TMPDIR:-unset}"
 exit 0
 SCRIPT
 
-  chmod +x "$mockdir/greywall"
+  chmod +x "$mockdir/nono"
 
   run env $(scratch_env) PATH="$mockdir:$PATH" XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
-    "$HOME/.local/bin/omp-agent" -c session-abc
+    "$HOME/.local/bin/agent" omp -c session-abc
   assert_success
-  assert_output --partial "GREYWALL_TMPDIR=$scratch_root/omp"
+  assert_output --partial "NONO_TMPDIR=$scratch_root/omp"
   # The live /tmp/agents/omp scratch dir must not be touched.
   refute_output --partial "/tmp/agents/omp"
 
-  # Root and per-agent child are both created with exact 0700. GNU stat
-  # shadows BSD stat on some hosts, so validate then fall back (as the launcher
-  # itself does).
-  mode="$(stat -f %Lp "$scratch_root" 2>/dev/null || true)"
-  case "$mode" in ''|*[!0-9]*) mode="$(stat -c %a "$scratch_root" 2>/dev/null || true)" ;; esac
-  assert_equal "$mode" "700"
-  mode="$(stat -f %Lp "$scratch_root/omp" 2>/dev/null || true)"
-  case "$mode" in ''|*[!0-9]*) mode="$(stat -c %a "$scratch_root/omp" 2>/dev/null || true)" ;; esac
-  assert_equal "$mode" "700"
+  # Root and per-agent child are both created with exact 0700.
+  assert_scratch_mode_0700 "$scratch_root"
+  assert_scratch_mode_0700 "$scratch_root/omp"
 }
+
 
 {{- end }}

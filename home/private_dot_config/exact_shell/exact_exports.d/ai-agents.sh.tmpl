@@ -7,6 +7,21 @@ export ENGRAM_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/engram"
 export ENGRAM_PORT="${ENGRAM_PORT:-7437}"
 export ENGRAM_URL="http://127.0.0.1:${ENGRAM_PORT}"
 export CODEGRAPH_TELEMETRY="${CODEGRAPH_TELEMETRY:-0}"
+# pi-fff opens its LMDB envs under $PI_CODING_AGENT_DIR/fff/* by default, and
+# the profile config dir is sandbox-write-denied; redirect the dbs to
+# ~/.cache/pi (granted r+w by the agent sandboxes; fff creates the leaf dirs).
+export FFF_FRECENCY_DB="$HOME/.cache/pi/fff/frecency"
+export FFF_HISTORY_DB="$HOME/.cache/pi/fff/history"
+export RTK_TELEMETRY_DISABLED=1
+# Telemetry opt-outs: DO_NOT_TRACK (huggingface_hub),
+# SKYPILOT_DISABLE_USAGE_COLLECTION (skypilot), OTEL_SDK_DISABLED (OMP OTel
+# initialization). nono/DCG/opencode/pi ship no analytics client; mise 2026.x
+# has no telemetry at all.
+export DO_NOT_TRACK=1
+export SKYPILOT_DISABLE_USAGE_COLLECTION=1
+export OTEL_SDK_DISABLED=true
+export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
+export OPENCODE_ENABLE_EXA=1
 
 export HF_HOME="$XDG_DATA_HOME/huggingface"
 export HF_HUB_CACHE="$HF_HOME/hub"

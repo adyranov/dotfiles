@@ -1,10 +1,15 @@
+# Slim agent -> tier class (resolved per preset by the factory slim plugin
+# config; the suites read the same key so renderer and tests cannot drift).
+[ai.base.agents.opencode.agent_tiers]
+designer = "visual"
+explorer = "small"
+fixer = "medium"
+librarian = "small"
+oracle = "oracle"
+orchestrator = "big"
+
 [ai.base.agents.opencode.instructions]
 files = ["AGENTS.md", "OPENCODE.md"]
-
-[ai.base.agents.opencode.permissions.agent]
-allow = []
-ask = []
-deny = ["~/.local/share/opencode/auth.json"]
 
 [ai.base.agents.opencode.profiles.core]
 extends = "minimal"
@@ -32,50 +37,51 @@ skills_paths = [
 ]
 
 [ai.base.agents.opencode.profiles.minimal]
-plugins = ["@slkiser/opencode-quota"]
+plugins = ["./plugins/dcg-guard.js"]
 
-[ai.base.agents.opencode.sandbox.network]
-allow = [{ host = "infer01", port = 8080 }]
+[ai.base.agents.opencode.sandbox]
+# opencode's Bun runtime reads global CFPreferences at boot; preference reads
+# are platform operations, so the grant is a raw Seatbelt rule.
+unsafe_macos_seatbelt_rules = ["(allow user-preference-read)"]
 
-[ai.base.agents.opencode.sandbox.paths]
-allow_read = [
-  "~/.config/opencode/**",
+[ai.base.agents.opencode.sandbox.filesystem]
+# No keychain grant: reading login.keychain-db in-sandbox is a credential-read
+# path. Bun's TLS verification loses its trust source — probe cert errors on the
+# first applied run.
+# opencode's own auth store (ChatGPT/OIDC tokens) must be readable by the
+# sandboxed opencode runtime — Seatbelt has no parent-read/child-deny tier, so
+# denying it here kills the runtime's login/refresh, not just tool children.
+# Model-side protection is the other guards: command-sandbox lists never grant
+# opencode paths, proxy credential injection, DCG. Cross-agent theft stays
+# denied (pi_auth_files, omp_auth_files here; opencode_auth_files denied in
+# pi/omp profiles).
+deny = ["omp_auth_files", "pi_auth_files"]
+read = [
+  # DCG plugin file: readable (opencode loads it) but write-denied via the
+  # read-tier carve-out — agents must not self-edit hooks.
+  "~/.config/opencode/plugins/dcg-guard.js",
   "~/.cache/opencode",
-  "~/.cache/opencode/**",
+  # Engram memory store (MCP child state; children inherit this sandbox and
+  # crash at startup without the grant). The codegraph home state dir rides
+  # the shared write tier.
+  "engram",
   "~/.local/share/opencode",
-  "~/.local/share/opencode/**",
   "~/.local/state/opencode",
-  "~/.local/state/opencode/**",
-  "/tmp/agents/opencode",
-  "/tmp/agents/opencode/**",
   "/tmp/compound-engineering",
-  "/tmp/compound-engineering/**"
+  # gh session tier (KTD2): config.yml is gh's boot read; hosts.yml stays on the
+  # git_gh_creds deny floor; state rides the relocated write grant below.
+  "~/.config/gh/config.yml"
 ]
-allow_write = [
+write = [
   "~/.cache/opencode",
-  "~/.cache/opencode/**",
+  "engram",
   "~/.local/share/opencode",
-  "~/.local/share/opencode/**",
   "~/.local/state/opencode",
-  "~/.local/state/opencode/**",
-  "/tmp/agents/opencode",
-  "/tmp/agents/opencode/**",
   "/tmp/compound-engineering",
-  "/tmp/compound-engineering/**",
-  "/tmp/greywall-open-url",
-  "/tmp/greywall-open-url/**",
-  # CodeGraph runtime state
-  "**/.codegraph/**"
-]
-deny_read = [
-  "~/.config/pi/agent/auth.json",
-  "~/.config/pi/profiles/core/auth.json",
-  "~/.config/pi/profiles/factory/auth.json"
-]
-deny_write = [
-  "~/.config/pi/agent/auth.json",
-  "~/.config/pi/profiles/core/auth.json",
-  "~/.config/pi/profiles/factory/auth.json"
+  # Relocated gh state (KTD2): the launcher's GH_CONFIG/DATA/CACHE_DIR exports
+  # point here, so gh creates its missing state files instead of reading the
+  # floor-denied ~/.config/gh/hosts.yml.
+  "~/.cache/gh-sandbox"
 ]
 
 [ai.base.agents.opencode.settings]
