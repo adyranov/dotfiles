@@ -85,15 +85,23 @@ ehthumbs.db
 *.swp
 *.swo
 *~
-# Plans
-docs/plans/
+# Compound Engineering generated artifacts (docs_root) + local config + scratch
+.compound-engineering/artifacts/
+.compound-engineering/*.local.yaml
+.context/compound-engineering/
 
 # Local Pi runtime state
 .atl/
 .pi/
+
+# Codegraph local artifacts
+.codegraph/
 
 # BEGIN oh-my-opencode-slim worktrees
 .slim/worktrees/
 .slim/worktrees.json
 .slim/deepwork/
 # END oh-my-opencode-slim worktrees
+
+# skill-scan ledger (local)
+.skill-scan.json
