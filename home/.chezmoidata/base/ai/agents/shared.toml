@@ -25,14 +25,14 @@ write = ["**/.codegraph/**", "**/.slim/worktrees/**", "~/.codegraph"]
 # No blanket SSH socket grant: the agent tier denies the ControlMaster socket
 # DIR (agent_ssh_sockets), and only exact, user-approved master sockets open
 # it. Approval flow (all steps are the user's, in their terminal):
-#   1. Open the master FIRST (nono drops connect grants for missing sockets
-#      at launch): `ssh -M -o ControlPersist=yes <host> true` (ControlMaster
-#      baseline is in git.conf).
-#   2. Compute the exact socket: `ssh -G <host> | awk '/^controlpath/ {print $2}'`.
-#   3. Add that exact path to the intended agent's sandbox.filesystem.unix_socket
-#      PLUS the same path in sandbox.filesystem.bypass_protection (the bypass
-#      punches through THIS agent-tier deny — a base-tier deny is unopenable).
-#   4. Apply the profile in the terminal; relaunch the agent.
+# 1. Open the master FIRST (nono drops connect grants for missing sockets
+# at launch): `ssh -M -o ControlPersist=yes <host> true` (ControlMaster
+# baseline is in git.conf).
+# 2. Compute the exact socket: `ssh -G <host> | awk '/^controlpath/ {print $2}'`.
+# 3. Add that exact path to the intended agent's sandbox.filesystem.unix_socket
+# PLUS the same path in sandbox.filesystem.bypass_protection (the bypass
+# punches through THIS agent-tier deny — a base-tier deny is unopenable).
+# 4. Apply the profile in the terminal; relaunch the agent.
 # Approved masters delegate the VM account's authority (accepted risk); every
 # `ssh -O` op (check/stop/exit) is confined to the approved sockets, and
 # `-O stop` only stops accepting new multiplexing (use `-O exit`).

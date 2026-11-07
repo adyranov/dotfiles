@@ -89,9 +89,9 @@
 {{-   $tiers := includeTemplate "base/ai/security/build-fs-tiers" (dict "root" $root "read" $read "write" $write "deny" $deny) | mustFromJson -}}
 {{-   $fs := dict "allow" (index $tiers "allow") "read" (index $tiers "read") "deny" (index $tiers "deny") -}}
 {{- /* AF_UNIX connect grants render darwin-only (fail-closed on the Linux
- mediation gap: mediation off = host sockets reachable, mediation on = race
- on allowed sockets incl. the omp daemon — see the header). unix_socket is
- the exact-path lane for user-approved SSH masters (shared.toml flow). */ -}}
+  mediation gap: mediation off = host sockets reachable, mediation on = race
+  on allowed sockets incl. the omp daemon — see the header). unix_socket is
+  the exact-path lane for user-approved SSH masters (shared.toml flow). */ -}}
 {{-   if eq $os "darwin" -}}
 {{-     $sockets := index $fsData "unix_socket_subtree" | default list -}}
 {{-     if $sockets -}}{{-     $_ := set $fs "unix_socket_subtree" (includeTemplate "base/ai/security/uniq-sort" $sockets | mustFromJson) -}}{{- end -}}
