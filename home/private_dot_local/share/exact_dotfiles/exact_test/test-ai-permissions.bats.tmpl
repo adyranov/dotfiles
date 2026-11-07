@@ -76,6 +76,25 @@ setup() {
 {{- $applyPairs := list -}}
 {{- range $d := $applyDests -}}
 {{-   $applyPairs = append $applyPairs (dict "dest" $d "parent" (includeTemplate "base/ai/security/parent-dir" $d)) -}}
+{{- end -}}
+{{- /* The shared dotfiles profile's seed set, read from the data the profile
+   render reads (the base list above stays the project-launch value: empty). */ -}}
+{{- $dotSeed := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.apply.dotfiles" "required" false) | mustFromJson) -}}
+{{- $dotDests := includeTemplate "base/ai/security/uniq-sort" (index $dotSeed "destinations" | default list) | mustFromJson -}}
+{{- $dotPairs := list -}}
+{{- range $d := $dotDests -}}
+{{-   $dotPairs = append $dotPairs (dict "dest" $d "parent" (includeTemplate "base/ai/security/parent-dir" $d)) -}}
+{{- end -}}
+{{- /* The reviewed seed set, pinned as a literal: the seed-equality test
+   compares the rendered data against THIS list (the one place where
+   duplicating seed data in tests is pinned by design). */ -}}
+{{- $pinnedSeed := list "~/.config/atuin/config.toml" "~/.config/bat/config" "~/.config/btop/btop.conf" "~/.config/fd/ignore" "~/.config/rpiv-ask-user-question/config.json" "~/.config/rpiv-todo/config.json" "~/.config/wget/wgetrc" "~/Library/Application Support/Code/User/keybindings.json" "~/Library/Application Support/Code/User/settings.json" "~/Library/Application Support/Cursor/User/keybindings.json" "~/Library/Application Support/Cursor/User/settings.json" -}}
+{{- /* The dotfiles profile rendered from the current source at template render
+   time: render once, scan many (bounded suite probes). Off darwin the profile
+   is unmanaged (the template renders empty), so the render is gated. */ -}}
+{{- $dotProfile := dict -}}
+{{- if eq .chezmoi.os "darwin" -}}
+{{-   $dotProfile = includeTemplate "base/ai/security/render-nono-profile" (dict "root" . "kind" "dotfiles") | mustFromJson -}}
 {{- end }}
 
 # bats test_tags=kind:nono
@@ -295,6 +314,28 @@ setup() {
   assert_success
 }
 
+# bats test_tags=kind:nono
+@test "dotfiles seed equals the reviewed set: no drift, no ghostty, section tripwire" {
+  # The dotfiles seed is the reviewed set, pinned literally ($pinnedSeed):
+  # drift in EITHER direction fails, naming the offenders. Ghostty is pinned
+  # absent by name: its config carries a `command` option that replaces the
+  # program for every new terminal surface — an exec surface, the class the
+  # seed criterion excludes permanently. The seed rides its own data section
+  # (tripwire below): only the shared dotfiles profile carries it, so every
+  # project launch keeps zero apply destinations.
+  local offenders
+  offenders=$(jq -rn --argjson want '{{ $pinnedSeed | toJson }}' --argjson got '{{ $dotDests | toJson }}' '
+    ($want - $got) as $missing |
+    ($got - $want) as $extra |
+    (if ($missing | length) > 0 then ["missing: " + ($missing | join(" "))] else [] end) +
+    (if ($extra | length) > 0 then ["extra: " + ($extra | join(" "))] else [] end) +
+    (if (any($got[]; contains("ghostty"))) then ["ghostty seeded (terminal exec surface)"] else [] end) |
+    join("; ")')
+  [ -z "$offenders" ] || { printf 'dotfiles seed drift:%s\n' "$offenders"; return 1; }
+  run grep -E '^\[ai\.base\.permissions\.apply\.dotfiles\]' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
+  assert_success
+}
+
 # Render-time guard fixtures: the seed passes, every poisoned entry is
 # refused by name — the same fixture pattern as the cmd converter below (the
 # guard reports and exits 0; render-apply-dests turns a report into a loud `fail`).
@@ -304,7 +345,26 @@ setup() {
 {{- range $d := $applyDests }}
 {{-   $guardCases = append $guardCases (dict "dest" $d "expect" "ok") }}
 {{- end }}
+{{- /* The dotfiles seed auto-joins the ok batch: a poisoned seed entry fails
+   this test with the offender named (the profile render carries the same
+   guard chain, so a poisoned seed is loud on every surface). */}}
+{{- range $d := $dotDests }}
+{{-   $guardCases = append $guardCases (dict "dest" $d "expect" "ok") }}
+{{- end }}
 {{- range $c := list "~/.config/nono" "~/.config/nono/profiles/base.json" "~/.config/opencode/opencode.jsonc" "~/.config" "~/.config/tmux/**" "relative/config.json" "/" "~/../.." "~@evil" }}
+{{-   $guardCases = append $guardCases (dict "dest" $c "expect" "refused") }}
+{{- end }}
+{{- /* Poisoned-seed shapes: a home-root destination (`~/.editorconfig`-shaped)
+   would seed literal ~ into the chezmoi command sandbox (which REPLACES the
+   session grants) and re-open every credential leaf; the deny-leaf-parent
+   shape (~/.config/git CONTAINS the git credentials deny leaf) is refused by
+   the strict destination call — its guarded sibling ~/.config/git/config
+   passes the floor by design (dossier-documented blind spot), which is why
+   the apply-grants render pins above keep ~/.config/git out of the chezmoi
+   sandbox lists. The instruction tree, the maven settings leaf (its
+   rootless-glob deny anchors nowhere, so the anchored deny key carries the
+   floor) and the opencode auth store are refused destination proposals. */}}
+{{- range $c := list "~/.editorconfig" "~/.config/git" "~/.config/agents/AGENTS.md" "~/.config/maven/settings.xml" "~/.local/share/opencode/auth.json" }}
 {{-   $guardCases = append $guardCases (dict "dest" $c "expect" "refused") }}
 {{- end }}
 {{- /* Provider tokens are the guard's blind spot BY DESIGN (the provider enforces
@@ -356,6 +416,94 @@ setup() {
     all($grefused[]; . as $d | any($vGlob[]; startswith($d + ":")))
   '
   assert_success
+}
+
+{{- if eq .chezmoi.os "darwin" }}
+# bats test_tags=kind:nono
+@test "dotfiles profile render carries the seed grants, scrub, scratch, denies and port" {
+  # One render of the current source (baked at template render), many scans:
+  # the seed files ride the session write tier, their PARENTS (never the
+  # files) ride both chezmoi command-sandbox lists; the union scratch trio is
+  # granted for every agent; every agent's own auth store is write-denied via
+  # seatbelt only (a data deny would beat the store's own runtime grant and
+  # kill login); the host-trust leaves the union grants reach are denied;
+  # zero credential routes with the GitHub token names scrubbed (routes-off
+  # must stand under every credential arm, so scrubbing enforces it, not just
+  # route absence); and the opencode v2 service port is forwarded on this
+  # profile (a pi/omp session gains only a relay to a port with nothing
+  # listening). A poisoned seed fails the $dotProfile render itself.
+  local json offenders="" l
+  json='{{ $dotProfile | toJson }}'
+  while IFS= read -r l; do
+    [ -z "$l" ] || offenders="$offenders dotfiles:$l"
+  done < <(jq -r --argjson d '{{ $dotDests | toJson }}' --argjson pairs '{{ $dotPairs | toJson }}' '
+    [ "~/.config/pi/agent/auth.json", "~/.config/pi/profiles/core/auth.json", "~/.config/pi/profiles/factory/auth.json", "~/.config/omp/agent/auth.json", "~/.local/share/opencode/auth.json" ] as $stores |
+    . as $r |
+    ($r.filesystem.allow) as $a |
+    ($r.filesystem.deny // []) as $dn |
+    ($r.command_policies.commands.chezmoi.from.session.sandbox) as $cz |
+    ($r.unsafe_macos_seatbelt_rules // []) as $sb |
+    [
+      (select(.meta.name != "dotfiles") | "meta.name not dotfiles")
+      ,(select(.extends != "base") | "extends not base")
+      ,([ $d[] | . as $x | select(($a | index($x)) == null) ] | if length > 0 then "seed not in filesystem.allow: " + join(" ") else empty end)
+      ,([ $pairs[] | . as $e | select(($cz.fs_write | index($e.parent)) == null) | $e.dest ] | if length > 0 then "parent not in chezmoi fs_write: " + join(" ") else empty end)
+      ,([ $pairs[] | . as $e | select(($cz.fs_read | index($e.parent)) == null) | $e.dest ] | if length > 0 then "parent not in chezmoi fs_read: " + join(" ") else empty end)
+      ,([ $d[] | . as $x | select(($cz.fs_write | index($x)) != null) ] | if length > 0 then "destination FILE in chezmoi sandbox write (lists are dirs only): " + join(" ") else empty end)
+      ,([ "/tmp/agents/pi", "/tmp/agents/opencode", "/tmp/agents/omp" | . as $x | select(($a | index($x)) == null) ] | if length > 0 then "scratch dir not in allow: " + join(" ") else empty end)
+      ,(select((.custom_credentials // {}) != {}) | "top-level custom_credentials present (routes-off profile)")
+      ,(select(.network | has("custom_credentials")) | "network custom_credentials present (routes-off profile)")
+      ,(select([.command_policies.commands[].from.session | select(type == "object") | (.sandbox // {}) | has("credentials")] | any) | "command sandbox references a credential")
+      ,(select(.environment.deny_vars | index("GH_TOKEN") == null) | "GH_TOKEN not scrubbed")
+      ,(select(.environment.deny_vars | index("GITHUB_TOKEN") == null) | "GITHUB_TOKEN not scrubbed")
+      ,(select(.command_policies.commands | (has("git") and has("mise") and has("chezmoi")) | not) | "command_policies body incomplete")
+      ,([ $stores[] | . as $s | select(($sb | index("(deny file-write* (literal \"{{ trimSuffix "/" .chezmoi.homeDir }}/" + ($s | ltrimstr("~/")) + "\"))")) == null) ] | if length > 0 then "seatbelt auth-store write-deny missing: " + join(" ") else empty end)
+      ,([ $stores[] | . as $s | select(($dn | index($s)) != null) ] | if length > 0 then "auth store in filesystem.deny (denial is write-only, seatbelt): " + join(" ") else empty end)
+      ,([ "~/.local/share/ssh/known_hosts", "~/.local/share/mkcert/rootCA.pem" | . as $x | select(($dn | index($x)) == null) ] | if length > 0 then "host-trust leaf not denied: " + join(" ") else empty end)
+      ,(select((.network.open_port | sort) != [49374]) | "open_port not [49374]: " + ((.network.open_port | sort) | tostring))
+    ] | .[]' <<<"$json")
+  # Full-body re-emit discipline: an identical full command_policies body is
+  # correct under extends-replace AND extends-merge; the chezmoi entry carries
+  # the seed parents (checked above), every other command entry is base's.
+  if ! jq -e --slurpfile base "{{ $nonoProfiles }}/base.json" '
+      ((.command_policies.commands | keys | sort) == ($base[0].command_policies.commands | keys | sort)) and
+      (.command_policies.commands.git == $base[0].command_policies.commands.git) and
+      (.command_policies.commands.mise == $base[0].command_policies.commands.mise)
+    ' <<<"$json" >/dev/null; then
+    offenders="$offenders dotfiles:command_policies-not-full-base-body"
+  fi
+  if [ -n "$offenders" ]; then
+    printf 'dotfiles profile render (offending checks):%s\n' "$offenders"
+    return 1
+  fi
+}
+{{- end }}
+
+# bats test_tags=kind:nono
+@test "dotfiles profile render surface is managed on darwin and ignored off darwin" {
+  # The render surface must reach applied hosts, not just templates. Off
+  # darwin the Landlock created-after-start ceiling cannot enforce the
+  # union-minus-denies model, so the profile is unmanaged there. The suite
+  # runs on the real host and chezmoi renders .host.* from it, so the
+  # off-darwin branch cannot be simulated by a render probe — the source
+  # gates are pinned instead: the template gate, and the ignore entry inside
+  # its `ne .host.distro.family "darwin"` block.
+  local cb
+  cb="$(chezmoiBin)"
+  # The end-address avoids literal template braces (this file IS a template):
+  # the first " end " line after the block opener is the block's own `end`.
+  run sed -n '/if ne .host.distro.family "darwin"/,/ end /p' "{{ $src }}/.chezmoiignore.tmpl"
+  assert_success
+  assert_output --partial ".config/nono/profiles/dotfiles.json"
+  run grep -F 'eq .host.distro.family "darwin"' "{{ $src }}/home/private_dot_config/nono/exact_profiles/dotfiles.json.tmpl"
+  assert_success
+  run "$cb" managed
+  assert_success
+{{- if eq .chezmoi.os "darwin" }}
+  assert_output --partial ".config/nono/profiles/dotfiles.json"
+{{- else }}
+  refute_output --partial ".config/nono/profiles/dotfiles.json"
+{{- end }}
 }
 
 # Render-time filter fixture: direct invocation of filter-shadowed-allow (the
@@ -546,9 +694,11 @@ setup() {
     ((.network.allow_domain | unique | length) == (.network.allow_domain | length)) and
     ((.network.allow_domain | length) == {{ len $wantHosts }}) and
     ((.network.allow_domain | length) <= 200) and
-    (.network.open_port | index(7437) != null) and
-    (.network.open_port | index(49374) != null) and
-    (.network.open_port | index(8321) != null) and
+    # Base relays are scoped to their owners: the engram memory port and the
+    # local serving port stay here; the opencode v2 service port moved to the
+    # forward_ports list on the opencode overlay, so a host-side relay cannot
+    # reach every agent session from the base floor.
+    (.network.open_port | sort) == [7437, 8321] and
     (.filesystem.unix_socket_subtree | index("~/.local/share/tmux") != null) and
     # environment: DCG_* scrub is load-bearing; ambient injects and ignores stay out;
     # wildcard denies repeat into diagnostics.redaction (nono redacts exact names only)
@@ -998,6 +1148,7 @@ FIXTURE
             ,(select((.filesystem.deny | index("~/.local/share/opencode/auth.json")) != null) | "own auth store not denied")
             ,(select((.filesystem.read_file // [] | index("~/Library/Keychains/login.keychain-db")) != null) | "keychain read grant present")
             ,(select((.filesystem.bypass_protection // [] | index("~/Library/Keychains/login.keychain-db")) != null) | "keychain bypass grant present")
+            ,(select((.network.open_port | index(49374)) == null) | "open_port 49374 (v2 service relay rides this overlay, not base)")
 {{- if eq .chezmoi.os "darwin" }}
             ,(select((.unsafe_macos_seatbelt_rules | index("(allow user-preference-read)")) == null) | "seatbelt user-preference-read")
             ,(select((.unsafe_macos_seatbelt_rules | index("(deny mach-lookup (global-name \"com.apple.SecurityServer\"))")) == null) | "seatbelt deny keychain mach-lookup")
