@@ -333,7 +333,10 @@ ENTRY_SET
       (dict "label" "supervise-lock" "line" "ENGRAM_LOCK=\"$ENGRAM_STATE/.supervise.lock\"")
       (dict "label" "identity-record" "line" "ENGRAM_ID_FILE=\"$ENGRAM_STATE/daemon.identity\"")
       (dict "label" "lock-rmdir" "line" "rmdir \"$ENGRAM_LOCK\"")
-      (dict "label" "lock-takeover-probe" "line" "kill -0 \"$__holder\"") -}}
+      (dict "label" "lock-takeover-probe" "line" "kill -0 \"$__holder\"")
+      (dict "label" "ca-find-public-cert" "line" "security find-certificate -a -c nono-proxy-ca -p")
+      (dict "label" "ca-delete-bundle" "line" "security delete-generic-password -s nono-proxy-ca")
+      (dict "label" "ca-delete-cert-twin" "line" "security delete-certificate -c nono-proxy-ca") -}}
 {{- $launchChecks := list -}}
 {{- range $c := $launchLines -}}
 {{-   $launchChecks = append $launchChecks (dict "kind" "cmd" "tool" "launcher" "label" $c.label "cmd" "grep -Fq -e" "arg" "" "prog" $c.line "filepart" " \"$HOME/.local/bin/agent\"") -}}
@@ -458,6 +461,25 @@ EOF
   # checked against this shell and the missing names are printed (nono only warns per
   # route, deep in its own output). warn() must exist for that call to survive set -u.
   run awk '/^warn\(\)/{d=NR} /Credentials: routes on/{m=NR} /credential_key/{c=NR} /Routes without a credential source/{w=NR} END{exit !(d>0 && m>0 && c>m && w>c)}' "$launch"
+  assert_success
+}
+
+# bats test_tags=kind:launcher
+@test "agent renews an expired nono proxy CA on the sandbox launch path only" {
+  # nono's TLS-interception CA bundle expires daily and the default load path
+  # never renews it; the launcher removes the expired bundle pre-sandbox so
+  # nono mints a fresh one. Public cert only: the pin below keeps the private
+  # key out — a find-generic-password -g read returns the KEY (the launcher's
+  # explanatory comment names the read without the `security` prefix).
+  local launch="$BATS_FILE_TMPDIR/launcher.sh"
+  assert_file_exists "$launch"
+  run grep -F 'security find-generic-password -g' "$launch"
+  assert_failure
+  run grep -Fq -e 'renewProxyCa() {' "$launch"
+  assert_success
+  # Ordered: called AFTER the --no-sandbox exec (host debug launches never
+  # reach the keychain) and BEFORE the credential probe and `exec nono run`.
+  run awk '/exec "\$BINARY_NAME" "\$@"/{n=NR} /^renewProxyCa$/{c=NR} /Credential mode of the applied profile/{p=NR} /exec nono run --profile/{e=NR} END{exit !(n>0 && c>n && c<p && p<e)}' "$launch"
   assert_success
 }
 
@@ -1044,6 +1066,97 @@ SLOWMOCK
   assert_file_exists "$launch"
   run awk '/^  wait_ready$/{w=NR} /^    lock_release$/{r=NR} /exec nono run --profile/{e=NR} END{exit !(w>0 && r>w && r<e)}' "$launch"
   assert_success
+}
+
+# --- nono proxy CA renewal (runtime probes) ---
+#
+# renewProxyCa drives the applied launcher end-to-end on the sandbox path
+# with `security`/`openssl` PATH stubs riding the supervisor mock-bin infra
+# (dedicated port, pinned scratch/state): every stub logs its argv, so the
+# probes pin exactly which keychain calls happen — a real keychain mutation
+# is structurally impossible (the stub dir precedes /usr/bin at the call
+# site: renewal runs before the sandbox PATH parity prepend).
+
+ca_stage_stubs() {
+  cat >"$BATS_TEST_TMPDIR/bin/security" <<'SECSTUB'
+#!/usr/bin/env sh
+printf 'security %s\n' "$*" >>"$CA_TEST_LOG"
+[ "$1" = find-certificate ] && printf -- '-----BEGIN CERTIFICATE-----\nstub\n-----END CERTIFICATE-----\n'
+exit 0
+SECSTUB
+  cat >"$BATS_TEST_TMPDIR/bin/openssl" <<'SSLSTUB'
+#!/usr/bin/env sh
+printf 'openssl %s\n' "$*" >>"$CA_TEST_LOG"
+[ "${CA_TEST_EXPIRED:-0}" = 1 ] && exit 1
+exit 0
+SSLSTUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/security" "$BATS_TEST_TMPDIR/bin/openssl"
+}
+
+ca_probe() { # ca_probe EXPIRED [extra launcher args...]
+  local expired="$1"
+  shift
+  sup_env_args
+  run env "${sup_args[@]}" \
+    "CA_TEST_LOG=$BATS_TEST_TMPDIR/ca.log" "CA_TEST_EXPIRED=$expired" \
+    "$HOME/.local/bin/agent" {{ $sup.name }}{{ with $sup.profile }} {{ . }}{{ end }} "$@"
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "proxy CA renewal removes the expired bundle and announces it" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
+{{- else }}
+  sup_init
+  ca_stage_stubs
+  ca_probe 1
+  assert_success
+  assert_output --partial "launched"
+  assert_output --partial "removed expired proxy CA"
+  run grep -F 'security find-certificate -a -c nono-proxy-ca -p' "$BATS_TEST_TMPDIR/ca.log"
+  assert_success
+  run grep -F 'security delete-generic-password -s nono-proxy-ca' "$BATS_TEST_TMPDIR/ca.log"
+  assert_success
+  run grep -F 'security delete-certificate -c nono-proxy-ca' "$BATS_TEST_TMPDIR/ca.log"
+  assert_success
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "proxy CA renewal leaves a valid bundle alone" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
+{{- else }}
+  sup_init
+  ca_stage_stubs
+  ca_probe 0
+  assert_success
+  assert_output --partial "launched"
+  refute_output --partial "removed expired proxy CA"
+  run grep -F 'delete-' "$BATS_TEST_TMPDIR/ca.log"
+  assert_failure
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "proxy CA renewal never runs on the --no-sandbox host debug path" {
+{{- if eq (len $sup) 0 }}
+  skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "--no-sandbox nested-guard semantics aside, the U2 gate owns Linux"
+{{- else }}
+  sup_init
+  ca_stage_stubs
+  ca_probe 1 --no-sandbox
+  assert_success
+  assert_output --partial "launched"
+  # No keychain call at all: the stub log file is never created.
+  assert [ ! -e "$BATS_TEST_TMPDIR/ca.log" ]
+{{- end }}
 }
 
 # --- Shared sandbox baseline merge ---
