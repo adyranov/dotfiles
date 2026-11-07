@@ -34,7 +34,7 @@ jobs:
     name: CI Regression Result
     needs: [host, docker, wsl]
     if: always()
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - name: Check CI regression result

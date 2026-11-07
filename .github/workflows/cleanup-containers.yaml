@@ -16,7 +16,7 @@ env:
 jobs:
   cleanup-ghcr:
     name: Clean up GHCR images
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       packages: write
