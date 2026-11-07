@@ -1,35 +1,45 @@
-# OMP runtime databases and native/cache state
+# OMP layout (18.8.x): the managed set is the agent root
+# (~/.config/omp/agent/{config.yml,models.yml,.mcp.json,SYSTEM.md,AGENTS.md,
+# extensions/dcg-guard.ts}); everything else at the config root and inside
+# the agent root is app runtime state — ignore-listed so the exact_ pruning
+# law cannot delete user login/auth/lock/session data at apply.
+
+# Config-root runtime (pre-18.8 legacy + XDG strays)
 *.db*
 gpu_cache.json
 install-id
 last-changelog-version
-terminal-sessions/
 terminal-sessions/**
-
-# Runtime directories
-sessions/
+# Named profiles (omp >=18.9) are app-created; the exact_ pruning law must
+# not delete a user's profile config at apply.
+profiles/**
 sessions/**
-blobs/
 blobs/**
-memory/
 memory/**
-memories/
 memories/**
-logs/
 logs/**
-cache/
 cache/**
-natives/
 natives/**
-plugins/
 plugins/**
-extensions/
-extensions/**
-run/
+predict/**
 run/**
-
-# Runtime metadata
 trust.json
 state.json
 mcp-cache.json
 .lock
+extensions/**
+
+# Agent-root runtime: whitelist the managed files; everything else (auth.json,
+# *.lock, sessions, state, ...) is app-owned.
+agent/*
+!agent/config.yml
+!agent/models.yml
+!agent/.mcp.json
+!agent/SYSTEM.md
+!agent/AGENTS.md
+!agent/extensions
+!agent/agents
+agent/agents/*
+!agent/agents/*.md
+agent/extensions/*
+!agent/extensions/dcg-guard.ts

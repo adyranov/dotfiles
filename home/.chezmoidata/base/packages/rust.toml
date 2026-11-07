@@ -1,14 +1,3 @@
-[packages.base.rust]
-
 [packages.base.rust.rust]
 manager = "mise"
 bin = "rustc"
-
-[packages.base.rust.rust.policy]
-deny = [
-  "cargo login *",
-  "cargo logout *",
-  "cargo owner *",
-  "cargo publish *",
-  "cargo yank *"
-]

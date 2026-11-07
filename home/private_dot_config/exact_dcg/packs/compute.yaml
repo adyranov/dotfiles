@@ -1,0 +1,20 @@
+# DCG policy pack: Skypilot/Runpod compute.
+# Managed source — agents cannot write here; edit the chezmoi source.
+id: user.compute
+name: User compute rules
+version: "1.0.0"
+description: Custom denies for sky/runpod cluster, job, and pod mutations that spend money and destroy state.
+keywords:
+  - runpod
+  - sky
+destructive_patterns:
+  - name: sky-destructive
+    pattern: '\bsky\b[^;&|\n]*?\b(?:down|up|start|launch|cancel|apply|delete)\b'
+    severity: high
+    description: sky cluster/job/volume lifecycle mutations
+    explanation: All 12 triage sky rows (down/start/launch/jobs launch+cancel/pool apply+down/serve up+down/storage delete/volumes apply+delete). Spends money and destroys cluster state.
+  - name: runpod-destructive
+    pattern: '\brunpod\b[^;&|\n]*?\b(?:exec|create|sync|deploy|start|add-key)\b'
+    severity: high
+    description: runpod pod/project mutations
+    explanation: All 6 triage runpod rows (pod create/sync, project deploy/start, ssh add-key, exec).

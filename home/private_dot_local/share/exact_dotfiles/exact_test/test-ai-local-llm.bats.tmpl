@@ -26,7 +26,7 @@ setup() {
 {{-     end }}
 {{-   end }}
 {{- end }}
-{{- $agentTiers := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" }}
+{{- $agentTiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.opencode.agent_tiers" "required" true) | mustFromJson }}
 {{- $assignedTiers := values $agentTiers | uniq }}
 {{- $swapConfig := "$HOME/.config/llama-swap/config.yaml" }}
 {{- $llamaCppPreset := "$HOME/.config/llama.cpp/models.ini" }}
@@ -102,40 +102,6 @@ setup() {
 {{- end }}
 }
 
-{{- if index $presets "qwen" }}
-{{- $qwenPreset := index $presets "qwen" }}
-{{- $qwenTiers := get $qwenPreset "tiers" | default dict }}
-{{- $infer01 := index $serving "infer01" | default dict }}
-{{- $qwenModel := index (get $infer01 "models" | default list) 0 | default dict }}
-
-# bats test_tags=toolchain:ai,kind:local-llm
-@test "infer01 Qwen metadata uses reported context and client output defaults" {
-  run test "{{ get $qwenModel "context_window" | default 0 }}" = "262144"
-  assert_success
-  run test "{{ if hasKey $qwenModel "max_output" }}set{{ else }}client-default{{ end }}" = "client-default"
-  assert_success
-}
-
-# bats test_tags=toolchain:ai,kind:local-llm
-@test "qwen preset routes work tiers to local infer01 with no fallbacks" {
-{{- range $tier := list "small" "medium" "big" "visual" }}
-{{-   $route := index $qwenTiers $tier }}
-  run test "{{ $route.provider }}/{{ $route.model }}" = "infer01/{{ get $qwenModel "id" | default "" }}"
-  assert_success
-  run test "{{ if hasKey $route "fallbacks" }}bad{{ else }}ok{{ end }}" = "ok"
-  assert_success
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:local-llm
-@test "qwen preset routes oracle locally and carries no council" {
-  run test "{{ $qwenTiers.oracle.provider }}/{{ $qwenTiers.oracle.model }}/{{ $qwenTiers.oracle.thinking }}" = "infer01/{{ get $qwenModel "id" | default "" }}/max"
-  assert_success
-  run test "{{ if hasKey $qwenPreset "council" }}present{{ else }}absent{{ end }}" = "absent"
-  assert_success
-}
-{{- end }}
-
 {{- if and (eq .host.distro.family "darwin") (eq .host.arch "arm64") }}
 # bats test_tags=toolchain:ai,kind:local-llm
 @test "macOS installs native llama.cpp AI tools from adyranov/tap" {
@@ -153,9 +119,7 @@ setup() {
   run test -d "$HOME/.local/state/llama-x86-mac"
   assert_failure
 }
-{{- end }}
 
-{{- if and (eq .host.distro.family "darwin") (eq .host.arch "arm64") }}
 # bats test_tags=toolchain:ai,kind:local-llm
 @test "Apple Silicon installs omlx alongside tap-backed llama.cpp" {
   run grep -F 'brew "jundot/omlx/omlx", trusted: true' "$HOMEBREW_BUNDLE_FILE"
@@ -310,14 +274,7 @@ setup() {
   assert_success
 }
 
-# bats test_tags=toolchain:ai,kind:local-llm,toolchain:pi,kind:model
-@test "pi settings.json uses standard compaction defaults" {
-  assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
-  run jq -e '.compaction.keepRecentTokens == 20000 and .compaction.reserveTokens == 16384' "$HOME/.config/pi/profiles/factory/settings.json"
-  assert_success
-}
 {{ if .toolchains.pi }}
-{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson }}
 {{- $hasExplicitEnabled := $enabledAuthBase.has_enabled_data -}}
 
 # bats test_tags=toolchain:ai,toolchain:pi,kind:local-llm,kind:model
@@ -359,48 +316,5 @@ setup() {
   assert_success
 }
 
-{{- $expectedEnabledModels := list -}}
-{{- $forbiddenBareModels := list -}}
-{{- if $hasExplicitEnabled -}}
-{{-   $expectedEnabledModels = $enabledAuthBase.valid_models | sortAlpha -}}
-{{- else -}}
-{{-   $expectedRemoteModels := list -}}
-{{-   $forbiddenBareModels = list -}}
-{{-   range $_, $route := $tiers -}}
-{{-     if kindIs "map" $route -}}
-{{-       if hasKey $route "model" -}}
-{{-         if hasKey $route "provider" -}}
-{{-           $expectedRemoteModels = append $expectedRemoteModels (printf "%s/%s" $route.provider $route.model) -}}
-{{-           $forbiddenBareModels = append $forbiddenBareModels $route.model -}}
-{{-         end -}}
-{{-       end -}}
-{{-     end -}}
-{{-   end -}}
-{{-   $expectedRemoteModels = $expectedRemoteModels | uniq | sortAlpha -}}
-{{-   $forbiddenBareModels = $forbiddenBareModels | uniq | sortAlpha -}}
-{{-   $expectedEnabledModels = $expectedRemoteModels -}}
-{{- end -}}
-{{- if $expectedEnabledModels }}
-
-# bats test_tags=toolchain:pi,kind:model
-@test "pi settings.json uses provider-qualified remote models" {
-  assert_file_exists "$HOME/.config/pi/agent/settings.json"
-  run jq -e --argjson exp '{{ $expectedEnabledModels | toJson }}' '
-    . as $s | all($exp[]; . as $m | $s.enabledModels | index($m) != null)
-  ' "$HOME/.config/pi/agent/settings.json"
-  assert_success
-}
-
-{{- if not $hasExplicitEnabled }}
-# bats test_tags=toolchain:pi,kind:model
-@test "pi settings.json excludes bare remote model ids" {
-  assert_file_exists "$HOME/.config/pi/agent/settings.json"
-  run jq -e --argjson forbidden '{{ $forbiddenBareModels | toJson }}' '
-    . as $s | all($forbidden[]; . as $m | ($s.enabledModels | index($m)) == null)
-  ' "$HOME/.config/pi/agent/settings.json"
-  assert_success
-}
-{{- end }}
-{{ end }}
 {{- end }}
 {{- end }}

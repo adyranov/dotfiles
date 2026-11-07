@@ -7,7 +7,7 @@
   Route validation uses `valid_models`, the union of managed cloud-provider
   enabled models and every serving-provider model (keyless local/remote
   endpoints declare no credentials). API-key/auth injection is derived only
-  from the managed cloud-auth table (KTD2).
+  from the managed cloud-auth table.
 */ -}}
 {{- $root := .root -}}
 {{- $providers := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.providers" "required" false) | mustFromJson -}}

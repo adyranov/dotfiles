@@ -1,0 +1,32 @@
+{{- /* python-anchor — Shared realpath-anchor python fragment for the render-time
+  guards (apply-dest-guard's anchored()/glob_free_prefix(), filter-shadowed-allow's
+  anchor). Included by each script template; callers run the RENDERED script
+  (`output python3 -c <rendered> <json>`), because the raw source carries this
+  include. Input: dict "casefold" — true folds case on darwin (the guard: the
+  default APFS volume is case-insensitive, so `~/.CONFIG/nono` aliases the
+  protected root); false keeps case-sensitivity (the shadow filter, which only
+  compares grants it drops, never floors).
+*/ -}}
+{{- $casefold := index . "casefold" | default false -}}
+GLOB_CHARS = "*?[]{}"
+# CASEFOLD: the default macOS volume is case-insensitive, so folding stops
+# `~/.CONFIG/nono` from aliasing a protected root; Linux stays case-sensitive.
+CASEFOLD = {{ if $casefold }}sys.platform == "darwin"{{ else }}False{{ end }}
+
+
+def anchored(path):
+    """Realpath of a `~/`- or `/`-anchored path, else None (relative, rootless)."""
+    if not (path.startswith("~/") or path.startswith("/")):
+        return None
+    real = os.path.realpath(os.path.expanduser(path))
+    return real.lower() if CASEFOLD else real
+
+
+def glob_free_prefix(path):
+    """Longest glob-free path prefix of a protected entry."""
+    out = []
+    for seg in path.split("/"):
+        if any(c in seg for c in GLOB_CHARS):
+            break
+        out.append(seg)
+    return "/".join(out)

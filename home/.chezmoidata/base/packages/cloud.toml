@@ -1,39 +1,6 @@
-[packages.base.cloud]
-
 [packages.base.cloud.aws]
 manager = "mise"
 package = "aws-cli"
 
-[packages.base.cloud.aws.policy]
-deny = [
-  "aws * create-access-key *",
-  "aws * delete*",
-  "aws * destroy*",
-  "aws * get-secret-value *",
-  "aws * put*",
-  "aws * remove*",
-  "aws * rotate-secret *",
-  "aws * terminate*",
-  "aws * update*",
-  "aws * s3 rm *",
-  "aws * s3 sync *",
-  "aws configure *",
-  "aws secretsmanager get-secret-value *",
-  "aws s3 rm *",
-  "aws s3 sync *"
-]
-
 [packages.base.cloud.azure-cli]
 bin = "az"
-
-[packages.base.cloud.azure-cli.policy]
-deny = [
-  "az * create*",
-  "az * delete*",
-  "az * purge*",
-  "az * remove*",
-  "az * update*",
-  "az keyvault secret show *",
-  "az login *",
-  "az logout *"
-]

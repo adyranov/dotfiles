@@ -143,28 +143,32 @@ EOF
 # --- Git ---
 
 # bats test_tags=kind:git
+# Probes target the applied dotfiles directly: macOS CI runners pre-seed an
+# unmanaged ~/.config/git/config that git's effective-config view reads first,
+# and chezmoi init-apply deliberately skips unmanaged targets (see suite's
+# file-based ghostty/tmux/ssh convention).
 @test "git config user.name is set" {
-  run git config --global --includes user.name
+  run git config --file "$HOME/.config/git/user" user.name
   assert_success
   refute_output ""
 }
 
 # bats test_tags=kind:git
 @test "git config user.email is set" {
-  run git config --global --includes user.email
+  run git config --file "$HOME/.config/git/user" user.email
   assert_success
   refute_output ""
 }
 
 # bats test_tags=kind:git
 @test "git config core.autocrlf is input" {
-  run git config --global --includes core.autocrlf
+  run git config --file "$HOME/.config/git/base" core.autocrlf
   assert_output "input"
 }
 
 # bats test_tags=kind:git
 @test "git config pull.rebase is true" {
-  run git config --global --includes pull.rebase
+  run git config --file "$HOME/.config/git/base" pull.rebase
   assert_output "true"
 }
 
@@ -296,5 +300,66 @@ EOF
 # bats test_tags=kind:ssh
 @test "ssh config does not override TERM globally" {
   run grep -q 'SetEnv TERM=' "$XDG_CONFIG_HOME/ssh/config.d/common.conf"
+  assert_failure
+}
+
+{{- /* Age-off hosts: the ignore block prunes both confs, so the assertion
+       only applies when age encryption is configured. */ -}}
+{{- if .secrets.age }}
+# bats test_tags=kind:ssh
+@test "ssh config.d carries only the active profile conf" {
+  run "$(chezmoiBin)" data --format json
+  assert_success
+  profile="$(jq -r '.host.profile' <<<"$output")"
+  other=$([ "$profile" = "work" ] && echo personal || echo work)
+  assert_file_exists "$HOME/.config/ssh/config.d/${profile}.conf"
+  assert [ ! -f "$HOME/.config/ssh/config.d/${other}.conf" ]
+}
+{{- end }}
+
+{{- /* Render-level guards: a comment closing with "-}}" between two literal
+       lines chomps the separator newline and glues the patterns into one
+       inert entry (84f60c9 CI failure: the age catch-all glued onto the
+       Library pattern). --override-data makes these hermetic on every host,
+       age on or off. */}}
+# bats test_tags=kind:render
+@test ".chezmoiignore age catch-all renders as a standalone pattern" {
+  local src
+  src="$(tmplFile .chezmoiignore.tmpl)"
+  render_source "$src" "$BATS_FILE_TMPDIR/ignore.txt" '{"secrets":{"age":false}}'
+  run grep -cx -F '**/*.age' "$BATS_FILE_TMPDIR/ignore.txt"
+  assert_success
+}
+
+# bats test_tags=kind:render
+@test ".chezmoiremove legacy symlink patterns render standalone" {
+  local src
+  src="$(tmplFile .chezmoiremove.tmpl)"
+  render_source "$src" "$BATS_FILE_TMPDIR/remove.txt"
+  run grep -cx -F '.local/bin/omp-agent' "$BATS_FILE_TMPDIR/remove.txt"
+  assert_success
+}
+
+# bats test_tags=kind:render
+@test ".chezmoiremove never targets the generic open command" {
+  local src
+  src="$(tmplFile .chezmoiremove.tmpl)"
+  render_source "$src" "$BATS_FILE_TMPDIR/remove.txt"
+  # .chezmoiremove deletes destination files it did not create, so the
+  # retired greywall bridge's ~/.local/bin/open must stay out of the list
+  # (an unrelated user `open` would be destroyed); see its comment.
+  run grep -cx -F '.local/bin/open' "$BATS_FILE_TMPDIR/remove.txt"
+  assert_failure
+}
+
+# bats test_tags=kind:render
+@test "package suite template renders standalone test blocks on core-only linux" {
+  local src
+  src="$(tmplFile private_dot_local/share/exact_dotfiles/exact_test/test-system-packages.bats.tmpl)"
+  # Core-only linux is the CI smoke/container-stage shape: a format/test
+  # output that trims its trailing newline glues `}` onto the next directive
+  # (`}# bats ...`) and bats-gather-tests dies on the unbalanced block.
+  render_source "$src" "$BATS_FILE_TMPDIR/sys.bats" '{"host":{"distro":{"id":"ubuntu","family":"linux"},"arch":"arm64"}}'
+  run grep -F '}# bats' "$BATS_FILE_TMPDIR/sys.bats"
   assert_failure
 }

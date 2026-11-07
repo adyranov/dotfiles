@@ -6,33 +6,5 @@ lazydocker = { manager = "mise", package = "aqua:jesseduffield/lazydocker" }
 [packages.base.docker.docker]
 completion = true
 
-[packages.base.docker.docker.policy]
-deny = [
-  "docker * cp *",
-  "docker * exec *",
-  "docker * kill *",
-  "docker * login *",
-  "docker * restart *",
-  "docker * run * --mount type=bind,source=/*",
-  "docker * run * --privileged *",
-  "docker * run * --volume /:*",
-  "docker * run * -v /:*",
-  "docker * stop *",
-  "docker * system prune *",
-  "docker builder prune *",
-  "docker compose down *",
-  "docker compose exec *",
-  "docker compose kill *",
-  "docker compose restart *",
-  "docker compose rm *",
-  "docker compose stop *",
-  "docker container rm *",
-  "docker image rm *",
-  "docker login *",
-  "docker rm *",
-  "docker rmi *",
-  "docker volume rm *"
-]
-
 [packages.base.docker.docker-compose]
 version = "docker compose version"

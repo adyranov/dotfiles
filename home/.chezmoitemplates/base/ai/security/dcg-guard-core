@@ -1,0 +1,197 @@
+// DCG approval guidance (single source for every agent hook; each hook renders
+// this line byte-identical via the include): operator terminal, never the
+// agent — built-in packs: `dcg allow <rule-id> --reason "<why>"` (dcg 0.16.0
+// requires --reason; clap usage error without it); custom packs:
+// `dcg allowlist add-command '<command>'` (custom pack ids die with "Unknown
+// pack ID" on dcg allow); inspect with `dcg explain`.
+import { spawnSync } from "node:child_process";
+import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+
+const HOME = process.env.HOME || "";
+const DCG_CANDIDATES = [
+  `${HOME}/.local/share/mise/shims/dcg`,
+  "/usr/local/bin/dcg",
+  "dcg",
+];
+const DCG_TIMEOUT_MS = 10000;
+
+// Mirrors the upstream parse_env_bool truthy set in destructive_command_guard
+// src/config.rs (trimmed, lowercased), so DCG and this core agree on DCG_BYPASS.
+const DCG_BYPASS_TRUTHY = ["1", "true", "yes", "y", "on"];
+// The REAL home, env-independently from the passwd DB via BSD `id -P <uid>`
+// (home is colon-field 8). The parse is quote-aware — macOS lines embed
+// quoted gecos fields whose colons must not split; split outside quotes, take
+// index 8. A parse miss yields "" and the probe target `/.config/dcg` is
+// unwritable (fail closed). Cached: uid-derived, immutable in-process.
+let realHomeCache = null;
+function realHome() {
+  if (realHomeCache === null) {
+    const res = spawnSync("id", ["-P", String(process.getuid())], { encoding: "utf8" });
+    const line = String(res.stdout || "").trim();
+    const fields = [];
+    let cur = "", quoted = false;
+    for (const ch of line) {
+      if (ch === '"') quoted = !quoted;
+      if (ch === ":" && !quoted) { fields.push(cur); cur = ""; } else cur += ch;
+    }
+    fields.push(cur);
+    const home = fields[8] || "";
+    realHomeCache = home.startsWith("/") ? home : "";
+  }
+  return realHomeCache;
+}
+// Third seal: a sandboxed process cannot write the read-only DCG store, so a
+// forged env (env -u AGENT_SANDBOX DCG_BYPASS=1 …) fails the probe and stays
+// armed. Probe success = unsandboxed write access. The probe targets the
+// uid-derived real home, NOT the HOME-derived one, so a forged HOME cannot
+// redirect it to writable scratch under an intact OS sandbox: writable
+// real-home store = operator host (bypass admitted); EPERM = sandboxed floor
+// = sealed session. Linux caveat: Landlock/seatbelt deny on the existing
+// ~/.config/dcg dir also denies creating files in it; a host where the dir is
+// writable is unsandboxed by definition.
+// Test seam DCG_TEST_REAL_HOME_OVERRIDE redirects ONLY the probe target. It
+// is DCG_*-wildcard-scrubbed at sandbox spawn (deny_vars), so it is inert
+// inside the sandbox.
+// The probe file is unlinked after a successful write: the DCG store is
+// exact_-managed and .chezmoiremove-purged, so a leftover file makes every
+// chezmoi apply prompt about it. Only the write's success matters.
+function bootWriteProbeOk() {
+  const dir = `${process.env.DCG_TEST_REAL_HOME_OVERRIDE || realHome()}/.config/dcg`;
+  const probe = `${dir}/.guard-boot-probe`;
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(probe, "1");
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try {
+      unlinkSync(probe);
+    } catch {
+      // cleanup is best-effort; the verdict is the write probe
+    }
+  }
+}
+// Seal 3b (forged-HOME closure): dcg's effective-settings path rides
+// process.env.HOME, so under AGENT_SANDBOX the HOME must EQUAL the
+// launcher-pinned AGENT_SANDBOX_HOME — exact, not descendant (a descendant
+// like $HOME/.cache/scratch is a redirect target too). AGENT_SANDBOX with no
+// pin fails closed: a missing pin means the marker was forged around. The
+// mirror shape fails closed too: pin present with AGENT_SANDBOX stripped is
+// sandboxed lineage (`env -u AGENT_SANDBOX …`), not a host boot.
+// shortcut: in-process env forgery by a compromised runtime stays the accepted two-enforcer ceiling; this seal closes the shell-level forged-HOME vector.
+function bypassHomePinnedOk() {
+  const pinned = process.env.AGENT_SANDBOX_HOME || "";
+  if (!process.env.AGENT_SANDBOX) {
+    if (pinned) {
+      console.error("[dcg] DCG_BYPASS rejected: AGENT_SANDBOX_HOME pin present with AGENT_SANDBOX stripped; sandboxed lineage (fail closed)");
+      return false;
+    }
+    return true; // unsandboxed: nothing to pin; the real-home probe is the anchor
+  }
+  if (!pinned) {
+    console.error("[dcg] DCG_BYPASS rejected: AGENT_SANDBOX is set without the launcher-pinned AGENT_SANDBOX_HOME; HOME is unverifiable (fail closed)");
+    return false;
+  }
+  if (process.env.HOME === pinned) return true;
+  console.error(`[dcg] DCG_BYPASS rejected: HOME (${process.env.HOME || ""}) is not the launcher-pinned AGENT_SANDBOX_HOME (${pinned}); forged HOME (fail closed)`);
+  return false;
+}
+// Boot-time snapshot of the launcher's --no-sandbox bypass (DCG_BYPASS=1) and
+// the AGENT_SANDBOX marker. Three seals keep a sandboxed agent from self-disarming:
+// (1) nono profiles scrub inherited DCG_* env at sandbox spawn, so a sandboxed
+// launch never sees the bypass at boot; (2) this is a module-load snapshot, so
+// post-boot process.env mutation by agent-loaded code cannot disarm the guard
+// (a live read would; today's tamper fails closed, keep it that way); (3) the
+// boot write probe above fails inside the sandbox even when seals 1-2 are
+// forged around (it anchors on the uid-derived real home, not HOME), so a
+// nested spawn with a scrubbed marker stays armed, and the AGENT_SANDBOX_HOME
+// gate above rejects a bypass whose HOME escapes the launcher-pinned home.
+// Caveat: a project plugin executing before this core at boot can poison the
+// snapshot (third-party plugin ordering).
+const DCG_BYPASS_AT_BOOT =
+  DCG_BYPASS_TRUTHY.includes((process.env.DCG_BYPASS || "").trim().toLowerCase()) &&
+  bypassHomePinnedOk() &&
+  !process.env.AGENT_SANDBOX &&
+  bootWriteProbeOk();
+// The agent's transcript is the only audit trail of a bypassed session
+// (no DCG history, no nono log), so announce the bypass in-band, once,
+// mirroring the missing-binary warning below.
+if (DCG_BYPASS_AT_BOOT) {
+  console.error("[dcg] guard bypassed at boot (DCG_BYPASS); commands are not checked");
+}
+
+// The runnable approval string: dcg 0.16.0 requires --reason. rule_id is
+// pack-controlled, so only shaped ids (^[A-Za-z0-9._:-]+$) are interpolated;
+// a misshapen id returns null and the call site falls to the rule-less
+// explain form. Custom-pack ids (user.*/chezmoi.custom.*) die on `dcg allow`
+// with "Unknown pack ID", so their live route is the exact-command allowlist.
+const DCG_CUSTOM_RULE_PREFIXES = ["user.", "chezmoi.custom:"];
+function shellSingleQuote(s) {
+  return `'${String(s).split("'").join("'\\''")}'`;
+}
+function dcgApprovalCommand(rule, command) {
+  if (typeof rule !== "string" || !/^[A-Za-z0-9._:-]+$/.test(rule)) return null;
+  if (DCG_CUSTOM_RULE_PREFIXES.some((p) => rule.startsWith(p)))
+    return `dcg allowlist add-command ${shellSingleQuote(command)}`;
+  return `dcg allow ${rule} --reason "dcg-guard block ${rule} ${new Date().toISOString()}"`;
+}
+
+function dcgBlockReason(command, cwd) {
+  // A bypassed dcg never consults packs, so the spawn is pure overhead;
+  // skipping it also avoids depending on bypassed-binary output shapes.
+  if (DCG_BYPASS_AT_BOOT) return null;
+  if (typeof command !== "string" || command.length === 0) return null;
+  const payload = `${JSON.stringify({ tool_name: "Bash", tool_input: { command } })}\n`;
+  let result = null;
+  for (const candidate of DCG_CANDIDATES) {
+    let probe;
+    try {
+      probe = spawnSync(candidate, ["hook", "--robot", "--batch"], {
+        input: payload,
+        encoding: "utf8",
+        timeout: DCG_TIMEOUT_MS,
+        cwd: typeof cwd === "string" && cwd ? cwd : undefined,
+        env: {
+          ...process.env,
+          DCG_FAIL_CLOSED: "1",
+          // No DCG_ALLOW_ONCE_PATH override: the default store is read-only
+          // in the sandbox and DCG fails closed on it (block stands). A
+          // writable store would be a self-authorization hole: entries are
+          // plain JSONL and match_command trusts store bytes.
+        },
+      });
+    } catch {
+      continue;
+    }
+    if (probe.error && probe.status == null && !probe.signal) continue; // never started
+    result = probe;
+    break;
+  }
+  if (!result) {
+    console.error("[dcg] pinned binary not found; command allowed (permissive missing-binary mode)");
+    return null;
+  }
+  const line = String(result.stdout || "").trim().split("\n")[0];
+  let verdict = null;
+  try {
+    verdict = line ? JSON.parse(line) : null;
+  } catch {
+    verdict = null;
+  }
+  const decision = verdict && verdict.decision;
+  if (decision === "deny" || decision === "ask" || decision === "indeterminate") {
+    const rule = verdict && verdict.rule_id;
+    const approval = dcgApprovalCommand(rule, command);
+    if (!approval) {
+      // Rule-less (e.g. an Unknown-dialect widening) or misshapen-id verdict:
+      // `dcg allow` has no safe rule to approve, so send the operator to
+      // explain on the command.
+      return `${(verdict && verdict.reason) || "Blocked by DCG (no rule id)"}\n\nRule: (none reported)\nApproval: not rule-approvable; operator terminal: dcg explain '<command>'`;
+    }
+    return `${(verdict && verdict.reason) || `Blocked by DCG (${rule})`}\n\nRule: ${rule}\nApproval (operator terminal, not the agent): ${approval}; see: dcg explain`;
+  }
+  if (decision === "allow") return null;
+  if (result.status === 0) return "Blocked by DCG: dcg exited 0 without a verdict (fail-closed).";
+  return `Blocked by DCG: dcg ended without a verdict (exit ${result.status}${result.signal ? ` signal ${result.signal}` : ""}; fail-closed).`;
+}

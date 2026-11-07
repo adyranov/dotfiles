@@ -1,0 +1,12 @@
+{{- /* pi-advisor-flow global config (agent-dir advisor.json): the advisor
+  model route rides the oracle tier (resolved per preset). */ -}}
+{{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" . "required" true) | mustFromJson -}}
+{{- $adv := get $tiers "oracle" -}}
+{{- $modelKey := includeTemplate "base/ai/agents/pi/render-pi-model-ref" $adv -}}
+
+{{- dict
+  "advisor" $modelKey
+  "advisorEffort" (default "high" (get $adv "thinking"))
+  "advisorDisableSameModel" true
+  | toPrettyJson
+-}}

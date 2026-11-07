@@ -1,0 +1,7 @@
+{{- /* route-key — custom_credentials key of a credential route row: custom_name,
+  else preset, else lowercased name.
+  Usage: {{ includeTemplate "base/ai/auth/route-key" (dict "row" $row) }}
+*/ -}}
+{{- $row := index . "row" -}}
+{{- $key := index $row "custom_name" | default (index $row "preset") | default (index $row "name" | lower) -}}
+{{- $key -}}

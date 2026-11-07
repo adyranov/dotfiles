@@ -1,0 +1,21 @@
+{{- /* Render the opencode v2 TUI config (cli.json) for a profile: v2 loads
+  TUI plugins from cli.json in OPENCODE_CONFIG_DIR.
+  Requires the profile's tui_plugins key. */ -}}
+{{- $root := .root -}}
+{{- $profile := .profile | default "core" -}}
+{{- $opencode := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.opencode" "required" true) | mustFromJson -}}
+{{- $profileData := includeTemplate "base/ai/agents/resolve-profile" (dict "agentData" $opencode "profile" $profile) | mustFromJson -}}
+{{- $tuiPlugins := get $profileData "tui_plugins" | default list -}}
+{{- if not $tuiPlugins -}}{{- fail (printf "render-opencode-cli-config: profile %q declares no tui_plugins" $profile) -}}{{- end -}}
+{{- /* The launcher relocates OPENCODE_CONFIG_DIR, so the TUI reads this
+  cli.json, not the global one; the theme belongs here. */ -}}
+{{- $cli := $opencode.cli | default dict -}}
+{{- $themeName := get $cli "theme" | default "" -}}
+{{- $result := dict
+  "$schema" "https://opencode.ai/v2/cli.json"
+  "plugins" $tuiPlugins
+-}}
+{{- if $themeName -}}
+{{-   $_ := set $result "theme" (dict "name" $themeName "mode" (get $cli "theme_mode" | default "system")) -}}
+{{- end -}}
+{{ $result | toPrettyJson }}

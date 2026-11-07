@@ -1,0 +1,27 @@
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
+
+# Greywall-era LaunchAgents that are no longer managed by chezmoi are booted
+# out once. run_onchange_after re-runs this script exactly when the rendered
+# content changes (for example when the label list below is edited). The
+# stale on-disk artifacts themselves are removed via home/.chezmoiremove.tmpl.
+
+stale_labels=(
+  com.user.openurl-bridge
+)
+
+# Optional argv override of the label list; lets the bats suite prove the
+# not-loaded path with a bogus label without touching real services.
+if [ "$#" -gt 0 ]; then
+  stale_labels=("$@")
+fi
+
+echo "🧹 Retiring stale launch agents..."
+for label in "${stale_labels[@]}"; do
+  if launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1; then
+    echo "  ✅ booted out $label"
+  else
+    echo "  ℹ️  $label not loaded"
+  fi
+done
+
+echo "✅ Stale launch agent retirement complete."

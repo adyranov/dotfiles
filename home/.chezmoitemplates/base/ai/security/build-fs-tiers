@@ -1,0 +1,26 @@
+{{- /* build-fs-tiers — Shared filesystem-tier pipeline for the nono renderers.
+  Input: dict "root", "read"/"write"/"deny" (resolved path lists), "extraCarve"
+  (additional read carve-outs the allow-filter must honor).
+  Pipeline (single owner of these rules): strip-tilde-tails (SIGILL guard) on
+  all three lists, uniq|sortAlpha write+deny, ro = read − write, then
+  filter-shadowed-allow (read carve-outs beat covering write grants;
+  realpath-aware python helper). Output: JSON { allow, read, deny }, sorted;
+  callers add tier-specific extras (base "write": [], sockets).
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $read := index . "read" | default list -}}
+{{- $write := index . "write" | default list -}}
+{{- $deny := index . "deny" | default list -}}
+{{- $h := $root.chezmoi.homeDir -}}
+{{- $read = includeTemplate "base/ai/security/strip-tilde-tails" (dict "homeDir" $h "paths" $read) | mustFromJson -}}
+{{- $write = includeTemplate "base/ai/security/strip-tilde-tails" (dict "homeDir" $h "paths" $write) | mustFromJson -}}
+{{- $deny = includeTemplate "base/ai/security/strip-tilde-tails" (dict "homeDir" $h "paths" $deny) | mustFromJson -}}
+{{- $write = includeTemplate "base/ai/security/uniq-sort" $write | mustFromJson -}}
+{{- $deny = includeTemplate "base/ai/security/uniq-sort" $deny | mustFromJson -}}
+{{- $ro := list -}}
+{{- range $p := $read -}}{{- if not (has $p $write) -}}{{- $ro = append $ro $p -}}{{- end -}}{{- end -}}
+{{- $carve := concat $ro (index . "extraCarve" | default list) | uniq -}}
+{{- /* The filter is a template (shared python-anchor include): render, run -c. */ -}}
+{{- $fsc := includeTemplate "base/ai/security/filter-shadowed-allow" dict -}}
+{{- $write = output "python3" "-c" $fsc (dict "allow" $write "read" $carve | toJson) | mustFromJson -}}
+{{- dict "allow" $write "read" ($ro | sortAlpha) "deny" $deny | toJson -}}

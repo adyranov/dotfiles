@@ -1,0 +1,31 @@
+{{- /* classify-refs — The shared mixed-list discriminator: split
+  literal passthrough entries from catalog group refs and resolve the refs via
+  expand-path-groups (its loud-fail on unknown groups is preserved).
+  Usage: {{ includeTemplate "base/ai/security/classify-refs" (dict "root" . "refs" $list "catalog" "ai.permissions.network.groups") | mustFromJson }}
+  Args: root, refs (list), catalog (catalog section path), optional
+  catalogJson (pre-parsed catalog map, forwarded to expand-path-groups).
+  Axis is derived from the catalog: a `network.groups` catalog uses the net
+  rule (entries containing "." are literal hosts, "@"-prefixed are provider
+  tokens — both pass through; dotless entries are group refs); a
+  `filesystem.paths` catalog uses the fs rule ("/"-containing entries, exact
+  ".", and "@"-prefixed tokens pass through; the rest are group refs).
+  Output: JSON list = concat(literals, resolved group refs); each caller
+  keeps its own downstream tail (expand-tmpdir / uniq-sort / guard). */ -}}
+{{- $root := index . "root" -}}
+{{- $refs := index . "refs" | default list -}}
+{{- $catalog := index . "catalog" -}}
+{{- $isNet := hasSuffix "network.groups" $catalog -}}
+{{- $list := list -}}
+{{- $groups := list -}}
+{{- range $e := $refs -}}
+{{-   $literal := false -}}
+{{-   if $isNet -}}{{-   if or (hasPrefix "@" $e) (contains "." $e) -}}{{-   $literal = true -}}{{-   end -}}{{-   else -}}{{-   if or (hasPrefix "@" $e) (contains "/" $e) (eq $e ".") -}}{{-   $literal = true -}}{{-   end -}}{{-   end -}}
+{{-   if $literal -}}{{-   $list = append $list $e -}}{{-   else -}}{{-   $groups = append $groups $e -}}{{-   end -}}
+{{- end -}}
+{{- $out := $list -}}
+{{- if $groups -}}
+{{-   $args := dict "root" $root "groups" $groups "catalog" $catalog -}}
+{{-   if hasKey $ "catalogJson" -}}{{-   $_ := set $args "catalogJson" (index $ "catalogJson") -}}{{-   end -}}
+{{-   $out = concat $list (includeTemplate "base/ai/security/expand-path-groups" $args | mustFromJson) -}}
+{{- end -}}
+{{- $out | toJson -}}

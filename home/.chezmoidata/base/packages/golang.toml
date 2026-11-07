@@ -1,5 +1,3 @@
-[packages.base.golang]
-
 [packages.base.golang.go]
 manager = "mise"
 version = "go version"

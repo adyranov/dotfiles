@@ -1,0 +1,34 @@
+{{- /* base/test/shared-fact-loop — Emits ONE aggregate-offender shared-fact
+  Bats test. Args (dict): title — test title; tags — bats
+  test_tags string; message — failure-line prefix; checks — list of dicts,
+  each with tool, label and by "kind":
+    absent — file: probe `[ ! -e file ]` (no run, file content never printed)
+    cmd    — cmd (jq -e / jsoncJq -e / yq -e / jq -e -n), arg, prog (verbatim
+              program), filepart: renders `run <cmd> <arg>'<prog>'<filepart>`
+    run    — run: raw shell one-liner (render-time data comparisons)
+  Offenders collect as "tool:label" only; cmd/run checks execute under `run`,
+  so config content never reaches gate output. Entry conditions are
+  render-time data flags: the caller builds the checks list per host.
+  Empty/absent checks render NO test (vacuous-loop guard). */ -}}
+{{- if .checks }}
+# bats test_tags={{ .tags }}
+@test "{{ .title }}" {
+  local offenders=""
+{{- range $c := .checks }}
+{{-   if eq $c.kind "absent" }}
+  [ ! -e "{{ $c.file }}" ] || offenders="$offenders {{ $c.tool }}:{{ $c.label }}"
+{{-   else }}
+{{-     if eq $c.kind "run" }}
+  run {{ $c.run }}
+{{-     else }}
+  run {{ $c.cmd }} {{ $c.arg }}'{{ $c.prog }}'{{ $c.filepart }}
+{{-     end }}
+  [ "$status" -eq 0 ] || offenders="$offenders {{ $c.tool }}:{{ $c.label }}"
+{{-   end }}
+{{- end }}
+  if [ -n "$offenders" ]; then
+    printf '%s%s\n' "{{ .message }}" "$offenders"
+    return 1
+  fi
+}
+{{- end }}

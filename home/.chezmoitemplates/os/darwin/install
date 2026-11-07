@@ -24,6 +24,7 @@ echo "✅ MacPorts packages applied."
 {{- end }}
 {{- end }}
 echo "📦 Ensuring Homebrew bundle packages…"
+export HOMEBREW_NO_ASK=1
 brew bundle --no-upgrade --verbose --file=/dev/stdin <<EOF
 {{ includeTemplate "os/darwin/brewfile" . }}
 EOF

@@ -8,4 +8,5 @@ sessions/**
 state.json
 mcp-cache.json
 auth.json
+service.json
 skills/

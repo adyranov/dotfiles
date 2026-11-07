@@ -1,7 +1,5 @@
 [packages.base.python]
-uv = { completion = { generate = "uv generate-shell-completion zsh" }, manager = "mise", policy = { deny = [
-  "uv publish *"
-] } }
+uv = { completion = { generate = "uv generate-shell-completion zsh" }, manager = "mise" }
 
 [packages.base.python.python]
 manager = "mise"

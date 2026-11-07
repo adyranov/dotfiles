@@ -1,10 +1,20 @@
+# profile dir == PI_CODING_AGENT_DIR for this tier: agent-writable root, pi
+# lands runtime files here; the exact_ deletion law would remove them.
+*.lock
 agents/**
 git/**
+keybindings.json
+lastChangelogVersion
 logs/
-npm/
 mcp-cache.json
+mcp-onboarding.json
 models-store.json
+npm/
+# pi-subagents fleet runtime state (last-seen-version.json et al.) lands in
+# the agent-dir root at startup; the exact_ deletion law would remove it.
+pi-subagents/
+run-history.jsonl
 sessions/**
 state.json
-trust.json
 tmp/**
+trust.json

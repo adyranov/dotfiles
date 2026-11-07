@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""Convert a merged command deny-list (one glob pattern per line on stdin) into
+a nono command_policies JSON object.
+
+nono 0.79 argv matchers compare against the arguments AFTER the command name,
+one matcher per rule: `exact` (argv equals the tokens), `prefix` (argv begins
+with the literal tokens), `contains` (tokens appear as a contiguous window).
+
+Pattern mapping:
+- Bare command / all-wildcard pattern (`cmd`, `cmd *`) -> `from.session = "deny"`.
+- Leading literal run + trailing standalone `*` (`cmd sub *`) -> `prefix` of the
+  leading run.
+- No-wildcard pattern with >=2 tokens (`cmd sub`) -> `exact`.
+- Otherwise -> `contains` of the literal (wildcard-free) tokens; if none remain,
+  the command is deny-only.
+Token-prefix globs (`--force*`, `delete-*`) have no faithful matcher form, so the
+deny DATA enumerates explicit literal variants instead; this converter never
+strips glob tokens into `contains` (the retired strip-to-contains path).
+- `eval`/`exec` are shell builtins, not executables; they cannot be mediated by a
+  PATH shim and are dropped (known gap).
+
+CLI contract:
+- argv[1]: newline-separated deny patterns (falls back to stdin when absent).
+- argv[2] (optional): JSON map `<command> -> {"fs_read": [...], "fs_write": [...]}`
+  overriding that command's invocation-policy command sandbox. The sandbox
+  replaces the session filesystem grants for policy-controlled commands, so every
+  command with a filesystem carve-out needs its tier rendered here (chezmoi's
+  apply-allowlist parents + state; git's and mise's dirs). Lists are
+  DIRECTORIES only: nono rejects a file entry and policy-denies the whole
+  invocation ("Expected a directory but got a file"). Unlisted commands keep the
+  default `{"fs_read": ["."], "fs_write": ["."]}`.
+"""
+import json
+import sys
+
+BUILTINS = {"eval", "exec"}
+DEFAULT_SANDBOX = {"fs_read": ["."], "fs_write": ["."]}
+
+
+def split_tokens(pattern):
+    return [t for t in pattern.split() if t]
+
+
+def cmd_name(tokens):
+    name = tokens[0]
+    if name.endswith("*"):
+        name = name[:-1]
+    return name
+
+
+def read_patterns():
+    if len(sys.argv) > 1:
+        return [ln.strip() for ln in sys.argv[1].split("\n") if ln.strip()]
+    return [ln.strip() for ln in sys.stdin if ln.strip()]
+
+
+def classify(rest):
+    """Map argv tokens after the command name to a matcher class.
+
+    Returns (matcher, tokens) where matcher is one of "deny", "prefix",
+    "exact", "contains".
+    """
+    if not rest or all(t == "*" for t in rest):
+        return ("deny", None)
+    if rest[-1] == "*" and rest[:-1] and all("*" not in t for t in rest[:-1]):
+        return ("prefix", rest[:-1])
+    if all("*" not in t for t in rest):
+        return ("exact", rest)
+    literals = [t for t in rest if "*" not in t]
+    if not literals:
+        return ("deny", None)
+    return ("contains", literals)
+
+
+def main():
+    patterns = read_patterns()
+    sandboxes = json.loads(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].strip() else {}
+    commands = {}
+    for pat in patterns:
+        tokens = split_tokens(pat)
+        if not tokens:
+            continue
+        name = cmd_name(tokens)
+        if name in BUILTINS:
+            continue
+        entry = commands.setdefault(name, {"deny_all": False, "rules": []})
+        matcher, argv = classify(tokens[1:])
+        if matcher == "deny":
+            entry["deny_all"] = True
+        else:
+            entry["rules"].append({matcher: argv})
+
+    out_commands = {}
+    for name in sorted(commands):
+        entry = commands[name]
+        if entry["deny_all"]:
+            out_commands[name] = {"from": {"session": "deny"}}
+            continue
+        # Dedup rules by their JSON form.
+        seen = set()
+        deny = []
+        for rule in entry["rules"]:
+            key = json.dumps(rule, sort_keys=True)
+            if key not in seen:
+                seen.add(key)
+                deny.append({"argv": rule})
+        policy = {"default": "allow", "deny": deny}
+        sandbox = dict(sandboxes.get(name, DEFAULT_SANDBOX))
+        cmd_entry = {
+            "from": {
+                "session": {
+                    "sandbox": sandbox,
+                    "invocation_policy": policy,
+                }
+            }
+        }
+        # can_use is a COMMAND-entry field (chained mediation: the caller's
+        # can_use lists child commands it may invoke; a missing edge denies the
+        # child, no fallback). The sandbox data map carries it; lift it out.
+        can_use = sandbox.pop("can_use", None)
+        if can_use:
+            cmd_entry["can_use"] = can_use
+        out_commands[name] = cmd_entry
+
+    result = {"commands": out_commands}
+    json.dump(result, sys.stdout)
+
+
+if __name__ == "__main__":
+    main()
