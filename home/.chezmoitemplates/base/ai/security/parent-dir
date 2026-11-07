@@ -1,5 +1,0 @@
-{{- /* parent-dir — Path -> parent directory (nono's command-sandbox lists take
-  directories only, so chezmoi entries carry destination parents).
-  Usage: {{ includeTemplate "base/ai/security/parent-dir" $path }}
-*/ -}}
-{{- regexReplaceAll "/[^/]+$" . "" -}}
