@@ -56,13 +56,24 @@ layers:
   configs/history, browser data), a small command hard core (Git force flags,
   keychain mutators, secret exports, global `chezmoi apply`), and proxy-routed
   network egress with domain allow-listing. Git is HTTPS-only; SSH egress is
-  blocked. Agents reuse your existing SSH connections: open a master in your
-  terminal (`ssh -M -o ControlPersist=yes root@host true`, per your `ControlPath
-${SSH_DATA_HOME}/sockets/%C`) and agents ride it by literal socket path,
-  `ssh -S "$SSH_DATA_HOME/sockets/<hash>" <host> <cmd>` — agents cannot
-  reproduce `%C` (they do not read `~/.ssh/config`), so they discover sockets
-  with `ls` and probe each with `ssh -O check` / a `hostname` ride. Only that
-  socket dir is granted — no keys, no raw egress; a master must exist first.
+  blocked. Agents never reach your host tmux server (its socket dir is
+  sandbox-denied); on macOS each agent session gets a private sandbox-local
+  tmux socket. SSH reuse is opt-in per agent, default none: open a master in
+  your terminal, compute its exact socket path
+  (`ssh -G <host> | awk '/^controlpath/ {print $2}'`), add that exact path to
+  the intended agent's data (`sandbox.filesystem.unix_socket` plus the same
+  path in `bypass_protection`), and apply in your terminal; the master must
+  exist before the agent launches. An approved master delegates your VM
+  account's authority — approve only connections you mean to delegate. On
+  Linux/WSL2 host tmux stays unreachable, and sandbox-local tmux and SSH
+  reuse are unavailable (pathname-socket mediation gap; the capabilities
+  fail closed).
+  Agents never write live home configuration: the chezmoi config/state dir
+  is session-read-only (the `chezmoi` command sandbox keeps its own diff/
+  cache writes, and `chezmoi init` and `chezmoi state` are command-core
+  denied), and the chezmoi-managed editor settings (VS Code, Cursor,
+  ghostty), the login `setenv.sh`, and `~/.agents`/`~/.editorconfig` are
+  read-only. You review and apply home changes yourself.
 - **DCG** (`dcg`) gates destructive-but-normal commands
   (`kubectl delete`, `tofu destroy`, package publishes) through
   chezmoi-managed per-agent hooks. nono hardens the gate: `DCG_*` environment
@@ -84,16 +95,9 @@ When an agent is blocked:
   the agent retries.
 - Blocked network host: nono's audit records the denial; add the domain to the
   network data and apply. Agents never widen their own egress.
-- Blocked destination: `chezmoi apply <path>` runs in-sandbox only for
-  destinations on the apply allowlist (`[ai.permissions.apply]` in
-  `home/.chezmoidata/base/ai/permissions.toml`), which is also where the write
-  grants come from. Anything off the list is refused at the filesystem boundary:
-  the agent reports the destination, you add it to the data and apply in your
-  terminal, and the wider grants attach at sandbox start — so the change lands
-  on the agent's next session, never mid-session. Bare and flag-leading applies
-  (`chezmoi apply --force`, `mise run apply`, …) stay denied, and security
-  destinations, agent runtime configs, rendered shell files, and `run_onchange`
-  scripts stay user-applied.
+- Home changes: agents edit the source; review and run `chezmoi apply` in your
+  own terminal. Run the relevant tests after applying, since they check the
+  rendered home configuration.
 
 Sandboxed agents get dev-loop parity: `git` resolves to the system binary,
 git worktrees live project-local under `.slim/worktrees/`, and
@@ -107,7 +111,12 @@ transcript is the audit trail. nono command
 mediation is PATH-shim based, so a deliberate absolute-path exec bypasses the
 command core; DCG's command-text analysis is the complement. The pi agent dirs
 are sandbox-writable (upstream lockfile contract), with hook write-protection
-as macOS Seatbelt denies and a documented Linux ceiling.
+as macOS Seatbelt denies. On Linux/WSL2 those hooks render inside agent-
+writable roots and Landlock cannot deny-within-allow, so hook protection
+cannot be enforced there: the `agent` launcher refuses guarded launches on
+Linux — sandboxed and nested (`--no-sandbox` inside a sandbox) — and names
+the remedies: run guarded agents on macOS, or use an explicit host
+`--no-sandbox` debug launch.
 
 Subagent concurrency defaults to 8 and is preset-specific (personal Qwen: 4);
 OpenCode remains uncapped until it exposes a native width limit.
