@@ -1,0 +1,9 @@
+{{- /* The shared dotfiles nono profile: user-launched dotfiles sessions of
+  any agent (the launcher swaps only NONO_PROFILE; agent config profiles are
+  reused as-is). macOS-only: the union-minus-denies model needs Seatbelt's
+  write-deny-within-allow, which Landlock's created-after-start ceiling
+  cannot enforce; Linux dotfiles work keeps the terminal-side audit loop, so
+  this renders empty (unmanaged) off darwin. */ -}}
+{{- if (eq .host.distro.family "darwin") -}}
+{{- includeTemplate "base/ai/security/render-nono-profile" (dict "root" . "kind" "dotfiles") -}}
+{{- end -}}

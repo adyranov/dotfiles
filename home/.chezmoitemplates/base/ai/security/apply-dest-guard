@@ -16,7 +16,10 @@ literal absolute or `~/` paths: a glob is not an apply target, and a relative
 path resolves against the runtime cwd, which no launch-time grant can bound.
 This is the protected floor, not a containment proof — an entry outside the
 home dir (e.g. `/tmp/x`) is accepted by design and bounded by the filesystem
-axis; `/` (and anything resolving to it, like `~/../..`) is refused.
+axis; `/` (and anything resolving to it, like `~/../..`) is refused. So is
+the home root itself, and any destination whose parent is `~`: the parent
+`~` would join the chezmoi command sandbox (which REPLACES the session
+grants) and re-open the whole home, every credential leaf included.
 
 CLI: argv[1] = JSON {"destinations": [...], "protected": [...], "exempt": [...],
 "allow_contains": [...]}
@@ -52,6 +55,9 @@ import sys
 # is chezmoi's own config+state: an applicable config.toml would let an agent
 # redirect the source dir the user's next terminal apply renders.
 PROTECTED = [
+    # The instruction file every agent reads at startup: an applicable
+    # AGENTS.md is prompt injection into every future session.
+    "~/.config/agents",
     "~/.config/chezmoi",
     "~/.config/dcg",
     "~/.config/nono",
@@ -60,6 +66,12 @@ PROTECTED = [
     "~/.config/pi",
     "~/.config/shell",
     "~/.config/zsh",
+    # Provider credential store. Base deliberately does not deny it (the
+    # sandboxed opencode runtime must read its own auth store; deny beats
+    # grants across extends), so it reaches the guard floor here — the same
+    # built-in slot as the agent config roots, which are likewise
+    # agent-granted and never base-denied.
+    "~/.local/share/opencode/auth.json",
     "~/Library/LaunchAgents",
     "~/Library/Scripts",
     "~/.zshenv",
@@ -73,6 +85,9 @@ def main():
     exempt = {anchored(e) for e in data.get("exempt", [])}
     allow_contains = {anchored(e) for e in data.get("allow_contains", [])}
     allow_globs = bool(data.get("allow_globs"))
+    # Home root anchor (anchored() rejects the bare "~", so expand directly).
+    home = os.path.realpath(os.path.expanduser("~"))
+    home = home.lower() if CASEFOLD else home
     protected = [
         r
         for r in (anchored(glob_free_prefix(e)) for e in PROTECTED + data.get("protected", []))
@@ -93,6 +108,16 @@ def main():
         target = anchored(glob_free_prefix(dest)) if allow_globs else anchored(dest)
         if not target:
             violations.append(f"{dest}: entries must be literal absolute paths")
+            continue
+        # Home-root hazard: a destination whose parent is `~` contributes
+        # literal `~` to the chezmoi command sandbox, which REPLACES the
+        # session grants — a home-wide read/write re-opens every credential
+        # leaf. Refused in both calls, and `~` itself is never a grant.
+        if target == home:
+            violations.append(f"{dest}: is the home root (~): grants the whole home, every credential leaf included")
+            continue
+        if not allow_globs and os.path.dirname(target) == home:
+            violations.append(f"{dest}: parent is the home root (~): a home-root destination seeds ~ into the chezmoi command sandbox")
             continue
         for root in protected:
             if target == root:

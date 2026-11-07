@@ -3,6 +3,10 @@
   chezmoi's command-sandbox lists (render-nono-cmd) — a destination is applicable
   if and only if it is granted.
   Usage: {{ includeTemplate "base/ai/security/render-apply-dests" (dict "root" .) | mustFromJson }}
+  Optional "destinations" arg: the profile-scoped list (the dotfiles profile
+  passes its seed set; every other profile passes nothing and gets the empty
+  base list). An empty passed list is the unmanaged value and falls back to
+  the base list, so the two sources render identically while both are empty.
   Output: JSON array of literal destinations, deduped and sorted.
   Every entry of `destinations` and of every command-sandbox list (the chezmoi
   pair plus the per-command `sandbox.<cmd>` overrides) goes through
@@ -20,7 +24,8 @@
 {{- $root := index . "root" -}}
 {{- $apply := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.apply" "required" false) | mustFromJson) -}}
 {{- $fs := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem" "required" true) | mustFromJson) -}}
-{{- $dests := includeTemplate "base/ai/security/expand-tmpdir" (dict "list" (index $apply "destinations" | default list)) | mustFromJson -}}
+{{- $dests := index . "destinations" | default (index $apply "destinations" | default list) -}}
+{{- $dests = includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $dests) | mustFromJson -}}
 {{- $parents := list -}}
 {{- range $d := $dests -}}{{- $parents = append $parents (includeTemplate "base/ai/security/parent-dir" $d) -}}{{- end -}}
 {{- $dirs := concat (index $apply "command_sandbox_read" | default list) (index $apply "command_sandbox_write" | default list) -}}
