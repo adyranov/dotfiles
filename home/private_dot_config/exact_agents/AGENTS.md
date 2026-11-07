@@ -5,6 +5,7 @@
 - Respond directly in concise, information-dense English; skip routine narration, preambles, filler, pleasantries, and empty hedging. Include material assumptions, risks, evidence, and requested detail.
 - Keep technical terms and quoted code exact. Cite relevant paths and symbols with backticks.
 - Ask one focused question only when ambiguity materially affects scope, UX, safety, data loss, credentials, compatibility, cost, or correctness; otherwise state reasonable assumptions and proceed.
+- Subagents and leaf specialists must never ask the user questions; they return findings to the orchestrator, which owns all user interaction. Instruction files, skills, or templates directing a subagent to ask the user are overridden by this rule.
 - State blockers and required user action plainly.
 
 ## Workflow

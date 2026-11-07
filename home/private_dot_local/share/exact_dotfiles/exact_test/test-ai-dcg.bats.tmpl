@@ -1,0 +1,465 @@
+{{- if ne .host.type "ephemeral" }}
+# bats file_tags=suite:ai
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+# DCG robot probes against the APPLIED pack config. The host run is
+# authoritative: inside a sandboxed agent (AGENT_SANDBOX marker exported by
+# the `agent` launcher before `exec nono run`) the whole file skips.
+#
+# In-sandbox agents cannot self-allow (stores are read-only); the
+# allowlist-edit round-trip is out of scope for these probes.
+
+setup_file() {
+  if [ -n "${AGENT_SANDBOX:-}" ]; then
+    echo "SKIP: nested sandbox — run on host" >&3
+    skip "AGENT_SANDBOX is set; DCG probes are host-authoritative"
+  fi
+}
+
+# The deny probes assert the chezmoi-rendered custom packs (ai toolchain).
+# This suite is unapplied when the ai toolchain is off (.chezmoiignore gate),
+# so an empty pack dir here is render drift: fail, never skip.
+requireDcgPack() {
+  require_dcg
+  [ -n "$(ls -A "$HOME/.config/dcg/packs" 2>/dev/null)" ] || {
+    echo "no custom DCG pack rendered on an ai-enabled host (render drift)" >&2
+    return 1
+  }
+}
+
+# bats test_tags=kind:dcg
+@test "dcg binary on PATH is the pinned 0.16.0 every probe below evaluates" {
+  # Same-suite gate: a stale binary silently changes verdicts, so the version
+  # goes red at this gate before the deny probes below decide. PATH-resolved
+  # (require_dcg → command -v), never a hardcoded path, so hosts probe the
+  # same binary the hooks spawn. The version follows the mise package
+  # (unpinned upstream) — bump with the data.
+  require_dcg
+  run dcg --version
+  assert_output --partial "0.16.0"
+}
+
+{{- /* packs/kubernetes.yaml rides the kubernetes toolchain gate (.chezmoiignore):
+  these custom-pack denies are absent on ai-on/k8s-off hosts — gate the probes
+  with the same condition (idiom from test-ai-shared). Built-in-allow probes
+  (kubectl get pods) measure the binary, not the rendered packs: ungated. */ -}}
+{{- if get .toolchains "kubernetes" | default false }}
+# bats test_tags=kind:dcg
+@test "dcg denies kubectl delete pod x (custom pack closes allow-by-default)" {
+  requireDcgPack
+  run dcg test --robot "kubectl delete pod x"
+  assert_failure
+}
+
+# bats test_tags=kind:dcg
+@test "dcg names the custom rule on the kubectl delete denial" {
+  requireDcgPack
+  run dcg test "kubectl delete pod x"
+  assert_output --partial "kubectl-delete"
+  assert_output --partial "BLOCKED"
+}
+
+{{- end }}
+# bats test_tags=kind:dcg
+@test "dcg allows kubectl get pods" {
+  require_dcg
+  run dcg test --robot "kubectl get pods"
+  assert_success
+}
+
+{{- if get .toolchains "kubernetes" | default false }}
+# bats test_tags=kind:dcg
+@test "dcg kubernetes pack gates k3d delete and node-shell, keeps list/get" {
+  # Robot probes carry the verdict; dcg evaluates the text, k3d/kubectl never
+  # run. Rule names are suffix-only: the pack id prefix is the renderer's.
+  requireDcgPack
+  local blocks=(
+    "k3d cluster delete dev|k3d-cluster-delete"
+    "kubectl node-shell node-1|kubectl-node-shell"
+  )
+  local allows=(
+    "k3d cluster list"
+    "k3d cluster get dev"
+    "kubectl get nodes"
+  )
+  local case cmd rule
+  local offenders=()
+  for case in "${blocks[@]}"; do
+    cmd="${case%%|*}" rule="${case##*|}"
+    run dcg test --robot "$cmd"
+    [ "$status" -ne 0 ] || offenders+=("robot allowed: $cmd")
+    run dcg test "$cmd"
+    [[ "$output" == *"$rule"* && "$output" == *"BLOCKED"* ]] ||
+      offenders+=("$cmd: missing '$rule' or BLOCKED")
+  done
+  for cmd in "${allows[@]}"; do
+    run dcg test --robot "$cmd"
+    [ "$status" -eq 0 ] || offenders+=("robot blocked: $cmd")
+  done
+  printf '%s\n' "${offenders[@]}" >&2
+  assert_equal "${#offenders[@]}" 0
+}
+{{- end }}
+
+# bats test_tags=kind:dcg
+@test "dcg allows ordinary commands" {
+  require_dcg
+  run dcg test --robot "echo hi"
+  assert_success
+}
+
+# bats test_tags=kind:dcg
+@test "dcg denies git push --force (belt over the nono hard core)" {
+  requireDcgPack
+  run dcg test --robot "git push --force origin main"
+  assert_failure
+  run dcg test "git push --force origin main"
+  assert_failure
+  assert_output --partial "core.git:push-force-long"
+  assert_output --partial "BLOCKED"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg denies rtk-wrapped git push --force (wrapped argv parity)" {
+  requireDcgPack
+  run dcg test --robot "rtk git push --force origin main"
+  assert_failure
+  # Wrapped lease parity: the custom rule closes what core.git leaves open
+  # (upstream recommends --force-with-lease, so it denies bare, allows lease).
+  run dcg test "rtk git push --force-with-lease origin main"
+  assert_failure
+  assert_output --partial "rtk-git-force-push"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg denies local git destructive commands (restored core.toml gate)" {
+  requireDcgPack
+  # core.git (built-in) gates clean/reset --hard; user.github rows close the
+  # retired core.toml policy's gaps. Assert the rule that actually fires.
+  local cases=(
+    "git clean -fdx|core.git:clean-force"
+    "git reset --hard HEAD~1|core.git:reset-hard"
+    "git rebase main|git-rebase"
+    "git stash drop|git-stash-drop-pop"
+    "git tag -d v1.0|git-tag-delete"
+    "git worktree remove ../wt|git-worktree-remove"
+    "git push origin main --force-with-lease=refs/heads/main:deadbeef|git-force-with-lease-value"
+  )
+  local case cmd rule
+  local offenders=()
+  for case in "${cases[@]}"; do
+    cmd="${case%%|*}" rule="${case##*|}"
+    run dcg test --robot "$cmd"
+    [ "$status" -ne 0 ] || offenders+=("robot allowed: $cmd")
+    run dcg test "$cmd"
+    [[ "$output" == *"$rule"* && "$output" == *"BLOCKED"* ]] ||
+      offenders+=("$cmd: missing '$rule' or BLOCKED")
+  done
+  printf '%s\n' "${offenders[@]}" >&2
+  assert_equal "${#offenders[@]}" 0
+  run dcg test --robot "git push origin main"
+  assert_success
+}
+
+# bats test_tags=kind:dcg
+@test "dcg gates mutation shapes on the session gh tier" {
+  requireDcgPack
+  # The session gh tier makes every agent-tree process write-capable on the GitHub route hosts; reads stay ungated.
+  local blocks=(
+    "gh api repos/x/y -X POST|gh-api-write"
+    "gh api repos/x/y --method PATCH|gh-api-write"
+    "gh api repos/x/y -f foo=bar|gh-api-field-write"
+    "gh workflow run ci.yml|gh-workflow-run"
+    "gh pr merge 1|gh-pr-merge"
+    "gh release create v1|gh-release-create"
+    "curl -X POST https://api.github.com/repos/x/y/issues|http-client-write"
+    "wget --post-data=a=b https://api.github.com/x|http-client-write"
+    "gh secret set FOO=1|gh-secret"
+    # gh-delete matches "gh secret delete" first; the row named in output is the
+    # first match, not gh-secret. The set case pins the gh-secret row by name.
+    "gh secret delete FOO|gh-delete"
+  )
+  local allows=(
+    "gh api /user"
+    "gh api repos/x/y"
+    "curl -s https://api.github.com/rate_limit"
+    "curl -X GET https://github.com/x"
+    "gh secret list"
+    "gh auth login"
+    "gh auth token"
+  )
+  local case cmd rule
+  local offenders=()
+  for case in "${blocks[@]}"; do
+    cmd="${case%%|*}" rule="${case##*|}"
+    run dcg test "$cmd"
+    [ "$status" -ne 0 ] || offenders+=("allowed: $cmd")
+    [[ "$output" == *"$rule"* && "$output" == *"BLOCKED"* ]] ||
+      offenders+=("$cmd: missing '$rule' or BLOCKED")
+  done
+  for cmd in "${allows[@]}"; do
+    run dcg test --robot "$cmd"
+    [ "$status" -eq 0 ] || offenders+=("robot blocked read: $cmd")
+  done
+  printf '%s\n' "${offenders[@]}" >&2
+  assert_equal "${#offenders[@]}" 0
+}
+
+{{- $hooks := list }}
+{{- if get .toolchains "opencode" | default false }}{{ $hooks = append $hooks "$HOME/.config/opencode/plugins/dcg-guard.js" }}{{ end }}
+{{- if get .toolchains "pi" | default false }}{{ $hooks = append $hooks "$HOME/.config/pi/agent/extensions/dcg-robot.ts" }}{{ end }}
+{{- if get .toolchains "omp" | default false }}{{ $hooks = append $hooks "$HOME/.config/omp/agent/extensions/dcg-guard.ts" }}{{ end }}
+
+# bats test_tags=kind:dcg
+@test "dcg bypass: hooks carry the DCG_BYPASS boot snapshot" {
+  local hooks=({{ $hooks | join " " }})
+  [[ ${#hooks[@]} -gt 0 ]] || skip "no agent toolchain enabled"
+  local f
+  for f in "${hooks[@]}"; do
+    run grep -F 'DCG_BYPASS_AT_BOOT' "$f"
+    assert_success
+    # The AGENT_SANDBOX_HOME seal ships with the boot snapshot.
+    run grep -F 'AGENT_SANDBOX_HOME' "$f"
+    assert_success
+    # Custom-pack rules carry the allowlist guidance (dcg allow dies with
+    # "Unknown pack ID" on custom pack ids).
+    run grep -F 'dcg allowlist add-command' "$f"
+    assert_success
+    # The write-deny claim is macOS-scoped (Linux Landlock cannot express
+    # deny-within-allow; the file is agent-writable there).
+    run grep -F 'on Linux keep this file out of' "$f"
+    assert_success
+  done
+}
+
+# bats test_tags=kind:dcg
+@test "dcg approval string is runnable: hooks emit the --reason form and dcg takes it" {
+  # The block message is the operator's only remediation path: the emitted
+  # string must run on the pinned binary (dcg 0.16.0 requires --reason).
+  local hooks=({{ $hooks | join " " }})
+  [[ ${#hooks[@]} -gt 0 ]] || skip "no agent toolchain enabled"
+  local f
+  for f in "${hooks[@]}"; do
+    # The single-source shape, verbatim: the core's template literal inlines
+    # into every hook, so one fixed-string grep pins all three at once.
+    run grep -F -e 'dcg allow ${rule} --reason' "$f"
+    assert_success
+  done
+  require_dcg
+  # The binary accepts the emitted form. Rule ids are pack_id:name shaped
+  # (bare names die with "Invalid rule ID"); the store is isolated under
+  # HOME/XDG roots, so the probe never writes the user store.
+  local store="$BATS_TEST_TMPDIR/dcg-store"
+  mkdir -p "$store/.config/dcg" "$store/.local/share"
+  run env HOME="$store" XDG_CONFIG_HOME="$store/.config" XDG_DATA_HOME="$store/.local/share" \
+    dcg allow core.git:dcg-suite-probe --reason "suite probe"
+  assert_success
+  # The no---reason form is NOT runnable (clap usage error), which is why the shape is pinned.
+  run env HOME="$store" XDG_CONFIG_HOME="$store/.config" XDG_DATA_HOME="$store/.local/share" \
+    dcg allow core.git:dcg-suite-probe
+  assert_failure
+  # Binary ceiling (0.16.0): dcg allow does not resolve the dotted CUSTOM
+  # pack ids ("Unknown pack ID"), so the custom-rule route is `dcg allowlist
+  # add-command`. Red here = upstream fixed id resolution; drop this pin.
+  run env HOME="$store" XDG_CONFIG_HOME="$store/.config" XDG_DATA_HOME="$store/.local/share" \
+    dcg allow chezmoi.custom:dcg-suite-probe --reason "suite probe"
+  assert_failure
+}
+
+# dcgCoreDriver — build a node driver over the APPLIED source guard core in
+# $BATS_TEST_TMPDIR/core.mjs (located via tmplFile: a hardcoded source path
+# misses CI workspace clones and custom sourceDirs). The deny fixture's word
+# tokens are split so the pack gap-regexes (\bkubectl\b[^;&|\n]*?\bdelete\b)
+# cannot match this source line when an agent edits the template through
+# shell command text.
+# Driver modes via argv[2]:
+# "tamper" mutates process.env.DCG_BYPASS after the module body ran;
+# "sandbox" restores the real HOME (DCG_TEST_REAL_HOME) post-boot so the dcg
+# spawn resolves the chezmoi packs. The seal-3 probe is uid-anchored, so the
+# sandboxed floor is simulated with the core's test seam:
+# DCG_TEST_REAL_HOME_OVERRIDE points the probe at $BATS_TEST_TMPDIR, and the
+# "sealed" shape chmods that dir 555 pre-boot (EPERM = sandbox floor).
+# Inherited-env scrub coverage lives in test-ai-permissions deny_vars.
+dcgCoreDriver() {
+  local core
+  core="$(tmplFile .chezmoitemplates/base/ai/security/dcg-guard-core)"
+  cat "$core" >"$BATS_TEST_TMPDIR/core.mjs"
+  cat >>"$BATS_TEST_TMPDIR/core.mjs" <<'DRIVER'
+if (process.argv[2] === "tamper") process.env.DCG_BYPASS = "1";
+if (process.argv[2] === "sandbox") process.env.HOME = process.env.DCG_TEST_REAL_HOME;
+const denyFixture = ["kubectl", "del" + "ete", "pod", "x"].join(" ");
+console.log(JSON.stringify(dcgBlockReason(denyFixture, process.cwd())));
+DRIVER
+}
+
+# bats test_tags=kind:dcg
+@test "dcg bypass: DCG_BYPASS=1 at boot disarms the guard core" {
+  dcgCoreDriver
+  # Stripped of both sandbox markers; the probe seam pins the target to a
+  # WRITABLE dir, simulating the host boot whose uid-derived real-home store
+  # is writable, so the bypass is admitted (the banner rides the real-home
+  # probe, not AGENT_SANDBOX absence). A marker-scrubbed sandboxed suite run
+  # must not seal on the live store — the sealed shape is the chmod-555
+  # probe below.
+  run env -u AGENT_SANDBOX -u AGENT_SANDBOX_HOME \
+    DCG_TEST_REAL_HOME_OVERRIDE="$BATS_TEST_TMPDIR" \
+    DCG_BYPASS=1 node "$BATS_TEST_TMPDIR/core.mjs"
+  assert_success
+  # Exact two-line contract: the boot warning (agent-visible audit line) then
+  # the disarm verdict. Exactness keeps a missing-binary host from passing
+  # this probe (its warning text differs), so requireDcgPack stays optional.
+  assert_output "[dcg] guard bypassed at boot (DCG_BYPASS); commands are not checked
+null"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg bypass parity: truthy set matches upstream parse_env_bool" {
+  dcgCoreDriver
+  run env -u AGENT_SANDBOX -u AGENT_SANDBOX_HOME \
+    DCG_TEST_REAL_HOME_OVERRIDE="$BATS_TEST_TMPDIR" \
+    DCG_BYPASS=true node "$BATS_TEST_TMPDIR/core.mjs"
+  assert_success
+  assert_output "[dcg] guard bypassed at boot (DCG_BYPASS); commands are not checked
+null"
+  run env -u AGENT_SANDBOX -u AGENT_SANDBOX_HOME \
+    DCG_TEST_REAL_HOME_OVERRIDE="$BATS_TEST_TMPDIR" \
+    DCG_BYPASS=" TRUE " node "$BATS_TEST_TMPDIR/core.mjs"
+  assert_success
+  assert_output "[dcg] guard bypassed at boot (DCG_BYPASS); commands are not checked
+null"
+  # Falsy values stay armed (guard-intact requires the rendered packs).
+  requireDcgPack
+  run env -u AGENT_SANDBOX DCG_BYPASS=0 node "$BATS_TEST_TMPDIR/core.mjs"
+  assert_output --partial "Blocked by DCG"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg guard intact: deny fixture blocks with no DCG_BYPASS at boot" {
+  requireDcgPack
+  dcgCoreDriver
+  run env -u AGENT_SANDBOX -u DCG_BYPASS node "$BATS_TEST_TMPDIR/core.mjs"
+  assert_output --partial "Blocked by DCG"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg tamper: post-boot process.env.DCG_BYPASS mutation does not disarm (AE3)" {
+  requireDcgPack
+  dcgCoreDriver
+  run env -u AGENT_SANDBOX -u DCG_BYPASS node "$BATS_TEST_TMPDIR/core.mjs" tamper
+  assert_output --partial "Blocked by DCG"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg guard intact: DCG_BYPASS=1 with AGENT_SANDBOX=1 at boot still blocks (AE2)" {
+  requireDcgPack
+  dcgCoreDriver
+  run env DCG_BYPASS=1 AGENT_SANDBOX=1 node "$BATS_TEST_TMPDIR/core.mjs"
+  assert_output --partial "Blocked by DCG"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg bypass: sealed real-home probe rejects stripped markers + writable forged HOME" {
+  requireDcgPack
+  # Root bypasses the DAC chmod this probe uses to simulate the sandbox floor.
+  [ "$(id -u)" -ne 0 ] || { echo "root bypasses DAC: shape skipped" >&3; skip "root bypasses DAC"; }
+  dcgCoreDriver
+  # The seal-3 probe anchors on the uid-derived real home, so the sandboxed
+  # floor is simulated through the core's test seam (probe target redirected
+  # to $BATS_TEST_TMPDIR, chmod 555 = EPERM). The attack shape — stripped
+  # markers + WRITABLE forged HOME + DCG_BYPASS=1 — reads as host boot under
+  # the gate; the sealed probe rejects it and the banner is suppressed.
+  mkdir -p "$BATS_TEST_TMPDIR/fakehome"
+  chmod 555 "$BATS_TEST_TMPDIR"
+  run env -u AGENT_SANDBOX -u AGENT_SANDBOX_HOME DCG_BYPASS=1 \
+    HOME="$BATS_TEST_TMPDIR/fakehome" DCG_TEST_REAL_HOME="$HOME" \
+    DCG_TEST_REAL_HOME_OVERRIDE="$BATS_TEST_TMPDIR" \
+    node "$BATS_TEST_TMPDIR/core.mjs" sandbox
+  chmod 755 "$BATS_TEST_TMPDIR"
+  assert_output --partial "Blocked by DCG"
+  refute_output --partial "guard bypassed at boot"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg bypass probe: WRITABLE forged HOME stays armed under the pinned sandbox home (seal 3b)" {
+  requireDcgPack
+  dcgCoreDriver
+  # Under AGENT_SANDBOX the HOME must EQUAL the launcher-pinned
+  # AGENT_SANDBOX_HOME — exact, not descendant ($HOME/.cache/scratch is a
+  # redirect target too). The driver restores the real HOME post-boot so the
+  # dcg spawn resolves the chezmoi packs.
+  mkdir -p "$BATS_TEST_TMPDIR/fakehome/.config/dcg"
+  run env DCG_BYPASS=1 AGENT_SANDBOX=1 AGENT_SANDBOX_HOME="$HOME" \
+    HOME="$BATS_TEST_TMPDIR/fakehome" DCG_TEST_REAL_HOME="$HOME" \
+    node "$BATS_TEST_TMPDIR/core.mjs" sandbox
+  assert_output --partial "Blocked by DCG"
+  assert_output --partial "forged HOME"
+  refute_output --partial "guard bypassed at boot"
+  # Descendant of the pin is not the pin:
+  run env DCG_BYPASS=1 AGENT_SANDBOX=1 AGENT_SANDBOX_HOME="$HOME" \
+    HOME="$HOME/.cache/scratch" DCG_TEST_REAL_HOME="$HOME" \
+    node "$BATS_TEST_TMPDIR/core.mjs" sandbox
+  assert_output --partial "Blocked by DCG"
+  assert_output --partial "forged HOME"
+  refute_output --partial "guard bypassed at boot"
+  # The pin is load-bearing: AGENT_SANDBOX with no AGENT_SANDBOX_HOME fails
+  # closed the same way — a missing pin means the marker was forged around.
+  run env DCG_BYPASS=1 AGENT_SANDBOX=1 \
+    HOME="$BATS_TEST_TMPDIR/fakehome" DCG_TEST_REAL_HOME="$HOME" \
+    node "$BATS_TEST_TMPDIR/core.mjs" sandbox
+  assert_output --partial "Blocked by DCG"
+  assert_output --partial "without the launcher-pinned AGENT_SANDBOX_HOME"
+  refute_output --partial "guard bypassed at boot"
+  # The mirror shape: the pin surviving a stripped AGENT_SANDBOX marker is
+  # sandboxed lineage (`env -u AGENT_SANDBOX …`), not a host boot.
+  run env DCG_BYPASS=1 AGENT_SANDBOX_HOME="$HOME" \
+    HOME="$BATS_TEST_TMPDIR/fakehome" DCG_TEST_REAL_HOME="$HOME" \
+    node "$BATS_TEST_TMPDIR/core.mjs" sandbox
+  assert_output --partial "Blocked by DCG"
+  assert_output --partial "AGENT_SANDBOX stripped"
+  refute_output --partial "guard bypassed at boot"
+}
+
+{{- $seatAgent := "" -}}
+{{- if get .toolchains "pi" | default false -}}{{- $seatAgent = "pi" -}}
+{{- else if get .toolchains "opencode" | default false -}}{{- $seatAgent = "opencode" -}}
+{{- else if get .toolchains "omp" | default false -}}{{- $seatAgent = "omp" -}}{{- end }}
+# bats test_tags=kind:dcg
+@test "LaunchAgents deny covers post-start plist creations: in-sandbox touch EPERMs" {
+  # The deny data's `*` children expand at sandbox start, so a post-start
+  # plist escapes the per-child denies. The seatbelt subpath rule is
+  # recursive+dynamic, user rules emit last (last-match-wins), and they land
+  # on the AGENT profiles — base renders no user seatbelt rules, so probe
+  # the first enabled agent, not base.
+  [[ "$(uname -s)" == "Darwin" ]] || skip "seatbelt user rules are macOS-only"
+  local profile="{{ $seatAgent }}"
+  [ -n "$profile" ] || { echo "no agent toolchain rendered on an ai-enabled host (render drift)" >&2; return 1; }
+  command -v nono >/dev/null || { echo "nono not found — install drift" >&2; return 1; }
+  local plist="$HOME/Library/LaunchAgents/com.chezmoi.dcg-suite-probe.plist"
+  rm -f "$plist"
+  run nono run --profile "$profile" -- touch "$plist"
+  assert_failure
+  assert_output --partial "Operation not permitted"
+  # The file must not be creatable; the rm covers a regressed rule, the
+  # absence assert pins the denial.
+  rm -f "$plist"
+  [ ! -e "$plist" ]
+}
+
+# bats test_tags=kind:dcg
+@test "require_dcg fails not skips when the pinned binary is missing" {
+  # A missing binary must surface the drift message, never a skip.
+  # common-helper's top-level `load` lines are bats-isms, so the subshell
+  # stubs load/skip (a skip call prints SKIP_CALLED — the refute target).
+  run bash -c 'load() { :; }; skip() { echo SKIP_CALLED; }; PATH=; source "$1" && require_dcg' _ "$BATS_TEST_DIRNAME/common-helper.bash"
+  assert_failure
+  assert_output --partial "dcg pinned binary not found"
+  refute_output --partial "SKIP_CALLED"
+}
+
+
+{{- end }}

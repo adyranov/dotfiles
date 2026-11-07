@@ -7,34 +7,5 @@ package = "aqua:opentofu/opentofu"
 bin = "tofu"
 version = "tofu version"
 
-[packages.base.iac.opentofu.policy]
-deny = [
-  "tofu * apply *",
-  "tofu * destroy *",
-  "tofu * force-unlock *",
-  "tofu * import *",
-  "tofu * login *",
-  "tofu * state rm *",
-  "tofu * workspace delete *",
-  "tofu apply *",
-  "tofu destroy *",
-  "tofu force-unlock *",
-  "tofu import *",
-  "tofu login *"
-]
-
 [packages.base.iac.terragrunt]
 manager = "mise"
-
-[packages.base.iac.terragrunt.policy]
-deny = [
-  "terragrunt * apply *",
-  "terragrunt * destroy *",
-  "terragrunt * force-unlock *",
-  "terragrunt * import *",
-  "terragrunt * state rm *",
-  "terragrunt apply *",
-  "terragrunt destroy *",
-  "terragrunt force-unlock *",
-  "terragrunt import *"
-]

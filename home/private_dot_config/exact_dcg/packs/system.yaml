@@ -1,0 +1,103 @@
+# DCG policy pack: system (power/services, in-place edits, coreutils,
+# keychain). Managed source — agents cannot write here; edit the chezmoi source.
+# rm -rf /* and rm -rf ~/* are NOT repeated here: the default-enabled
+# core.filesystem pack already denies rm -rf outside /tmp and /var/tmp subtrees.
+# Dropped triage rows are reclaimable; they stay out until requested.
+id: user.system
+name: User system rules
+version: "1.0.0"
+description: Custom denies for power/services, in-place edits, coreutils, and macOS keychain mutations.
+keywords:
+  - chmod
+  - chown
+  - crontab
+  - dd
+  - halt
+  - launchctl
+  - ln
+  - mv
+  - poweroff
+  - reboot
+  - rtk
+  - security
+  - sed
+  - shred
+  - shutdown
+  - systemctl
+  - yq
+destructive_patterns:
+  - name: system-shutdown
+    pattern: '(?:^|[;&|]\s*)(?:shutdown|reboot|halt|poweroff)\b'
+    severity: critical
+    description: shutdown/reboot/halt/poweroff stops the machine
+    explanation: shutdown/reboot/halt/poweroff. Terminates every session and can lose unsaved work.
+  - name: system-systemctl
+    pattern: '\bsystemctl\b[^;&|\n]*?\b(?:stop|disable|mask|daemon-reload)\b'
+    severity: high
+    description: systemctl stop/disable/mask/daemon-reload changes system services
+    explanation: systemctl stop/disable/mask/daemon-reload. A stopped or masked service can take down dependent tooling.
+  - name: system-launchctl
+    pattern: '\blaunchctl\b[^;&|\n]*?\b(?:unload|remove|bootout)\b'
+    severity: high
+    description: launchctl unload/remove/bootout stops launchd jobs
+    explanation: launchctl unload/remove/bootout. Unloaded agents daemons stay dead until reloaded.
+  - name: system-crontab
+    pattern: '\bcrontab\b[^;&|\n]*?\s-[er]\b'
+    severity: medium
+    description: crontab -e/-r edits or removes the whole crontab
+    explanation: crontab -e/crontab -r. crontab -r wipes all scheduled jobs in one shot.
+  - name: sed-in-place
+    pattern: '\bsed\b[^;&|\n]*?\s--?i(?:n-place)?\b'
+    severity: high
+    description: sed -i rewrites files in place
+    explanation: sed -i / sed * -i. In-place edits have no backup unless -i.bak is given.
+  - name: yq-in-place
+    pattern: '\byq\b[^;&|\n]*?\s-i\b'
+    severity: high
+    description: yq -i rewrites files in place
+    explanation: yq -i / yq * -i. In-place YAML edits silently replace the file.
+  - name: chmod-world-writable
+    pattern: '\bchmod\b[^;&|\n]*?\b(?:777|o\+w|a\+w)\b'
+    severity: high
+    description: chmod makes files world-writable
+    explanation: chmod 777 / chmod -R 777 / chmod o+w. World-writable paths are a security and integrity risk.
+  - name: chown-absolute-path
+    pattern: '\bchown\b[^;&|\n]*?\s/'
+    severity: high
+    description: chown on absolute paths changes ownership
+    explanation: chown * /* and chown -R * /*. Ownership changes outside the project can break services.
+  - name: dd-invocation
+    pattern: '(?:^|[;&|]\s*)dd\b'
+    severity: high
+    description: dd overwrites raw files or devices
+    explanation: Row dd *. A wrong of= destroys data with no undo.
+  - name: shred-invocation
+    pattern: '(?:^|[;&|]\s*)shred\b'
+    severity: high
+    description: shreds files irrecoverably
+    explanation: Row shred *. Shredded files are not recoverable.
+  - name: ln-into-system-paths
+    pattern: '\bln\b[^;&|\n]*?\s/(?:etc|usr|bin|sbin|lib|System|Library|Applications)/'
+    severity: high
+    description: Symlink replacing entries under system paths
+    explanation: ln -sf * /etc/* and ln -sf * /usr/*. Replacing system entries affects every consumer.
+  - name: mv-from-system-paths
+    pattern: '\bmv\b[^;&|\n]*?\s/(?:etc|usr|bin|sbin|var|lib|System|Library|Applications)/'
+    severity: high
+    description: Moving files out of or into system paths
+    explanation: mv /etc/* * and mv /usr/* *. Moving system files breaks tooling that expects them in place.
+  - name: mv-from-root
+    pattern: '(?:^|[;&|]\s*)mv\s+/[^/\s]'
+    severity: high
+    description: Moving a top-level root path
+    explanation: Row mv /* *. Moving anything directly under / is almost always wrong.
+  - name: security-keychain
+    pattern: '\bsecurity\b[^;&|\n]*?\b(?:add|delete|set-[\w-]+|dump-keychain|unlock-keychain)\b'
+    severity: critical
+    description: macOS keychain mutations (security add-*/delete-*/set-*/dump/unlock)
+    explanation: macOS keychain ops; mirrors the nono hard-core security denies (duplication tolerated).
+  - name: rtk-git-force-push
+    pattern: '\brtk\b[^;&|\n]*?\bgit\b[^;&|\n]*?\bpush\b[^;&|\n]*?(?:--force(?:-with-lease)?\b|-f\b)'
+    severity: critical
+    description: rtk-wrapped git push --force rewrites remote history
+    explanation: rtk git push --force. The nono exec core blocks the exec (argv[0]=git); this row restores the DCG prompt for the wrapped argv text.

@@ -1,0 +1,23 @@
+{{- /* base/test/deep-copy-set-path — Fixture helper: return the data map
+  with `value` set at `path` (list of keys). Every dict along the path is
+  shallow-copied (merge) so the caller's map stays untouched, and the leaf
+  key is REPLACED (never mutated in place) — the generalized form of the
+  inline fixture preamble (the merge-chain + deepCopy + set lines that the
+  poisoned-render fixtures shared). Output is JSON (includeTemplate returns
+  strings): consume with | mustFromJson; integer round-trips are lossless
+  for this suite's string/list-shaped data.
+  Usage: {{ includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "serving") "value" $serving) | mustFromJson }}
+*/ -}}
+{{- $root := index . "root" -}}
+{{- $chain := list -}}
+{{- $node := $root -}}
+{{- range $key := index . "path" -}}
+{{-   $copy := merge (dict) $node -}}
+{{-   $chain = append $chain (dict "copy" $copy "key" $key) -}}
+{{-   $node = index $copy $key -}}
+{{- end -}}
+{{- $cur := index . "value" -}}
+{{- range $step := reverse $chain -}}
+{{-   $cur = set $step.copy $step.key $cur -}}
+{{- end -}}
+{{- $cur | toJson -}}

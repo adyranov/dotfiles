@@ -4,7 +4,7 @@ ARG CACHE_BUST=1
 ARG USER=devcontainer
 ARG UID=54321
 
-FROM adyranov/archlinux@sha256:03ecf07574ab80578aee8a83051a84423556f0c1bd699fdbf3842bb925e02018 AS base
+FROM adyranov/archlinux:base-20261101@sha256:0efffc2f08888662460afeb8f9befa8779c0cf5368ced405849480dd2dd1207d AS base
 ARG USER
 ARG UID
 

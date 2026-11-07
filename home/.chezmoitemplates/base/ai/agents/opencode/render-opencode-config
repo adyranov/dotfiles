@@ -5,8 +5,6 @@
 {{- /* ── Layers ── */ -}}
 {{- $opencode := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.opencode" "required" true) | mustFromJson -}}
 {{- $tiers := includeTemplate "base/ai/models/load-default-tiers" (dict "root" $root "required" true) | mustFromJson -}}
-{{- $cmdPolicies := includeTemplate "base/ai/security/collect-policies" (dict "root" $root) | mustFromJson -}}
-{{- $cmdDeny := index $cmdPolicies "deny" | default list -}}
 
 {{- /* ── Serving providers (shared with Pi): enabled=false opts a provider out. ── */ -}}
 {{- $serving := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.serving" "required" false) | mustFromJson -}}
@@ -19,26 +17,33 @@
 {{- $localPort := get $localResolved "port" | default 8321 -}}
 {{- $localProviderModels := dict -}}
 {{- range $id, $m := $localModels -}}
-{{-   $modelEntry := dict
-        "name" (get $m "name" | default $id)
-        "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "context_output" | default 8192))
-      -}}
+{{-   $caps := dict "tools" true "input" (list "text") "output" (list "text") -}}
 {{-   if get $m "reasoning" -}}
-{{-     $_ := set $modelEntry "reasoning" true -}}
+{{-     $_ := set $caps "reasoning" (dict "supported" true) -}}
 {{-   end -}}
+{{-   $modelEntry := dict
+         "name" (get $m "name" | default $id)
+         "capabilities" $caps
+         "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "context_output" | default 8192))
+       -}}
 {{-   $_ := set $localProviderModels $id $modelEntry -}}
 {{- end -}}
 {{- $providers := dict -}}
 {{- if and $localEnabled $localProviderModels -}}
 {{-   $_ := set $providers "local" (dict
-        "npm" "@ai-sdk/openai-compatible"
-        "name" "Local LLM Gateway"
-        "options" (dict "baseURL" (printf "http://127.0.0.1:%v/v1" $localPort) "apiKey" "local")
-        "models" $localProviderModels
-      ) -}}
+         "package" "@opencode/ai/providers/openai-compatible"
+         "name" "Local LLM Gateway"
+         "settings" (dict "baseURL" (printf "http://127.0.0.1:%v/v1" $localPort) "apiKey" "local")
+         "models" $localProviderModels
+       ) -}}
 {{- end -}}
 
-{{- /* ── Remote OpenAI-compatible serving providers (keyless, declared IDs) ── */}}
+{{- /* ── Remote OpenAI-compatible serving providers (keyless, declared IDs) ──
+  Native v2 shape: 2.2.5's normalizer drops v1-shaped provider blocks whole
+  ("skipped malformed recognized value"), stripping limits/reasoning and
+  letting oversized requests reset the endpoint mid-stream.
+  capabilities.reasoning.effort declares the template's own efforts so the
+  stale bundled catalog cannot remap xhigh to high. */}}
 {{- range $spId, $sp := $serving -}}
 {{-   if not (kindIs "map" $sp) -}}{{- continue -}}{{- end -}}
 {{-   $spEnabled := dig "enabled" true $sp -}}
@@ -53,24 +58,33 @@
 {{-       if not $id -}}
 {{-         fail (printf "render-opencode-config: serving provider %q has a model without id" $spId) -}}
 {{-       end -}}
-{{- /* OpenCode v1 requires limit.output when limit is set; default it to its 8192 fallback. */ -}}
+{{- /* Default max_output to its 8192 fallback when unset. */ -}}
+{{-       $inputs := list "text" -}}
+{{-       if has "image" (get $m "inputs" | default list) -}}
+{{-         $inputs = list "text" "image" -}}
+{{-       end -}}
+{{-       $caps := dict "tools" true "input" $inputs "output" (list "text") -}}
+{{-       if get $m "reasoning" -}}
+{{-         $reason := dict "supported" true -}}
+{{-         $efforts := get $m "efforts" | default list -}}
+{{-         if $efforts -}}
+{{-           $_ := set $reason "effort" $efforts -}}
+{{-         end -}}
+{{-         $_ := set $caps "reasoning" $reason -}}
+{{-       end -}}
 {{-       $modelEntry := dict
             "name" (get $m "name" | default $id)
+            "capabilities" $caps
             "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "max_output" | default 8192))
           -}}
-{{-       if get $m "reasoning" -}}
-{{-         $_ := set $modelEntry "reasoning" true -}}
-{{-       end -}}
-{{-       if has "image" (get $m "inputs" | default list) -}}
-{{-         $_ := set $modelEntry "attachment" true -}}
-{{-       end -}}
 {{-       $_ := set $remoteProviderModels $id $modelEntry -}}
 {{-     end -}}
 {{-     if $remoteProviderModels -}}
 {{-       $_ := set $providers $spId (dict
-            "npm" "@ai-sdk/openai-compatible"
+            "package" "@opencode/ai/providers/openai-compatible"
             "name" $spId
-            "options" (dict "baseURL" $baseURL)
+            "settings" (dict "baseURL" $baseURL)
+            "headers" (dict "Connection" "close")
             "models" $remoteProviderModels
           ) -}}
 {{-     end -}}
@@ -93,9 +107,8 @@
 {{- /* compaction */ -}}
 {{- $compaction := dict
   "auto" $s.compaction.auto
-  "prune" true
-  "reserved" $s.compaction.reserved
-  "tail_turns" 6
+  "keep" (dict "tokens" (dig "keep" 15000 $s.compaction))
+  "buffer" $s.compaction.reserved
 -}}
 
 {{- /* tool_output */ -}}
@@ -107,57 +120,32 @@
 {{- /* watcher */ -}}
 {{- $watcher := dict "ignore" $s.watcher.ignore -}}
 
-{{- /* attachment */ -}}
+{{- /* media */ -}}
 {{- $imageConfig := dict
   "auto_resize" true
   "max_width" 2000
   "max_height" 2000
   "max_base64_bytes" 5242880
 -}}
-{{- $attachment := dict "image" $imageConfig -}}
+{{- $media := dict "image" $imageConfig -}}
 
 
-{{- /* ── Permissions ── */ -}}
-{{- $agentPerms := includeTemplate "base/ai/security/collect-agent-permissions" (dict "root" $root "agentData" $opencode) | mustFromJson -}}
-{{- $allDeny := index $agentPerms "deny" -}}
-{{- $infraReadPaths := index $agentPerms "infra_read" -}}
-{{- $bash := includeTemplate "base/ai/security/render-deny-map" (dict "deny" $cmdDeny) | mustFromJson -}}
-{{- $editObj := includeTemplate "base/ai/security/render-deny-map" (dict "deny" $allDeny) | mustFromJson -}}
-{{- $readObj := includeTemplate "base/ai/security/render-deny-map" (dict "deny" $allDeny "exclude" $infraReadPaths) | mustFromJson -}}
-{{- $permission := dict
-  "*" "allow"
-  "read" $readObj
-  "edit" $editObj
-  "glob" "allow"
-  "grep" "allow"
-  "list" "allow"
-  "task" "allow"
-  "question" "allow"
-  "webfetch" "allow"
-  "websearch" "allow"
-  "lsp" "allow"
-  "skill" "allow"
-  "todowrite" "allow"
-  "doom_loop" "deny"
-  "bash" $bash
-  "external_directory" "allow"
--}}
+{{- /* v2's base policy is allow-all (+*.env and external_directory asks);
+  nono + DCG are the enforcement; profiles carry no permission keys except
+  the factory's standing external_directory allows (unattended: the agents'
+  own storage/config/cache dirs must not prompt). */ -}}
 {{- /* ── Profile plugins (resolved via extends) ── */ -}}
 {{- $profileData := includeTemplate "base/ai/agents/resolve-profile" (dict "agentData" $opencode "profile" $profile) | mustFromJson -}}
 {{- $plugins := $profileData.plugins | default list -}}
-{{- $renderedPlugins := list -}}
-{{- range $plugin := $plugins -}}
-{{-   $renderedPlugins = append $renderedPlugins $plugin -}}
-{{- end -}}
+{{- $permissions := get $profileData "permissions" | default list -}}
 {{- /* ── Built-in agents ── */ -}}
 {{- $builtinAgentCategories := dict
   "build" "medium"
   "plan" "big"
   "general" "medium"
   "explore" "small"
-  "scout" "small"
 -}}
-{{- $builtinAgentModes := dict "build" "primary" "plan" "primary" "general" "subagent" "explore" "subagent" "scout" "subagent" -}}
+{{- $builtinAgentModes := dict "build" "primary" "plan" "primary" "general" "subagent" "explore" "subagent" -}}
 {{- $agentOverrides := dict -}}
 {{- range $agent := keys $builtinAgentCategories | sortAlpha -}}
 {{-   $tier := index $builtinAgentCategories $agent -}}
@@ -166,19 +154,22 @@
 {{-     fail (printf "render-opencode-config: ai.tiers has no route for tier %q (mapped by agent %q)" $tier $agent) -}}
 {{-   end -}}
 {{-   $agentModelId := includeTemplate "base/ai/agents/opencode/render-opencode-model-id" (dict "route" $route "root" $root) -}}
-{{-   $agentConfig := dict "model" $agentModelId "mode" (get $builtinAgentModes $agent | default "all") -}}
 {{-   $thinking := get $route "thinking" | default "off" -}}
 {{-   if ne $thinking "off" -}}
-{{-     $_ := set $agentConfig "variant" $thinking -}}
+{{-     $agentModelId = printf "%s#%s" $agentModelId $thinking -}}
 {{-   end -}}
+{{-   $agentConfig := dict "model" $agentModelId "mode" (get $builtinAgentModes $agent | default "all") -}}
 {{-   $_ := set $agentOverrides $agent $agentConfig -}}
 {{- end -}}
 {{- $disabledAgents := get $profileData "disabled_agents" | default list -}}
 {{- range $agent := $disabledAgents -}}
 {{-   $agentConfig := get $agentOverrides $agent | default dict -}}
-{{-   $_ := set $agentConfig "disable" true -}}
+{{-   $_ := set $agentConfig "disabled" true -}}
 {{-   $_ := set $agentOverrides $agent $agentConfig -}}
 {{- end -}}
+{{- /* v2 owns title/summary as built-in auxiliary agents on the small model. */ -}}
+{{- $_ := set $agentOverrides "title" (dict "model" $smallModelId) -}}
+{{- $_ := set $agentOverrides "summary" (dict "model" $smallModelId) -}}
 {{- /* ── Skills & instructions ── */ -}}
 {{- $basePaths := index $opencode.skills "paths" | default list -}}
 {{- $profilePaths := get $profileData "skills_paths" | default list -}}
@@ -191,40 +182,35 @@
 
 {{- /* ── Output ── */ -}}
 {{- $hasFormatter := dig "formatter" true $s -}}
-{{- $hasLsp := dig "lsp" true $s -}}
-{{- $hasSnapshot := dig "snapshot" true $s -}}
-{{- $autoupdate := dig "autoupdate" "notify" $s -}}
-{{- $share := dig "share" "disabled" $s -}}
+{{- $hasSnapshot := dig "snapshots" true $s -}}
+{{- $update := dig "update" "notify" $s -}}
 {{- $result := dict
   "$schema" "https://opencode.ai/config.json"
   "model" $modelId
-  "small_model" $smallModelId
-  "autoupdate" $autoupdate
-  "share" $share
-  "snapshot" $hasSnapshot
-  "permission" $permission
+  "update" $update
+  "snapshots" $hasSnapshot
   "compaction" $compaction
   "tool_output" $toolOutput
-  "skills" (dict "paths" $skillsPaths)
+  "skills" $skillsPaths
   "instructions" $instructionsFiles
   "default_agent" (get $profileData "default_agent" | default "build")
 -}}
 
 {{- $_ := set $result "watcher" $watcher -}}
-{{- $_ := set $result "attachment" $attachment -}}
-{{- if $renderedPlugins -}}{{- $_ := set $result "plugin" $renderedPlugins -}}{{- end -}}
-{{- $_ := set $result "agent" $agentOverrides -}}
+{{- $_ := set $result "media" $media -}}
+{{- if $permissions -}}{{- $_ := set $result "permissions" $permissions -}}{{- end -}}
+{{- if $plugins -}}{{- $_ := set $result "plugins" $plugins -}}{{- end -}}
+{{- $_ := set $result "agents" $agentOverrides -}}
 {{- if $hasFormatter -}}{{- $_ := set $result "formatter" true -}}{{- end -}}
-{{- if $hasLsp -}}{{- $_ := set $result "lsp" true -}}{{- end -}}
 
 {{- $mcpServers := get $profileData "mcp_servers" | default dict -}}
-{{- if ne (len $mcpServers) 0 -}}{{- $_ := set $result "mcp" $mcpServers -}}{{- end -}}
+{{- if ne (len $mcpServers) 0 -}}{{- $_ := set $result "mcp" (dict "servers" $mcpServers) -}}{{- end -}}
 
-{{- if $providers -}}{{- $_ := set $result "provider" $providers -}}{{- end -}}
+{{- if $providers -}}{{- $_ := set $result "providers" $providers -}}{{- end -}}
 
-{{- /* JSONC header: routing lives in model/small_model; agent overrides select
-      tier routes; permission, plugin, and mcp hold policy/integrations. */ -}}
+{{- /* JSONC header: routing lives in model; agents select tier routes;
+      plugins and mcp hold integrations. */ -}}
 // Generated by chezmoi. Edit layered data, not this file.
-// model/small_model: default routing; agent: persona overrides.
-// permission: tool/path policy; plugin/mcp: integrations.
+// model: default routing; agents: persona overrides.
+// plugins/mcp: integrations.
 {{ $result | toPrettyJson }}

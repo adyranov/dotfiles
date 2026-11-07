@@ -1,0 +1,75 @@
+#!/usr/bin/env bats
+
+# bats file_tags=suite:runner
+
+load 'common-helper'
+
+setup() {
+  common_setup
+  RUNNER="$HOME/.local/bin/check-dotfiles"
+  [ -x "$RUNNER" ] || skip "applied runner not present at $RUNNER"
+}
+
+# bats test_tags=suite:runner
+@test "runner rejects an unknown package key" {
+  run "$RUNNER" definitely-not-a-key
+  assert_failure
+  assert_output --partial "unknown package key"
+}
+
+# The enforcement suite set is the gate: a zero-suite run exiting green is
+# the decay this pins. Fail, never skip — mirror the DCG require-binary
+# pattern: a stub tree drives the applied runner's own resolution/verdicts.
+
+runner_stub() { # runner_stub DIR — applied runner copy + real bats bin, no suite files
+  local stub="$1" realdir
+  realdir="$(dirname "$(readlink -f "$RUNNER")")"
+  mkdir -p "$stub"
+  cp -L "$RUNNER" "$stub/check-dotfiles.sh"
+  ln -s "$realdir/bats" "$stub/bats"
+}
+
+# bats test_tags=suite:runner
+@test "runner exits nonzero when zero suites resolve" {
+  local stub
+  stub="$(mktemp -d "$BATS_TEST_TMPDIR/stub.XXXXXX")"
+  runner_stub "$stub"
+  run "$stub/check-dotfiles.sh"
+  assert_failure
+  assert_output --partial "no suites resolved"
+}
+
+# bats test_tags=suite:runner
+@test "runner exits nonzero when resolved suites contain zero tests" {
+  # The empty-suite verdict: 0 tests must land on the WARN non-zero path,
+  # never the green "all N passed" line.
+  local stub
+  stub="$(mktemp -d "$BATS_TEST_TMPDIR/stub.XXXXXX")"
+  runner_stub "$stub"
+  : >"$stub/test-config.bats"
+  run "$stub/check-dotfiles.sh"
+  assert_failure
+  assert_output --partial "no tests matched"
+}
+
+{{- if .toolchains.ai }}
+
+# bats test_tags=suite:runner
+@test "runner discovers every enforcement suite in the applied tree" {
+  # test-ai-*.bats are applied on ai toolchain hosts (.chezmoiignore gate),
+  # so a suite missing from the applied tree is rename/removal decay: the
+  # discovery list must contain every enforcement suite, fail loud.
+  run "$RUNNER" --list
+  assert_success
+  local suite
+  for suite in ai-shared: ai-dcg: ai-permissions: ai-pi: ai-opencode: ai-omp: ai-local-llm: ai-subagent-limit: runner: config:; do
+    assert_output --partial "$suite"
+  done
+}
+{{- else }}
+
+# bats test_tags=suite:runner
+@test "runner discovers every enforcement suite in the applied tree" {
+  skip "ai toolchain is off (test-ai-*.bats are unapplied)"
+}
+{{- end }}

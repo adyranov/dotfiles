@@ -1,11 +1,8 @@
 {{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
 {{ $ca_bundle := joinPath .host.home ".config/certificates/ca-bundle.pem" -}}
-{{ $greyproxy_ca := joinPath .host.home ".local/share/greyproxy/ca-cert.pem" -}}
-# Greyproxy CA hash: {{ if stat $greyproxy_ca }}{{ include $greyproxy_ca | sha256sum }}{{ else }}missing{{ end }}
 
 CA_BUNDLE="{{ $ca_bundle }}"
-GREYPROXY_CA="{{ $greyproxy_ca }}"
 KEYCHAINS=(
   "/System/Library/Keychains/SystemRootCertificates.keychain"
   "/Library/Keychains/System.keychain"
@@ -20,10 +17,19 @@ for tool in security openssl; do
   fi
 done
 
+# One EXIT trap owns every temp path (denied-fingerprints dir, per-keychain
+# dirs, bundle outfile): failures clean up, success paths free eagerly below
+# and clear the trap at the mv handoff. rc is captured and re-raised so the
+# cleanup never masks a failure's exit status.
+outfile=""
+tmpdirs=""
+# shellcheck disable=SC2086,SC2154  # tmpdirs is a word-split list; rc is assigned inside the trap
+trap 'rc=$?; rm -f "$outfile" 2>/dev/null; [ -n "$tmpdirs" ] && rm -rf $tmpdirs 2>/dev/null; exit $rc' EXIT
+
 # Collect SHA-1 fingerprints of explicitly distrusted certificates
 getDeniedFingerprints() {
   local tmpdir
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(mktemp -d)"; tmpdirs="$tmpdirs $tmpdir"
   local denied_file="$tmpdir/denied.txt"
   : > "$denied_file"
 
@@ -45,7 +51,6 @@ getDeniedFingerprints() {
 denied_fps="$(getDeniedFingerprints)"
 
 outfile="$(mktemp)"
-trap 'rm -f "$outfile"' EXIT
 
 echo "📦 Extracting trusted certificates from system keychains..."
 echo ""
@@ -60,7 +65,7 @@ for keychain in "${KEYCHAINS[@]}"; do
     continue
   fi
 
-  tmpdir="$(mktemp -d)"
+  tmpdir="$(mktemp -d)"; tmpdirs="$tmpdirs $tmpdir"
 
   security find-certificate -a -p "$keychain" > "$tmpdir/all.pem" 2>/dev/null
 
@@ -109,27 +114,17 @@ for keychain in "${KEYCHAINS[@]}"; do
   rm -rf "$tmpdir"
 done
 
-greyproxy_count=0
-if [ -s "$GREYPROXY_CA" ]; then
-  echo "➕ Appending Greyproxy CA: $GREYPROXY_CA"
-  cat "$GREYPROXY_CA" >> "$outfile"
-  echo "" >> "$outfile"
-  greyproxy_count=1
-else
-  echo "ℹ️  Greyproxy CA not found, skipping: $GREYPROXY_CA"
-fi
-
 echo ""
 
 mkdir -p "$(dirname "$CA_BUNDLE")"
 
 # Only update the file if content changed
 if [ -f "$CA_BUNDLE" ] && cmp -s "$outfile" "$CA_BUNDLE"; then
-  echo "✅ $CA_BUNDLE is already up to date ($trusted_count system certificate(s), $greyproxy_count Greyproxy certificate(s), $denied_count denied, $expired_count expired)"
+  echo "✅ $CA_BUNDLE is already up to date ($trusted_count system certificate(s), $denied_count denied, $expired_count expired)"
 else
   mv "$outfile" "$CA_BUNDLE"
   trap - EXIT
-  echo "✅ Wrote $trusted_count system certificate(s) and $greyproxy_count Greyproxy certificate(s) to $CA_BUNDLE ($denied_count denied, $expired_count expired)"
+  echo "✅ Wrote $trusted_count system certificate(s) to $CA_BUNDLE ($denied_count denied, $expired_count expired)"
 fi
 
 echo "✅ CA bundle setup complete."

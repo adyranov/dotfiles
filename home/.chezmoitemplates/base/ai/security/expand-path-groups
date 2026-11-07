@@ -1,13 +1,20 @@
-{{- /* base/ai/expand-path-groups — Resolve group names to filesystem path lists.
+{{- /* base/ai/expand-path-groups — Resolve group names against a catalog
+  (filesystem path lists by default; host lists via the "catalog" arg).
   Usage:
-    {{ includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (list "project_secrets" "ssh_private")) | mustFromJson }}
+    {{ includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (list "project_secrets" "ssh")) | mustFromJson }}
     {{ includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" $groupNames) | mustFromJson }}
-  Output: JSON array of path strings, deduped and sorted.
-  Fails render if any group name is unknown.
+    {{ includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" $refs "catalog" "ai.permissions.network.groups") | mustFromJson }}
+  Output: JSON array of the groups' entries, deduped and sorted.
+  catalog defaults to ai.permissions.filesystem.paths (existing call sites
+  unchanged). catalogJson (optional): a pre-parsed catalog map — skips the
+  load-section round-trip when the caller has it hoisted. Fails render if any
+  group name is unknown.
 */ -}}
 {{- $root := .root -}}
 {{- $groupNames := index . "groups" | default list -}}
-{{- $catalog := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem.paths" "required" true) | mustFromJson) -}}
+{{- $catalogSection := index . "catalog" | default "ai.permissions.filesystem.paths" -}}
+{{- $catalog := 0 -}}
+{{- if hasKey . "catalogJson" -}}{{- $catalog = index . "catalogJson" -}}{{- else -}}{{- $catalog = (includeTemplate "base/helpers/load-section" (dict "root" $root "section" $catalogSection "required" true) | mustFromJson) -}}{{- end -}}
 {{- $result := list -}}
 {{- range $name := $groupNames -}}
 {{-   if not (hasKey $catalog $name) -}}
@@ -16,4 +23,4 @@
 {{-   $paths := index $catalog $name -}}
 {{-   $result = concat $result $paths -}}
 {{- end -}}
-{{- $result | uniq | sortAlpha | toJson -}}
+{{- includeTemplate "base/ai/security/uniq-sort" $result -}}

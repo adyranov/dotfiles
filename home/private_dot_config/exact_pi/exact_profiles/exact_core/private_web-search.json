@@ -1,0 +1,10 @@
+{
+  "githubClone": {
+    "clonePath": "~/.cache/pi/github-repos",
+    "enabled": true
+  },
+  "summaryInstructions": [
+    "Use web_search only when current/external evidence is needed; prefer official docs, source repos, changelogs, and package registries.",
+    "Cite source URLs in plan or final answer."
+  ]
+}

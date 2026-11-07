@@ -4,13 +4,13 @@
 
 {{- $presetsConfig := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.presets" "required" true) | mustFromJson -}}
 
-{{- /* Mapping: slim agent to tier, hardcoded (opencode-specific agent names; the
-     tiers are the primary data, resolved per preset). */ -}}
-{{- $agentMap := dict "designer" "visual" "explorer" "small" "fixer" "medium" "librarian" "small" "oracle" "oracle" "orchestrator" "big" -}}
+{{- /* Mapping: slim agent to tier, from data (ai.agents.opencode.agent_tiers;
+     opencode-specific agent names; the tiers are the primary data, resolved
+     per preset). */ -}}
+{{- $agentMap := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.opencode.agent_tiers" "required" true) | mustFromJson -}}
 
 {{- /* MCP/skills per agent */ -}}
 {{- $engramMcps := list "engram" -}}
-{{- $librarianMcps := list "context7" "gh_grep" "codegraph" -}}
 {{- $explorerMcps := list "codegraph" -}}
 {{- $emptyMcps := list -}}
 {{- $orchestratorSkills := list "*" -}}
@@ -19,8 +19,13 @@
 {{- $fixerSkills := list "ce-work" "ce-debug" "ce-simplify-code" -}}
 {{- $emptySkills := list -}}
 
+{{- /* Unattended policy: only the orchestrator asks, and the path axis is
+  not gated in-agent: subagents declare no external_directory key, so they
+  inherit the factory's standing allow and nono + DCG stay the boundary
+  (parity with pi/omp, which have no native path layer). */ -}}
+{{- $asklessPermissions := dict "question" "deny" -}}
 {{- /* Read-only research permissions for advisory agents */ -}}
-{{- $researchPermissions := dict "edit" "deny" "bash" "deny" "task" "deny" -}}
+{{- $researchPermissions := merge (deepCopy $asklessPermissions) (dict "edit" "deny" "shell" "deny" "subagent" "deny") -}}
 
 {{- /*  Build per-preset agent configs  */ -}}
 {{- $allPresets := dict -}}
@@ -47,10 +52,7 @@
 {{-       else if eq $agent "oracle" -}}
 {{-         $_ := set $cfg "mcps" $engramMcps -}}
 {{-         $_ := set $cfg "skills" $oracleSkills -}}
-{{-       else if eq $agent "librarian" -}}
-{{-         $_ := set $cfg "mcps" $librarianMcps -}}
-{{-         $_ := set $cfg "skills" $emptySkills -}}
-{{-         $_ := set $cfg "permission" $researchPermissions -}}
+{{-         $_ := set $cfg "permission" $asklessPermissions -}}
 {{-       else if eq $agent "explorer" -}}
 {{-         $_ := set $cfg "mcps" $explorerMcps -}}
 {{-         $_ := set $cfg "skills" $emptySkills -}}
@@ -58,9 +60,11 @@
 {{-       else if eq $agent "designer" -}}
 {{-         $_ := set $cfg "mcps" $emptyMcps -}}
 {{-         $_ := set $cfg "skills" $designerSkills -}}
+{{-         $_ := set $cfg "permission" $asklessPermissions -}}
 {{-       else if eq $agent "fixer" -}}
 {{-         $_ := set $cfg "mcps" $emptyMcps -}}
 {{-         $_ := set $cfg "skills" $fixerSkills -}}
+{{-         $_ := set $cfg "permission" $asklessPermissions -}}
 {{-       else -}}
 {{-         $_ := set $cfg "mcps" $emptyMcps -}}
 {{-         $_ := set $cfg "skills" $emptySkills -}}
@@ -91,19 +95,18 @@
 {{- $backgroundJobs := dict
   "wallClockTimeoutMs" 3600000
   "abortGraceMs" 10000
+  "concurrency" (dict "defaultConcurrency" (includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" $root) | int))
 -}}
 {{- $fallback := dict
   "enabled" true
   "maxRetries" 3
 -}}
-{{- $multiplexer := dict "type" "auto" "layout" "main-vertical" "main_pane_size" 60 -}}
 
 {{- $result := dict
   "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"
   "preset" $activePreset
   "setDefaultAgent" true
   "autoUpdate" true
-  "multiplexer" $multiplexer
   "backgroundJobs" $backgroundJobs
   "fallback" $fallback
   "presets" $allPresets

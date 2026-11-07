@@ -1,6 +1,6 @@
 {{- /* Render Pi models.json: local provider via load-local-models plus each
    declared OpenAI-compatible serving provider. Remote entries use the literal
-   `no-auth` apiKey sentinel required by Pi's model picker (KTD5); never an env
+   `no-auth` apiKey sentinel required by Pi's model picker; never an env
    var or real credential. */ -}}
 {{- $root := . -}}
 {{- $providers := dict -}}
@@ -53,7 +53,7 @@
 {{-       fail (printf "serving provider %q has a model entry without an id" $spId) -}}
 {{-     end -}}
 {{-     $cost := get $m "cost" | default dict -}}
-{{-     $remoteModels = append $remoteModels (dict
+{{-     $entry := dict
           "id" $id
           "name" (get $m "name" | default $id)
           "reasoning" (get $m "reasoning" | default false)
@@ -65,7 +65,27 @@
             "cacheRead" (get $cost "cacheRead" | default 0)
             "cacheWrite" (get $cost "cacheWrite" | default 0)
           )
-        ) -}}
+        -}}
+{{- /* qwen chat templates take effort as a chat_template_kwarg; Pi's default
+           openai compat sends a top-level reasoning_effort and the template
+           rejects 'high' (Pi clamps undeclared xhigh down to it). Route the
+           effort through chatTemplateKwargs with the template's level catalog
+           (mirrors the OMP thinking catalog: low|medium|xhigh, none/minimal off). */ -}}
+{{-     if and (get $m "reasoning" | default false) (eq (get $m "chat_format" | default "") "qwen-chat-template") -}}
+{{-       $_ := set $entry "compat" (dict
+              "thinkingFormat" "chat-template"
+              "chatTemplateKwargs" (dict "reasoning_effort" (dict "$var" "thinking.effort"))
+            ) -}}
+{{-       $_ := set $entry "thinkingLevelMap" (dict
+              "off" "none"
+              "minimal" "minimal"
+              "low" "low"
+              "medium" "medium"
+              "high" "medium"
+              "xhigh" "xhigh"
+            ) -}}
+{{-     end -}}
+{{-     $remoteModels = append $remoteModels $entry -}}
 {{-   end -}}
 {{-   $_ := set $providers $spId (dict
         "baseUrl" $baseUrl

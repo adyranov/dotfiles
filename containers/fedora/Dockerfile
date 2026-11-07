@@ -4,7 +4,7 @@ ARG CACHE_BUST=1
 ARG USER=devcontainer
 ARG UID=54321
 
-FROM fedora:44@sha256:6c75d5bf57cb0fa5aa4b92c6a83c86c791644496d9ac230de7711f5b8ec3b898 AS base
+FROM fedora:44@sha256:15da97ed9aa94dd3d92c3925eb89520f6c80e07ea7ee24cba848d1f8b6912b3e AS base
 ARG USER
 ARG UID
 
@@ -19,6 +19,7 @@ RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=fal
     && dnf -y upgrade --refresh \
     && dnf -y install --setopt=install_weak_deps=False \
         ca-certificates \
+        chezmoi \
         curl \
         dnf-plugins-core \
         git \

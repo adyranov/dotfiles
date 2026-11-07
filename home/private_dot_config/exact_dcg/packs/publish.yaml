@@ -1,0 +1,35 @@
+# DCG policy pack: publish/login families not covered by
+# package_managers.
+# Managed source — agents cannot write here; edit the chezmoi source.
+id: user.publish
+name: User publish rules
+version: "1.0.0"
+description: Custom denies for hf writes, package publishes, and registry auth changes.
+keywords:
+  - bun
+  - hf
+  - npm
+  - pnpm
+  - uv
+  - yarn
+destructive_patterns:
+  - name: hf-write
+    pattern: '\bhf\b[^;&|\n]*?\b(?:upload|create|delete)\b'
+    severity: high
+    description: huggingface-cli uploads/creates/deletes repos and files
+    explanation: Triage hf rows (repo create/delete/upload, upload). Public repo mutations.
+  - name: uv-publish
+    pattern: '\buv\b[^;&|\n]*?\bpublish\b'
+    severity: high
+    description: uv publish releases packages
+    explanation: uv publish is not in the package_managers pack pattern set.
+  - name: bun-publish
+    pattern: '\bbun\b[^;&|\n]*?\bpublish\b'
+    severity: high
+    description: bun publish releases packages
+    explanation: bun publish is not in the package_managers pack pattern set.
+  - name: registry-login
+    pattern: '\b(?:npm|pnpm|yarn|bun)\b[^;&|\n]*?\b(?:login|logout|adduser|token)\w*\b'
+    severity: medium
+    description: registry login/logout/adduser/token changes auth state
+    explanation: npm publish-login/login-class rules; agents do not own registry auth.

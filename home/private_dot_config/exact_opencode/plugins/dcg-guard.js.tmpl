@@ -1,0 +1,38 @@
+// dcg-guard: chezmoi-managed DCG plugin (do not edit in-agent — nono denies
+// agent writes to this file on macOS; on Linux keep this file out of
+// agent-writable trees). Routes every OpenCode bash/shell tool
+// call through `dcg hook --robot --batch` before execution. The default
+// export carries both host contracts (v1 `server`, v2 `setup`). A missing
+// binary degrades permissively; a dcg that runs without a verdict fails
+// closed. Approval is operator-side only; the single-source approval
+// guidance line is in the core below.
+{{ (includeTemplate "base/ai/security/dcg-guard-core") | trim }}
+
+// OpenCode v1: named export, hook map, command in `output.args`.
+export const DcgGuard = async () => {
+  return {
+    "tool.execute.before": async (input, output) => {
+      if (!input || input.tool !== "bash") return;
+      const args = (output && output.args) || {};
+      const reason = dcgBlockReason(args.command, args.cwd);
+      if (reason) throw new Error(reason);
+    },
+  };
+};
+
+// OpenCode v2: args ride event.input and the shell tool is "shell". A
+// throwing callback refuses the call, like the v1 throw-to-block contract.
+export const DcgGuardV2Setup = async (ctx) => {
+  const registration = await ctx.tool.hook("execute.before", async (event) => {
+    const tool = String((event && event.tool) || "").toLowerCase();
+    if (tool !== "shell" && tool !== "bash") return;
+    const args = (event && event.input) || {};
+    const reason = dcgBlockReason(args.command, args.cwd);
+    if (reason) throw new Error(reason);
+  });
+  return () => registration?.dispose?.();
+};
+
+// Dual contract (the shape compound-engineering and slim use): v1 calls
+// `server`, v2 decodes { id, setup }.
+export default { id: "dcg-guard", server: DcgGuard, setup: DcgGuardV2Setup };

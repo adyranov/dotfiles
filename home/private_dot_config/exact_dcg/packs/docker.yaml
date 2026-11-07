@@ -1,0 +1,14 @@
+# DCG policy pack: docker teardown override.
+# Managed source — agents cannot write here; edit the chezmoi source.
+id: user.docker
+name: User Docker rules
+version: "1.0.0"
+description: Belt-and-suspenders deny for docker prune and compose down/rm.
+keywords:
+  - docker
+destructive_patterns:
+  - name: docker-prune-down
+    pattern: '\bdocker\b[^;&|\n]*?\bprune\b|\bdocker\b[^;&|\n]*?\bcompose\b[^;&|\n]*?\b(?:down|rm)\b'
+    severity: high
+    description: docker prune and compose down/rm tear down state
+    explanation: Belt-and-suspenders for the prune/down triage family.

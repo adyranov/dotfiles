@@ -92,11 +92,15 @@ jobs:
         run: |
           # Install core packages only
           WITHOUT_TOOLCHAINS=true ./install.sh --data=false
-          # Validate core installation
-          zsh -lic 'check-dotfiles'
+          # Pre-transition sanity: config render suite only (full core-only
+          # gate is the smoke job's lane) — localizes a pass-2 red to the
+          # toolchain delta.
+          zsh -lic 'check-dotfiles --suite config'
           # Re-apply with all toolchains enabled
           ./install.sh
-          # Validate full installation
+          # Validate full installation. Pass 2 applies all toolchains, so the
+          # DCG packs are rendered: the dcg probes fail (never skip) on a
+          # missing binary or unrendered packs, making enforcement drift red.
           zsh -lic 'check-dotfiles'
       - name: Save Homebrew Cache
         if: success() && github.event_name != 'pull_request' && runner.os == 'macOS' && steps.restore-homebrew.outputs.cache-hit != 'true'

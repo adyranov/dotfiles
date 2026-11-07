@@ -6,6 +6,9 @@
 
 eval $({{ .brew.path }} shellenv)
 {{- includeTemplate "base/helpers/sudo-keep-alive" . }}
+{{- /* Homebrew >=5.1 defaults to ask mode (y/n before install/upgrade); the
+  apply pipeline is unattended, so disable it for this script only. */}}
+export HOMEBREW_NO_ASK=1
 echo "🍺 Updating Homebrew…"
 brew update
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
@@ -74,4 +77,22 @@ if [ ! -x {{ $macportsPath }}/bin/port ]; then
     echo "  ✅ MacPorts installed."
   fi
 fi
+{{- /* Keep the ports tree and installed ports current, mirroring the Homebrew
+  update/upgrade split above: selfupdate refreshes definitions, upgrades run
+  only on interactive/ephemeral hosts (and never on restricted hosts, which
+  preinstall their packages). port install in os/darwin/install only ensures
+  presence, so upgrades belong here. */ -}}
+{{- if not .host.restricted }}
+if [ -x {{ $macportsPath }}/bin/port ]; then
+  echo "🔄 Updating MacPorts…"
+  sudo {{ $macportsPath }}/bin/port -N selfupdate
+{{- if or (eq .host.type "ephemeral") .host.interactive }}
+  echo "📦 Upgrading outdated ports…"
+  sudo {{ $macportsPath }}/bin/port -N upgrade outdated
+{{- end }}
+  echo "🧹 Reclaiming MacPorts disk space…"
+  sudo {{ $macportsPath }}/bin/port -N clean installed
+  echo "✅ MacPorts updated."
+fi
+{{- end }}
 {{- end }}

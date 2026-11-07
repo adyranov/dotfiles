@@ -3,8 +3,8 @@
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
 echo "🔄 Upgrading mise toolchains..."
 echo "  ↳ This may install new versions of your configured tools."
-mise self-update
-mise upgrade
+mise self-update -y
+mise upgrade -y
 echo "  🧹 Pruning old versions..."
 mise prune -q -y
 echo "✅ mise toolchains updated."
@@ -14,7 +14,7 @@ echo "  ↳ Ensuring all required tools are present."
 # Ensure rust is available before the main parallel install: cryptography ≥50
 # dropped x86_64 macOS wheels, so pipx packages that depend on it (runpod,
 # skypilot) must build from source, which needs cargo.
-mise install rust 2>/dev/null || true
-mise install
+mise install -y rust 2>/dev/null || true
+mise install -y
 echo "✅ mise toolchains installed."
 {{- end }}

@@ -1,0 +1,20 @@
+# DCG policy pack: AWS/Azure CLIs.
+# Managed source — agents cannot write here; edit the chezmoi source.
+id: user.cloud
+name: User cloud rules
+version: "1.0.0"
+description: Custom denies for aws/az mutating verbs.
+keywords:
+  - aws
+  - az
+destructive_patterns:
+  - name: aws-mutate
+    pattern: '\baws\b[^;&|\n]*?\b(?:delete\w*|destroy|put\w*|remove\w*|update\w*|terminate\w*|rotate-secret|configure|rm|sync)\b'
+    severity: high
+    description: aws mutating verbs (delete/destroy/put/remove/update/terminate/rotate-secret/configure/s3 rm/s3 sync)
+    explanation: All 12 triage aws rows. Cloud mutations are remote, shared, and often irreversible.
+  - name: azure-mutate
+    pattern: '\baz\b[^;&|\n]*?\b(?:create|delete|purge|remove|update)\w*\b'
+    severity: high
+    description: az mutating verbs (create/delete/purge/remove/update)
+    explanation: All 5 triage az rows. Purge in particular is unrecoverable.

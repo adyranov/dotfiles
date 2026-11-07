@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""filter-shadowed-allow — drop ALLOW (r+w) entries that are strict ancestor
+directories of a READ carve-out entry (read carve-outs must win; probed on
+nono 0.79.0 that a read grant does NOT subtract write from a covering ancestor
+allow, while deny would also kill the reads).
+
+Comparison is realpath-aware: `~/.pi` is a host symlink into `~/.config/pi`, so
+its grant silently shadowed the pi hook carve-out. Entries that are not
+absolute-ish (`~/...` or `/...`) — relative `.`, rootless `**/` globs — are
+never dropped. Glob segments never match literal segments, so
+`profiles/*/extensions/hook` does not drop `profiles/core` (keeps pi's legit
+profile writes). The pi hook write-denial rides the profile's top-level
+`unsafe_macos_seatbelt_rules` (a write-only deny inside the writable dir;
+macOS; Linux ceiling documented), so this filter is a no-op for pi; it remains
+for read-only hooks with no dir write (omp).
+
+Input: argv[1] JSON {"allow": [...], "read": [...]}
+Output: JSON array of surviving allow entries, original order.
+"""
+import json
+import os
+import sys
+
+
+{{ includeTemplate "base/ai/security/python-anchor" (dict "casefold" false) }}
+
+
+def main():
+    data = json.loads(sys.argv[1])
+    reads = [r for r in (anchored(p) for p in data.get("read", [])) if r]
+    out = []
+    for entry in data.get("allow", []):
+        a = anchored(entry)
+        if a and any(r != a and r.startswith(a + os.sep) for r in reads):
+            continue
+        out.append(entry)
+    print(json.dumps(out))
+
+
+if __name__ == "__main__":
+    main()
