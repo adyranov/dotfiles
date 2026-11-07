@@ -62,6 +62,7 @@ jobs:
               - 'home/.chezmoitemplates/base/**'
               - 'home/*dot_*'
               - 'home/*dot_*/**'
+              - 'docs/**'
               - 'install.sh'
               - '.github/workflows/ci.yaml'
             host-ubuntu:
