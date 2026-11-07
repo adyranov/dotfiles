@@ -61,7 +61,6 @@ setup() {
 {{- $allRouteNames := $sessionRouteNames -}}
 {{- $netCredsRender := includeTemplate "base/ai/security/render-nono-net" (dict "root" . "credentials" $creds) | mustFromJson -}}
 {{- $applyData := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.apply" "required" false) | mustFromJson) }}
-{{- $applyDests := includeTemplate "base/ai/security/uniq-sort" (index $applyData "destinations" | default list) | mustFromJson }}
 {{- /* Presence pins are derived at render time from the data: concat every
    [network.allow_domain] category value (base categories carry literals
    only — group refs are sandbox-side by design). */ -}}
@@ -71,12 +70,13 @@ setup() {
 {{-   $wantHosts = concat $wantHosts ($hosts | default list) -}}
 {{- end -}}
 {{- $wantHosts = includeTemplate "base/ai/security/uniq-sort" $wantHosts | mustFromJson }}
-{{- /* Destination parents computed template-side (parent-dir template is the
-   single source of the parent idiom; the jq `def parent` copy is gone). */ -}}
-{{- $applyPairs := list -}}
-{{- range $d := $applyDests -}}
-{{-   $applyPairs = append $applyPairs (dict "dest" $d "parent" (includeTemplate "base/ai/security/parent-dir" $d)) -}}
-{{- end }}
+{{- /* chezmoi command sandbox expected sets: the data fs lists plus the
+   renderer's own constant additions. Set equality against the rendered
+   profile proves nothing destination-derived enters the sandbox — the
+   apply-destination mechanism is gone and live-home applies are
+   user-terminal-only. */ -}}
+{{- $czWantRead := includeTemplate "base/ai/security/uniq-sort" (concat (index $applyData "command_sandbox_read" | default list) (list "/bin" "/usr/bin")) | mustFromJson }}
+{{- $czWantWrite := includeTemplate "base/ai/security/uniq-sort" (concat (index $applyData "command_sandbox_write" | default list) (list "/private/var/folders")) | mustFromJson }}
 
 # bats test_tags=kind:nono
 @test "nono base profile is deployed and valid" {
@@ -148,6 +148,31 @@ setup() {
 }
 
 # bats test_tags=kind:nono
+@test "base denies the host tmux socket: no grants, no write lane" {
+  # Data: the base socket lane is empty (key kept for the renderer contract)
+  # and tmux dropped out of sandbox_write_specific.
+  run grep -F 'unix_socket_subtree = []' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
+  assert_success
+  run grep -F '  "~/.local/share/tmux"' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
+  assert_failure
+  run grep -F '  "tmux_state"' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
+  assert_success
+  # Rendered base: no socket grants; tmux paths absent from every grant tier;
+  # the deny carries dir+child keys. A base-tier deny is unopenable by agent
+  # grants (deny beats grants), so the host tmux server is unreachable; the
+  # dir deny emits a recursive seatbelt subpath for network-outbound on
+  # macOS, covering CONNECT to the nested tmux-<uid>/default.
+  run jq -e '
+    ((.filesystem.unix_socket_subtree // []) | length) == 0 and
+    ((.filesystem.allow + .filesystem.read + .filesystem.write)
+      | map(select(startswith("~/.local/share/tmux"))) | length) == 0 and
+    (.filesystem.deny | index("~/.local/share/tmux") != null) and
+    (.filesystem.deny | index("~/.local/share/tmux/*") != null)
+  ' "{{ $nonoProfiles }}/base.json"
+  assert_success
+}
+
+# bats test_tags=kind:nono
 @test "~/Library stays write-closed at the root: read-only root, LaunchAgents denied" {
   # Bare `~/Library` in the write tier = recursive write over the macOS user
   # tree (LaunchAgents = launchd persistence loaded OUTSIDE the sandbox).
@@ -181,11 +206,18 @@ setup() {
 }
 
 # bats test_tags=kind:nono
-@test "base profile grants agent tooling state dirs (chezmoi, mise)" {
+@test "base profile grants agent tooling state dirs; chezmoi state is session-read-only" {
   # Without dir-level grants, agents hit EPERM on chezmoi state open and
-  # mise's trusted-configs symlink inside the sandbox.
+  # mise's trusted-configs symlink inside the sandbox. U2: ~/.config/chezmoi
+  # is SESSION-READ (read tier) — chezmoi's config AND persistent-state boltdb
+  # live there, and a session write grant lets an agent poison apply
+  # bookkeeping (silently-skipped changed files), bypassing the user's apply
+  # boundary. The chezmoi BINARY keeps its writes through the command sandbox
+  # (fs_write pin in the command-sandbox test), which replaces the session
+  # tier for chezmoi invocations.
   run jq -e '
-    (.filesystem.allow | index("~/.config/chezmoi") != null) and
+    (.filesystem.read | index("~/.config/chezmoi") != null) and
+    (.filesystem.allow | index("~/.config/chezmoi") == null) and
     (.filesystem.allow | index("~/.local/state/mise") != null) and
     # The trust store leaf is denied INSIDE that grant (deny beats grants):
     # a direct write is self-trust — repo [tasks] execute on the next mise run.
@@ -196,45 +228,70 @@ setup() {
 }
 
 # bats test_tags=kind:nono
-@test "apply grants: file-granular session tier, parent-dir chezmoi sandbox, git/mise overrides" {
-  # Grants are the allowlist: the same data renders the session write tier (file
-  # granular) and the chezmoi command sandbox that replaces it for chezmoi — and
-  # nono takes DIRECTORIES only in the sandbox lists, so chezmoi's tier carries the
-  # destination PARENTS and never the destination files (a file entry policy-denies
-  # every chezmoi invocation). fs_read also carries the source dir, and never a
-  # broad config parent: `~/.config`/`~/.local/share` reads would re-open the
-  # credential deny groups living under them — gh hosts.yml, git credentials,
-  # configstore, pgpass, amazon/azure/engram state (user-terminal probe: `nono run
-  # --profile base -- cat ~/.config/gh/hosts.yml` must EPERM). The git/mise keys
-  # are the overrides (nono 0.79.0): the ["."] default is
-  # fatal for both; git reads its config CHAIN per file (`fs_read_file`: no
-  # `~/.config/git` dir grant — it would re-open the credential store — and the
-  # `@git:config-files` token is fatal on hosts with a system gitconfig, file
-  # entries in dirs-only lists) — writes `/dev/dtracehelper` like every macOS
-  # binary, and reaches
-  # git-core/hooks via `unsafe_macos_seatbelt_rules` (macOS exec gate: literals,
-  # no globs; `exec_paths` is Linux-only); mise's symlinked binary rides
-  # `fs_read_file`.
-  run jq -e --argjson d '{{ $applyDests | toJson }}' --argjson pairs '{{ $applyPairs | toJson }}' '
+@test "managed home config is read-only: editor settings, setenv, ~/.agents, ~/.editorconfig" {
+  # U2 apply-boundary closure (R5, R21, AE3/AE4). The chezmoi-MANAGED editor
+  # settings/keybindings, the login setenv.sh (shell-exec surface run by the
+  # LaunchAgents plist), the managed ~/.agents symlink (writes land in the
+  # protected ~/.config/agents tree) and the managed ~/.editorconfig ride the
+  # READ tier only. The app-support write lane is closed wholesale (no runtime
+  # consumer was audited; the broad parent was already filter-dropped by the
+  # dcg read carve-out); the pinned KEPT writes are the runtime build caches.
+  # No dir grant may cover a managed leaf (a dir write re-opens it through
+  # unlink+create), so no allow entry starts with any of these paths.
+  run jq -e '
+    . as $r |
+    all(["~/Library/Application Support/Code/User/settings.json",
+         "~/Library/Application Support/Code/User/keybindings.json",
+         "~/Library/Application Support/Cursor/User/settings.json",
+         "~/Library/Application Support/Cursor/User/keybindings.json",
+         "~/Library/Scripts/setenv.sh", "~/.agents", "~/.editorconfig"][];
+        . as $p |
+        ((($r.filesystem.read | index($p)) != null) and
+         (($r.filesystem.allow | index($p)) == null) and
+         (([$r.filesystem.allow[] | select(. as $a | ($p | startswith($a + "/")))] | length) == 0)))
+    and (($r.filesystem.allow | map(select(startswith("~/Library/Application Support"))) | length) == 0)
+    and (($r.filesystem.deny | map(select(contains("/dcg") or endswith("/dcg"))) | length) == 0)
+    and (($r.filesystem.allow | index("~/Library/Caches/go-build")) != null)
+    and (($r.filesystem.allow | index("~/Library/Caches/node-gyp")) != null)
+  ' "{{ $nonoProfiles }}/base.json"
+  assert_success
+}
+
+# bats test_tags=kind:nono
+@test "chezmoi command sandbox: source-inspection grants only; git/mise overrides" {
+  # The chezmoi command sandbox REPLACES the session tier for chezmoi and
+  # carries ONLY the source-inspection grants (the data fs lists + the
+  # renderer constants, pinned by set equality below): the apply-destination
+  # mechanism is gone, no destination-derived entry can enter, and live-home
+  # applies are user-terminal-only. fs_read also carries the source dir, and
+  # never a broad config parent: `~/.config`/`~/.local/share` reads would
+  # re-open the credential deny groups living under them — gh hosts.yml, git
+  # credentials, configstore, pgpass, amazon/azure/engram state
+  # (user-terminal probe: `nono run --profile base -- cat ~/.config/gh/hosts.yml`
+  # must EPERM). The git/mise keys are the overrides (nono 0.79.0): the ["."]
+  # default is fatal for both; git reads its config CHAIN per file
+  # (`fs_read_file`: no `~/.config/git` dir grant — it would re-open the
+  # credential store — and the `@git:config-files` token is fatal on hosts
+  # with a system gitconfig, file entries in dirs-only lists) — writes
+  # `/dev/dtracehelper` like every macOS binary, and reaches git-core/hooks
+  # via `unsafe_macos_seatbelt_rules` (macOS exec gate: literals, no globs;
+  # `exec_paths` is Linux-only); mise's symlinked binary rides `fs_read_file`.
+  run jq -e --argjson wread '{{ $czWantRead | toJson }}' --argjson wwrite '{{ $czWantWrite | toJson }}' '
     def sands: [.command_policies.commands[].from.session | (if type == "object" then .sandbox // {} else {} end)];
     . as $r |
     ($r.command_policies.commands.chezmoi.from.session.sandbox) as $cz |
     ($r.command_policies.commands.git.from.session.sandbox) as $git |
     ($r.command_policies.commands.mise.from.session.sandbox) as $mise |
-    # The apply allowlist ships EMPTY: every seed is content the user
-    # executes next in their own terminal (git aliases/hooksPath, mise
-    # [tasks]/env), so a seed is an agent write path into the user exec
-    # surface. Nothing is seeded, so no seed parent dir may show up in the
-    # chezmoi command sandbox.
-    # (No apostrophes in here: this comment lives inside a single-quoted jq.)
-    ($d | length) == 0 and
+    # SET EQUALITY (no apostrophes in here: this comment lives inside a
+    # single-quoted jq): the chezmoi sandbox write set is exactly the data
+    # list + the renderer temp constant — any destination-derived grant
+    # (the removed mechanism) breaks equality. Effective in-sandbox apply
+    # behavior is host-test evidence, not asserted by this pin.
+    ($cz.fs_read | sort) == ($wread | sort) and
+    ($cz.fs_write | sort) == ($wwrite | sort) and
     ($cz.fs_read | index("~/.config/git") | not) and
     ($cz.fs_write | index("~/.config/git") | not) and
     ($cz.fs_write | index("~/.config/mise") | not) and
-    all($d[]; . as $p | ($r.filesystem.allow | index($p)) != null) and
-    all($pairs[]; . as $pr | ($cz.fs_write | index($pr.parent)) != null) and
-    all($pairs[]; . as $pr | ($cz.fs_read | index($pr.parent)) != null) and
-    all($d[]; . as $p | ($cz.fs_write | index($p)) == null) and
     ($cz.fs_write | index("~/.config/chezmoi") != null) and
     ($cz.fs_read | index("~/.config/chezmoi") != null) and
     ($cz.fs_read | index("~/.local/share/chezmoi") != null) and
@@ -289,28 +346,28 @@ setup() {
     ($mise.network.allow_domain | sort) == ["*.crates.io", "*.golang.org", "*.jdx.dev", "*.nodejs.org", "*.npmjs.org", "*.pythonhosted.org", "api.github.com", "cdn.jsdelivr.net", "nodejs.org", "pypi.org", "static.rust-lang.org"]
   ' "{{ $nonoProfiles }}/base.json"
   assert_success
-  # The seed list stays empty IN THE DATA too: restoring a seed is an
-  # explicit per-path user decision, never a silent data edit.
-  run grep -E '^destinations = \[\]' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
-  assert_success
+  # The destination mechanism stays deleted, in DATA and in the renderers:
+  # restoring an automatic live-home apply grant is a mechanism re-add in a
+  # named commit, never a silent data edit.
+  run grep -E '^[[:space:]]*destinations[[:space:]]*=' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
+  assert_failure
+  assert_file_not_exists "{{ $src }}/.chezmoitemplates/base/ai/security/render-apply-dests"
+  assert_file_not_exists "{{ $src }}/.chezmoitemplates/base/ai/security/parent-dir"
 }
 
-# Render-time guard fixtures: the seed passes, every poisoned entry is
-# refused by name — the same fixture pattern as the cmd converter below (the
-# guard reports and exits 0; render-apply-dests turns a report into a loud `fail`).
+# Render-time guard fixtures: every poisoned entry is refused by name — the
+# same fixture pattern as the cmd converter below (the guard reports and
+# exits 0; render-nono-cmd turns a report into a loud `fail`).
 {{- $guardScript := includeTemplate "base/ai/security/apply-dest-guard" dict }}
 {{- $guardProtected := includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (index (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.filesystem" "required" true) | mustFromJson) "deny" | default list)) | mustFromJson }}
 {{- $guardCases := list }}
-{{- range $d := $applyDests }}
-{{-   $guardCases = append $guardCases (dict "dest" $d "expect" "ok") }}
-{{- end }}
 {{- range $c := list "~/.config/nono" "~/.config/nono/profiles/base.json" "~/.config/opencode/opencode.jsonc" "~/.config" "~/.config/tmux/**" "relative/config.json" "/" "~/../.." "~@evil" }}
 {{-   $guardCases = append $guardCases (dict "dest" $c "expect" "refused") }}
 {{- end }}
 {{- /* Provider tokens are the guard's blind spot BY DESIGN (the provider enforces
      its own trust), and a file grant rides the dir floor untouched: both pass.
      exec_paths dirs pass the floor too; a seatbelt S-expression is refused as a
-     non-path (render-apply-dests never feeds it to the guard; defense in depth). */}}
+     non-path (render-nono-cmd never feeds it to the guard; defense in depth). */}}
 {{- $guardCases = append $guardCases (dict "dest" "@git:config-files" "expect" "ok") }}
 {{- $guardCases = append $guardCases (dict "dest" "~/.local/bin/mise" "expect" "ok") }}
 {{- $guardCases = append $guardCases (dict "dest" "/opt/local/libexec/git-core" "expect" "ok") }}
@@ -424,7 +481,8 @@ setup() {
     (.command_policies.commands.git.from.session.invocation_policy.default == "allow") and
     # destructive-but-normal commands left nono for DCG ownership
     (.command_policies.commands | (has("kubectl") or has("helm") or has("docker") or has("tofu") or has("rm") or has("sed")) | not) and
-    # chezmoi: global applies denied (exact variants + --remove prefix); targeted apply unblocked
+    # chezmoi: global applies denied (exact variants + --remove prefix); a
+    # positional apply carries no destination write grant in the sandbox (pin above)
     (rules("chezmoi") | any(.exact == ["apply"])) and
     (rules("chezmoi") | any(.prefix == ["--remove"])) and
     (hit("chezmoi"; ["apply"])) and (hit("chezmoi"; ["--remove","apply"])) and
@@ -443,14 +501,24 @@ setup() {
     (hit("chezmoi"; ["-S","/tmp","apply"])) and (hit("chezmoi"; ["-i","files","apply"])) and (hit("chezmoi"; ["-x","files","apply"])) and
     (hit("chezmoi"; ["apply","--force","~/.zshrc"])) and (hit("chezmoi"; ["apply","--include","files","~/.zshrc"])) and
     (hit("chezmoi"; ["apply","-D","/tmp","~/.zshrc"])) and
-    # clone-and-apply / update forms apply globally: no allowlist bounds them
+    # clone-and-apply / update forms apply globally: nothing bounds them in-sandbox
     (rules("chezmoi") | any(.prefix == ["init","--apply"])) and (rules("chezmoi") | any(.prefix == ["init","-a"])) and
     (rules("chezmoi") | any(.prefix == ["up"])) and (rules("chezmoi") | any(.prefix == ["update"])) and
+    # U2: bare `init` writes the chezmoi config dir and `state` mutates the
+    # persistent boltdb (~/.config/chezmoi) — both bypass the apply boundary
+    # (poisoned state makes the user's apply silently skip changed files), so
+    # the whole forms are core-denied.
+    (rules("chezmoi") | any(.exact == ["init"])) and (rules("chezmoi") | any(.prefix == ["init"])) and
+    (rules("chezmoi") | any(.exact == ["state"])) and (rules("chezmoi") | any(.prefix == ["state"])) and
+    (hit("chezmoi"; ["init"])) and (hit("chezmoi"; ["init","--repo","https://example.com/dotfiles"])) and
+    (hit("chezmoi"; ["state"])) and (hit("chezmoi"; ["state","data"])) and
     (hit("chezmoi"; ["init","--apply"])) and (hit("chezmoi"; ["init","--apply","https://example.com/dotfiles"])) and
     (hit("chezmoi"; ["init","-a","https://example.com/dotfiles"])) and (hit("chezmoi"; ["update"])) and
     (hit("chezmoi"; ["update","--force"])) and (hit("chezmoi"; ["up"])) and
     # Boundary: a positional apply — with or without a trailing flag — matches
-    # no deny rule; the command-sandbox write list confines it (the command-policy matrix pins it).
+    # no deny rule; the chezmoi command sandbox grants it no home destination
+    # write (the exact-set pin in the sandbox test), and effective in-sandbox
+    # behavior is host-test evidence.
     # The =-valued equals form is the same boundary on the flag-leading side.
     (hit("chezmoi"; ["apply","~/.config/git/config","--force"]) | not) and
     (hit("chezmoi"; ["apply","~/.config/git/config","-i","files"]) | not) and
@@ -549,7 +617,8 @@ setup() {
     (.network.open_port | index(7437) != null) and
     (.network.open_port | index(49374) != null) and
     (.network.open_port | index(8321) != null) and
-    (.filesystem.unix_socket_subtree | index("~/.local/share/tmux") != null) and
+    # base grants NO AF_UNIX sockets (render-nono-fs omits the empty key)
+    ((.filesystem.unix_socket_subtree // []) | length) == 0 and
     # environment: DCG_* scrub is load-bearing; ambient injects and ignores stay out;
     # wildcard denies repeat into diagnostics.redaction (nono redacts exact names only)
     (.environment.deny_vars | index("DCG_*") != null) and
@@ -741,32 +810,40 @@ FIXTURE
 
 {{- /* Loud-fail + resolution edges: a dotless entry in a sandbox list
       is a group reference — a typo FAILS the render naming it (net axis via
-      the classify-refs classifier; fs axis via render-apply-dests' pre-guard
+      the classify-refs classifier; fs axis via render-nono-cmd's pre-guard
       resolution), while a valid group ref resolves and its `$TMPDIR`-sentinel
       member expands before the profile sees it. The fixture templates are
       BAKED here and rendered at TEST time: each nested chezmoi boot re-runs
-      the render-apply-dests guard chain (two python spawns), so render-time
-      nesting charged every routine apply four extra chezmoi boots. The
-      fixtures ride the shared deep-copy-set-path preamble. */ -}}
+      the render-nono-cmd guard chain (one python spawn), so render-time
+      nesting charged every routine apply extra chezmoi boots. The fixtures
+      ride the shared deep-copy-set-path preamble. */ -}}
 {{- $typoTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "network" "allow_domain") "value" (list "git_forge_typo")) | mustFromJson -}}
-{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r "applyDests" (includeTemplate "base/ai/security/render-apply-dests" (dict "root" $r) | mustFromJson)) -}}` }}
+{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r) -}}` }}
 {{- $fsTypoTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "fs_read") "value" (list "no_such_fs_group_typo")) | mustFromJson -}}
-{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r "applyDests" (includeTemplate "base/ai/security/render-apply-dests" (dict "root" $r) | mustFromJson)) -}}` }}
+{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r) -}}` }}
 {{- $fsGoodTpl := `{{- $r1 := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "fs_read") "value" (list "core_unix" "agents_scratch" ".")) | mustFromJson -}}
 {{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" $r1 "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "fs_write") "value" (list "tmp_workspace" "agents_scratch" "/private/var/folders")) | mustFromJson -}}
-{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r "applyDests" (includeTemplate "base/ai/security/render-apply-dests" (dict "root" $r) | mustFromJson)) -}}` }}
-{{- $badDestsTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "destinations") "value" (list "~/.config/nono")) | mustFromJson -}}
-{{- includeTemplate "base/ai/security/render-apply-dests" (dict "root" $r) -}}` }}
+{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r) -}}` }}
+{{- /* A protected path in a command-sandbox GRANT list (the guard's surviving
+      job after the destination mechanism's removal) must fail the render —
+      dir lists AND the file lists (command_sandbox_read_file joins the guard
+      input). */ -}}
+{{- $badGrantTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "fs_read") "value" (list "~/.config/nono")) | mustFromJson -}}
+{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r) -}}` }}
+{{- $badReadFileTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "command_sandbox_read_file") "value" (list "~/.config/git/credentials")) | mustFromJson -}}
+{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r) -}}` }}
 
 # bats test_tags=kind:nono
-@test "sandbox resolvers loud-fail on typos and resolve fs group refs" {
+@test "sandbox resolvers loud-fail on typos, resolve fs group refs, refuse protected grants" {
   # Reason markers: the loud-fail reason must be IN the output — EXIT!=0 plus
   # the typo name alone is vacuously green on a fixture-internal crash (the
   # name sits on the echoed template line). Both typo axes route through
   # expand-path-groups, whose fail() carries this marker. The fsGood EXIT:0
-  # canary proves the nested-render harness itself works. Violations→fail
-  # wiring: a protected destination must die in the nested render-apply-dests
-  # naming apply-dest-guard (only this fixture reaches its fail line).
+  # canary proves the nested-render harness itself works (and that ordinary
+  # source rendering stays usable without the destination machinery).
+  # Violations→fail wiring: a protected sandbox grant — dir list and file
+  # list — must die in the nested render-nono-cmd naming apply-dest-guard
+  # and the entry (only these fixtures reach its fail line).
   local cb json offenders=""
   cb="$(chezmoiBin)"
 
@@ -779,8 +856,11 @@ FIXTURE
   cat >"$BATS_TEST_TMPDIR/fs-good.tmpl" <<'FIXTURE'
 {{ $fsGoodTpl }}
 FIXTURE
-  cat >"$BATS_TEST_TMPDIR/bad-dests.tmpl" <<'FIXTURE'
-{{ $badDestsTpl }}
+  cat >"$BATS_TEST_TMPDIR/bad-grant.tmpl" <<'FIXTURE'
+{{ $badGrantTpl }}
+FIXTURE
+  cat >"$BATS_TEST_TMPDIR/bad-readfile.tmpl" <<'FIXTURE'
+{{ $badReadFileTpl }}
 FIXTURE
 
   run "$cb" execute-template -f "$BATS_TEST_TMPDIR/net-typo.tmpl"
@@ -801,8 +881,11 @@ FIXTURE
     offenders="$offenders fs-resolve:group-ref+tmpdir-expanded"
   [[ "$output" != *'$TMPDIR'* ]] || offenders="$offenders fs-resolve:no.tmpdir-leak"
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-dests.tmpl"
-  { [ "$status" -ne 0 ] && [[ "$output" == *apply-dest-guard* ]]; } || offenders="$offenders dests-guard:wiring.fails-render"
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-grant.tmpl"
+  { [ "$status" -ne 0 ] && [[ "$output" == *apply-dest-guard* ]] && [[ "$output" == *~/.config/nono* ]]; } || offenders="$offenders grant-guard:wiring.fails-render"
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-readfile.tmpl"
+  { [ "$status" -ne 0 ] && [[ "$output" == *apply-dest-guard* ]] && [[ "$output" == *~/.config/git/credentials* ]]; } || offenders="$offenders readfile-guard:wiring.fails-render"
 
   if [ -n "$offenders" ]; then
     printf 'loud-fail/resolve fixtures (offending checks):%s\n' "$offenders"

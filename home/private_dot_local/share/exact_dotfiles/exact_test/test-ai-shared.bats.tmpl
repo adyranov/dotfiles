@@ -371,7 +371,9 @@ ENTRY_SET
 @test "agent prepends /usr/bin to the sandbox PATH on Darwin only" {
   # The MacPorts-git workaround is Darwin-specific: Linux keeps its inherited
   # PATH (the prepend shadows mise shims by name). uname is stubbed, so both
-  # platforms are probed on any host.
+  # platforms are probed on any host. The Linux arm now dies at the U2
+  # guarded-launch gate (before the PATH block): the die IS the Linux
+  # sandboxed-launch behavior.
   local launch="$HOME/.local/bin/agent" mock offenders="" os out
   mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
   setup_mock_bins "$mock"
@@ -387,7 +389,7 @@ EOF
       "$launch" omp -c session-p 2>&1)" || true
     case "$os:$out" in
     "Darwin:"*PATH_FIRST=/usr/bin*) ;;
-    "Linux:"*PATH_FIRST="$mock"*) ;;
+    "Linux:"*"Refusing a guarded agent launch on Linux"*) ;;
     *) offenders="$offenders [$os: $(printf '%s' "$out" | grep -F 'PATH_FIRST=' | head -n 1)]" ;;
     esac
   done
@@ -404,6 +406,47 @@ EOF
   # Exactly one export, after the --no-sandbox) case arm and before the
   # unsandboxed exec, so sandboxed launches and --print-env never carry it.
   run awk '/export DCG_BYPASS=1/{c++;e=NR} /--no-sandbox\)/{b=NR} /exec "\$BINARY_NAME" "\$@"/{n=NR} END{exit !(c==1 && b>0 && b<e && e<n)}' "$launch"
+  assert_success
+}
+
+# bats test_tags=kind:launcher
+@test "agent scrubs inherited TMUX and gates the tmux socket dir on Darwin" {
+  # Launcher SOURCE (rendered by setup_file, not applied state): the inherited
+  # host TMUX env never leaks; the per-session socket dir is created only
+  # under the Darwin gate (mktemp under the shared root, ordered after it);
+  # the sandboxed exec carries the bind grant for that dir. Non-Darwin
+  # creates no dir: sandbox-local tmux/SSH reuse fail closed there.
+  local launch="$BATS_FILE_TMPDIR/launcher.sh"
+  assert_file_exists "$launch"
+  run grep -Fq -e 'unset TMUX' "$launch"
+  assert_success
+  run awk '/= Darwin \]; then/{d=NR} /tmux_sock_dir=\$\(mktemp -d/{m=NR} /--allow-unix-socket-subtree-bind "\$tmux_sock_dir"/{b=NR} END{exit !(d>0 && m>d && b>m)}' "$launch"
+  assert_success
+}
+
+# bats test_tags=kind:launcher
+@test "agent refuses guarded launches on Linux, ordered before both launch paths" {
+  # U2 Linux/WSL2 fail-closed: the DCG guard hooks render inside agent-writable
+  # roots and Landlock cannot deny-within-allow, so a guarded session cannot be
+  # enforced on Linux. Launcher SOURCE pin: the gate DIES (never warns), sits
+  # AFTER argument parsing (it consumes no launcher flags) and BEFORE the
+  # --no-sandbox DCG_BYPASS exec and the nono exec, honours the AGENT_SANDBOX
+  # nesting marker (nested launches inherit the parent kernel sandbox), names
+  # the remedy, and is gated on `uname -s` = Linux so the Darwin path is
+  # untouched.
+  local launch="$BATS_FILE_TMPDIR/launcher.sh"
+  assert_file_exists "$launch"
+  run grep -Fq -e 'Refusing a guarded agent launch on Linux' "$launch"
+  assert_success
+  run grep -Fq -e 'dcg allow' "$launch"
+  assert_failure
+  # die, not warn; ordered: after the arg loops (exit-only dispatch) and the
+  # shared pwd_guard, BEFORE the DCG_BYPASS export (unsandboxed branch) and
+  # the nono exec.
+  run awk '/exit_only_flags "\$@" \|\| true/{p=NR} /pwd_guard$/{w=NR} /Refusing a guarded agent launch on Linux/{g=NR} /export DCG_BYPASS=1/{b=NR} /exec nono run --profile/{e=NR} END{exit !(p>0 && w>0 && g>0 && b>0 && e>0 && p<g && w<g && g<b && b<e)}' "$launch"
+  assert_success
+  # the Linux condition honours the nesting marker inside its own condition window.
+  run awk '/\[ "\$\(uname -s\)" = Linux \] &&/{g=NR} g && NR>=g && NR<=g+3 && /AGENT_SANDBOX:-/ {n=NR} END{exit !(g>0 && n>0)}' "$launch"
   assert_success
 }
 
@@ -522,6 +565,9 @@ EOF
 @test "agent nested launch keeps the flag form on the sandbox-inherited path" {
   # AGENT_SANDBOX set (inside a sandboxed parent) + --no-sandbox: the bypass
   # is off (guards stay active) and the flag-parsed profile still dispatches.
+  # On Linux that nested guarded session is exactly what the U2 gate refuses
+  # (parent kernel sandbox inherited + agent-writable hooks), so the gate die
+  # is the expected outcome there.
   local mock
   mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
   setup_mock_bins "$mock" curl nc nono git engram pkill pgrep
@@ -532,6 +578,11 @@ EOF
   chmod +x "$mock/pi"
   run env $(scratch_env) AGENT_SANDBOX=1 PATH="$mock:$PATH" \
     "$HOME/.local/bin/agent" pi --profile core --no-sandbox "Hi there"
+  if [ "$(uname -s)" = Linux ]; then
+    assert_failure
+    assert_output --partial "Refusing a guarded agent launch on Linux"
+    return
+  fi
   assert_success
   assert_output --partial "Sandbox: inherited"
   refute_output --partial "Sandbox: disabled"
@@ -570,6 +621,9 @@ EOF
     local desc="$1" needle="$2"
     shift 2
     local out
+    # On Linux the launcher's U2 gate refuses sandboxed launches; grammar
+    # coverage rides the debug path (--no-sandbox execs the stub directly).
+    if [ "$(uname -s)" = Linux ]; then set -- "$@" --no-sandbox; fi
     out="$(env $(scratch_env) AGENT_SANDBOX="${AGENT_SANDBOX:-}" PATH="$mock:$PATH" \
       HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" "$launch" "$@" 2>&1)" || true
     case "$out" in *"$needle"*) ;; *) offenders="$offenders [$desc]";; esac
@@ -607,7 +661,11 @@ EOF
   probe "post-name --help is agent-specific" "Usage: agent [--profile NAME] pi" pi --help
 
   AGENT_SANDBOX=1
-  probe "nested sandbox flag form" "Sandbox: inherited" pi --profile core --no-sandbox
+  if [ "$(uname -s)" = Linux ]; then
+    probe "nested guarded launch dies on Linux" "Refusing a guarded agent launch on Linux" pi --profile core --no-sandbox
+  else
+    probe "nested sandbox flag form" "Sandbox: inherited" pi --profile core --no-sandbox
+  fi
   unset AGENT_SANDBOX
   unset -f probe probe_neg 2>/dev/null || true
   if [ -n "$offenders" ]; then
@@ -759,6 +817,8 @@ sup_warm() {
 @test "engram supervisor leaves a healthy, current daemon alone" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   sup_init
   sup_warm
@@ -776,6 +836,8 @@ sup_warm() {
 @test "engram supervisor daemon inherits no coordination fds (bats EOF hang)" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   command -v lsof >/dev/null || skip "lsof not available"
   sup_init
@@ -795,6 +857,8 @@ sup_warm() {
 @test "engram supervisor tolerates a slow-to-ready daemon (no kill/respawn)" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   # A cold daemon that answers after ~2s must survive the bounded
   # wait_ready loop. A one-shot 1s re-probe would TERM it and respawn:
@@ -826,6 +890,8 @@ SLOWMOCK
 @test "engram supervisor restarts a daemon whose health fails" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   sup_init
   sup_warm
@@ -846,6 +912,8 @@ SLOWMOCK
 @test "engram supervisor restarts on mtime-only binary skew" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   sup_init
   sup_warm
@@ -871,6 +939,8 @@ SLOWMOCK
 @test "engram supervisor dies fail-closed with no engram on PATH" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   sup_init
   rm "$BATS_TEST_TMPDIR/bin/engram"
@@ -885,6 +955,8 @@ SLOWMOCK
 @test "engram supervisor dies fail-closed when the spawn never readies" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   sup_init
   # ~10s: the full readiness loop runs out before the die.
@@ -900,6 +972,8 @@ SLOWMOCK
 @test "three concurrent launches converge to one daemon" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   sup_init
   sup_env_args
@@ -919,6 +993,8 @@ SLOWMOCK
 @test "supervisor takes over a lock left by a dead holder" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   sup_init
   mkdir -p "$(sup_state)/.supervise.lock"
@@ -935,6 +1011,8 @@ SLOWMOCK
 @test "supervisor never releases a live holder's lock" {
 {{- if eq (len $sup) 0 }}
   skip "no launcher agent toolchain is enabled on this host"
+{{- else if eq .chezmoi.os "linux" }}
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
   # Takeover of a FRESH, LIVE holder must not rm the holder's lock. The
   # launcher's pid is a live holder (the bats test shell); the probe exits
@@ -983,12 +1061,85 @@ SLOWMOCK
   run jq -e '
     (.filesystem.allow | index("**/.slim/worktrees/**") != null) and
     (.filesystem.allow | index("**/.codegraph/**") != null) and
-    (.filesystem.unix_socket_subtree | index("~/.local/share/ssh/sockets") != null) and
+    # The blanket SSH socket-dir lane is gone: the agent tier DENIES the
+    # socket dir (agent_ssh_sockets) and exact approvals render per-agent.
+    (.filesystem.deny | index("~/.local/share/ssh/sockets") != null) and
+    (.filesystem.deny | index("~/.local/share/ssh/sockets/*") != null) and
+    ((.filesystem.unix_socket_subtree // []) | index("~/.local/share/ssh/sockets") == null) and
+    ((.filesystem.unix_socket // []) | index("~/.local/share/ssh/sockets") == null) and
     (.network.allow_domain | index("infer01") != null)
   ' "{{ $nonoProfiles }}/{{ $a.name }}.json"
   assert_success
 }
 {{- end }}
+
+# bats test_tags=toolchain:ai,kind:nono
+@test "shared.toml denies the SSH socket dir once; the blanket lane is gone" {
+  local shared="{{ .chezmoi.sourceDir }}/.chezmoidata/base/ai/agents/shared.toml"
+  run grep -F 'deny = ["agent_ssh_sockets"]' "$shared"
+  assert_success
+  run grep -F 'unix_socket_subtree' "$shared"
+  assert_failure
+}
+
+{{- /* Socket-approval fixtures (baked here, rendered at test time): exact
+       user-approved master paths render unix_socket + bypass_protection into
+       the agent profile from data ONLY, with the leading `~/` canonicalized to
+       the homeDir (U2); the linux override strips every socket key and sets
+       base mediation fail-closed. */ -}}
+{{- $sockApproveTpl := `{{- $r1 := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "agents" "shared" "sandbox" "filesystem" "unix_socket") "value" (list "~/.local/share/ssh/sockets/fixture-master")) | mustFromJson -}}
+{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" $r1 "path" (list "ai" "base" "agents" "shared" "sandbox" "filesystem" "bypass_protection") "value" (list "~/.local/share/ssh/sockets/fixture-master")) | mustFromJson -}}
+{{- includeTemplate "base/ai/security/render-nono-profile" (dict "root" $r "agent" "pi") -}}` }}
+{{- $sockLinuxTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "os") "value" "linux") | mustFromJson -}}
+{{- dict
+  "agent" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $r "agent" "pi") | mustFromJson)
+  "base" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $r) | mustFromJson)
+| toJson -}}` }}
+{{- $piDefault := includeTemplate "base/ai/security/render-nono-profile" (dict "root" . "agent" "pi") | mustFromJson -}}
+
+# bats test_tags=toolchain:ai,kind:nono
+@test "SSH socket keys render from data approvals only; linux renders fail closed" {
+  local cb json offenders=""
+  cb="$(chezmoiBin)"
+  # Default render (no approvals): neither socket key appears.
+  test "{{ if hasKey ($piDefault.filesystem | default dict) "unix_socket" }}present{{ else }}absent{{ end }}" = "absent" ||
+    offenders="$offenders default:unix_socket-leaked"
+  test "{{ if hasKey ($piDefault.filesystem | default dict) "unix_socket_subtree" }}present{{ else }}absent{{ end }}" = "absent" ||
+    offenders="$offenders default:unix_socket_subtree-leaked"
+
+  cat >"$BATS_TEST_TMPDIR/sock-approve.tmpl" <<'FIXTURE'
+{{ $sockApproveTpl }}
+FIXTURE
+  cat >"$BATS_TEST_TMPDIR/sock-linux.tmpl" <<'FIXTURE'
+{{ $sockLinuxTpl }}
+FIXTURE
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/sock-approve.tmpl"
+  [ "$status" -eq 0 ] || offenders="$offenders approvals:fails-render"
+  json="$(sed -n '/^{/,$p' <<<"$output")"
+  # The fixture data is written `~/...` (the user-typed form): nono drops
+  # connect grants for MISSING sockets silently, so the renderer must emit the
+  # canonical homeDir path, never the literal tilde form (U2).
+  jq -e --arg home '{{ trimSuffix "/" .chezmoi.homeDir }}' '.filesystem |
+    (.unix_socket | index($home + "/.local/share/ssh/sockets/fixture-master") != null) and
+    (.unix_socket | index("~/.local/share/ssh/sockets/fixture-master") == null) and
+    (.bypass_protection | index($home + "/.local/share/ssh/sockets/fixture-master") != null) and
+    (.bypass_protection | index("~/.local/share/ssh/sockets/fixture-master") == null)' <<<"$json" >/dev/null ||
+    offenders="$offenders approvals:grant+bypass-not-canonical"
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/sock-linux.tmpl"
+  [ "$status" -eq 0 ] || offenders="$offenders linux:fails-render"
+  json="$(sed -n '/^{/,$p' <<<"$output")"
+  jq -e '
+    (.agent.filesystem | (has("unix_socket") | not) and (has("unix_socket_subtree") | not)) and
+    (.base.linux.af_unix_mediation == "pathname")
+  ' <<<"$json" >/dev/null || offenders="$offenders linux:fail-closed-shape"
+
+  if [ -n "$offenders" ]; then
+    printf 'SSH socket render checks (offending):%s\n' "$offenders"
+    return 1
+  fi
+}
 {{- end }}
 
 # --- nono ignore gating & launch-agent retirement ---
