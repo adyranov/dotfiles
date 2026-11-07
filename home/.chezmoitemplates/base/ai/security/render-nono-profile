@@ -80,6 +80,10 @@
 {{-   $bypass := index $fsData "bypass_protection" | default list -}}
 {{-   if $bypass -}}{{-   $_ := set $fs "bypass_protection" (includeTemplate "base/ai/security/uniq-sort" $bypass | mustFromJson) -}}{{- end -}}
 {{-   range $leaf := $authStores -}}{{-   $seatbelt = append $seatbelt (printf "(deny file-write* (literal \"$HOME/%s\"))" (trimPrefix "~/" $leaf)) -}}{{-   end -}}
+{{- /* omp named-profile auth stores: free-form profile names, so a literal
+  per-store loop cannot enumerate them — regex per the omp extensions idiom
+  (agents/omp.toml). */ -}}
+{{-   $seatbelt = append $seatbelt "(deny file-write* (regex #\"$HOME/\\.config/omp/profiles/[^/]+/agent/auth\\.json\"))" -}}
 {{- /* Full command_policies body with the seed parents: extends-merge of
   object sections is unprobed, an identical full body is correct under
   replace or merge. */ -}}

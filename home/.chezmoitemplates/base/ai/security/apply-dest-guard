@@ -112,7 +112,9 @@ def main():
         # Home-root hazard: a destination whose parent is `~` contributes
         # literal `~` to the chezmoi command sandbox, which REPLACES the
         # session grants — a home-wide read/write re-opens every credential
-        # leaf. Refused in both calls, and `~` itself is never a grant.
+        # leaf. `~` as an entry is refused in both calls (it is never a
+        # grant); the parent-`~` check is strict-call only — the parents
+        # call derives from already-guarded destinations.
         if target == home:
             violations.append(f"{dest}: is the home root (~): grants the whole home, every credential leaf included")
             continue

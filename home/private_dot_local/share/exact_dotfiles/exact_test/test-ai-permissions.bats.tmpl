@@ -458,6 +458,7 @@ setup() {
       ,(select(.environment.deny_vars | index("GITHUB_TOKEN") == null) | "GITHUB_TOKEN not scrubbed")
       ,(select(.command_policies.commands | (has("git") and has("mise") and has("chezmoi")) | not) | "command_policies body incomplete")
       ,([ $stores[] | . as $s | select(($sb | index("(deny file-write* (literal \"{{ trimSuffix "/" .chezmoi.homeDir }}/" + ($s | ltrimstr("~/")) + "\"))")) == null) ] | if length > 0 then "seatbelt auth-store write-deny missing: " + join(" ") else empty end)
+      ,(select(($sb | index("(deny file-write* (regex #\"{{ trimSuffix "/" .chezmoi.homeDir }}/\\.config/omp/profiles/[^/]+/agent/auth\\.json\"))")) == null) | "omp named-profile auth write-deny (regex) missing")
       ,([ $stores[] | . as $s | select(($dn | index($s)) != null) ] | if length > 0 then "auth store in filesystem.deny (denial is write-only, seatbelt): " + join(" ") else empty end)
       ,([ "~/.local/share/ssh/known_hosts", "~/.local/share/mkcert/rootCA.pem" | . as $x | select(($dn | index($x)) == null) ] | if length > 0 then "host-trust leaf not denied: " + join(" ") else empty end)
       ,(select((.network.open_port | sort) != [49374]) | "open_port not [49374]: " + ((.network.open_port | sort) | tostring))
@@ -465,6 +466,8 @@ setup() {
   # Full-body re-emit discipline: an identical full command_policies body is
   # correct under extends-replace AND extends-merge; the chezmoi entry carries
   # the seed parents (checked above), every other command entry is base's.
+  # The base.json read below is the APPLIED profile (suite convention: tests
+  # run on applied state — an unapplied host fails here by design).
   if ! jq -e --slurpfile base "{{ $nonoProfiles }}/base.json" '
       ((.command_policies.commands | keys | sort) == ($base[0].command_policies.commands | keys | sort)) and
       (.command_policies.commands.git == $base[0].command_policies.commands.git) and
