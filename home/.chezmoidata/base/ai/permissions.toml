@@ -43,6 +43,32 @@ command_sandbox_write = ["~/.cache/chezmoi", "~/.config/chezmoi"]
 # decision, never a default.
 destinations = []
 
+# The shared dotfiles profile's curated seed set: carried ONLY by the dotfiles
+# nono profile (user-launched dotfiles sessions, any agent), never by the base
+# list above, so every project launch keeps zero apply destinations. Every
+# entry passes apply-dest-guard; no parent is `~` (a home-root destination
+# would put `~` into the chezmoi command sandbox and re-open every credential
+# leaf) and no parent holds a deny leaf. The VS Code/Cursor settings pair is
+# the PRE-EXISTING App-Support exec surface (sandbox_macos already session-
+# grants it) — seeding adds no escalation. Ghostty stays out permanently: its
+# `command` option replaces the program for every new terminal surface.
+# Empty = unmanaged: an empty list renders a dotfiles profile with zero apply
+# surface. Widening stays the user's audit-loop data edit plus terminal apply.
+[ai.base.permissions.apply.dotfiles]
+destinations = [
+  "~/.config/atuin/config.toml",
+  "~/.config/bat/config",
+  "~/.config/btop/btop.conf",
+  "~/.config/fd/ignore",
+  "~/.config/rpiv-ask-user-question/config.json",
+  "~/.config/rpiv-todo/config.json",
+  "~/.config/wget/wgetrc",
+  "~/Library/Application Support/Code/User/keybindings.json",
+  "~/Library/Application Support/Code/User/settings.json",
+  "~/Library/Application Support/Cursor/User/keybindings.json",
+  "~/Library/Application Support/Cursor/User/settings.json"
+]
+
 # Per-command command-sandbox overrides keyed by command name (unlisted names
 # keep the default ["."]). The ["."] default is fatal for git (dies reading
 # ~/.config/git/config; cannot write worktrees, hook caches, TMPDIR) and mise
@@ -426,6 +452,9 @@ opencode_auth_files = ["~/.local/share/opencode/auth.json"]
 package_creds = [
   "~/.cargo/credentials",
   "~/.config/gradle/gradle.properties",
+  # Rootless globs anchor nowhere for the apply-dest-guard floor, so the
+  # anchored key makes a maven-settings destination proposal fail loud.
+  "~/.config/maven/settings.xml",
   "~/.config/npm/npmrc",
   "~/.config/pip/pip.conf",
   "~/.config/pypoetry/auth.toml",
@@ -814,6 +843,8 @@ mise_runtime = [
 ]
 
 [ai.base.permissions.network.localhost]
-# 7437 = engram daemon; 49374 (0xc0de) = opencode v2 background service
-# default port; the local serving port is appended by render-nono-net.
-forward_ports = [7437, 49374]
+# 7437 = engram daemon (base-wide relay); the local serving port is appended
+# by render-nono-net. 49374 (0xc0de, opencode v2 service) is NOT base-wide:
+# a host-side relay's reach shrinks when only its owning agent forwards it —
+# it rides agents/opencode.toml's sandbox.network.forward_ports.
+forward_ports = [7437]

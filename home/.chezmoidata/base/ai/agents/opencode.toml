@@ -114,6 +114,11 @@ write = [
   "~/.cache/gh-sandbox"
 ]
 
+[ai.base.agents.opencode.sandbox.network]
+# The v2 background service relay, moved off the base forward_ports list so
+# a host-side relay's reach is per-owner (only opencode dials 49374).
+forward_ports = [49374]
+
 [ai.base.agents.opencode.settings]
 snapshots = true
 update = "disable"

@@ -635,6 +635,236 @@ EOF
   fi
 }
 
+# --- Dotfiles sandbox-profile selection ---
+#
+# One shared dotfiles sandbox profile serves every agent: the dotfiles word
+# (flag or positional) or the launch cwd resolving inside the chezmoi source
+# dir selects it, and it swaps ONLY the sandbox profile — the agent's own
+# config profile is reused as-is. Nested (agent-initiated) launches and
+# non-macOS launches are refused: the grants physically arrive only from a
+# user-terminal launch. Fixtures pin a probe HOME carrying its own chezmoi
+# source dir, so the cwd anchor is fixture data, never the host's repo. The
+# profile renders macOS-only: selection fixtures run on darwin hosts, the
+# refusal arm stubs uname and runs on any host.
+
+# dotfiles_fixtures MOCK HOME — mock bins (the nono stub reports the sandbox
+# profile it is handed: argv 3 of `nono run --profile NAME -- binary`) plus a
+# fixture home with its own chezmoi source dir, a worktree under it, a project
+# repo and that project's own worktree.
+dotfiles_fixtures() {
+  local mock="$1" home="$2" b
+  setup_mock_bins "$mock" curl nc nono git engram pkill pgrep
+  cat >"$mock/nono" <<'NONOSTUB'
+#!/usr/bin/env sh
+echo "NONO_PROFILE=$3"
+shift 3
+[ "${1:-}" = "--" ] && shift
+exec "$@"
+NONOSTUB
+  for b in pi opencode omp; do
+    cat >"$mock/$b" <<'AGENTSTUB'
+#!/usr/bin/env sh
+echo "OMP_PROFILE=[${OMP_PROFILE:-unset}]"
+echo "ARGS=$*"
+AGENTSTUB
+  done
+  chmod +x "$mock"/*
+  mkdir -p "$home/.local/share/chezmoi/.git" \
+    "$home/.local/share/chezmoi/.slim/worktrees/feature" \
+    "$home/projects/app/.git" "$home/projects/app/.slim/worktrees/branch"
+}
+
+# dotfiles_launch MOCK HOME CWD ARGS... — the applied launcher run from CWD
+# with the pinned fixture home (XDG_DATA_HOME pinned so the source-dir anchor
+# is the fixture's). DOTFILES_PROBE_ENV carries extra env assignments
+# (AGENT_SANDBOX=1, an empty pin); combined stdout+stderr is printed.
+dotfiles_launch() {
+  local mock="$1" home="$2" cwd="$3"
+  shift 3
+  local out
+  out="$(cd "$cwd" && env $(scratch_env) $DOTFILES_PROBE_ENV PATH="$mock:$PATH" HOME="$home" \
+    XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" \
+    "$HOME/.local/bin/agent" "$@" 2>&1)" || true
+  printf '%s\n' "$out"
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "dotfiles sandbox profile: cwd auto-select, word forms, per-agent swap, log stamp" {
+{{- if ne .host.distro.family "darwin" }}
+  skip "the dotfiles sandbox profile renders on macOS only"
+{{- else }}
+  local mock home launch offenders=""
+  launch="$HOME/.local/bin/agent"
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  home="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
+  dotfiles_fixtures "$mock" "$home"
+  local repo="$home/.local/share/chezmoi"
+  local proj="$home/projects/app"
+  DOTFILES_PROBE_ENV="AGENT_SANDBOX="
+
+  probe() { # probe DESC NEEDLE CWD ARGS...
+    local desc="$1" needle="$2" cwd="$3"
+    shift 3
+    case "$(dotfiles_launch "$mock" "$home" "$cwd" "$@")" in
+    *"$needle"*) ;; *) offenders="$offenders [$desc]" ;; esac
+  }
+
+  probe "repo cwd auto-selects dotfiles" "NONO_PROFILE=dotfiles" "$repo" pi "Hi there"
+  probe "repo worktree auto-selects dotfiles" "NONO_PROFILE=dotfiles" "$repo/.slim/worktrees/feature" oc
+  probe "word from a project cwd" "NONO_PROFILE=dotfiles" "$proj" pi --profile dotfiles "Hi there"
+  probe "pre-name equals form" "NONO_PROFILE=dotfiles" "$proj" --profile=dotfiles oc
+  probe "positional word on the single-root agent" "NONO_PROFILE=dotfiles" "$proj" omp dotfiles -c s
+  probe "omp word swaps no config root" "OMP_PROFILE=[unset]" "$proj" omp --profile dotfiles -c s
+  probe "word keeps the pi config profile" "Config:  $home/.config/pi/profiles/factory" "$proj" pi --profile dotfiles
+  probe "project cwd keeps the opencode profile" "NONO_PROFILE=opencode" "$proj" oc
+  probe "project worktree keeps the omp profile" "NONO_PROFILE=omp" "$proj/.slim/worktrees/branch" omp -c s
+  probe "selection is on the mode line" "Dotfiles: shared dotfiles sandbox profile" "$repo" pi
+  unset -f probe 2>/dev/null || true
+  if [ -n "$offenders" ]; then
+    printf 'dotfiles selection offenders:%s\n' "$offenders"
+    return 1
+  fi
+  # The dotfiles launch is identifiable in the scratch event log.
+  run cat "$BATS_TEST_TMPDIR/agents/pi/nono.log"
+  assert_success
+  assert_output --partial "credential-mode: dotfiles"
+  assert_output --partial "nono-profile: dotfiles"
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "dotfiles sandbox profile is refused on nested launches: the parent sandbox is inherited" {
+{{- if ne .host.distro.family "darwin" }}
+  skip "the dotfiles sandbox profile renders on macOS only"
+{{- else }}
+  local mock home launch offenders=""
+  launch="$HOME/.local/bin/agent"
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  home="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
+  dotfiles_fixtures "$mock" "$home"
+  local repo="$home/.local/share/chezmoi"
+  local proj="$home/projects/app"
+  local needle="inherit the parent sandbox and the dotfiles grants cannot apply"
+
+  refuse() { # refuse DESC CWD ARGS... — must die naming the inheritance
+    local desc="$1" cwd="$2"
+    shift 2
+    local out rc=0
+    out="$(cd "$cwd" && env $(scratch_env) AGENT_SANDBOX=1 PATH="$mock:$PATH" HOME="$home" \
+      XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" \
+      "$launch" "$@" 2>&1)" || rc=$?
+    [ "$rc" -ne 0 ] || offenders="$offenders [$desc:exit0]"
+    case "$out" in *"$needle"*) ;; *) offenders="$offenders [$desc]" ;; esac
+  }
+
+  refuse "nested auto-select from the repo" "$repo" pi
+  refuse "nested worktree auto-select" "$repo/.slim/worktrees/feature" oc
+  refuse "nested explicit word" "$proj" opencode --profile dotfiles
+  refuse "nested word on the single-root agent" "$proj" omp --profile dotfiles -c s
+  refuse "nested word with --no-sandbox" "$proj" pi --profile dotfiles --no-sandbox
+  unset -f refuse 2>/dev/null || true
+  if [ -n "$offenders" ]; then
+    printf 'nested dotfiles refusals missing:%s\n' "$offenders"
+    return 1
+  fi
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "dotfiles sandbox profile is refused off macOS with the terminal-side interim" {
+  # uname is stubbed, so the non-macOS arm is probed on every host; a
+  # standard launch on the same host stays unaffected (the refusal is scoped
+  # to the dotfiles profile).
+  local mock home launch offenders=""
+  launch="$HOME/.local/bin/agent"
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  home="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
+  dotfiles_fixtures "$mock" "$home"
+  printf '#!/usr/bin/env sh\nprintf "Linux\\n"\n' >"$mock/uname"
+  chmod +x "$mock/uname"
+  local repo="$home/.local/share/chezmoi"
+  local proj="$home/projects/app"
+  DOTFILES_PROBE_ENV=""
+
+  refuse_offmac() { # refuse_offmac DESC CWD ARGS...
+    local desc="$1" cwd="$2"
+    shift 2
+    local out rc=0
+    out="$(cd "$cwd" && env $(scratch_env) AGENT_SANDBOX= PATH="$mock:$PATH" HOME="$home" \
+      XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" \
+      "$launch" "$@" 2>&1)" || rc=$?
+    [ "$rc" -ne 0 ] || offenders="$offenders [$desc:exit0]"
+    case "$out" in
+    *"macOS only"*) ;; *) offenders="$offenders [$desc:macos]" ;; esac
+    case "$out" in
+    *"terminal-side audit loop"*) ;; *) offenders="$offenders [$desc:interim]" ;; esac
+  }
+
+  refuse_offmac "auto-select from the repo" "$repo" pi
+  refuse_offmac "explicit word" "$proj" opencode --profile dotfiles
+  refuse_offmac "positional word" "$proj" omp dotfiles -c s
+  unset -f refuse_offmac 2>/dev/null || true
+  case "$(dotfiles_launch "$mock" "$home" "$proj" omp -c s)" in
+  *"NONO_PROFILE=omp"*) ;; *) offenders="$offenders [standard-launch]" ;; esac
+  if [ -n "$offenders" ]; then
+    printf 'non-macOS dotfiles refusals missing:%s\n' "$offenders"
+    return 1
+  fi
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "dotfiles launch on a routes host states the dotfiles mode, not the pass-through text" {
+{{- if ne .host.distro.family "darwin" }}
+  skip "the dotfiles sandbox profile renders on macOS only"
+{{- else }}
+  local mock home launch out
+  launch="$HOME/.local/bin/agent"
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  home="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
+  dotfiles_fixtures "$mock" "$home"
+  mkdir -p "$home/.config/nono/profiles"
+  printf '{"network":{"custom_credentials":{"github":{}}}}\n' >"$home/.config/nono/profiles/opencode.json"
+  local proj="$home/projects/app"
+  DOTFILES_PROBE_ENV="AGENT_SANDBOX="
+
+  # Control: this host is a routes host for a standard launch.
+  case "$(dotfiles_launch "$mock" "$home" "$proj" oc)" in
+  *"Credentials: routes on"*) ;;
+  *)
+    printf 'routes host control did not report routes:\n%s\n' "$(dotfiles_launch "$mock" "$home" "$proj" oc)"
+    return 1
+    ;;
+  esac
+
+  out="$(dotfiles_launch "$mock" "$home" "$proj" oc --profile dotfiles)"
+  case "$out" in
+  *"Credentials: dotfiles mode"*) ;;
+  *)
+    printf 'dotfiles mode line missing:\n%s\n' "$out"
+    return 1
+    ;;
+  esac
+  case "$out" in
+  *"GitHub is not delegated"* | *"Credentials: routes on"*)
+    printf 'dotfiles launch printed a credential-mode it does not describe:\n%s\n' "$out"
+    return 1
+    ;;
+  esac
+{{- end }}
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "rendered _agent offers the dotfiles word for every agent" {
+  local rendered block agent
+  rendered="$BATS_FILE_TMPDIR/_agent"
+  assert_file_exists "$rendered"
+  for agent in pi opencode omp; do
+    block=$(awk -v pat="^  ${agent}[|)]" '$0 ~ pat {f=1} f{print} f && /;;/ {exit}' "$rendered")
+    run grep -F -- "'dotfiles'" <<<"$block"
+    assert_success
+  done
+}
+
 # --- Engram daemon supervisor ---
 #
 # ensure_engram supervises one shared daemon: healthy+current fast path,

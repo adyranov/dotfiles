@@ -1,8 +1,10 @@
 #compdef agent
 # zsh completion for the agent launcher (~/.local/bin/agent).
 # Level 1: agent names and aliases plus the launcher flags; level 2: per-agent
-# profile words and flags (omp: flags only, single-root) — --profile selects
-# the profile in both positions; positional profile words stay compat aliases.
+# profile words and flags (omp: flags plus the dotfiles sandbox word,
+# single-root) — --profile selects the profile in both positions; positional
+# profile words stay compat aliases. The dotfiles word is the shared dotfiles
+# sandbox profile (every agent, user-terminal only), not a config profile.
 
 if (( CURRENT == 2 )); then
   _values 'agent' 'pi' 'oc' 'opencode' 'omp' '--profile'
@@ -12,16 +14,17 @@ fi
 case "${words[2]}" in
   pi)
     _values 'pi profiles + flags' \
-      'core' 'default' 'factory' 'minimal' \
+      'core' 'default' 'factory' 'minimal' 'dotfiles' \
       '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
     ;;
   opencode|oc)
     _values 'opencode profiles + flags' \
-      'core' 'default' 'factory' 'minimal' \
+      'core' 'default' 'factory' 'minimal' 'dotfiles' \
       '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
     ;;
   omp)
-    _values 'agent flags' \
+    _values 'agent flags + dotfiles sandbox word' \
+      'dotfiles' \
       '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
     ;;
   *)

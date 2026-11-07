@@ -15,6 +15,9 @@ install.sh
 {{- end }}
 {{- if ne .host.distro.family "darwin" }}
 Library
+# The shared dotfiles profile needs Seatbelt write-deny-within-allow; off
+# darwin the template renders empty and the file is not managed at all.
+.config/nono/profiles/dotfiles.json
 {{- end }}
 {{- if not .secrets.age }}
 {{- /* With encryption unconfigured, chezmoi's NoEncryption.EncryptedSuffix() is

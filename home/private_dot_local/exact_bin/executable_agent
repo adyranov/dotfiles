@@ -7,6 +7,11 @@
 set -eu
 
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+# Anchor for the dotfiles cwd auto-select: the chezmoi source dir. Both sides
+# of the comparison are realpath-resolved (the apply-destination guard's
+# anchor discipline), so <repo>/.slim/worktrees/* resolve inside it and a
+# project's own worktree does not.
+CHEZMOI_SOURCE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/chezmoi"
 ENGRAM_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/engram"
 ENGRAM_LOG="$ENGRAM_STATE/engram.log"
 ENGRAM_LOCK="$ENGRAM_STATE/.supervise.lock"
@@ -48,26 +53,52 @@ done
 
 AGENT_ARG="${1:-}"
 
+# The dotfiles word selects the shared dotfiles nono sandbox profile (one
+# profile every agent runs for dotfiles work). It swaps ONLY the sandbox
+# profile: the agent's own config profile is reused as-is, so the word never
+# enters an agent profile set (no new config dirs, no OMP_PROFILE) and the
+# pre-name selection clears to the agent default. The selection resolves
+# after the arg loops (selectDotfilesProfile).
+dotfiles_wanted=false
+if [ "$pre_profile" = dotfiles ]; then
+  dotfiles_wanted=true
+  pre_profile=''
+fi
+
 # --profile NAME consumption (pre-name init and post-name loop): pi and
 # opencode validate against their own profile set and die on a miss; omp
 # keeps free-form names (settled: omp relocates its agent root to
-# <config-root>/profiles/<name>/agent via OMP_PROFILE on its own).
+# <config-root>/profiles/<name>/agent via OMP_PROFILE on its own); the
+# dotfiles word consumes no config profile.
 select_profile() {
-  case "$AGENT_NAME" in
-  omp)
-    omp_profile="$1"
-    ;;
+  case "$1" in
+  dotfiles) dotfiles_wanted=true ;;
   *)
-    _gateProfile "$1"
-    profile="$1"
+    case "$AGENT_NAME" in
+    omp)
+      omp_profile="$1"
+      ;;
+    *)
+      _gateProfile "$1"
+      profile="$1"
+      ;;
+    esac
     ;;
   esac
 }
 
 # --print-env --profile NAME: same consumption contract as select_profile.
 # omp free-form names bypass profile_dir (no map entry exists; the runtime
-# evaluates the omp:default lines plus OMP_PROFILE, set separately).
+# evaluates the omp:default lines plus OMP_PROFILE, set separately). The
+# dotfiles word prints the default config env: --print-env never emits the
+# sandbox profile, which is a separate namespace.
 print_env_selected() {
+  case "$1" in
+  dotfiles)
+    print_env "$AGENT_DEFAULT_PROFILE"
+    return 0
+    ;;
+  esac
   case "$AGENT_NAME" in
   omp)
     print_env default
@@ -277,9 +308,13 @@ usage() {
   printf '                      pi/opencode: core|default|factory|minimal, positional words\n'
   printf '                      stay compat aliases; omp: free-form, agent root\n'
   printf '                      <config-root>/profiles/NAME/agent)\n'
+  printf '                      dotfiles: the shared dotfiles sandbox profile — swaps only\n'
+  printf '                      the sandbox profile (config profile unchanged), launched\n'
+  printf '                      from your own terminal, auto-selected from the chezmoi repo\n'
   printf '  Args after -- reach %s verbatim (profile words and flags not consumed).\n' "$BINARY_NAME"
   printf '  Note: this --profile selects the agent config profile; the sandbox\n'
-  printf '  profile (nono run --profile) is a separate namespace, chosen per agent.\n'
+  printf '  profile (nono run --profile) is a separate namespace, chosen per agent;\n'
+  printf '  the dotfiles word is the exception — it selects that sandbox profile.\n'
   exit 0
 }
 
@@ -316,6 +351,42 @@ pwd_guard() {
     die "Not inside a git worktree.
    Launch from a project directory inside a git worktree."
   fi
+}
+
+# The shared dotfiles sandbox profile is selected by the dotfiles word (flag
+# or positional) or automatically when the launch cwd resolves inside the
+# chezmoi source dir. Both refusals keep the mode line honest: the dotfiles
+# grants physically arrive only from a user-terminal launch (kernel
+# inheritance), so a session that cannot hold them never claims them.
+#   - AGENT_SANDBOX set: nested launches inherit the parent sandbox, so the
+#     grants cannot apply (a nested --no-sandbox inherits it too, so only a
+#     host launch is ungated — same discipline as the omp root gate).
+#   - off darwin: the union-minus-denies model needs Seatbelt's
+#     write-deny-within-allow, so the profile renders unmanaged here and
+#     dotfiles work keeps the terminal-side audit loop.
+selectDotfilesProfile() {
+  if [ "$dotfiles_wanted" != true ]; then
+    # No source dir on this host, no auto-select. A project's own worktree
+    # resolves outside the source dir and stays on its agent profile.
+    __src=$(cd -P -- "$CHEZMOI_SOURCE_DIR" 2>/dev/null && pwd -P) || return 0
+    case "$(pwd -P)" in
+    "$__src" | "$__src"/*) dotfiles_wanted=true ;;
+    esac
+  fi
+  [ "$dotfiles_wanted" = true ] || return 0
+  [ -n "${AGENT_SANDBOX:-}" ] &&
+    die "Refusing the dotfiles profile: AGENT_SANDBOX is set (a launch from inside a sandbox), so
+   nested launches inherit the parent sandbox and the dotfiles grants cannot apply.
+   Launch 'agent $AGENT_NAME --profile dotfiles' from your own terminal: only a user-terminal launch carries the grants."
+  if [ "$(uname -s)" != Darwin ]; then
+    die "Refusing the dotfiles profile: it renders on macOS only and is unmanaged on this host.
+   Dotfiles work here keeps the terminal-side audit loop: edit the sources in the sandbox, apply from your own terminal."
+  fi
+  NONO_PROFILE=dotfiles
+  # --no-sandbox runs with no sandbox at all: the profile swap is inert there.
+  [ "$no_sandbox" = true ] ||
+    info "Dotfiles: shared dotfiles sandbox profile (config profile: ${profile})"
+  unset __src
 }
 
 # Secure per-agent scratch root: the nono sandbox allow-lists writes under
@@ -645,6 +716,13 @@ while [ $# -gt 0 ]; do
       shift
     fi
     ;;
+  dotfiles)
+    # Positional form of the dotfiles word (the completion offers it for every
+    # agent): it selects the shared sandbox profile, never a config profile,
+    # so the single-root agent accepts it too.
+    dotfiles_wanted=true
+    shift
+    ;;
   core | default | factory | minimal)
     # Acceptance is per-agent: the word sets the profile only when it is in
     # this agent's own profile set. Non-selectable agents (omp, the
@@ -678,6 +756,10 @@ done
 # Shared launch-path guard: covers both exec paths (--no-sandbox below and
 # the sandboxed exec at the end) and runs before any state mutation.
 pwd_guard
+
+# Sandbox-profile selection (word or cwd auto-select) rides with the launch
+# guards: a refusal dies before services start and before any state mutation.
+selectDotfilesProfile
 
 set_runtime_env "$profile"
 
@@ -775,7 +857,14 @@ export NONO_LOG_FILE="$TMPDIR/nono.log"
 # explicit omp exclusion above is load-bearing.
 NONO_PROFILE_FILE="$HOME/.config/nono/profiles/$NONO_PROFILE.json"
 NONO_BASE_PROFILE="$HOME/.config/nono/profiles/base.json"
-if grep -q '"custom_credentials"' "$NONO_PROFILE_FILE" 2>/dev/null; then
+if [ "$NONO_PROFILE" = dotfiles ]; then
+  # Branch on the profile kind BEFORE file-grepping: the dotfiles profile
+  # renders zero credential routes and scrubs the GitHub token names on every
+  # credential arm, so it has no GitHub surface — the "GitHub is not
+  # delegated" pass-through text describes agent profiles, never this one.
+  cred_mode=dotfiles
+  dim "Credentials: dotfiles mode — no GitHub surface; gh/git work stays in your terminal"
+elif grep -q '"custom_credentials"' "$NONO_PROFILE_FILE" 2>/dev/null; then
   cred_mode=routes
   dim "Credentials: routes on — the proxy injects values at egress"
   # A route whose env:// source is unset in THIS shell injects nothing: the proxy warns
@@ -796,8 +885,10 @@ else
   cred_mode=scrub-only
   dim "Credentials: scrub-only — no credential values, provider calls unavailable"
 fi
-# The mode rides the event log, not just the TUI dim line.
+# The mode and the sandbox profile ride the event log, not just the TUI dim
+# line: a dotfiles launch is identifiable in the trail after the fact.
 printf 'credential-mode: %s\n' "$cred_mode" >>"$NONO_LOG_FILE" 2>/dev/null || :
+printf 'nono-profile: %s\n' "$NONO_PROFILE" >>"$NONO_LOG_FILE" 2>/dev/null || :
 # Landlock binds only paths existing at sandbox start (Linux): seed gh's
 # relocated state root so the first sandboxed gh write lands.
 case "$AGENT_NAME" in

@@ -4,7 +4,16 @@
   Base (no agent): emits the shared filesystem / command_policies / network /
   environment sections. Agent: emits `extends: "base"` plus only the delta —
   shared sandbox merged with the agent's own, an interpolated /tmp/agents/<agent>
-  scratch pair, agent grants/denies/hosts; nono appends+dedupes inherited arrays.
+  scratch pair, agent grants/denies/hosts, overlay forward_ports as open_port;
+  nono appends+dedupes inherited arrays.
+  kind="dotfiles": the shared dotfiles profile — one profile every agent runs
+  for dotfiles work, launched only from the user's terminal. Emits
+  `extends: "base"` plus: the guarded seed set in the write tier with its
+  parents in the chezmoi command sandbox (full command_policies body), the
+  union of all agents' runtime sandboxes with each agent's scratch dir, zero
+  credential routes, cross-agent auth stores write-denied (seatbelt — a data
+  deny would beat the store's own runtime grant), and the GitHub token names
+  pinned into deny_vars on every credential arm.
   Filesystem refs classify via classify-refs (loud-fail on unknown bare names);
   native globs pass verbatim except the tilde-tail strip. environment.deny_vars:
   base carries the derived credential scrub set (incl. DCG_*), agents add their
@@ -20,7 +29,100 @@
 */ -}}
 {{- $root := index . "root" -}}
 {{- $agent := dig "agent" "" . -}}
-{{- if eq $agent "" -}}
+{{- $kind := dig "kind" "" . -}}
+{{- if eq $kind "dotfiles" -}}
+{{- /* Seed set on this profile only; the guard chain (strict destination call
+  + sandbox-directories call) runs once here, both consumers take the result. */ -}}
+{{-   $seed := dig "destinations" list (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.apply.dotfiles" "required" false) | mustFromJson) -}}
+{{-   $applyDests := includeTemplate "base/ai/security/render-apply-dests" (dict "root" $root "destinations" $seed) | mustFromJson -}}
+{{- /* One profile serves every agent, so every agent's runtime sandbox rides
+  the union; each /tmp/agents/<agent> scratch pair is interpolated, never
+  stored in data (the agent-branch idiom). */ -}}
+{{-   $all := list "omp" "opencode" "pi" -}}
+{{-   $sandboxes := list (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.shared.sandbox" "required" false) | mustFromJson) -}}
+{{-   range $a := $all -}}
+{{-     $sandboxes = append $sandboxes (includeTemplate "base/helpers/load-section" (dict "root" $root "section" (printf "ai.agents.%s.sandbox" $a) "required" false) | mustFromJson) -}}
+{{-   end -}}
+{{-   $fsData := dict -}}
+{{-   $netData := dict -}}
+{{-   $seatbelt := list -}}
+{{-   range $map := $sandboxes -}}
+{{-     range $k, $v := (index $map "filesystem" | default dict) -}}{{-     $_ := set $fsData $k (concat ($v | default list) (index $fsData $k | default list)) -}}{{-     end -}}
+{{-     range $k, $v := (index $map "network" | default dict) -}}{{-     $_ := set $netData $k (concat ($v | default list) (index $netData $k | default list)) -}}{{-     end -}}
+{{-     $seatbelt = concat $seatbelt (index $map "unsafe_macos_seatbelt_rules" | default list) -}}
+{{-   end -}}
+{{-   $scratch := list -}}
+{{-   range $a := $all -}}{{-   $scratch = append $scratch (printf "/tmp/agents/%s" $a) -}}{{-   end -}}
+{{-   $fsCatalog := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem.paths" "required" true) | mustFromJson) -}}
+{{-   $read := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $fsData "read" | default list) $scratch) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{- /* Destinations are applicable if and only if granted: the seed joins the
+  write tier (render-nono-fs's rule), the scratch pair rides both tiers. */ -}}
+{{-   $write := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $fsData "write" | default list) $scratch $applyDests) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{- /* Every agent runs here, so every agent's OWN auth store is also another
+  agent's cross-agent deny in the merged data — and a data-tier deny beats the
+  store's own runtime grant (kills login/refresh, deny-over-grant). Drop the
+  stores from the deny tier; the write axis (the one that must stay closed
+  against shared writes) is denied by seatbelt below, write-only, reads
+  intact. Host-trust leaves ride the deny tier: the union grants reach the
+  agents' state roots, and a session running git/chezmoi must not write the
+  host's trust stores. */ -}}
+{{-   $authStores := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (list "omp_auth_files" "opencode_auth_files" "pi_auth_files")) | mustFromJson -}}
+{{-   $denyCls := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (index $fsData "deny" | default list) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
+{{-   $deny := list -}}
+{{-   range $p := $denyCls -}}{{-   if not (has $p $authStores) -}}{{-   $deny = append $deny $p -}}{{-   end -}}{{-   end -}}
+{{-   $deny = concat $deny (list "~/.local/share/ssh/known_hosts" "~/.local/share/mkcert/rootCA.pem") -}}
+{{-   $tiers := includeTemplate "base/ai/security/build-fs-tiers" (dict "root" $root "read" $read "write" $write "deny" $deny) | mustFromJson -}}
+{{-   $fs := dict "allow" (index $tiers "allow") "read" (index $tiers "read") "deny" (index $tiers "deny") -}}
+{{-   $sockets := index $fsData "unix_socket_subtree" | default list -}}
+{{-   if $sockets -}}{{-   $_ := set $fs "unix_socket_subtree" (includeTemplate "base/ai/security/uniq-sort" $sockets | mustFromJson) -}}{{- end -}}
+{{-   $readFiles := index $fsData "read_file" | default list -}}
+{{-   if $readFiles -}}{{-   $_ := set $fs "read_file" (includeTemplate "base/ai/security/uniq-sort" $readFiles | mustFromJson) -}}{{- end -}}
+{{-   $bypass := index $fsData "bypass_protection" | default list -}}
+{{-   if $bypass -}}{{-   $_ := set $fs "bypass_protection" (includeTemplate "base/ai/security/uniq-sort" $bypass | mustFromJson) -}}{{- end -}}
+{{-   range $leaf := $authStores -}}{{-   $seatbelt = append $seatbelt (printf "(deny file-write* (literal \"$HOME/%s\"))" (trimPrefix "~/" $leaf)) -}}{{-   end -}}
+{{- /* omp named-profile auth stores: free-form profile names, so a literal
+  per-store loop cannot enumerate them — regex per the omp extensions idiom
+  (agents/omp.toml). */ -}}
+{{-   $seatbelt = append $seatbelt "(deny file-write* (regex #\"$HOME/\\.config/omp/profiles/[^/]+/agent/auth\\.json\"))" -}}
+{{- /* Full command_policies body with the seed parents: extends-merge of
+  object sections is unprobed, an identical full body is correct under
+  replace or merge. */ -}}
+{{-   $cmd := includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $root "applyDests" $applyDests) | mustFromJson -}}
+{{-   $hosts := (index $netData "allow_domain" | default list) -}}
+{{-   range $e := (index $netData "allow" | default list) -}}
+{{-     $hosts = append $hosts (index $e "host") -}}
+{{-   end -}}
+{{-   $hosts = includeTemplate "base/ai/security/uniq-sort" $hosts | mustFromJson -}}
+{{-   $profile := dict
+  "meta" (dict "name" "dotfiles")
+  "extends" "base"
+  "filesystem" $fs
+  "command_policies" $cmd
+-}}
+{{-   $network := dict -}}
+{{-   if gt (len $hosts) 0 -}}{{-   $_ := set $network "allow_domain" $hosts -}}{{- end -}}
+{{- /* opencode v2's TUI dials the fixed service port on EVERY launch (the
+  launcher injects no port; the grant rides forward_ports), so a dotfiles
+  launch of opencode needs 49374 forwarded — keep it on the shared profile
+  (pi/omp sessions gain a relay to a port with nothing listening). The
+  overlay union flows it in once agents/opencode.toml carries the moved
+  forward_ports; pinned here so the shared profile stands on its own. */ -}}
+{{-   $fports := (concat (index $netData "forward_ports" | default list) (list 49374.0)) | uniq -}}
+{{-   if $fports -}}{{-   $_ := set $network "open_port" $fports -}}{{- end -}}
+{{-   if $network -}}{{-   $_ := set $profile "network" $network -}}{{- end -}}
+{{- /* Zero credential routes: the network delta carries hosts and ports
+  only; base renders no routes, so the profile has none. Routes-off is
+  enforced by scrubbing, not just by route absence: the GitHub token names
+  join the full derived scrub body unconditionally, so pass-through delivery
+  (gap-set names flowing to every extending profile) never reaches a dotfiles
+  session. Full deny_vars body: correct under replace or merge. */ -}}
+{{-   $creds := includeTemplate "base/ai/auth/render-credentials" $root | mustFromJson -}}
+{{-   $denyVars := concat ($creds.secrets | default list) (list "GH_TOKEN" "GITHUB_TOKEN") | uniq | sortAlpha -}}
+{{-   $_ := set $profile "environment" (dict "deny_vars" $denyVars) -}}
+{{-   $seatbelt = includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $seatbelt "home" (trimSuffix "/" $root.chezmoi.homeDir)) | mustFromJson -}}
+{{-   if and $seatbelt (eq $root.chezmoi.os "darwin") -}}{{-   $_ := set $profile "unsafe_macos_seatbelt_rules" ($seatbelt | uniq) -}}{{- end -}}
+{{-   $profile | toPrettyJson -}}
+{{- else if eq $agent "" -}}
 {{- /* Hoisted once per base render: the guard chain (2 python spawns) runs a
   single time and both consumers take the passed list. Guard refusals
   propagate identically (a fail in the include fails this render). */ -}}
@@ -87,6 +189,11 @@
 {{-   $netOut := includeTemplate "base/ai/security/render-nono-net" (dict "root" $root "credentials" $creds) | mustFromJson -}}
 {{-   $routeKeys := omit $netOut "allow_domain" "open_port" -}}
 {{-   if $routeKeys -}}{{-   $network = merge $network $routeKeys -}}{{-   end -}}
+{{- /* Overlay forward_ports (an agent's own service port, moved off the base
+  list so a host-side relay's reach is per-owner) land as open_port; the
+  inherited base array appends, so base ports stay. */ -}}
+{{-   $fports := (index $netData "forward_ports" | default list) | uniq -}}
+{{-   if $fports -}}{{-   $_ := set $network "open_port" $fports -}}{{- end -}}
 {{-   if $network -}}{{-   $_ := set $profile "network" $network -}}{{- end -}}
 {{- /* Command-attached routes need the definition (network, above) and the
   sandbox reference in the SAME profile. The whole command_policies section is
