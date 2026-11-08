@@ -6,7 +6,7 @@
 # set_runtime_env, list_profiles) — no templates, no data files.
 set -eu
 
-# Single uname spawn for the Linux gate, tmux block, CA renewal, PATH parity.
+# Single uname spawn for the Linux gate, CA renewal, PATH parity.
 UNAME_S=$(uname -s)
 
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -394,7 +394,7 @@ bootstrap_scratch() {
   requireMode0700 "$_agents_root" "scratch root" "Scratch root"
   requireMode0700 "$scratch_dir" "scratch dir" "Scratch dir"
 
-  unset _agents_root _root_resolved _resolved _owner _mode
+  unset _agents_root _root_resolved _resolved _uid _owner _mode
 }
 
 engram_ready() {
@@ -767,31 +767,10 @@ export RTK_RECALL_DB="$scratch_dir/rtk/recall.db"
 export RTK_TEE_DIR="$scratch_dir/rtk/tee"
 unset scratch_dir
 
-# Sandbox-local tmux (Darwin only): a unique per-session socket dir under a
-# shared 0700 root, bind-granted at launch via --allow-unix-socket-subtree-bind
-# (recursive: tmux nests tmux-<uid>/default under TMUX_TMPDIR). The host tmux
-# socket dir is sandbox-denied (base profile), so the user's server is
-# unreachable. The session dir is intentionally NOT auto-removed: the launcher
-# ends in exec (no trap fires) and tmux deletes its own socket.
+# Agents never get a tmux server: host tmux is base-denied and no sandbox-local
+# socket dir is provisioned, so no tmux interaction is possible in any direction.
+# The TMUX scrub keeps an inherited host-session marker out of the agent env.
 unset TMUX
-tmux_sock_dir=''
-if [ "$UNAME_S" = Darwin ]; then
-  if [ "${AGENT_LAUNCH_TEST_MODE:-}" = 1 ] && [ -n "${BATS_TEST_TMPDIR:-}" ]; then
-    tmux_root="$BATS_TEST_TMPDIR/agents-tmux"
-  else
-    tmux_root="/tmp/agents-tmux"
-  fi
-  mkdirPrivate "$tmux_root" "tmux socket root" "tmux socket root"
-  requireOwner "$tmux_root" "tmux socket root" "tmux socket root" "$_uid"
-  tmux_sock_dir=$(mktemp -d "$tmux_root/XXXXXX" 2>/dev/null) ||
-    die "Cannot create tmux socket dir under: $tmux_root"
-  chmod 700 "$tmux_sock_dir"
-  export TMUX_TMPDIR="$tmux_sock_dir"
-  dim "Tmux: sandbox-local socket dir: $tmux_sock_dir"
-  unset tmux_root
-else
-  dim "Tmux/SSH: sandbox-local tmux and SSH reuse unavailable (Linux AF_UNIX mediation gap; capabilities fail closed)"
-fi
 
 # nono persists its TLS-interception CA in the macOS login keychain (svce
 # nono-proxy-ca) with 24h validity; the default load path never renews an
@@ -904,7 +883,4 @@ if [ "$AGENT_NAME" = opencode ] && [ "${AGENT_LAUNCH_TEST_MODE:-}" != 1 ]; then
   kill_orphan_service
 fi
 dim "Launch: nono run --profile $NONO_PROFILE -- $BINARY_NAME ..."
-if [ -n "$tmux_sock_dir" ]; then
-  exec nono run --profile "$NONO_PROFILE" --allow-unix-socket-subtree-bind "$tmux_sock_dir" -- "$BINARY_NAME" "$@"
-fi
 exec nono run --profile "$NONO_PROFILE" -- "$BINARY_NAME" "$@"

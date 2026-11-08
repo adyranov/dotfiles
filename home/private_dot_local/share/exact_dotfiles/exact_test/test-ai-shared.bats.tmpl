@@ -410,18 +410,17 @@ EOF
 }
 
 # bats test_tags=kind:launcher
-@test "agent scrubs inherited TMUX and gates the tmux socket dir on Darwin" {
+@test "agent scrubs inherited TMUX and provisions no tmux socket" {
   # Launcher SOURCE (rendered by setup_file, not applied state): the inherited
-  # host TMUX env never leaks; the per-session socket dir is created only
-  # under the Darwin gate (mktemp under the shared root, ordered after it);
-  # the sandboxed exec carries the bind grant for that dir. Non-Darwin
-  # creates no dir: sandbox-local tmux/SSH reuse fail closed there.
+  # host TMUX env never leaks, and no tmux server is provisioned for the
+  # sandbox (no socket dir, no bind grant) — host tmux is base-denied, so tmux
+  # interaction is impossible in any direction.
   local launch="$BATS_FILE_TMPDIR/launcher.sh"
   assert_file_exists "$launch"
   run grep -Fq -e 'unset TMUX' "$launch"
   assert_success
-  run awk '/= Darwin \]; then/{d=NR} /tmux_sock_dir=\$\(mktemp -d/{m=NR} /--allow-unix-socket-subtree-bind "\$tmux_sock_dir"/{b=NR} END{exit !(d>0 && m>d && b>m)}' "$launch"
-  assert_success
+  run grep -E 'TMUX_TMPDIR|tmux_sock_dir|allow-unix-socket-subtree-bind' "$launch"
+  assert_failure
 }
 
 # bats test_tags=kind:launcher

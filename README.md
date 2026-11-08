@@ -56,9 +56,9 @@ layers:
   configs/history, browser data), a small command hard core (Git force flags,
   keychain mutators, secret exports, global `chezmoi apply`), and proxy-routed
   network egress with domain allow-listing. Git is HTTPS-only; SSH egress is
-  blocked. Agents never reach your host tmux server (its socket dir is
-  sandbox-denied); on macOS each agent session gets a private sandbox-local
-  tmux socket. SSH reuse is opt-in per agent, default none: open a master in
+  blocked. Agents cannot use tmux: the host tmux server's socket dir is
+  sandbox-denied and the launcher provisions no tmux socket at all. SSH reuse
+  is opt-in per agent, default none: open a master in
   your terminal, compute its exact socket path
   (`ssh -G <host> | awk '/^controlpath/ {print $2}'`), add that exact path to
   the intended agent's data (`sandbox.filesystem.unix_socket` plus the same
@@ -66,9 +66,8 @@ layers:
   exist before the agent launches. Revoke with `ssh -O exit <host>` (`-O stop`
   only stops accepting new multiplexing). An approved master delegates your VM
   account's authority — approve only connections you mean to delegate. On
-  Linux/WSL2 host tmux stays unreachable, and sandbox-local tmux and SSH
-  reuse are unavailable (pathname-socket mediation gap; the capabilities
-  fail closed).
+  Linux/WSL2 SSH reuse is also unavailable (pathname-socket mediation gap;
+  the capability fails closed).
   Agents never write live home configuration: the chezmoi config/state dir
   is session-read-only (the `chezmoi` command sandbox keeps its own diff/
   cache writes, and `chezmoi init` and `chezmoi state` are command-core
