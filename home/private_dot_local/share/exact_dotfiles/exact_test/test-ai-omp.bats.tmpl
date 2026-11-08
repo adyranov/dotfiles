@@ -143,32 +143,9 @@ SCRIPT
 }
 
 # bats test_tags=toolchain:omp,kind:launcher
-@test "agent omp --profile= equals form resolves pre-name; print-env stays free-form" {
-  local mockdir test_home
-  mockdir="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
-  test_home="$(make_test_home)"
-  setup_mock_bins "$mockdir"
-  cat >"$mockdir/omp" <<'SCRIPT'
-#!/usr/bin/env sh
-echo "OMP_PROFILE=[${OMP_PROFILE:-unset}]"
-echo "OMP_ARGS=$*"
-SCRIPT
-  chmod +x "$mockdir/nono" "$mockdir/omp"
-  provision_omp_named_root "$test_home/.config/omp/profiles/work/agent"
-  # On Linux the launcher's U2 gate refuses sandboxed launches; launch
-  # coverage rides the debug path (--no-sandbox execs the stub directly).
-  local linux=()
-  [ "$(uname -s)" = Linux ] || linux=(--no-sandbox)
-
-  # Pre-name equals form feeds the same omp_profile variable as the space form.
-  run env $(scratch_env) PATH="$mockdir:$PATH" \
-    XDG_CONFIG_HOME="$test_home/.config" HOME="$test_home" \
-    "$HOME/.local/bin/agent" --profile=work omp "${linux[@]}" -c session-p
-  assert_success
-  assert_output --partial "OMP_PROFILE=[work]"
-  assert_output --partial "OMP_ARGS=-c session-p"
-
-  # print-env accepts free-form flag names (no validation die, no root export).
+@test "agent omp --print-env accepts free-form flag names" {
+  # The pre-name equals form rides the shared launcher grammar aggregate
+  # (single gate); print-env stays free-form: no validation die, no root export.
   run env HOME=/fixture-home XDG_CONFIG_HOME=/fixture-home/.config \
     "$HOME/.local/bin/agent" omp --print-env --profile work
   assert_success
@@ -479,7 +456,6 @@ YAML
   assert_success
   # Previously applied retired blocks and retry fields migrate out; user-owned
   # fields survive.
-  # Previously applied retired blocks and retry fields migrate out.
   run yq -e '(has("advisor") | not) and (.compaction | has("strategy") | not) and (.compaction | has("modelThresholds") | not) and (.retry | has("enabled") | not) and (.retry | has("baseDelayMs") | not) and (.retry | has("modelFallback") | not) and (.retry | has("fallbackRevertPolicy") | not) and (.retry | has("fallbackOn") | not) and (.task.agentModelOverrides | has("stale") | not)' <<< "$rendered"
   assert_success
   # Managed values win; user-owned fields survive.

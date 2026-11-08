@@ -128,7 +128,7 @@ setup() {
       | map(select(. == "~/.local/share/engram")) | length) == 0 and
     # ~/.pi symlinks into ~/.config/pi: never a base grant (cross-agent pi-tree write)
     (.filesystem.allow | index("~/.pi") == null) and
-    # pi-specific state is pi-only (demoted from base: settings.json/models.json/
+    # pi-specific state is pi-only (settings.json/models.json/
     # pi-lens writes from other agents = config-tampering surface)
     ((.filesystem.read + .filesystem.allow)
       | map(select(startswith("~/.config/pi/") or startswith("~/.pi-lens")))
@@ -149,19 +149,9 @@ setup() {
 
 # bats test_tags=kind:nono
 @test "base denies the host tmux socket: no grants, no write lane" {
-  # Data: the base socket lane is empty (key kept for the renderer contract)
-  # and tmux dropped out of sandbox_write_specific.
-  run grep -F 'unix_socket_subtree = []' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
-  assert_success
-  run grep -F '  "~/.local/share/tmux"' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
-  assert_failure
-  run grep -F '  "tmux_state"' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
-  assert_success
-  # Rendered base: no socket grants; tmux paths absent from every grant tier;
-  # the deny carries dir+child keys. A base-tier deny is unopenable by agent
-  # grants (deny beats grants), so the host tmux server is unreachable; the
-  # dir deny emits a recursive seatbelt subpath for network-outbound on
-  # macOS, covering CONNECT to the nested tmux-<uid>/default.
+  # Rendered base: no socket grants, tmux paths out of every grant tier, the
+  # deny carries dir+child keys. Unopenability mechanics: the shared.toml SSH
+  # deny block and the tmux_state path definition in permissions.toml.
   run jq -e '
     ((.filesystem.unix_socket_subtree // []) | length) == 0 and
     ((.filesystem.allow + .filesystem.read + .filesystem.write)
@@ -234,8 +224,8 @@ setup() {
   # LaunchAgents plist), the managed ~/.agents symlink (writes land in the
   # protected ~/.config/agents tree) and the managed ~/.editorconfig ride the
   # READ tier only. The app-support write lane is closed wholesale (no runtime
-  # consumer was audited; the broad parent was already filter-dropped by the
-  # dcg read carve-out); the pinned KEPT writes are the runtime build caches.
+  # consumer; the broad parent rides the dcg read carve-out); the pinned KEPT
+  # writes are the runtime build caches.
   # No dir grant may cover a managed leaf (a dir write re-opens it through
   # unlink+create), so no allow entry starts with any of these paths.
   run jq -e '
@@ -328,8 +318,6 @@ setup() {
     ($git.fs_read | index("~/.local/share/opencode/snapshot") != null) and
     ($git.fs_write | index("~/.local/share/opencode/snapshot") != null) and
     ($git.fs_write | index("{{ trimSuffix "/" (env "TMPDIR" | default "/tmp") }}") != null) and
-    # fs group members (tmp_workspace) expand at render: the expanded TMPDIR
-    # is present and the raw $TMPDIR sentinel never survives into the profile
     ($git.fs_write | index("$TMPDIR") | not) and
     ($mise.fs_read | index("~/.config/mise") != null) and
     ($mise.fs_write | index("{{ trimSuffix "/" (env "TMPDIR" | default "/tmp") }}") != null) and
@@ -346,19 +334,22 @@ setup() {
     ($mise.network.allow_domain | sort) == ["*.crates.io", "*.golang.org", "*.jdx.dev", "*.nodejs.org", "*.npmjs.org", "*.pythonhosted.org", "api.github.com", "cdn.jsdelivr.net", "nodejs.org", "pypi.org", "static.rust-lang.org"]
   ' "{{ $nonoProfiles }}/base.json"
   assert_success
-  # The destination mechanism stays deleted, in DATA and in the renderers:
-  # restoring an automatic live-home apply grant is a mechanism re-add in a
-  # named commit, never a silent data edit.
   run grep -E '^[[:space:]]*destinations[[:space:]]*=' "{{ $src }}/.chezmoidata/base/ai/permissions.toml"
   assert_failure
   assert_file_not_exists "{{ $src }}/.chezmoitemplates/base/ai/security/render-apply-dests"
   assert_file_not_exists "{{ $src }}/.chezmoitemplates/base/ai/security/parent-dir"
+  # The ca_bundle group path is the bundle the session export ships as
+  # GIT_SSL_CAINFO: grep the data path's tail in ca-bundle.sh.tmpl.
+  local ca_leaf
+  ca_leaf="$(sed -n 's|^ca_bundle = \["~/.config/\(.*\)"\]|\1|p' "{{ $src }}/.chezmoidata/base/ai/permissions.toml")"
+  run grep -F "/$ca_leaf\"" "{{ $src }}/private_dot_config/exact_shell/exact_exports.d/ca-bundle.sh.tmpl"
+  assert_success
 }
 
 # Render-time guard fixtures: every poisoned entry is refused by name — the
 # same fixture pattern as the cmd converter below (the guard reports and
 # exits 0; render-nono-cmd turns a report into a loud `fail`).
-{{- $guardScript := includeTemplate "base/ai/security/apply-dest-guard" dict }}
+{{- $guardScript := includeTemplate "base/ai/security/sandbox-grant-guard" dict }}
 {{- $guardProtected := includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (index (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.filesystem" "required" true) | mustFromJson) "deny" | default list)) | mustFromJson }}
 {{- $guardCases := list }}
 {{- range $c := list "~/.config/nono" "~/.config/nono/profiles/base.json" "~/.config/opencode/opencode.jsonc" "~/.config" "~/.config/tmux/**" "relative/config.json" "/" "~/../.." "~@evil" }}
@@ -393,17 +384,17 @@ setup() {
 {{- range $c := $guardCases }}
 {{-   if eq $c.expect "ok" }}{{- $guardOk = append $guardOk $c.dest }}{{- else }}{{- $guardRefused = append $guardRefused $c.dest }}{{- end }}
 {{- end }}
-{{- $guardViolOk := output "python3" "-c" $guardScript (dict "destinations" $guardOk "protected" $guardProtected | toJson) | mustFromJson }}
-{{- $guardViolRefused := output "python3" "-c" $guardScript (dict "destinations" $guardRefused "protected" $guardProtected | toJson) | mustFromJson }}
+{{- $guardViolOk := output "python3" "-c" $guardScript (dict "grants" $guardOk "protected" $guardProtected | toJson) | mustFromJson }}
+{{- $guardViolRefused := output "python3" "-c" $guardScript (dict "grants" $guardRefused "protected" $guardProtected | toJson) | mustFromJson }}
 {{- /* allow_globs mode (sandbox grant lists): globs pass, and protected roots
      stay refused through the glob (anchor the pattern, compare protected). */}}
 {{- $globOk := list "~/.local/share/mise/installs/**" "~/.local/share/mise/installs/x/**/y" "~/.config/tmux/**" }}
 {{- $globRefused := list "~/.config/nono/**" "~/.config/**" }}
-{{- $globViolations := output "python3" "-c" $guardScript (dict "destinations" (concat $globOk $globRefused) "protected" $guardProtected "allow_globs" true | toJson) | mustFromJson }}
-{{- $ghStateViolations := output "python3" "-c" $guardScript (dict "destinations" (list "~/.cache/gh-sandbox") "protected" $guardProtected "allow_globs" true | toJson) | mustFromJson }}
+{{- $globViolations := output "python3" "-c" $guardScript (dict "grants" (concat $globOk $globRefused) "protected" $guardProtected "allow_globs" true | toJson) | mustFromJson }}
+{{- $ghStateViolations := output "python3" "-c" $guardScript (dict "grants" (list "~/.cache/gh-sandbox") "protected" $guardProtected "allow_globs" true | toJson) | mustFromJson }}
 
 # bats test_tags=kind:nono
-@test "apply-dest-guard refuses protected, ancestor, descendant, glob, root, case-alias and symlinked entries" {
+@test "sandbox-grant-guard refuses protected, ancestor, descendant, glob, root, case-alias and symlinked entries" {
   run jq -e --argjson ok '{{ $guardOk | toJson }}' --argjson refused '{{ $guardRefused | toJson }}' --argjson vOk '{{ $guardViolOk | toJson }}' --argjson vRefused '{{ $guardViolRefused | toJson }}' --argjson gok '{{ $globOk | toJson }}' --argjson grefused '{{ $globRefused | toJson }}' --argjson vGlob '{{ $globViolations | toJson }}' -n '
     ($refused | length) >= 7 and
     ($ok | length) > 0 and
@@ -543,8 +534,6 @@ setup() {
     (hit("git"; ["push","--set-upstream","origin","topic"]) | not) and
     (hit("git"; ["fetch","origin"]) | not) and (hit("git"; ["fetch","--all","--prune"]) | not) and
     (hit("git"; ["status"]) | not) and (hit("git"; ["log","--oneline"]) | not) and (hit("git"; ["diff","HEAD~1"]) | not) and
-    # spelling ceiling of the 0.79.0 token-window matcher: bundled short forms
-    # and --flag=value match nothing (DCG core.git gates the bundles)
     (hit("git"; ["clean","-fdx"]) | not) and (hit("git"; ["push","--force-with-lease=refs/heads/main:abcd"]) | not) and
     # secret egress denied; ordinary verbs outside the families allowed
     (hit("gpg"; ["--export-secret-keys"])) and (hit("gpg"; ["--export-secret-subkeys"])) and
@@ -597,7 +586,6 @@ setup() {
     # pi.dev relocation into base is the load-bearing half of this assertion.
     ($want - .network.allow_domain | length) == 0 and
     (.network.allow_domain | index("pi.dev")) != null and
-    # browsable docs / search-site hosts are gone
     (["docs.comfy.org", "docs.litellm.ai", "docs.runpod.io", "docs.sglang.ai",
       "docs.vllm.ai", "support.apple.com", "www.anthropic.com", "ai.google.dev",
       "brave.com", "infer01"]
@@ -641,8 +629,6 @@ setup() {
   [ "$n" = "153" ] || { echo "network literal drift: got $n, expected 153 — bump intentionally in a commit that names the consumer"; return 1; }
 }
 
-{{/* Every row is defined as custom_credentials and every upstream is a host the
-     base floor already grants: routes add no egress. */ -}}
 {{ $routeRender := omit $netCredsRender "allow_domain" "open_port" -}}
 
 # bats test_tags=kind:nono
@@ -663,8 +649,6 @@ setup() {
   # The agent profiles render per toolchain (the $nonoAgents idiom): on an
   # ai-enabled/pi-off host pi.json is absent, so the loop arms are gated.
   for agent in{{- if .toolchains.pi }} pi{{- end }}{{- if .toolchains.opencode }} opencode{{- end }}; do
-    # No env_credentials: nono 0.79.0 loads them at startup and dies when an
-    # env:// source is unset; gap values reach the agent by pass-through instead.
     run jq -e --argjson keys '{{ $allRouteNames | toJson }}' '
       ((.network.custom_credentials // {}) | keys | sort) == $keys and
       (.env_credentials == null)
@@ -842,7 +826,7 @@ FIXTURE
   # canary proves the nested-render harness itself works (and that ordinary
   # source rendering stays usable without the destination machinery).
   # Violations→fail wiring: a protected sandbox grant — dir list and file
-  # list — must die in the nested render-nono-cmd naming apply-dest-guard
+  # list — must die in the nested render-nono-cmd naming sandbox-grant-guard
   # and the entry (only these fixtures reach its fail line).
   local cb json offenders=""
   cb="$(chezmoiBin)"
@@ -882,10 +866,10 @@ FIXTURE
   [[ "$output" != *'$TMPDIR'* ]] || offenders="$offenders fs-resolve:no.tmpdir-leak"
 
   run "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-grant.tmpl"
-  { [ "$status" -ne 0 ] && [[ "$output" == *apply-dest-guard* ]] && [[ "$output" == *~/.config/nono* ]]; } || offenders="$offenders grant-guard:wiring.fails-render"
+  { [ "$status" -ne 0 ] && [[ "$output" == *sandbox-grant-guard* ]] && [[ "$output" == *~/.config/nono* ]]; } || offenders="$offenders grant-guard:wiring.fails-render"
 
   run "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-readfile.tmpl"
-  { [ "$status" -ne 0 ] && [[ "$output" == *apply-dest-guard* ]] && [[ "$output" == *~/.config/git/credentials* ]]; } || offenders="$offenders readfile-guard:wiring.fails-render"
+  { [ "$status" -ne 0 ] && [[ "$output" == *sandbox-grant-guard* ]] && [[ "$output" == *~/.config/git/credentials* ]]; } || offenders="$offenders readfile-guard:wiring.fails-render"
 
   if [ -n "$offenders" ]; then
     printf 'loud-fail/resolve fixtures (offending checks):%s\n' "$offenders"
@@ -943,8 +927,6 @@ FIXTURE
 # bats test_tags=toolchain:ai,kind:launcher
 @test "launcher stamps credential-mode into the log and seeds gh-sandbox" {
   # The credential mode rides the event log on every sandboxed launch.
-  # The gh state root is pre-created (Landlock binds only paths existing at
-  # sandbox start).
   local launcher="$HOME/.local/bin/agent"
   run grep -F 'credential-mode:' "$launcher"
   assert_success
@@ -1005,7 +987,6 @@ FIXTURE
       if [ -n "$l" ]; then offenders="$offenders $agent:$l"; fi
     done <<<"$out"
   }
-  # The provider-domain overlay is gone: the base catalog grants them.
   agent="base"
   checkOverlay "base grants provider domains" jq -e '
     (.network.allow_domain) as $a |
@@ -1200,8 +1181,6 @@ FIXTURE
 
 # bats test_tags=toolchain:ai,kind:dcg
 @test "apply-time dcg checksum verifier is gone" {
-  # The settled drop: the verifier wrote nothing, so it was never the
-  # apply-collision source; its absence is pinned here.
   assert_file_not_exists "{{ $src }}/.chezmoiscripts/toolchains/ai/run_onchange_after_84_verify-dcg-checksum.sh.tmpl"
   local cb
   cb="$(chezmoiBin)"

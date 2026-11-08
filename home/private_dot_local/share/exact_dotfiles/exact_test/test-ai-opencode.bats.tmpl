@@ -403,31 +403,10 @@ EOF
 }
 
 # bats test_tags=toolchain:opencode,kind:launcher
-@test "agent oc --profile selects in both positions, forwards args verbatim" {
-  local mock="$BATS_TEST_TMPDIR/bin"
-  setup_oc_launch_mocks "$mock"
-  # Linux: launch coverage rides the --no-sandbox debug path past the U2
-  # gate; the profile gate dies run before it, so the bogus probe is static.
-  local linux=()
-  [ "$(uname -s)" = Linux ] || linux=(--no-sandbox)
-
-  # Pre-name flag form: config display shows the core tree, args untouched.
-  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" --profile core oc "${linux[@]}" --continue x
-  assert_success
-  assert_output --partial "profiles/core"
-  assert_output --partial "OC_ARGS=--continue x"
-
-  # Flag form + factory: profile selects, args forward verbatim.
-  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" oc --profile factory "${linux[@]}" --continue x
-  assert_success
-  assert_output --partial "profiles/factory"
-  refute_output --partial "--open-port"
-  assert_output --partial "OC_ARGS=--continue x"
-
-  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" oc --profile bogus
-  assert_failure
-  assert_output --partial "Unknown profile: bogus"
-
+@test "agent oc --print-env maps the selected profile paths (fixture-home)" {
+  # Flag/positional selection, arg forwarding and the bogus-profile die ride
+  # the shared launcher grammar aggregate (single gate); this probe pins the
+  # fixture-home path mapping only --print-env emits.
   launcher_probe oc --print-env --profile core
   assert_output --partial 'OPENCODE_CONFIG="/fixture-home/.config/opencode/profiles/core/opencode.jsonc"'
 }

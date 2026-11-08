@@ -7,11 +7,7 @@
   Full r+w = every write-group path (nono "allow" is read+write); read-only =
   read-group paths with no write group; tier pipeline in build-fs-tiers. Deny
   carries "~/.config/nono" and its profiles children so an agent cannot edit
-  its own (or the base) profile and escalate on relaunch. The
-  apply-destination mechanism is removed: live-home applies are
-  user-terminal-only and no destination grant joins the write tier. This
-  section is NOT a general home-write boundary — the write grants it does
-  render are audited separately.
+  its own (or the base) profile and escalate on relaunch.
 */ -}}
 {{- $root := index . "root" -}}
 {{- $fs := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem" "required" true) | mustFromJson) -}}
@@ -28,7 +24,7 @@
   and trust lands as links under the granted state parent, so a direct write
   is self-trust — repo mise [tasks] execute on the next mise run. dir+`*`
   keys (share root rides for pre-v6 mise). Renderer-side, NOT a data deny
-  group: expanded deny groups join apply-dest-guard's protected floor, and
+  group: expanded deny groups join sandbox-grant-guard's protected floor, and
   the legitimate mise dir grants contain these leaves — the guard refuses
   dir grants containing protected roots. */ -}}
 {{- $deny = concat $deny (list
@@ -50,8 +46,6 @@
   "write" (list)
   "deny" (index $tiers "deny")
 -}}
-{{- /* Socket key rides only when the data grants sockets: base.json carries
-  no stale/empty grants (base socket lane is empty: tmux is denied). */ -}}
 {{- $sockets := index $fs "unix_socket_subtree" | default list -}}
 {{- if $sockets -}}{{- $_ := set $out "unix_socket_subtree" (includeTemplate "base/ai/security/uniq-sort" $sockets | mustFromJson) -}}{{- end -}}
 {{- $out | toJson -}}

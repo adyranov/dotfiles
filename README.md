@@ -63,7 +63,8 @@ layers:
   (`ssh -G <host> | awk '/^controlpath/ {print $2}'`), add that exact path to
   the intended agent's data (`sandbox.filesystem.unix_socket` plus the same
   path in `bypass_protection`), and apply in your terminal; the master must
-  exist before the agent launches. An approved master delegates your VM
+  exist before the agent launches. Revoke with `ssh -O exit <host>` (`-O stop`
+  only stops accepting new multiplexing). An approved master delegates your VM
   account's authority — approve only connections you mean to delegate. On
   Linux/WSL2 host tmux stays unreachable, and sandbox-local tmux and SSH
   reuse are unavailable (pathname-socket mediation gap; the capabilities

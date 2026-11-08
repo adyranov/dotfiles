@@ -6,6 +6,9 @@
 # set_runtime_env, list_profiles) — no templates, no data files.
 set -eu
 
+# Single uname spawn for the Linux gate, tmux block, CA renewal, PATH parity.
+UNAME_S=$(uname -s)
+
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 ENGRAM_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/engram"
 ENGRAM_LOG="$ENGRAM_STATE/engram.log"
@@ -247,6 +250,33 @@ stat_field() {
   printf '%s\n' "$__v"
 }
 
+# requireOwner PATH LABEL LABEL_CAP UID / requireMode0700 PATH LABEL LABEL_CAP:
+# die strings are byte-pinned by the suites; LABEL is the lowercase mid-sentence
+# form, LABEL_CAP the sentence-initial form.
+requireOwner() {
+  __o=$(stat_field -f %u -c %u "$1")
+  case "$__o" in
+  '' | *[!0-9]*) die "Cannot determine $2 owner: $1" ;;
+  esac
+  [ "$__o" = "$4" ] || die "$3 owner mismatch: $1 (owner $__o)"
+}
+
+requireMode0700() {
+  __m=$(stat_field -f %Lp -c %a "$1")
+  case "$__m" in
+  '' | *[!0-9]*) die "Cannot determine $2 mode: $1" ;;
+  esac
+  [ "$((0$__m))" -eq $((0700)) ] || die "$3 is not private: $1 (mode $__m)"
+}
+
+# mkdirPrivate DIR LABEL LABEL_CAP: private root, symlink refused.
+mkdirPrivate() {
+  [ -L "$1" ] && die "$3 is a symlink: $1"
+  # shellcheck disable=SC2015  # die if either step fails (A && B || C intended)
+  mkdir -p "$1" 2>/dev/null && chmod 700 "$1" 2>/dev/null ||
+    die "Cannot create $2: $1"
+}
+
 # One env source for both paths: the runtime evals exactly what
 # --print-env prints (scrub loops, exports, profile env, ENGRAM trio).
 set_runtime_env() {
@@ -354,35 +384,17 @@ bootstrap_scratch() {
     die "Scratch dir resolves outside expected root: $_resolved"
 
   _uid=$(id -u)
-  _owner=$(stat_field -f %u -c %u "$_agents_root")
-  case "$_owner" in
-  '' | *[!0-9]*) die "Cannot determine scratch root owner: $_agents_root" ;;
-  esac
-  [ "$_owner" = "$_uid" ] || die "Scratch root owner mismatch: $_agents_root (owner $_owner)"
-
-  _owner=$(stat_field -f %u -c %u "$scratch_dir")
-  case "$_owner" in
-  '' | *[!0-9]*) die "Cannot determine scratch dir owner: $scratch_dir" ;;
-  esac
-  [ "$_owner" = "$_uid" ] || die "Scratch dir owner mismatch: $scratch_dir (owner $_owner)"
+  requireOwner "$_agents_root" "scratch root" "Scratch root" "$_uid"
+  requireOwner "$scratch_dir" "scratch dir" "Scratch dir" "$_uid"
 
   # Normalize inherited permissive modes before the exact-0700 check.
   chmod 700 "$_agents_root" "$scratch_dir" 2>/dev/null ||
     die "Cannot secure scratch directories"
 
-  _mode=$(stat_field -f %Lp -c %a "$_agents_root")
-  case "$_mode" in
-  '' | *[!0-9]*) die "Cannot determine scratch root mode: $_agents_root" ;;
-  esac
-  [ "$((0$_mode))" -eq $((0700)) ] || die "Scratch root is not private: $_agents_root (mode $_mode)"
+  requireMode0700 "$_agents_root" "scratch root" "Scratch root"
+  requireMode0700 "$scratch_dir" "scratch dir" "Scratch dir"
 
-  _mode=$(stat_field -f %Lp -c %a "$scratch_dir")
-  case "$_mode" in
-  '' | *[!0-9]*) die "Cannot determine scratch dir mode: $scratch_dir" ;;
-  esac
-  [ "$((0$_mode))" -eq $((0700)) ] || die "Scratch dir is not private: $scratch_dir (mode $_mode)"
-
-  unset _agents_root _root_resolved _resolved _uid _owner _mode
+  unset _agents_root _root_resolved _resolved _owner _mode
 }
 
 engram_ready() {
@@ -679,16 +691,12 @@ done
 # the sandboxed exec at the end) and runs before any state mutation.
 pwd_guard
 
-# Linux/WSL2 fail-closed gate: the DCG guard hooks render INSIDE agent-writable
+# Linux/WSL2 fail-closed gate: the DCG guard hooks render inside agent-writable
 # roots (the pi/omp agent-dir lockfile contract) and Landlock cannot express
-# deny-within-allow, so on this host a guarded session's hooks are agent-
-# writable and hook protection cannot be enforced — the launcher must not
-# advertise it. Refuse every guarded launch: sandboxed (nono), and
-# --no-sandbox NESTED launches (AGENT_SANDBOX set = the parent kernel sandbox
-# is inherited, guards stay active, same gap). A plain host --no-sandbox
-# launch is the explicit debug remedy (zero enforcement) and stays. Fix:
-# review/fix the hook protection on macOS, or launch with --no-sandbox.
-if [ "$(uname -s)" = Linux ] &&
+# deny-within-allow, so hook protection is unenforceable on this host. A plain
+# host --no-sandbox launch (zero enforcement) is the explicit debug remedy; a
+# nested one inherits the parent kernel sandbox.
+if [ "$UNAME_S" = Linux ] &&
   { [ "$no_sandbox" != true ] || [ -n "${AGENT_SANDBOX:-}" ]; }; then
   die "Refusing a guarded agent launch on Linux: the DCG guard hooks render inside agent-writable roots and Landlock cannot deny-within-allow, so hook protection cannot be enforced on this host.
    Run guarded agents on macOS, or launch with an explicit --no-sandbox (debug only: no sandbox, no guards, REAL credentials in the agent env).
@@ -763,34 +771,24 @@ unset scratch_dir
 # shared 0700 root, bind-granted at launch via --allow-unix-socket-subtree-bind
 # (recursive: tmux nests tmux-<uid>/default under TMUX_TMPDIR). The host tmux
 # socket dir is sandbox-denied (base profile), so the user's server is
-# unreachable. TMUX_TMPDIR and the TMUX scrub below are convenience, NOT
-# enforcement — enforcement is the socket deny/grant. The session dir is
-# intentionally NOT auto-removed: the launcher ends in exec (no trap fires)
-# and tmux deletes its own socket when its server exits.
+# unreachable. The session dir is intentionally NOT auto-removed: the launcher
+# ends in exec (no trap fires) and tmux deletes its own socket.
 unset TMUX
 tmux_sock_dir=''
-if [ "$(uname -s)" = Darwin ]; then
+if [ "$UNAME_S" = Darwin ]; then
   if [ "${AGENT_LAUNCH_TEST_MODE:-}" = 1 ] && [ -n "${BATS_TEST_TMPDIR:-}" ]; then
     tmux_root="$BATS_TEST_TMPDIR/agents-tmux"
   else
     tmux_root="/tmp/agents-tmux"
   fi
-  [ -L "$tmux_root" ] && die "tmux socket root is a symlink: $tmux_root"
-  # die if either step fails (intended A && B || C semantics here).
-  # shellcheck disable=SC2015
-  mkdir -p "$tmux_root" 2>/dev/null && chmod 700 "$tmux_root" 2>/dev/null ||
-    die "Cannot create tmux socket root: $tmux_root"
-  _owner=$(stat_field -f %u -c %u "$tmux_root")
-  case "$_owner" in
-  '' | *[!0-9]*) die "Cannot determine tmux socket root owner: $tmux_root" ;;
-  esac
-  [ "$_owner" = "$(id -u)" ] || die "tmux socket root owner mismatch: $tmux_root (owner $_owner)"
+  mkdirPrivate "$tmux_root" "tmux socket root" "tmux socket root"
+  requireOwner "$tmux_root" "tmux socket root" "tmux socket root" "$_uid"
   tmux_sock_dir=$(mktemp -d "$tmux_root/XXXXXX" 2>/dev/null) ||
     die "Cannot create tmux socket dir under: $tmux_root"
   chmod 700 "$tmux_sock_dir"
   export TMUX_TMPDIR="$tmux_sock_dir"
   dim "Tmux: sandbox-local socket dir: $tmux_sock_dir"
-  unset _owner tmux_root
+  unset tmux_root
 else
   dim "Tmux/SSH: sandbox-local tmux and SSH reuse unavailable (Linux AF_UNIX mediation gap; capabilities fail closed)"
 fi
@@ -804,7 +802,7 @@ fi
 # Public cert only: find-certificate -p exports the certificate; the -g read
 # of find-generic-password returns the PRIVATE KEY — never run that here.
 renewProxyCa() {
-  [ "$(uname -s)" = Darwin ] || return 0
+  [ "$UNAME_S" = Darwin ] || return 0
   command -v security >/dev/null 2>&1 || return 0
   command -v openssl >/dev/null 2>&1 || return 0
   # No bundle at all (fresh state): nono mints one; nothing to renew.
@@ -820,10 +818,9 @@ renewProxyCa() {
   dim "Proxy CA: removed expired proxy CA, nono will mint a fresh one"
 }
 
-# Expired nono proxy CA renewal: sandbox launch path ONLY — the --no-sandbox
-# debug launch execs the binary above, so host debug runs never touch the
-# keychain. Placed before the /usr/bin PATH parity prepend below: that prepend
-# is sandbox-PATH parity; the launcher's own probes ride the user's PATH.
+# Placed before the /usr/bin PATH parity prepend: that prepend is sandbox-PATH
+# parity; the launcher's own probes ride the user's PATH. The --no-sandbox
+# debug launch execed above, so host runs never reach the keychain.
 renewProxyCa
 
 # Sandbox PATH parity: the MacPorts `git` dies on a blocked dylib inside nono,
@@ -832,7 +829,7 @@ renewProxyCa
 # hook needs a mise interpreter by bare name. Linux distros ship the system
 # binaries on the inherited PATH already, so the prepend is Darwin-only.
 # Host runs keep PATH.
-if [ "$(uname -s)" = Darwin ]; then
+if [ "$UNAME_S" = Darwin ]; then
   export PATH="/usr/bin:$PATH"
 fi
 
@@ -907,8 +904,6 @@ if [ "$AGENT_NAME" = opencode ] && [ "${AGENT_LAUNCH_TEST_MODE:-}" != 1 ]; then
   kill_orphan_service
 fi
 dim "Launch: nono run --profile $NONO_PROFILE -- $BINARY_NAME ..."
-# Darwin sessions carry the per-session tmux socket dir bind grant (recursive,
-# for tmux's nested tmux-<uid>/default); empty elsewhere.
 if [ -n "$tmux_sock_dir" ]; then
   exec nono run --profile "$NONO_PROFILE" --allow-unix-socket-subtree-bind "$tmux_sock_dir" -- "$BINARY_NAME" "$@"
 fi

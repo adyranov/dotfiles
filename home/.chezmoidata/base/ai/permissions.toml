@@ -11,16 +11,10 @@
 # a file entry policy-denies the whole invocation — single files ride the
 # *_file keys). It exists for in-sandbox source inspection: `chezmoi diff`,
 # `chezmoi cat`, `chezmoi execute-template`. Applying to the live home is
-# user-terminal-only: the apply-destination mechanism is deleted and no
-# destination grant exists in this data. Global applies stay command-core
-# denied; a positional `chezmoi apply <path>` matches no argv deny
-# (trailing-flag positional forms are unexpressible in the matcher) and
-# carries no destination write grant here — its effective in-sandbox behavior
-# is host-test evidence, not asserted by this data. apply-dest-guard
-# validates every list below against the protected floor: relative paths are
-# refused; entries equal to, an ancestor of, or a descendant of a protected
-# root are refused; native globs are validated anchored on their glob-free
-# prefix (the shim-scan `installs/**` passes, `~/.config/nono/**` fails).
+# user-terminal-only and no destination write grant exists here — its
+# effective in-sandbox behavior is host-test evidence, not asserted by this
+# data. sandbox-grant-guard validates every list below (its docstring is the
+# contract).
 [ai.base.permissions.apply]
 # The command sandbox replaces the session filesystem grants for chezmoi:
 # read = state/cache + source dir; write = state + cache (file-granular
@@ -55,7 +49,7 @@ command_sandbox_write = ["~/.cache/chezmoi", "~/.config/chezmoi"]
 # Per-command command-sandbox overrides keyed by command name (unlisted names
 # keep the default ["."]). The ["."] default is fatal for git (dies reading
 # ~/.config/git/config; cannot write worktrees, hook caches, TMPDIR) and mise
-# (cannot exec its own binary). apply-dest-guard validates every list.
+# (cannot exec its own binary).
 [ai.base.permissions.apply.sandbox.git]
 # Empirically tested (nono 0.79.0, macOS): `git status` rc 0 from the repo
 # cwd; re-run that probe in the user terminal after touching this list.
@@ -274,11 +268,6 @@ deny = [
 ]
 
 [ai.base.permissions.filesystem]
-# The engram memory store is neither base-granted nor base-denied: agents that
-# run the engram MCP (opencode, omp) grant ~/.local/share/engram in their own
-# sandbox profiles. A base deny would be unopenable for those MCP children
-# (deny beats grants across extends); a base grant would expose the shared
-# store to every session.
 # shortcut: Linux DCG hook write-denials stay data-absent — a deny of the hook files kills the runtime's own startup reads (no deny-within-allow on Linux); macOS rides the seatbelt write-denies; upgrade when nono supports per-operation denies on Linux.
 deny = [
   "ai_provider_creds",
@@ -300,9 +289,6 @@ deny = [
   "shell_history",
   "ssh",
   "terraform_state",
-  # Host tmux server: a base-tier deny is unopenable by agent grants (deny
-  # beats grants across extends), so sandboxed agents can never reach the
-  # user's server; sandbox-local tmux rides the launcher's per-session dir.
   "tmux_state"
 ]
 # dcg_state is a READ-tier carve-out, not a deny: agents read DCG stores,
@@ -324,14 +310,11 @@ write = [
   "sandbox_write_base",
   "sandbox_write_specific"
 ]
-# Renderer-contract key: base grants NO AF_UNIX sockets. The host tmux socket
-# is base-denied (tmux_state) and SSH masters are exact per-agent approvals.
 unix_socket_subtree = []
 
 [ai.base.permissions.filesystem.paths]
-# SSH ControlMaster socket dir: the AGENT-tier deny key (shared.toml denies
-# it), so the same merged profile can carry the user-approved exact-socket
-# grant + bypass (a base-tier deny is unopenable by agent grants).
+# SSH ControlMaster socket dir: the AGENT-tier deny key (shared.toml), so the
+# merged profile can carry the user-approved exact-socket grant + bypass.
 agent_ssh_sockets = ["~/.local/share/ssh/sockets", "~/.local/share/ssh/sockets/*"]
 # Shared command-sandbox groups (referenced by apply.sandbox.* fs lists):
 # recurring macOS system reads, the agents scratch dir, the cwd+TMPDIR work
@@ -393,8 +376,6 @@ build_caches = [
   "~/.cargo/registry",
   "~/.local/state/npm"
 ]
-# Path of the rendered CA bundle (GIT_SSL_CAINFO); source of truth is
-# private_dot_config/exact_shell/exact_exports.d/ca-bundle.sh.tmpl — bump together.
 ca_bundle = ["~/.config/certificates/ca-bundle.pem"]
 cert_key_binaries = [
   "**/*.jks",
@@ -568,18 +549,10 @@ sandbox_macos = [
   "~/Library/Scripts",
   "~/Library/Scripts/setenv.sh"
 ]
-# Bare ~/Library is READ-only: tools probe app-support layouts at boot; the
-# write tier dropped it (see sandbox_macos).
+# Bare ~/Library is READ-only: tools probe app-support layouts at boot.
 sandbox_macos_root = ["~/Library"]
 # Runtime-write lane of the app-support paths: build caches only (the macOS
-# twins of build_caches' ~/.cache entries). U2 audit split the rest out: the
-# editor settings/keybindings (Code/Cursor — chezmoi-managed, modify_settings
-# sources), the broad Application Support parent (it also covers the managed
-# ghostty config), Fonts and Scripts/setenv.sh (shell-exec surface loaded by
-# the LaunchAgents plist) were session-WRITABLE via sandbox_macos riding both
-# tier lists — an apply-boundary bypass (R5, R21, AE3). No comment/test names
-# a runtime consumer for app-support writes; none was guess-preserved. The
-# read carve-outs win over covering allows (filter-shadowed-allow).
+# twins of build_caches' ~/.cache entries).
 sandbox_macos_write_caches = ["~/Library/Caches/go-build", "~/Library/Caches/node-gyp"]
 sandbox_read_base = [
   ".",
@@ -592,25 +565,13 @@ sandbox_read_base = [
   "~/.omlx"
 ]
 sandbox_write_base = [
-  # ~/.agents demoted to read (read_base): it is a MANAGED SYMLINK into the
-  # protected instruction tree ~/.config/agents — a session write writes
-  # AGENTS.md/skills through it, the exact symlink-bypass class AE4 names
-  # (same pin idiom as the base ~/.pi grant). ~/.editorconfig demoted
-  # likewise: a managed dotfile, session-writable = apply-boundary bypass.
-  # ~/.omlx stays: a managed symlink into ~/.local/state/omlx whose WRITES
-  # land in runtime state, not managed content (omlx local-LLM tool state).
+  # ~/.omlx: a managed symlink whose WRITES land in runtime state (omlx
+  # local-LLM tool state), not managed content — keep writable.
   ".",
   "~/.cache/chezmoi",
   "~/.omlx"
 ]
 sandbox_write_specific = [
-  # ~/.config/chezmoi demoted to session-READ (sandbox_read_base, U2):
-  # chezmoi's config AND persistent-state boltdb live in this dir, so a
-  # session write lets an agent poison apply bookkeeping (silently-skipped
-  # changed files). The chezmoi binary keeps its writes through
-  # command_sandbox_write (the command sandbox replaces the session tier for
-  # chezmoi invocations, so in-sandbox `chezmoi diff` still opens its state
-  # lock; dir-not-file was load-bearing for that lock/temp open).
   "~/.local/share/dotfiles/test",
   # mise trusts repo configs by writing symlinks under state (in-sandbox mise);
   # the trust store leaf itself is denied by render-nono-fs (self-trust defeat).

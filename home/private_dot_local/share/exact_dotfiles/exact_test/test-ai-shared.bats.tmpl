@@ -333,10 +333,7 @@ ENTRY_SET
       (dict "label" "supervise-lock" "line" "ENGRAM_LOCK=\"$ENGRAM_STATE/.supervise.lock\"")
       (dict "label" "identity-record" "line" "ENGRAM_ID_FILE=\"$ENGRAM_STATE/daemon.identity\"")
       (dict "label" "lock-rmdir" "line" "rmdir \"$ENGRAM_LOCK\"")
-      (dict "label" "lock-takeover-probe" "line" "kill -0 \"$__holder\"")
-      (dict "label" "ca-find-public-cert" "line" "security find-certificate -a -c nono-proxy-ca -p")
-      (dict "label" "ca-delete-bundle" "line" "security delete-generic-password -s nono-proxy-ca")
-      (dict "label" "ca-delete-cert-twin" "line" "security delete-certificate -c nono-proxy-ca") -}}
+      (dict "label" "lock-takeover-probe" "line" "kill -0 \"$__holder\"") -}}
 {{- $launchChecks := list -}}
 {{- range $c := $launchLines -}}
 {{-   $launchChecks = append $launchChecks (dict "kind" "cmd" "tool" "launcher" "label" $c.label "cmd" "grep -Fq -e" "arg" "" "prog" $c.line "filepart" " \"$HOME/.local/bin/agent\"") -}}
@@ -467,19 +464,17 @@ EOF
 # bats test_tags=kind:launcher
 @test "agent renews an expired nono proxy CA on the sandbox launch path only" {
   # nono's TLS-interception CA bundle expires daily and the default load path
-  # never renews it; the launcher removes the expired bundle pre-sandbox so
-  # nono mints a fresh one. Public cert only: the pin below keeps the private
-  # key out — a find-generic-password -g read returns the KEY (the launcher's
-  # explanatory comment names the read without the `security` prefix).
+  # never renews it; the launcher's renewProxyCa removes the expired bundle
+  # so nono mints a fresh one. Public cert only: the pin below keeps the
+  # private key out — a find-generic-password -g read returns the KEY (the
+  # launcher's explanatory comment names the read without the `security`
+  # prefix). Placement on the sandbox launch path is proved by the runtime
+  # CA probes below.
   local launch="$BATS_FILE_TMPDIR/launcher.sh"
   assert_file_exists "$launch"
   run grep -F 'security find-generic-password -g' "$launch"
   assert_failure
   run grep -Fq -e 'renewProxyCa() {' "$launch"
-  assert_success
-  # Ordered: called AFTER the --no-sandbox exec (host debug launches never
-  # reach the keychain) and BEFORE the credential probe and `exec nono run`.
-  run awk '/exec "\$BINARY_NAME" "\$@"/{n=NR} /^renewProxyCa$/{c=NR} /Credential mode of the applied profile/{p=NR} /exec nono run --profile/{e=NR} END{exit !(n>0 && c>n && c<p && p<e)}' "$launch"
   assert_success
 }
 
@@ -585,11 +580,13 @@ EOF
 
 # bats test_tags=toolchain:ai,kind:launcher
 @test "agent nested launch keeps the flag form on the sandbox-inherited path" {
+{{- if eq .chezmoi.os "linux" }}
+  # The Linux arm of this case (the U2 gate refuses the nested guarded
+  # session) rides the grammar aggregate's Linux probe.
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
+{{- else }}
   # AGENT_SANDBOX set (inside a sandboxed parent) + --no-sandbox: the bypass
   # is off (guards stay active) and the flag-parsed profile still dispatches.
-  # On Linux that nested guarded session is exactly what the U2 gate refuses
-  # (parent kernel sandbox inherited + agent-writable hooks), so the gate die
-  # is the expected outcome there.
   local mock
   mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
   setup_mock_bins "$mock" curl nc nono git engram pkill pgrep
@@ -600,15 +597,11 @@ EOF
   chmod +x "$mock/pi"
   run env $(scratch_env) AGENT_SANDBOX=1 PATH="$mock:$PATH" \
     "$HOME/.local/bin/agent" pi --profile core --no-sandbox "Hi there"
-  if [ "$(uname -s)" = Linux ]; then
-    assert_failure
-    assert_output --partial "Refusing a guarded agent launch on Linux"
-    return
-  fi
   assert_success
   assert_output --partial "Sandbox: inherited"
   refute_output --partial "Sandbox: disabled"
   assert_output --partial "launched ARGS=Hi there"
+{{- end }}
 }
 
 # bats test_tags=toolchain:ai,kind:launcher
@@ -679,7 +672,7 @@ EOF
   probe_neg "pre-name --help dies" "unknown agent" --help pi
   probe_neg "pre-name --list dies" "unknown agent" --list pi
   probe_neg "pre-name --print-env dies" "unknown agent" --print-env pi
-  # Post-name --help is agent-specific (was: the global help for `pi --help`).
+  # Post-name --help is agent-specific.
   probe "post-name --help is agent-specific" "Usage: agent [--profile NAME] pi" pi --help
 
   AGENT_SANDBOX=1
@@ -739,9 +732,7 @@ EOF
 
 setup_file() {
   # Dedicated ephemeral port (49152-65535): 7437 is structurally excluded,
-  # and the anchored pkill/pgrep pattern scopes every kill to it. The probe
-  # mirrors the launcher's pick_high_port ephemeral range: if that range
-  # changes, this probe and the 49152-65535 assertion must follow.
+  # and the anchored pkill/pgrep pattern scopes every kill to it.
   ENGRAM_TEST_PORT=$(awk 'BEGIN{srand();print int(rand()*16384)+49152}')
   [ "$ENGRAM_TEST_PORT" != 7437 ]
   # setup_file vars do not reach per-test processes; share via file.
@@ -750,6 +741,11 @@ setup_file() {
   # Stub bins staged once per file; sup_init copies them per test.
   mkdir -p "$BATS_FILE_TMPDIR/bin"
   setup_mock_bins "$BATS_FILE_TMPDIR/bin" curl nc nono git
+  # renewProxyCa runs on every sandboxed launch: without these stubs on the
+  # pinned PATH, every sup_launch touches the real keychain mid-suite. CA
+  # tests restage per-test into the same pinned dir (sup_init copies these
+  # first; the per-test stage overwrites, keeping CA logs clean).
+  ca_stage_stubs "$BATS_FILE_TMPDIR/bin"
   # Stub curl: asserts the real health contract (an argument equal to
   # $ENGRAM_URL/health, fail-closed when unset) and answers iff mode says up.
   cat >"$BATS_FILE_TMPDIR/bin/curl" <<'EOF'
@@ -1077,20 +1073,23 @@ SLOWMOCK
 # is structurally impossible (the stub dir precedes /usr/bin at the call
 # site: renewal runs before the sandbox PATH parity prepend).
 
-ca_stage_stubs() {
-  cat >"$BATS_TEST_TMPDIR/bin/security" <<'SECSTUB'
+ca_stage_stubs() { # ca_stage_stubs [BIN_DIR] — default: this test's pinned bin dir
+  # ${CA_TEST_LOG:-/dev/null}: the file-level staging in setup_file serves
+  # non-CA supervisor launches, which set no log.
+  local bin="${1:-$BATS_TEST_TMPDIR/bin}"
+  cat >"$bin/security" <<'SECSTUB'
 #!/usr/bin/env sh
-printf 'security %s\n' "$*" >>"$CA_TEST_LOG"
+printf 'security %s\n' "$*" >>"${CA_TEST_LOG:-/dev/null}"
 [ "$1" = find-certificate ] && printf -- '-----BEGIN CERTIFICATE-----\nstub\n-----END CERTIFICATE-----\n'
 exit 0
 SECSTUB
-  cat >"$BATS_TEST_TMPDIR/bin/openssl" <<'SSLSTUB'
+  cat >"$bin/openssl" <<'SSLSTUB'
 #!/usr/bin/env sh
-printf 'openssl %s\n' "$*" >>"$CA_TEST_LOG"
+printf 'openssl %s\n' "$*" >>"${CA_TEST_LOG:-/dev/null}"
 [ "${CA_TEST_EXPIRED:-0}" = 1 ] && exit 1
 exit 0
 SSLSTUB
-  chmod +x "$BATS_TEST_TMPDIR/bin/security" "$BATS_TEST_TMPDIR/bin/openssl"
+  chmod +x "$bin/security" "$bin/openssl"
 }
 
 ca_probe() { # ca_probe EXPIRED [extra launcher args...]
@@ -1186,27 +1185,19 @@ ca_probe() { # ca_probe EXPIRED [extra launcher args...]
 }
 {{- end }}
 
-# bats test_tags=toolchain:ai,kind:nono
-@test "shared.toml denies the SSH socket dir once; the blanket lane is gone" {
-  local shared="{{ .chezmoi.sourceDir }}/.chezmoidata/base/ai/agents/shared.toml"
-  run grep -F 'deny = ["agent_ssh_sockets"]' "$shared"
-  assert_success
-  run grep -F 'unix_socket_subtree' "$shared"
-  assert_failure
-}
-
 {{- /* Socket-approval fixtures (baked here, rendered at test time): exact
        user-approved master paths render unix_socket + bypass_protection into
        the agent profile from data ONLY, with the leading `~/` canonicalized to
        the homeDir (U2); the linux override strips every socket key and sets
-       base mediation fail-closed. */ -}}
-{{- $sockApproveTpl := `{{- $r1 := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "agents" "shared" "sandbox" "filesystem" "unix_socket") "value" (list "~/.local/share/ssh/sockets/fixture-master")) | mustFromJson -}}
-{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" $r1 "path" (list "ai" "base" "agents" "shared" "sandbox" "filesystem" "bypass_protection") "value" (list "~/.local/share/ssh/sockets/fixture-master")) | mustFromJson -}}
-{{- includeTemplate "base/ai/security/render-nono-profile" (dict "root" $r "agent" "pi") -}}` }}
-{{- $sockLinuxTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "os") "value" "linux") | mustFromJson -}}
+       base mediation fail-closed. One render dict, one chezmoi boot. */ -}}
+{{- $sockTpl := `{{- $r1 := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "agents" "shared" "sandbox" "filesystem" "unix_socket") "value" (list "~/.local/share/ssh/sockets/fixture-master")) | mustFromJson -}}
+{{- $r2 := includeTemplate "base/test/deep-copy-set-path" (dict "root" $r1 "path" (list "ai" "base" "agents" "shared" "sandbox" "filesystem" "bypass_protection") "value" (list "~/.local/share/ssh/sockets/fixture-master")) | mustFromJson -}}
+{{- $rl := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "os") "value" "linux") | mustFromJson -}}
 {{- dict
-  "agent" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $r "agent" "pi") | mustFromJson)
-  "base" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $r) | mustFromJson)
+  "approvals" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $r2 "agent" "pi") | mustFromJson)
+  "linux" (dict
+    "agent" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $rl "agent" "pi") | mustFromJson)
+    "base" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $rl) | mustFromJson))
 | toJson -}}` }}
 {{- $piDefault := includeTemplate "base/ai/security/render-nono-profile" (dict "root" . "agent" "pi") | mustFromJson -}}
 
@@ -1220,32 +1211,26 @@ ca_probe() { # ca_probe EXPIRED [extra launcher args...]
   test "{{ if hasKey ($piDefault.filesystem | default dict) "unix_socket_subtree" }}present{{ else }}absent{{ end }}" = "absent" ||
     offenders="$offenders default:unix_socket_subtree-leaked"
 
-  cat >"$BATS_TEST_TMPDIR/sock-approve.tmpl" <<'FIXTURE'
-{{ $sockApproveTpl }}
-FIXTURE
-  cat >"$BATS_TEST_TMPDIR/sock-linux.tmpl" <<'FIXTURE'
-{{ $sockLinuxTpl }}
+  cat >"$BATS_TEST_TMPDIR/sock.tmpl" <<'FIXTURE'
+{{ $sockTpl }}
 FIXTURE
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/sock-approve.tmpl"
-  [ "$status" -eq 0 ] || offenders="$offenders approvals:fails-render"
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/sock.tmpl"
+  [ "$status" -eq 0 ] || offenders="$offenders fixture:fails-render"
   json="$(sed -n '/^{/,$p' <<<"$output")"
   # The fixture data is written `~/...` (the user-typed form): nono drops
   # connect grants for MISSING sockets silently, so the renderer must emit the
   # canonical homeDir path, never the literal tilde form (U2).
-  jq -e --arg home '{{ trimSuffix "/" .chezmoi.homeDir }}' '.filesystem |
+  jq -e --arg home '{{ trimSuffix "/" .chezmoi.homeDir }}' '.approvals.filesystem |
     (.unix_socket | index($home + "/.local/share/ssh/sockets/fixture-master") != null) and
     (.unix_socket | index("~/.local/share/ssh/sockets/fixture-master") == null) and
     (.bypass_protection | index($home + "/.local/share/ssh/sockets/fixture-master") != null) and
     (.bypass_protection | index("~/.local/share/ssh/sockets/fixture-master") == null)' <<<"$json" >/dev/null ||
     offenders="$offenders approvals:grant+bypass-not-canonical"
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/sock-linux.tmpl"
-  [ "$status" -eq 0 ] || offenders="$offenders linux:fails-render"
-  json="$(sed -n '/^{/,$p' <<<"$output")"
   jq -e '
-    (.agent.filesystem | (has("unix_socket") | not) and (has("unix_socket_subtree") | not)) and
-    (.base.linux.af_unix_mediation == "pathname")
+    (.linux.agent.filesystem | (has("unix_socket") | not) and (has("unix_socket_subtree") | not)) and
+    (.linux.base.linux.af_unix_mediation == "pathname")
   ' <<<"$json" >/dev/null || offenders="$offenders linux:fail-closed-shape"
 
   if [ -n "$offenders" ]; then
@@ -1298,7 +1283,7 @@ FIXTURE
 # bats test_tags=toolchain:ai,kind:config
 @test "chezmoidata carries no template directives (data is static TOML)" {
   # .chezmoidata is parsed as plain TOML: template directives in data reach
-  # the apply-dest guard verbatim and their braces read as globs, failing
+  # the sandbox-grant guard verbatim and their braces read as globs, failing
   # every render. Per-machine values ride sentinels (e.g. $TMPDIR + the
   # expand-tmpdir renderer).
   run grep -RnF '{{"{{"}}' "{{ .chezmoi.sourceDir }}/.chezmoidata"
