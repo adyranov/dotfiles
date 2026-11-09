@@ -90,7 +90,7 @@ repos:
         name: Lint Shell Scripts
         exclude: .*\.tmpl|.*\.bats|\.chezmoitemplates/|dot_p10k\.zsh
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.0
+    rev: v8.30.1
     hooks:
       - id: gitleaks
         name: Detect Hardcoded Secrets
@@ -101,12 +101,12 @@ repos:
         name: Check EditorConfig
         exclude: plist|tmpl|pub|age
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 44.210.0
+    rev: 44.221.6
     hooks:
       - id: renovate-config-validator
         name: Validate Renovate Config
   - repo: https://github.com/crate-ci/typos
-    rev: v1.51.1
+    rev: v1.52.0
     hooks:
       - id: typos
         name: Check Spelling
