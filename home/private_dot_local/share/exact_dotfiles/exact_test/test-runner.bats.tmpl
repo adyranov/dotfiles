@@ -52,24 +52,53 @@ runner_stub() { # runner_stub DIR — applied runner copy + real bats bin, no su
   assert_output --partial "no tests matched"
 }
 
+# bats test_tags=suite:runner
+@test "runner verdict counts a suite whose junit report counts no failures" {
+  # A setup_file abort can produce a zero-failure JUnit row.
+  local stub
+  stub="$(mktemp -d "$BATS_TEST_TMPDIR/stub.XXXXXX")"
+  runner_stub "$stub"
+  printf '@test "passing probe" { true; }\n' >"$stub/test-config.bats"
+  printf 'setup_file() { exit 7; }\n@test "never runs" { true; }\n' >"$stub/test-mise-packages.bats"
+  run "$stub/check-dotfiles.sh" --suite config,mise-packages
+  assert_failure
+  assert_output --partial "FAIL: suite mise-packages exited"
+  assert_output --partial "FAIL: 1 test(s) failed in 1 suite(s)"
+  refute_output --partial "OK: all"
+}
+
+# bats test_tags=suite:runner
+@test "runner aggregates suite verdicts in parallel suite mode" {
+  # Bounded-concurrent launch must keep per-suite junit collection and the
+  # verdict: one red fake suite among greens yields FAIL, never "OK: all".
+  local stub
+  stub="$(mktemp -d "$BATS_TEST_TMPDIR/stub.XXXXXX")"
+  runner_stub "$stub"
+  printf '@test "green" { sleep 0.2; true; }\n' >"$stub/test-config.bats"
+  printf '@test "red" { false; }\n@test "green too" { sleep 0.2; true; }\n' >"$stub/test-mise-packages.bats"
+  run env CHECK_DOTFILES_PARALLEL_SUITES=4 "$stub/check-dotfiles.sh" --suite config,mise-packages
+  assert_failure
+  assert_output --partial "FAIL: 1 test(s) failed in 1 suite(s)"
+  refute_output --partial "OK: all"
+}
+
 {{- if .toolchains.ai }}
 
 # bats test_tags=suite:runner
-@test "runner discovers every enforcement suite in the applied tree" {
-  # test-ai-*.bats are applied on ai toolchain hosts (.chezmoiignore gate),
-  # so a suite missing from the applied tree is rename/removal decay: the
-  # discovery list must contain every enforcement suite, fail loud.
-  run "$RUNNER" --list
+@test "ai-permissions chezmoi fixtures are timeout-capped" {
+  # One hanging chezmoi boot must fail its own test, not eat the suite cap:
+  # every nested-render fixture spawns through the runCapped guard.
+  local f
+  f="$(dirname "$(readlink -f "$RUNNER")")/test-ai-permissions.bats"
+  [ -f "$f" ] || skip "applied test-ai-permissions.bats not present"
+  run grep -c 'runCapped "\$cb" execute-template' "$f"
   assert_success
-  local suite
-  for suite in ai-shared: ai-dcg: ai-permissions: ai-pi: ai-opencode: ai-omp: ai-local-llm: ai-subagent-limit: runner: config:; do
-    assert_output --partial "$suite"
-  done
+  assert_output "8"
 }
 {{- else }}
 
 # bats test_tags=suite:runner
-@test "runner discovers every enforcement suite in the applied tree" {
-  skip "ai toolchain is off (test-ai-*.bats are unapplied)"
+@test "ai-permissions chezmoi fixtures are timeout-capped" {
+  skip "ai toolchain is off (test-ai-permissions.bats is unapplied)"
 }
 {{- end }}

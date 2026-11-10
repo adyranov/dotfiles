@@ -169,7 +169,9 @@ TMPL
 @test "Intel bootstrap selfupdates MacPorts and upgrades outdated ports" {
   assert_equal "{{ contains "/opt/local/bin/port -N selfupdate" $u2IntelBootstrap }}" "true"
   assert_equal "{{ contains "/opt/local/bin/port -N upgrade outdated" $u2IntelBootstrap }}" "true"
+  assert_equal "{{ contains "port -N uninstall inactive" $u2IntelBootstrap }}" "true"
   assert_equal "{{ contains "/opt/local/bin/port -N clean installed" $u2IntelBootstrap }}" "true"
+  assert_equal "{{ contains "brew autoremove" $u2IntelBootstrap }}" "true"
 }
 
 # bats test_tags=suite:packages,kind:bootstrap

@@ -404,9 +404,7 @@ EOF
 
 # bats test_tags=toolchain:opencode,kind:launcher
 @test "agent oc --print-env maps the selected profile paths (fixture-home)" {
-  # Flag/positional selection, arg forwarding and the bogus-profile die ride
-  # the shared launcher grammar aggregate (single gate); this probe pins the
-  # fixture-home path mapping only --print-env emits.
+  # This probe pins the fixture-home path mapping only --print-env emits.
   launcher_probe oc --print-env --profile core
   assert_output --partial 'OPENCODE_CONFIG="/fixture-home/.config/opencode/profiles/core/opencode.jsonc"'
 }

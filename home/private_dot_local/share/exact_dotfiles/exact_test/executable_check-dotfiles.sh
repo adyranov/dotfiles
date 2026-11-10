@@ -17,6 +17,8 @@ if [ -z "$TIMEOUT_BIN" ]; then
   printf 'check-dotfiles: gtimeout/timeout not found (coreutils required)\n' >&2
   exit 1
 fi
+# Exported so bats fixtures reuse the runner's probe (macOS ships no `timeout`).
+export TIMEOUT_BIN
 
 if [ ! -x "$BATS_BIN" ]; then
   printf 'check-dotfiles: bats not found at %s\nRun chezmoi apply to fetch test externals.\n' "$BATS_BIN" >&2
@@ -150,9 +152,9 @@ validateToolKeys() {
 # ----- Execution --------------------------------------------------------------
 
 runSuite() {
-  local suite_path=$1 out_dir=$2 parallel=$3
+  local suite_path=$1 out_dir=$2 jobs=$3
   local rc=0 jobs_args=()
-  [ "$parallel" = true ] && jobs_args=("${BATS_JOBS_ARGS[@]+"${BATS_JOBS_ARGS[@]}"}")
+  [ "${jobs:-1}" -gt 1 ] && jobs_args=(--jobs "$jobs" --no-parallelize-across-files)
   # Hard wall-clock cap per suite: a suite that overruns its budget is a suite
   # bug (missing probe batching / timeouts), not a slow pass. Every suite
   # must finish within 120s. CHECK_DOTFILES_SUITE_TIMEOUT overrides.
@@ -160,10 +162,29 @@ runSuite() {
   # Core-only hosts render helm/krew suites with zero packages; an empty suite
   # there is data-correct, not a red gate (bats >=1.10 flag).
   "${TIMEOUT_BIN}" -k 10 "${CHECK_DOTFILES_SUITE_TIMEOUT:-$cap}" "$BATS_BIN" --allow-empty-suite "${jobs_args[@]+"${jobs_args[@]}"}" "${BATS_FILTER_ARGS[@]+"${BATS_FILTER_ARGS[@]}"}" \
+    "${BATS_TIMING_ARGS[@]+"${BATS_TIMING_ARGS[@]}"}" \
     --formatter tap \
     --report-formatter junit --output "$out_dir" \
     "$suite_path" >"$out_dir/stdout.log" 2>&1 || rc=$?
   printf '%d' "$rc" >"$out_dir/exit_code"
+  if [ ${#BATS_TIMING_ARGS[@]} -gt 0 ]; then reportSlowest "$out_dir/stdout.log"; fi
+}
+
+# Top-5 slowest per-test times from the TAP " in Nms" timing suffix, appended
+# to the suite log so the collection phase prints them at the suite tail.
+reportSlowest() {
+  local slow
+  slow=$(
+    {
+      grep -E ' in [0-9.]+ ?ms$' "$1" || true
+    } | sed -E 's/^(.*) in ([0-9.]+) ?ms$/\2\t\1/' |
+      sort -rn | head -n 5
+  ) || true
+  [ -n "$slow" ] || return 0
+  {
+    printf -- '-- slowest tests --\n'
+    printf '%s\n' "$slow" | awk -F'\t' '{sub(/ *#$/, "", $2); printf "  %8.1fms  %s\n", $1, $2}'
+  } >>"$1"
 }
 
 collectMetrics() {
@@ -186,7 +207,7 @@ runAll() {
   local tmp_root exit_code=0 failed_suites=0
   tmp_root=$(mktemp -d -t check-dotfiles.XXXXXX)
   local total_tests=0 total_pass=0 total_skip=0 total_fail=0
-  local rows=() missing_junit=()
+  local rows=() uncounted_suites=()
   local wall_start
   wall_start=$(date +%s)
 
@@ -219,17 +240,28 @@ runAll() {
     done
   fi
 
-  # Launch all suites in parallel.
+  # Launch suites concurrently, bounded. Polling jobs -rp: bash 3.2 (macOS
+  # system bash) has no wait -n. Per-suite junit dirs keep concurrency safe.
   local pids=() dirs=() names=() suite_name out_dir
-  local use_internal_parallel=true
-  [ ${#active[@]} -gt 1 ] && use_internal_parallel=false
+  local suite_parallel=${CHECK_DOTFILES_PARALLEL_SUITES:-4}
+  [[ $suite_parallel =~ ^[0-9]+$ ]] && [ "$suite_parallel" -ge 1 ] || suite_parallel=4
+  # Split the bats -j budget across concurrent suites; serial suites get it
+  # all. bats --jobs needs GNU parallel — without it, concurrent suites stay
+  # internally serial (HEAD behavior; single-suite runs keep the old contract).
+  local jobs_per_suite=1
+  if [ "$suite_parallel" -eq 1 ] || [ ${#active[@]} -eq 1 ]; then
+    jobs_per_suite=$parallel_jobs
+  elif [ "$parallel_jobs" -gt "$suite_parallel" ] && command -v parallel >/dev/null 2>&1; then
+    jobs_per_suite=$((parallel_jobs / suite_parallel))
+  fi
   for suite_path in "${active[@]+"${active[@]}"}"; do
     suite_name=$(suiteDisplayName "$suite_path")
     out_dir="$tmp_root/$suite_name"
     mkdir -p "$out_dir"
     dirs+=("$out_dir")
     names+=("$suite_name")
-    runSuite "$suite_path" "$out_dir" "$use_internal_parallel" &
+    while [ "$(jobs -rp | wc -l | tr -d '[:space:]')" -ge "$suite_parallel" ]; do sleep 0.2; done
+    runSuite "$suite_path" "$out_dir" "$jobs_per_suite" &
     pids+=($!)
   done
 
@@ -266,14 +298,25 @@ runAll() {
       total_pass=$((total_pass + pass))
       total_skip=$((total_skip + skipped))
       total_fail=$((total_fail + fails))
+      # A failed setup can produce a JUnit row with zero counted failures.
+      [ "$rc" -ne 0 ] && [ "$fails" -eq 0 ] && uncounted_suites+=("$sn $rc")
     elif [ "$rc" -ne 0 ]; then
       # rc != 0 with no junit report (timeout kill, crash): invisible to the
       # metrics rows; track it for the verdict below.
-      missing_junit+=("$sn $rc")
+      uncounted_suites+=("$sn $rc")
     fi
   done
 
   rm -rf "$tmp_root"
+
+  # Count nonzero suites missed by JUnit before printing totals.
+  local mj mj_name mj_rc
+  for mj in "${uncounted_suites[@]+"${uncounted_suites[@]}"}"; do
+    read -r mj_name mj_rc <<<"$mj"
+    printf '%sFAIL: suite %s exited %s with no counted failures (no junit report, zeroed report, timeout-killed or crashed)%s\n' \
+      "$C_RED$C_BOLD" "$mj_name" "$mj_rc" "$C_RESET"
+    total_fail=$((total_fail + 1))
+  done
 
   # Summary table.
   if [ "$show_summary" = true ] && [ ${#rows[@]} -gt 0 ]; then
@@ -303,17 +346,6 @@ runAll() {
     printf "$C_BOLD${fmt}$C_RESET" "Total" "$total_tests" "$total_pass" "$total_skip" "$total_fail" "$(printf '%ds' "$(($(date +%s) - wall_start))")"
   fi
 
-  # Name suite failures that produced no junit report and count one failure
-  # each, so the final line can never print "OK: all N test(s) passed" while
-  # a suite was killed by the timeout.
-  local mj mj_name mj_rc
-  for mj in "${missing_junit[@]+"${missing_junit[@]}"}"; do
-    read -r mj_name mj_rc <<<"$mj"
-    printf '%sFAIL: suite %s exited %s without a junit report (timeout-killed or crashed)%s\n' \
-      "$C_RED$C_BOLD" "$mj_name" "$mj_rc" "$C_RESET"
-    total_fail=$((total_fail + 1))
-  done
-
   # Final status line.
   local wall_end wall_elapsed
   wall_end=$(date +%s)
@@ -342,7 +374,8 @@ usage() {
 Usage: check-dotfiles [OPTIONS] [TOOL...]
 
 Run Bats validation suites for installed dotfile packages and configuration.
-By default runs all suites in parallel with auto-detected CPU count.
+By default runs suites concurrently (4 at a time) with a bats jobs budget of
+the auto-detected CPU count.
 
 Selectors:
   TOOL...               Package key(s) (e.g. kubectl helm). Runs the aggregate
@@ -356,7 +389,8 @@ Selectors:
   --filter REGEX        Bats name filter regex.
 
 Options:
-  -j, --jobs N          Parallel jobs per suite (default: CPU count; 1=sequential).
+  -j, --jobs N          Bats parallel jobs budget (default: CPU count;
+                        split across concurrent suites; 1=sequential tests).
   -l, --list            List discovered tests and exit.
   -h, --help            Show this help.
 
@@ -368,8 +402,11 @@ Examples:
   check-dotfiles -j1                      # sequential (debug)
 
 Environment:
+  CHECK_DOTFILES_PARALLEL_SUITES  Concurrent suites (default 4; 1=serial).
   CHECK_DOTFILES_SUITE_TIMEOUT  Per-suite wall-clock cap in seconds
                                 (default 120, 10s kill-after).
+  CHECK_DOTFILES_TIMING         1=bats --timing + slowest-tests tail (default),
+                                0=off.
   CHECK_DOTFILES_PKG_KEYS       Comma-separated package keys scoping the
                                 aggregate smoke (set by TOOL... selectors).
 EOF
@@ -508,11 +545,16 @@ main() {
   fi
   [ -n "$combined_regex" ] && BATS_FILTER_ARGS+=(-f "$combined_regex")
 
-  # Parallel config.
+  # Parallel config: bats -j budget, split across concurrent suites in runAll.
   [ -z "$parallel_jobs" ] && parallel_jobs=$(detectJobs)
-  BATS_JOBS_ARGS=()
-  if [ "$parallel_jobs" -gt 1 ] 2>/dev/null; then
-    BATS_JOBS_ARGS=(--jobs "$parallel_jobs" --no-parallelize-across-files)
+  case $parallel_jobs in
+  '' | *[!0-9]*) parallel_jobs=1 ;;
+  esac
+  # bats >=1.10 --timing; CHECK_DOTFILES_TIMING=0 opts out.
+  BATS_TIMING_ARGS=()
+  if [ "${CHECK_DOTFILES_TIMING:-1}" = "1" ] &&
+    "$BATS_BIN" --help 2>&1 | command grep -q -- '--timing'; then
+    BATS_TIMING_ARGS=(--timing)
   fi
 
   runAll "${suite_files[@]}"

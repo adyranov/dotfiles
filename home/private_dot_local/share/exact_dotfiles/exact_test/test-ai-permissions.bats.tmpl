@@ -212,7 +212,15 @@ setup() {
     # The trust store leaf is denied INSIDE that grant (deny beats grants):
     # a direct write is self-trust — repo [tasks] execute on the next mise run.
     (.filesystem.deny | index("~/.local/state/mise/trusted-configs") != null) and
+    # macOS: nono canonicalizes the `*` glob matches, denying the trust
+    # link TARGETS — the `Users-adyranov -> $HOME` record once denied all
+    # of home; the seatbelt dir deny is already recursive. Landlock dir
+    # denies cover the dir only, so Linux keeps the `*` key.
+{{- if eq .chezmoi.os "darwin" }}
+    (.filesystem.deny | index("~/.local/state/mise/trusted-configs/*") == null)
+{{- else }}
     (.filesystem.deny | index("~/.local/state/mise/trusted-configs/*") != null)
+{{- end }}
   ' "{{ $nonoProfiles }}/base.json"
   assert_success
 }
@@ -287,6 +295,12 @@ setup() {
     ($cz.fs_read | index("~/.local/share/chezmoi") != null) and
     ($cz.fs_read | index("~/.config") | not) and
     ($cz.fs_read | index("~/.local/share") | not) and
+    # chezmoi spawns git for repo discovery: an unreadable config chain
+    # re-inits chezmoi inside its own sandbox (run_once churn).
+    ($cz.fs_read_file + $cz.fs_read
+      | all(. as $p | ("~/.config/git/credentials" | startswith($p + "/")) | not)) and
+    ($cz.fs_read_file | index("~/.config/git/config") != null) and
+    ($cz.fs_read_file | index("~/.config/git/base") != null) and
     ($cz.exec_paths | index("/usr/bin") != null) and
     ($cz.exec_paths | index("{{ trimSuffix "/" .chezmoi.homeDir }}/.local/share/mise/shims") != null) and
 {{- if eq .chezmoi.os "darwin" }}
@@ -304,6 +318,11 @@ setup() {
     ($git.fs_read_file | index("~/.config/git/config") != null) and
     ($git.fs_read_file | index("~/.config/git/ignore") != null) and
     ($git.fs_read_file | index("~/.gitconfig") != null) and
+    # Include closure: an ungranted include is fatal for git, not a skip.
+    ($git.fs_read_file | index("~/.config/git/base") != null) and
+    ($git.fs_read_file | index("~/.config/git/user") != null) and
+    ($git.fs_read_file | index("~/.config/git/work-user") != null) and
+    ($git.fs_read_file | index("~/.config/git/catppuccin.gitconfig") != null) and
     ([sands[] | (.fs_read // [])[]] | map(select(. == "/System/Volumes/Data")) | length) == 0 and
     ($git.fs_read | index("/opt/local") != null) and
     ($git.fs_write_file | index("/dev/dtracehelper") != null) and
@@ -497,7 +516,7 @@ setup() {
     (rules("chezmoi") | any(.prefix == ["up"])) and (rules("chezmoi") | any(.prefix == ["update"])) and
     # U2: bare `init` writes the chezmoi config dir and `state` mutates the
     # persistent boltdb (~/.config/chezmoi) — both bypass the apply boundary
-    # (poisoned state makes the user's apply silently skip changed files), so
+    # (poisoned state makes an apply silently skip changed files), so
     # the whole forms are core-denied.
     (rules("chezmoi") | any(.exact == ["init"])) and (rules("chezmoi") | any(.prefix == ["init"])) and
     (rules("chezmoi") | any(.exact == ["state"])) and (rules("chezmoi") | any(.prefix == ["state"])) and
@@ -734,7 +753,23 @@ setup() {
 }
 
 {{- /* Route validation fixtures: every bad row must FAIL the render, naming the
-     row and the reason. */ -}}
+     row and the reason. */}}
+# runCapped ARGS... — nested-render chezmoi boots can hang on sandbox init
+# churn (git config EPERM → curl to a dead proxy port); cap each render so
+# one hang fails its own test, not the whole suite cap.
+runCapped() {
+  local tout="${TIMEOUT_BIN:-}"
+  [ -n "$tout" ] || tout="$(command -v gtimeout || command -v timeout || true)"
+  if [ -z "$tout" ]; then
+    printf 'gtimeout/timeout not found; refusing uncapped chezmoi render\n'
+    return 1
+  fi
+  run "$tout" 20 "$@"
+  if [ "$status" -eq 124 ]; then
+    printf 'chezmoi render timed out — likely sandbox init churn\n'
+    return 1
+  fi
+}
 {{- $routeNotSecretTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes" "NOT_A_SECRET_TYP0") "value" (dict "attach" "session" "upstream" "https://example.invalid" "env_var" "NOT_A_SECRET_TYP0")) | mustFromJson -}}
 {{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
 {{- $routeGapDupTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "env_injected") "value" (dict "ANTHROPIC_API_KEY" "delivered two ways")) | mustFromJson -}}
@@ -757,17 +792,17 @@ FIXTURE
 {{ $routeHttpTpl }}
 FIXTURE
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-not-secret.tmpl"
+  runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-not-secret.tmpl" || return 1
   [ "$status" -ne 0 ] || offenders="$offenders not-secret:fails-render"
   [[ "$output" == *NOT_A_SECRET_TYP0* ]] || offenders="$offenders not-secret:named"
   [[ "$output" == *"is not in the derived secret set"* ]] || offenders="$offenders not-secret:reason-marker"
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-gap-dup.tmpl"
+  runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-gap-dup.tmpl" || return 1
   [ "$status" -ne 0 ] || offenders="$offenders gap-dup:fails-render"
   [[ "$output" == *ANTHROPIC_API_KEY* ]] || offenders="$offenders gap-dup:named"
   [[ "$output" == *"also in env_injected"* ]] || offenders="$offenders gap-dup:reason-marker"
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-http.tmpl"
+  runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-http.tmpl" || return 1
   [ "$status" -ne 0 ] || offenders="$offenders http:fails-render"
   [[ "$output" == *"must be https"* ]] || offenders="$offenders http:reason-marker"
 
@@ -847,17 +882,17 @@ FIXTURE
 {{ $badReadFileTpl }}
 FIXTURE
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/net-typo.tmpl"
+  runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/net-typo.tmpl" || return 1
   [ "$status" -ne 0 ] || offenders="$offenders net:typo.fails-render"
   [[ "$output" == *git_forge_typo* ]] || offenders="$offenders net:typo.named"
   [[ "$output" == *"expand-path-groups: unknown path group"* ]] || offenders="$offenders net:typo.reason-marker"
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/fs-typo.tmpl"
+  runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/fs-typo.tmpl" || return 1
   [ "$status" -ne 0 ] || offenders="$offenders fs:typo.fails-render"
   [[ "$output" == *no_such_fs_group_typo* ]] || offenders="$offenders fs:typo.named"
   [[ "$output" == *"expand-path-groups: unknown path group"* ]] || offenders="$offenders fs:typo.reason-marker"
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/fs-good.tmpl"
+  runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/fs-good.tmpl" || return 1
   [ "$status" -eq 0 ] || offenders="$offenders fs-resolve:canary.renders"
   json="$(sed -n '/^{/,$p' <<<"$output")"
   jq -e '(.commands.git.from.session.sandbox.fs_read | index("/bin") != null) and
@@ -865,10 +900,10 @@ FIXTURE
     offenders="$offenders fs-resolve:group-ref+tmpdir-expanded"
   [[ "$output" != *'$TMPDIR'* ]] || offenders="$offenders fs-resolve:no.tmpdir-leak"
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-grant.tmpl"
+  runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-grant.tmpl" || return 1
   { [ "$status" -ne 0 ] && [[ "$output" == *sandbox-grant-guard* ]] && [[ "$output" == *~/.config/nono* ]]; } || offenders="$offenders grant-guard:wiring.fails-render"
 
-  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-readfile.tmpl"
+  runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-readfile.tmpl" || return 1
   { [ "$status" -ne 0 ] && [[ "$output" == *sandbox-grant-guard* ]] && [[ "$output" == *~/.config/git/credentials* ]]; } || offenders="$offenders readfile-guard:wiring.fails-render"
 
   if [ -n "$offenders" ]; then

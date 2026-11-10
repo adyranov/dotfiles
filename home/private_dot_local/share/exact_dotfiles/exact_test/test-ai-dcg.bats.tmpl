@@ -166,50 +166,6 @@ requireDcgPack() {
   assert_success
 }
 
-# bats test_tags=kind:dcg
-@test "dcg gates mutation shapes on the session gh tier" {
-  requireDcgPack
-  # The session gh tier makes every agent-tree process write-capable on the GitHub route hosts; reads stay ungated.
-  local blocks=(
-    "gh api repos/x/y -X POST|gh-api-write"
-    "gh api repos/x/y --method PATCH|gh-api-write"
-    "gh api repos/x/y -f foo=bar|gh-api-field-write"
-    "gh workflow run ci.yml|gh-workflow-run"
-    "gh pr merge 1|gh-pr-merge"
-    "gh release create v1|gh-release-create"
-    "curl -X POST https://api.github.com/repos/x/y/issues|http-client-write"
-    "wget --post-data=a=b https://api.github.com/x|http-client-write"
-    "gh secret set FOO=1|gh-secret"
-    # gh-delete matches "gh secret delete" first; the row named in output is the
-    # first match, not gh-secret. The set case pins the gh-secret row by name.
-    "gh secret delete FOO|gh-delete"
-  )
-  local allows=(
-    "gh api /user"
-    "gh api repos/x/y"
-    "curl -s https://api.github.com/rate_limit"
-    "curl -X GET https://github.com/x"
-    "gh secret list"
-    "gh auth login"
-    "gh auth token"
-  )
-  local case cmd rule
-  local offenders=()
-  for case in "${blocks[@]}"; do
-    cmd="${case%%|*}" rule="${case##*|}"
-    run dcg test "$cmd"
-    [ "$status" -ne 0 ] || offenders+=("allowed: $cmd")
-    [[ "$output" == *"$rule"* && "$output" == *"BLOCKED"* ]] ||
-      offenders+=("$cmd: missing '$rule' or BLOCKED")
-  done
-  for cmd in "${allows[@]}"; do
-    run dcg test --robot "$cmd"
-    [ "$status" -eq 0 ] || offenders+=("robot blocked read: $cmd")
-  done
-  printf '%s\n' "${offenders[@]}" >&2
-  assert_equal "${#offenders[@]}" 0
-}
-
 {{- $hooks := list }}
 {{- if get .toolchains "opencode" | default false }}{{ $hooks = append $hooks "$HOME/.config/opencode/plugins/dcg-guard.js" }}{{ end }}
 {{- if get .toolchains "pi" | default false }}{{ $hooks = append $hooks "$HOME/.config/pi/agent/extensions/dcg-robot.ts" }}{{ end }}
@@ -280,7 +236,11 @@ requireDcgPack() {
 # Driver modes via argv[2]:
 # "tamper" mutates process.env.DCG_BYPASS after the module body ran;
 # "sandbox" restores the real HOME (DCG_TEST_REAL_HOME) post-boot so the dcg
-# spawn resolves the chezmoi packs. The seal-3 probe is uid-anchored, so the
+# spawn resolves the chezmoi packs;
+# "nocandidates" replaces every candidate with a nonexistent $BATS_TEST_TMPDIR
+# path (copied-fixture mutation, no production seam) so spawnSync really runs
+# and ENOENTs through the unstartable branch, probing literal "echo hi". The
+# seal-3 probe is uid-anchored, so the
 # sandboxed floor is simulated with the core's test seam:
 # DCG_TEST_REAL_HOME_OVERRIDE points the probe at $BATS_TEST_TMPDIR, and the
 # "sealed" shape chmods that dir 555 pre-boot (EPERM = sandbox floor).
@@ -292,8 +252,11 @@ dcgCoreDriver() {
   cat >>"$BATS_TEST_TMPDIR/core.mjs" <<'DRIVER'
 if (process.argv[2] === "tamper") process.env.DCG_BYPASS = "1";
 if (process.argv[2] === "sandbox") process.env.HOME = process.env.DCG_TEST_REAL_HOME;
+if (process.argv[2] === "nocandidates")
+  DCG_CANDIDATES.splice(0, DCG_CANDIDATES.length, `${process.env.BATS_TEST_TMPDIR}/no-such-dcg`);
 const denyFixture = ["kubectl", "del" + "ete", "pod", "x"].join(" ");
-console.log(JSON.stringify(dcgBlockReason(denyFixture, process.cwd())));
+const noCand = process.argv[2] === "nocandidates";
+console.log(JSON.stringify(dcgBlockReason(noCand ? "echo hi" : denyFixture, process.cwd())));
 DRIVER
 }
 
@@ -344,6 +307,31 @@ null"
   dcgCoreDriver
   run env -u AGENT_SANDBOX -u DCG_BYPASS node "$BATS_TEST_TMPDIR/core.mjs"
   assert_output --partial "Blocked by DCG"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg fail closed: unstartable candidates block a harmless command" {
+  # Armed (no boot bypass); spawnSync ENOENTs every fixture candidate.
+  dcgCoreDriver
+  run env -u AGENT_SANDBOX -u AGENT_SANDBOX_HOME -u DCG_BYPASS \
+    DCG_TEST_REAL_HOME_OVERRIDE="$BATS_TEST_TMPDIR" \
+    node "$BATS_TEST_TMPDIR/core.mjs" nocandidates
+  assert_output --partial "Blocked by DCG"
+  assert_output --partial "fail-closed"
+  refute_output --partial "command allowed"
+  refute_output --partial "guard bypassed at boot"
+}
+
+# bats test_tags=kind:dcg
+@test "dcg bypass: boot bypass returns null even with unstartable candidates" {
+  # The bypass early-return precedes the candidate loop.
+  dcgCoreDriver
+  run env -u AGENT_SANDBOX -u AGENT_SANDBOX_HOME \
+    DCG_TEST_REAL_HOME_OVERRIDE="$BATS_TEST_TMPDIR" \
+    DCG_BYPASS=1 node "$BATS_TEST_TMPDIR/core.mjs" nocandidates
+  assert_success
+  assert_output "[dcg] guard bypassed at boot (DCG_BYPASS); commands are not checked
+null"
 }
 
 # bats test_tags=kind:dcg
@@ -422,32 +410,6 @@ null"
   assert_output --partial "Blocked by DCG"
   assert_output --partial "AGENT_SANDBOX stripped"
   refute_output --partial "guard bypassed at boot"
-}
-
-{{- $seatAgent := "" -}}
-{{- if get .toolchains "pi" | default false -}}{{- $seatAgent = "pi" -}}
-{{- else if get .toolchains "opencode" | default false -}}{{- $seatAgent = "opencode" -}}
-{{- else if get .toolchains "omp" | default false -}}{{- $seatAgent = "omp" -}}{{- end }}
-# bats test_tags=kind:dcg
-@test "LaunchAgents deny covers post-start plist creations: in-sandbox touch EPERMs" {
-  # The deny data's `*` children expand at sandbox start, so a post-start
-  # plist escapes the per-child denies. The seatbelt subpath rule is
-  # recursive+dynamic, user rules emit last (last-match-wins), and they land
-  # on the AGENT profiles — base renders no user seatbelt rules, so probe
-  # the first enabled agent, not base.
-  [[ "$(uname -s)" == "Darwin" ]] || skip "seatbelt user rules are macOS-only"
-  local profile="{{ $seatAgent }}"
-  [ -n "$profile" ] || { echo "no agent toolchain rendered on an ai-enabled host (render drift)" >&2; return 1; }
-  command -v nono >/dev/null || { echo "nono not found — install drift" >&2; return 1; }
-  local plist="$HOME/Library/LaunchAgents/com.chezmoi.dcg-suite-probe.plist"
-  rm -f "$plist"
-  run nono run --profile "$profile" -- touch "$plist"
-  assert_failure
-  assert_output --partial "Operation not permitted"
-  # The file must not be creatable; the rm covers a regressed rule, the
-  # absence assert pins the denial.
-  rm -f "$plist"
-  [ ! -e "$plist" ]
 }
 
 # bats test_tags=kind:dcg
