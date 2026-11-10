@@ -168,7 +168,7 @@ requireDcgPack() {
 
 {{- $hooks := list }}
 {{- if get .toolchains "opencode" | default false }}{{ $hooks = append $hooks "$HOME/.config/opencode/plugins/dcg-guard.js" }}{{ end }}
-{{- if get .toolchains "pi" | default false }}{{ $hooks = append $hooks "$HOME/.config/pi/agent/extensions/dcg-robot.ts" }}{{ end }}
+{{- if get .toolchains "pi" | default false }}{{ $hooks = append $hooks "$HOME/.config/pi/agent/extensions/dcg-guard.ts" }}{{ end }}
 {{- if get .toolchains "omp" | default false }}{{ $hooks = append $hooks "$HOME/.config/omp/agent/extensions/dcg-guard.ts" }}{{ end }}
 
 # bats test_tags=kind:dcg

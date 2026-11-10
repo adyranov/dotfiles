@@ -17,7 +17,7 @@
 // every subagent session (tool_call fires in each).
 const GUARDED_TOOLS = new Set(["bash", "eval", "computer"]);
 
-export default function dcgRobot(pi) {
+export default function dcgGuard(pi) {
   pi.on("tool_call", async (event) => {
     if (!event || !GUARDED_TOOLS.has(event.toolName)) return;
     const input = event.input || {};

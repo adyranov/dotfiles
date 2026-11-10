@@ -1,4 +1,4 @@
-// dcg-robot: chezmoi-managed DCG hook (do not edit in-agent — nono denies
+// dcg-guard: chezmoi-managed DCG hook (do not edit in-agent — nono denies
 // agent writes to this file on macOS; on Linux keep this file out of
 // agent-writable trees). Routes every bash tool call through
 // `dcg hook --robot --batch` before execution. An unstartable dcg binary or
@@ -7,7 +7,7 @@
 // core below.
 {{ (includeTemplate "base/ai/security/dcg-guard-core") | trim }}
 
-export default function dcgRobot(pi) {
+export default function dcgGuard(pi) {
   pi.on("tool_call", async (event) => {
     if (!event || event.toolName !== "bash") return;
     const input = event.input || {};

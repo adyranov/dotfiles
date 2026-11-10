@@ -1232,13 +1232,13 @@ FIXTURE
   assert_file_exists "$HOME/.config/opencode/plugins/dcg-guard.js"
 {{- end }}
 {{- if .toolchains.pi }}
-  assert_file_exists "$HOME/.config/pi/agent/extensions/dcg-robot.ts"
-  run readlink -f "$HOME/.config/pi/profiles/core/extensions/dcg-robot.ts"
+  assert_file_exists "$HOME/.config/pi/agent/extensions/dcg-guard.ts"
+  run readlink -f "$HOME/.config/pi/profiles/core/extensions/dcg-guard.ts"
   assert_success
-  assert_output "$HOME/.config/pi/agent/extensions/dcg-robot.ts"
-  run readlink -f "$HOME/.config/pi/profiles/factory/extensions/dcg-robot.ts"
+  assert_output "$HOME/.config/pi/agent/extensions/dcg-guard.ts"
+  run readlink -f "$HOME/.config/pi/profiles/factory/extensions/dcg-guard.ts"
   assert_success
-  assert_output "$HOME/.config/pi/agent/extensions/dcg-robot.ts"
+  assert_output "$HOME/.config/pi/agent/extensions/dcg-guard.ts"
 {{- end }}
 {{- if (get .toolchains "omp" | default false) }}
   assert_file_exists "$HOME/.config/omp/agent/extensions/dcg-guard.ts"
@@ -1285,7 +1285,7 @@ git ls-files | grep -E '"'"'(^|/)(CODING_STANDARDS|CLAUDE|AGENTS)\.md$'"'"' || t
 @test "{{ $agent.name }} profile grants read on its own DCG hook file" {
   run jq -e '
     ((.filesystem.read // [])
-      | map(select(contains("dcg-guard") or contains("dcg-robot")))
+      | map(select(contains("dcg-guard")))
       | length) > 0
   ' "{{ $agent.file }}"
   assert_success

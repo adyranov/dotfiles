@@ -4,7 +4,7 @@
 agents/sdd-*
 chains/
 extensions/*
-!extensions/dcg-robot.ts
+!extensions/dcg-guard.ts
 gentle-ai/
 git/**
 intercom/
