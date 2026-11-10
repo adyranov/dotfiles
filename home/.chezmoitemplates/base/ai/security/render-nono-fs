@@ -26,12 +26,20 @@
   keys (share root rides for pre-v6 mise). Renderer-side, NOT a data deny
   group: expanded deny groups join sandbox-grant-guard's protected floor, and
   the legitimate mise dir grants contain these leaves — the guard refuses
-  dir grants containing protected roots. */ -}}
+  dir grants containing protected roots. macOS: nono canonicalizes deny
+  globs' matches, so `*` denies the trust LINKS' TARGETS — the
+  `Users-adyranov -> $HOME` record became a home-wide file-read-data deny
+  (sandboxed agent launch died); the seatbelt dir deny is recursive, so the
+  glob is redundant there. Linux: Landlock dir denies cover the dir only,
+  children need the `*` key. */ -}}
 {{- $deny = concat $deny (list
   "~/.local/state/mise/trusted-configs"
+  "~/.local/share/mise/trusted-configs") -}}
+{{- if ne $root.chezmoi.os "darwin" -}}
+{{- $deny = concat $deny (list
   "~/.local/state/mise/trusted-configs/*"
-  "~/.local/share/mise/trusted-configs"
   "~/.local/share/mise/trusted-configs/*") -}}
+{{- end -}}
 {{- /* Base also honors the agents' overlay hook reads: an overlay cannot subtract a
   base allow (realpath-aware: the ~/.pi symlink into ~/.config/pi silently shadowed
   the pi hook carve-out). */ -}}

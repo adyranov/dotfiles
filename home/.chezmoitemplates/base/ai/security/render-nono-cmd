@@ -123,6 +123,7 @@
   under installs/chezmoi). */ -}}
 {{- $home := trimSuffix "/" $root.chezmoi.homeDir -}}
 {{- $cz = merge $cz (dict
+  "fs_write_file" (list "dtrace_helper_file")
   "exec_paths" (list "/bin" "/usr/bin" (printf "%s/.local/bin" $home) (printf "%s/.local/share/mise/shims" $home) (printf "%s/.local/share/mise/installs/python" $home))
   "unsafe_macos_seatbelt_rules" (list
     "(allow process-exec* (subpath \"/bin\"))"

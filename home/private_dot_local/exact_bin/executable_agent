@@ -6,7 +6,7 @@
 # set_runtime_env, list_profiles) — no templates, no data files.
 set -eu
 
-# Single uname spawn for the Linux gate, CA renewal, PATH parity.
+# Single uname spawn for the Linux gate and PATH parity.
 UNAME_S=$(uname -s)
 
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -771,36 +771,6 @@ unset scratch_dir
 # socket dir is provisioned, so no tmux interaction is possible in any direction.
 # The TMUX scrub keeps an inherited host-session marker out of the agent env.
 unset TMUX
-
-# nono persists its TLS-interception CA in the macOS login keychain (svce
-# nono-proxy-ca) with 24h validity; the default load path never renews an
-# expired bundle and minting leaves after CA expiry is refused, so every
-# sandboxed launch's TLS dies once the bundle expires. Renewal exists only in
-# nono's --trust-proxy-ca path, so renew here, pre-sandbox, as the user's own
-# code (same class as the engram daemon spawn).
-# Public cert only: find-certificate -p exports the certificate; the -g read
-# of find-generic-password returns the PRIVATE KEY — never run that here.
-renewProxyCa() {
-  [ "$UNAME_S" = Darwin ] || return 0
-  command -v security >/dev/null 2>&1 || return 0
-  command -v openssl >/dev/null 2>&1 || return 0
-  # No bundle at all (fresh state): nono mints one; nothing to renew.
-  __ca=$(security find-certificate -a -c nono-proxy-ca -p 2>/dev/null) || return 0
-  [ -n "$__ca" ] || return 0
-  if printf '%s\n' "$__ca" | openssl x509 -noout -checkend 0 >/dev/null 2>&1; then
-    return 0
-  fi
-  # The keychain bundle, plus its trust-store cert twin (the twin delete may
-  # fail legitimately: it may not exist). nono mints a fresh CA at launch.
-  security delete-generic-password -s nono-proxy-ca >/dev/null 2>&1 || :
-  security delete-certificate -c nono-proxy-ca >/dev/null 2>&1 || :
-  dim "Proxy CA: removed expired proxy CA, nono will mint a fresh one"
-}
-
-# Placed before the /usr/bin PATH parity prepend: that prepend is sandbox-PATH
-# parity; the launcher's own probes ride the user's PATH. The --no-sandbox
-# debug launch execed above, so host runs never reach the keychain.
-renewProxyCa
 
 # Sandbox PATH parity: the MacPorts `git` dies on a blocked dylib inside nono,
 # so /usr/bin first gives a working binary (the enforcement suite pins the

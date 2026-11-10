@@ -19,11 +19,12 @@ destructive_patterns:
     severity: high
     description: gh deletes remote GitHub objects
     explanation: Releases, branches, PRs and workflows are gone server-side.
+  # PR edits can change the base and reviewers; other gh edits stay gated.
   - name: gh-edit
-    pattern: '\bgh\b[^;&|\n]*?\bedit\b'
+    pattern: '\bgh\b(?! (?:-R[ =]\S+ |--repo[ =]\S+ )?pr edit\b)[^;&|\n]*?\bedit\b'
     severity: medium
-    description: gh edits PRs/issues/releases in place
-    explanation: Title/body/branch edits change review state.
+    description: gh edits GitHub objects in place outside the PR-edit lane
+    explanation: Repo/release/issue/gist/codespace edits mutate shared GitHub state; PR edits are routine maintenance.
   - name: gh-variable-set
     pattern: '\bgh\b[^;&|\n]*?\bvariable\s+set\b'
     severity: medium
@@ -60,10 +61,11 @@ destructive_patterns:
     severity: medium
     description: gh triggers a workflow run
     explanation: Runs consume runner capacity and can publish artifacts.
+  # The stack extension can merge multiple PRs at once.
   - name: gh-pr-merge
-    pattern: '\bgh\b[^;&|\n]*?\bpr\b[^;&|\n]*?\bmerge\b'
+    pattern: '\bgh\b[^;&|\n]*?\b(?:pr|stack)\b[^;&|\n]*?\bmerge\b'
     severity: high
-    description: gh merges a pull request
+    description: gh merges a pull request or a whole PR stack
     explanation: A merge lands on the base branch; gh repo edit rides the gh-edit row.
   - name: gh-release-create
     pattern: '\bgh\b[^;&|\n]*?\brelease\b[^;&|\n]*?\bcreate\b'
@@ -83,6 +85,12 @@ destructive_patterns:
     severity: high
     description: git push with a valued force-with-lease flag can rewrite remote history
     explanation: The nono literal-token matcher cannot match --force-with-lease=ref:sha; this closes that spelling gap.
+  # Remote ref deletion also accepts an empty-source refspec.
+  - name: git-push-delete-remote
+    pattern: '\bgit\b[^;&|\n]*?\bpush\b[^;&|\n]*?(?:--delete\b|\s-d\b|\s[''"]?:[^ ;])'
+    severity: high
+    description: git push deletes a remote branch or tag
+    explanation: Remote refs are gone for everyone; ordinary pushes never carry --delete/-d or a leading-colon refspec.
   - name: git-rebase
     pattern: '\bgit\b[^;&|\n]*?\brebase\b'
     severity: high

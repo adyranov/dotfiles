@@ -29,10 +29,14 @@ fi
   exec </dev/null >/dev/null 2>&1
 
   while :; do
-    sleep 60
+    sleep 30
     [ "$(_sudo_keepalive_process_start "$_sudo_keepalive_parent")" = \
       "$_sudo_keepalive_parent_start" ] || exit 0
-    sudo -n -v || exit 0
+    # Expired timestamp (e.g. system sleep mid-run): re-authenticate once via
+    # the controlling terminal (sudo reads /dev/tty, not the detached stdin) —
+    # one mid-run prompt beats a dead refresher and a prompt in every later
+    # sudo script. Exit only when the prompt itself fails (session gone).
+    sudo -n -v || sudo -v || exit 0
   done
 ) &
 

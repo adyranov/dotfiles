@@ -47,139 +47,74 @@ Prebuilt images are also published to GHCR and Docker Hub:
 
 The `ai` toolchain gates shared model routing, skills, sandbox configuration,
 cloud inference tools, and the nested `pi`, `opencode`, and `omp` agent
-toolchains. Two enforcers back every agent; there are no in-agent permission
-layers:
+toolchains. Run an agent with `agent pi`, `agent oc`, or `agent omp`.
 
-- **nono** is the hard host boundary (filesystem, network, process):
-  default-deny filesystem grants with deny-over-grant precedence on top of
-  non-excludable built-in deny groups (credentials, keychains, shell
-  configs/history, browser data), a small command hard core (Git force flags,
-  keychain mutators, secret exports, global `chezmoi apply`), and proxy-routed
-  network egress with domain allow-listing. Git is HTTPS-only; SSH egress is
-  blocked. Agents cannot use tmux: the host tmux server's socket dir is
-  sandbox-denied and the launcher provisions no tmux socket at all. SSH reuse
-  is opt-in per agent, default none: open a master in
-  your terminal, compute its exact socket path
-  (`ssh -G <host> | awk '/^controlpath/ {print $2}'`), add that exact path to
-  the intended agent's data (`sandbox.filesystem.unix_socket` plus the same
-  path in `bypass_protection`), and apply in your terminal; the master must
-  exist before the agent launches. Revoke with `ssh -O exit <host>` (`-O stop`
-  only stops accepting new multiplexing). An approved master delegates your VM
-  account's authority — approve only connections you mean to delegate. On
-  Linux/WSL2 SSH reuse is also unavailable (pathname-socket mediation gap;
-  the capability fails closed).
-  Agents never write live home configuration: the chezmoi config/state dir
-  is session-read-only (the `chezmoi` command sandbox keeps its own diff/
-  cache writes, and `chezmoi init` and `chezmoi state` are command-core
-  denied), and the chezmoi-managed editor settings (VS Code, Cursor,
-  ghostty), the login `setenv.sh`, and `~/.agents`/`~/.editorconfig` are
-  read-only. You review and apply home changes yourself.
-- **DCG** (`dcg`) gates destructive-but-normal commands
-  (`kubectl delete`, `tofu destroy`, package publishes) through
-  chezmoi-managed per-agent hooks. nono hardens the gate: `DCG_*` environment
-  is scrubbed, DCG's stores are read-only inside sandboxes, and hook files
-  deny agent writes, so approvals happen only outside them.
+Guarded launches use **nono** for filesystem, process, and network restrictions,
+and **DCG** (`dcg`) to prompt for destructive commands. The sandbox protects
+DCG's stores and, on macOS, its hooks. It denies the configured host tmux socket
+directory; the launcher does not provision a separate tmux socket. Blocking tmux
+on other socket paths has not been verified.
 
-The Git core blocks standalone `-f`, `--force`, `--force-if-includes`, and
-`--force-with-lease` on every subcommand, including fetch and branch. DCG covers
-bundled short options and `--force-with-lease=...`, which nono's literal-token
-matcher cannot recognize.
+Guarded launches are refused on Linux/WSL2 because hook write-protection cannot
+be enforced there. A host `--no-sandbox` launch bypasses both nono and DCG and
+can expose real credentials; use it only for debugging. Nested launches inherit
+their parent sandbox.
 
-All rules live once in `home/.chezmoidata/base/ai/`; the data keys mirror the
-rendered nono profile sections (`filesystem`, `command_policies`,
-`network.allow_domain`) at `~/.config/nono/profiles/`.
+Agents edit the chezmoi source; you review and apply home changes in your own
+terminal. Run the relevant tests after applying, since they check the rendered
+home configuration. Rules live in `home/.chezmoidata/base/ai/`, and rendered
+nono profiles live in `~/.config/nono/profiles/`.
 
 When an agent is blocked:
 
-- DCG-blocked command: approve it in your own terminal (`dcg allow …`), then
-  the agent retries.
-- Blocked network host: nono's audit records the denial; add the domain to the
-  network data and apply. Agents never widen their own egress.
-- Home changes: agents edit the source; review and run `chezmoi apply` in your
-  own terminal. Run the relevant tests after applying, since they check the
-  rendered home configuration.
+- DCG-blocked command: approve a built-in rule with `dcg allow …` or a custom
+  pack rule with `dcg allowlist add-command …` in your terminal, then retry.
+- Blocked network host: approve the data change and apply it in your terminal.
 
-Sandboxed agents get dev-loop parity: `git` resolves to the system binary,
-git worktrees live project-local under `.slim/worktrees/`, and
-`mise run lint`/`mise run test` run inside the sandbox.
+nono's command mediation uses PATH shims, so an absolute-path exec can bypass
+its command core; DCG's command-text analysis complements it. The core blocks
+standalone Git force flags on every subcommand, including fetch and branch.
+Sandboxed worktrees live under `.slim/worktrees/`.
 
-Caveats: on Linux, Landlock denies cover only paths that exist when the
-sandbox starts (`capability_elevation` is off). `--no-sandbox` on any agent
-launcher skips nono entirely and disarms the DCG guard hooks — debug only,
-zero enforcement; such sessions leave no DCG history or nono log, so the agent
-transcript is the audit trail. nono command
-mediation is PATH-shim based, so a deliberate absolute-path exec bypasses the
-command core; DCG's command-text analysis is the complement. The pi agent dirs
-are sandbox-writable (upstream lockfile contract), with hook write-protection
-as macOS Seatbelt denies. On Linux/WSL2 those hooks render inside agent-
-writable roots and Landlock cannot deny-within-allow, so hook protection
-cannot be enforced there: the `agent` launcher refuses guarded launches on
-Linux — sandboxed and nested (`--no-sandbox` inside a sandbox) — and names
-the remedies: run guarded agents on macOS, or use an explicit host
-`--no-sandbox` debug launch.
+Select a profile with `--profile NAME` before or after the agent word
+(`agent --profile core pi "Hi there"`). Pi and OpenCode also accept positional
+profile aliases; arguments after `--` reach the agent verbatim. Zsh completion
+is available as `_agent`.
 
-Subagent concurrency defaults to 8 and is preset-specific (personal Qwen: 4);
-OpenCode remains uncapped until it exposes a native width limit.
+#### SSH reuse
 
-The `agent` launcher runs every agent (`agent pi|omp|oc`, with `opencode` as an
-alias), and a zsh completion `_agent` ships with it. Select a profile with
-`--profile NAME`, before or after the agent word (`agent --profile core pi
-"Hi there"`); positional profile words stay compat aliases, and arguments
-after `--` reach the binary verbatim. The launcher is a plain
-shell script: each agent's profiles, config dirs, env exports, and scrub lists
-are explicit cases in the script, so adding an agent means editing the
-launcher, the completion, and the toolchain gates.
+The sandbox policy blocks raw SSH egress. On macOS, an agent can reuse a
+user-approved VM connection when you grant its exact socket:
+
+1. Open the master in your terminal: `ssh -M -o ControlPersist=yes <host> true`.
+2. Find its socket with `ssh -G <host> | awk '/^controlpath/ {print $2}'`. Add
+    that path to `sandbox.filesystem.unix_socket` and `bypass_protection` in
+    the agent's data under `home/.chezmoidata/base/ai/agents/`.
+3. Apply the profile in your terminal and relaunch the agent. It can connect
+    with `ssh -S <socket> <host> <command>`.
+
+The master must exist before the agent launches. It delegates the VM account's
+authority, so approve only connections you intend to share. Revoke it with
+`ssh -O exit <host>`; `-O stop` only stops new multiplexed connections.
 
 #### Credentials
 
-You supply agent credentials through the environment you launch from (`direnv`, a
-global export, a prefix) — chezmoi never stores or reads them. nono scrubs every
-credential name out of the sandbox and re-injects the real value at egress through
-its loopback proxy routes, so the agent holds a phantom token and no value.
-Repository scope is the token's own grant: a fine-grained token
-per project, enforced by GitHub. Rotation is a new value plus a relaunch. OMP stays
-credential-free.
+Supply credentials in the launching environment, for example with `direnv`.
+On macOS, Pi and OpenCode configure proxy-injected routes for some credentials;
+others, including Gemini and Brave keys, can enter the agent environment as real
+values. OMP scrubs the derived credential set without configuring routes.
+Traffic through the proxy crosses loopback in plaintext before upstream TLS.
 
-Delegation is one story per host: your terminal keeps the full identity and every
-sandbox gets a deliberately scoped subset. On macOS the subset arrives as phantom
-tokens — scrubbed values, with the proxy injecting the real credential at egress.
-On Linux hosts whose kernel cannot enforce the proxy (stock Ubuntu, WSL2) the
-exported provider keys pass through into the agent env, names redacted in the
-audit trail, and GitHub is not delegated there: `gh` and git work stay your
-terminal's. GitHub delegation rides the project's fine-grained token at the
-session-tier `gh` grant, and the macOS keychain is unreachable in-sandbox on
-every path, files and Mach IPC. Full permissions exist only outside the sandbox,
-launched by a human (`--no-sandbox`).
-
-- Clients that cannot honor a base-URL override (the Gemini family) are listed in
-  `env_injected` in `home/.chezmoidata/base/ai/credentials.toml`: their real value
-  reaches the agent env, redacted in logs.
-- Routes activate only on hosts that enforce the proxy (macOS; Linux once
-  `nono setup` reports Landlock per-port enforcement, declared per host): `gh` keeps
-  its real `hosts.yml` denied, runs from a relocated state dir, and authenticates on
-  the phantom `GH_TOKEN` — the egress swap is measured (`gh api /user` returns the
-  account, rate limit 5000). Elsewhere the exported provider keys pass through into
-  the agent env, redacted in logs, and the launcher prints the mode; on
-  route-capable hosts it also names any route whose credential source is missing
-  from that shell.
-- The store is invisible to agents (`.envrc`, `.env*`, `.direnv/` on the deny
-  floor); on Linux, denies cover only paths that exist at sandbox start.
-- `--no-sandbox` runs unscrubbed with the real values: debug only. Provider traffic
-  crosses the loopback in plaintext and is re-originated as TLS upstream.
+The GitHub API route is configured on macOS, but combined API and Git transport
+has not been verified. Use your terminal for GitHub operations until it is.
+Token permissions are controlled by GitHub, not by the launcher.
 
 #### Engram daemon
 
-Every launch supervises one shared Engram daemon per host: it starts on
-demand, is detached (it outlives every agent session), and is restarted
-automatically when it fails its health check or the Engram binary changes —
-the launcher records the daemon's binary identity (version + resolved path +
-mtime) at spawn and compares it on each launch, so a `mise` rebuild or
-upgrade restarts the daemon on the next launch. A healthy, current daemon is
-left untouched; every profile, including `minimal`, supervises it. Daemons launched
-manually with a different argv are outside supervision: they are never
-restarted, and a hung manual daemon ends launches in a fail-closed die until
-it is cleaned up. `ENGRAM_PORT` / `ENGRAM_URL` override the supervised port
-(default `7437`).
+Sandboxed launches supervise a shared Engram daemon, starting it on demand and
+restarting it after a failed health check or binary change. Host `--no-sandbox`
+launches do not supervise it. `ENGRAM_PORT` / `ENGRAM_URL` override the default
+port `7437`.
 
 #### Pi
 
@@ -206,13 +141,11 @@ it is cleaned up. `ENGRAM_PORT` / `ENGRAM_URL` override the supervised port
   oh-my-opencode-slim multi-agent orchestration.
 - Every profile exposes the local LLM gateway as `local/<id>`. Catalog and
   engine data live under `[ai.profile.<profile>.serving.local]`.
-- Factory supports worktree-based execution and caps background fan-out at the
-  active preset's limit. Subagents use OpenCode's native session UI without
+- Factory supports worktree-based execution and sets background concurrency
+  from the configured preset. Subagents use OpenCode's native session UI without
   external panes; use `/preset` to switch Slim presets.
-- Personal routing uses OpenCode Go and OpenAI Codex primary routes with
-  DeepSeek fallbacks. Work routing uses GitHub Copilot without fallback arrays.
-  oh-my-opencode-slim fallback chains are remote-only; `provider=local` is not
-  allowed in fallback entries.
+- The personal profile defaults to the Qwen preset on `infer01`; the work
+  profile uses GitHub Copilot. Other presets select their own routes.
 
 Prerequisites: Node >=20 and OpenCode >=2.0.7.
 
@@ -347,7 +280,7 @@ See examples in `home/.chezmoidata/base/`, `home/.chezmoidata/os/<distro>/`, and
 
 ## 🧪 Validate Locally
 
-- After applying dotfiles, run `mise run test` — the single fast gate: generated Bats tests for system packages, `mise` tools, Helm and Krew plugins, AI agents (including the DCG robot probes, whose probes fail — never skip — when the pinned dcg binary or rendered packs are missing; the suite is unapplied when the ai toolchain is off), plus shell/Git config checks. The whole suite is expected to finish well under two minutes.
+- After applying dotfiles, run `mise run test` for package, AI-agent, and shell/Git checks. On applicable hosts, the DCG probes fail if the expected binary or rendered packs are missing; they skip inside a sandbox and are unapplied when the `ai` toolchain is off.
 - Each package/manager suite runs one aggregate install smoke that checks all
   applicable package keys in a single pass; failures report every offending
   package (name + exit status) at once. Presence and runnability only — no
@@ -638,6 +571,7 @@ These desktop apps are installed on macOS via Homebrew casks or the App Store
 | [AnyDesk](https://anydesk.com/)                                        | Remote desktop access               |
 | [Brave Browser](https://brave.com/)                                    | Privacy-focused web browser         |
 | [Calibre](https://calibre-ebook.com/)                                  | E-book manager                      |
+| [Claude Code](https://code.claude.com/)                                | Anthropic coding agent CLI          |
 | [Cryptomator](https://cryptomator.org/)                                | Cloud storage encryption            |
 | [Cursor](https://www.cursor.com/)                                      | AI-powered code editor              |
 | [draw.io Desktop](https://www.diagrams.net/)                           | Diagram editor                      |

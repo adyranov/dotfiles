@@ -115,8 +115,7 @@ const DCG_BYPASS_AT_BOOT =
   !process.env.AGENT_SANDBOX &&
   bootWriteProbeOk();
 // The agent's transcript is the only audit trail of a bypassed session
-// (no DCG history, no nono log), so announce the bypass in-band, once,
-// mirroring the missing-binary warning below.
+// (no DCG history, no nono log), so announce the bypass in-band, once.
 if (DCG_BYPASS_AT_BOOT) {
   console.error("[dcg] guard bypassed at boot (DCG_BYPASS); commands are not checked");
 }
@@ -169,8 +168,9 @@ function dcgBlockReason(command, cwd) {
     break;
   }
   if (!result) {
-    console.error("[dcg] pinned binary not found; command allowed (permissive missing-binary mode)");
-    return null;
+    // Fail closed: an armed guard with no startable binary cannot verify the
+    // command; the host escape is the boot-bypass early return, never this path.
+    return "Blocked by DCG: no candidate dcg binary could be started (fail-closed). Operator terminal: install/repair dcg, e.g. mise install github:Dicklesworthstone/destructive_command_guard";
   }
   const line = String(result.stdout || "").trim().split("\n")[0];
   let verdict = null;

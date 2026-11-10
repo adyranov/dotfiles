@@ -37,7 +37,15 @@ command_sandbox_read = [
   "~/.local/share/mise/installs",
   "~/.local/share/mise/installs/**"
 ]
-command_sandbox_read_file = ["/dev/autofs_nowait", "/dev/dtracehelper"]
+command_sandbox_read_file = [
+  "/dev/autofs_nowait",
+  "/dev/dtracehelper",
+  # chezmoi spawns git for repo discovery inside its own sandbox: an
+  # unreadable system/global config chain makes chezmoi auto-init (running
+  # the run_once scripts on every invocation), so the chain rides here.
+  "/etc/gitconfig",
+  "git_config_chain"
+]
 # chezmoi's config AND persistent-state boltdb live in ~/.config/chezmoi. The
 # write grant lives ONLY here — the command sandbox replaces the session tier
 # for chezmoi invocations, so in-sandbox `chezmoi diff` keeps its state lock
@@ -45,6 +53,49 @@ command_sandbox_read_file = ["/dev/autofs_nowait", "/dev/dtracehelper"]
 # a session-writable state DB lets an agent poison apply bookkeeping
 # (silently-skipped changed files) — an apply-boundary bypass (U2).
 command_sandbox_write = ["~/.cache/chezmoi", "~/.config/chezmoi"]
+
+[ai.base.permissions.apply.sandbox.brew]
+# Read-only brew introspection (list/info/missing) so agents can report install
+# state. Installs stay user-terminal: no network section (the mediated proxy
+# grants the command no egress, blocking auto-update/install) and the prefix is
+# read-granted only, so mutating subcommands die at the fs/egress floor (DCG's
+# package_managers pack is the prompt layer on top). brew is a symlink-to-file
+# chain (/usr/local/bin/brew -> Homebrew/bin/brew, ruby shebang), so the shim
+# rides fs_read_file and the interpreter rides the seatbelt exec rules
+# (can_use is only for policy-anchored child commands; ruby has no entry).
+fs_read = [
+  ".",
+  "core_unix",
+  "agents_scratch",
+  "/Library/Preferences/Logging",
+  "/usr/local",
+  "/opt/homebrew",
+  "~/Library/Application Support/Homebrew",
+  "~/Library/Caches/Homebrew"
+]
+fs_read_file = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+fs_write = [
+  "tmp_workspace",
+  "agents_scratch",
+  "/private/var/folders"
+]
+fs_write_file = ["dtrace_helper_file"]
+# Linux parity for the same child execs (dropped on macOS, where the seatbelt
+# subpaths carry them); /home/linuxbrew covers Linuxbrew installs.
+exec_paths = [
+  "/bin",
+  "/home/linuxbrew/.linuxbrew/bin",
+  "/opt/homebrew/bin",
+  "/usr/bin",
+  "/usr/local/Homebrew/bin"
+]
+unsafe_macos_seatbelt_rules = [
+  # brew's entry chain is bash -> readlink/env -> ruby, spawning system
+  # utilities per subshell. Mirror the chezmoi entry's carve: /bin and /usr/bin
+  # subpaths (the agent session already execs them — no new authority).
+  "(allow process-exec* (subpath \"/bin\"))",
+  "(allow process-exec* (subpath \"/usr/bin\"))"
+]
 
 # Per-command command-sandbox overrides keyed by command name (unlisted names
 # keep the default ["."]). The ["."] default is fatal for git (dies reading
@@ -89,14 +140,14 @@ fs_write_file = ["dtrace_helper_file"]
 # replaces the session grants: ungranted, every HTTPS op dies with
 # "error setting certificate verify locations" (measured, nono 0.79.0).
 # The git config chain rides the per-file key (system config is under
-# /private/etc, in core_unix). Credentials are deliberately absent: the
+# /private/etc, in core_unix). The include closure rides the git_config_chain
+# group; `local` rides for later creation (grants are startup-frozen; a new
+# file lands on the next launch). Credentials are deliberately absent: the
 # command sandbox is default-deny, so the store stays unreachable by omission
 # (render-nono-cmd has no fs_deny pass-through; mirror git_gh_creds only if
 # nono ever grants credential paths by default).
 fs_read_file = [
-  "~/.config/git/config",
-  "~/.config/git/ignore",
-  "~/.gitconfig",
+  "git_config_chain",
   "ca_bundle"
 ]
 # The macOS child-exec gate takes literal canonical paths only (no globs) and
@@ -161,6 +212,14 @@ deny = [
   "aws * create-access-key *",
   "aws * get-secret-value *",
   "az keyvault secret show *",
+  # Package removal is closed for sandboxed agents (the user terminal is
+  # unaffected; DCG prompts gate it there). These forms also anchor brew to the
+  # mediation shim, activating the read-only sandbox.brew tier for every other
+  # brew invocation.
+  "brew remove",
+  "brew remove *",
+  "brew uninstall",
+  "brew uninstall *",
   "bun login",
   "bun login *",
   "bun logout",
@@ -414,6 +473,22 @@ db_client_secrets = ["~/.config/pg/pgpass", "~/.pgpass"]
 dtrace_helper_file = ["/dev/dtracehelper"]
 dcg_state = ["~/Library/Application Support/dcg/**", "~/.config/dcg/**"]
 engram = ["~/.local/share/engram"]
+# Git global-config include closure: an unreadable include is fatal for git,
+# not a skip. Rides the per-file keys of every command sandbox that spawns git.
+git_config_chain = [
+  "~/.config/git/base",
+  "~/.config/git/catppuccin.gitconfig",
+  "~/.config/git/color",
+  "~/.config/git/config",
+  "~/.config/git/diff",
+  "~/.config/git/ignore",
+  "~/.config/git/local",
+  "~/.config/git/tools",
+  "~/.config/git/user",
+  "~/.config/git/work",
+  "~/.config/git/work-user",
+  "~/.gitconfig"
+]
 git_gh_creds = [
   "~/.config/gh/hosts.yml",
   "~/.config/git/credentials",

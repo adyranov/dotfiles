@@ -16,5 +16,8 @@ echo "  ↳ Ensuring all required tools are present."
 # skypilot) must build from source, which needs cargo.
 mise install -y rust 2>/dev/null || true
 mise install -y
+# Prune tools no longer in config (routing changes leave stale installs+shims
+# behind, e.g. chezmoi when Intel routes chezmoi to MacPorts).
+mise prune -q -y
 echo "✅ mise toolchains installed."
 {{- end }}

@@ -2,9 +2,8 @@
 // agent writes to this file on macOS; on Linux keep this file out of
 // agent-writable trees). Routes every command-executing tool call
 // (bash, eval, computer — oh-my-pi v18.7.0 registry) through
-// `dcg hook --robot --batch` before execution. The mise-pinned dcg binary is
-// resolved at spawn time; a missing binary degrades permissively, a
-// dcg that runs but yields no verdict fails closed. Approval is
+// `dcg hook --robot --batch` before execution. An unstartable dcg binary or
+// a missing verdict fails closed. Approval is
 // operator-side only; the single-source approval guidance line is in the
 // core below (allow-once is inert in-sandbox: the store is read-only and
 // DCG fails closed on it).
