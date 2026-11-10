@@ -2,9 +2,9 @@
 // agent writes to this file on macOS; on Linux keep this file out of
 // agent-writable trees). Routes every OpenCode bash/shell tool
 // call through `dcg hook --robot --batch` before execution. The default
-// export carries both host contracts (v1 `server`, v2 `setup`). A missing
-// binary degrades permissively; a dcg that runs without a verdict fails
-// closed. Approval is operator-side only; the single-source approval
+// export carries both host contracts (v1 `server`, v2 `setup`). An unstartable
+// binary or a missing verdict fails closed. Approval is operator-side only;
+// the single-source approval
 // guidance line is in the core below.
 {{ (includeTemplate "base/ai/security/dcg-guard-core") | trim }}
 

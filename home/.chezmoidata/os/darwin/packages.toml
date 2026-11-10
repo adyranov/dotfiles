@@ -31,4 +31,5 @@ docker-compose = { package = "docker-compose-plugin" }
 gocryptfs = { package = "gocryptfs" }
 opensc = { bin = "opensc-tool" }
 pam-u2f = { bin = "pamu2fcfg" }
-ykman = { package = "yubikey-manager" }
+ykman = { exclude_arch = ["arm64"], package = "yubikey-manager" }
+ykman-arm64 = { bin = "ykman", exclude_arch = ["amd64"], manager = "brew", package = "ykman" }

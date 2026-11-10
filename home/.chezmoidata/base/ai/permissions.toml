@@ -6,17 +6,19 @@
 # denies covered by nono's built-in groups are pruned; **/ globs survive.
 # This is the only command-deny store (DCG owns the destructive-but-normal set).
 
-# In-sandbox targeted `chezmoi apply` allowlist; the list *is* the grant set:
-# session write grants (render-nono-fs, file-granular) plus chezmoi's
-# command-sandbox lists (render-nono-cmd, destination-PARENT-dir granular —
-# nono accepts only DIRECTORIES there; a file entry policy-denies the whole
-# invocation). apply-dest-guard refuses globs, relative paths, and entries
-# equal to, an ancestor of, or a descendant of a protected root. Widening is
-# the user's audit-loop data edit plus a terminal apply.
+# The chezmoi command sandbox: the fs lists that REPLACE the session filesystem
+# grants for `chezmoi` runs (nono accepts only DIRECTORIES in fs_read/fs_write;
+# a file entry policy-denies the whole invocation — single files ride the
+# *_file keys). It exists for in-sandbox source inspection: `chezmoi diff`,
+# `chezmoi cat`, `chezmoi execute-template`. Applying to the live home is
+# user-terminal-only and no destination write grant exists here — its
+# effective in-sandbox behavior is host-test evidence, not asserted by this
+# data. sandbox-grant-guard validates every list below (its docstring is the
+# contract).
 [ai.base.permissions.apply]
 # The command sandbox replaces the session filesystem grants for chezmoi:
-# read = state/cache + source dir + destination PARENT dirs; write = state +
-# cache + parents (file-granular containment stays in the session tier).
+# read = state/cache + source dir; write = state + cache (file-granular
+# containment stays in the session tier).
 # Broad parents are refused at render: they re-open the credential deny
 # groups under them (`~/.config`: gh hosts.yml, git credentials, configstore,
 # pgpass; `~/.local/share`: amazon/azure/engram state).
@@ -35,18 +37,70 @@ command_sandbox_read = [
   "~/.local/share/mise/installs",
   "~/.local/share/mise/installs/**"
 ]
-command_sandbox_read_file = ["/dev/autofs_nowait", "/dev/dtracehelper"]
+command_sandbox_read_file = [
+  "/dev/autofs_nowait",
+  "/dev/dtracehelper",
+  # chezmoi spawns git for repo discovery inside its own sandbox: an
+  # unreadable system/global config chain makes chezmoi auto-init (running
+  # the run_once scripts on every invocation), so the chain rides here.
+  "/etc/gitconfig",
+  "git_config_chain"
+]
+# chezmoi's config AND persistent-state boltdb live in ~/.config/chezmoi. The
+# write grant lives ONLY here — the command sandbox replaces the session tier
+# for chezmoi invocations, so in-sandbox `chezmoi diff` keeps its state lock
+# and cache writes while the session tier is read-only (sandbox_read_base):
+# a session-writable state DB lets an agent poison apply bookkeeping
+# (silently-skipped changed files) — an apply-boundary bypass (U2).
 command_sandbox_write = ["~/.cache/chezmoi", "~/.config/chezmoi"]
-# Empty by design: every seed is content the USER's unsandboxed tooling
-# executes next (git aliases/hooksPath, mise [tasks]/env) — a write path from
-# the agent into the user's exec surface. Adding one is a per-path user
-# decision, never a default.
-destinations = []
+
+[ai.base.permissions.apply.sandbox.brew]
+# Read-only brew introspection (list/info/missing) so agents can report install
+# state. Installs stay user-terminal: no network section (the mediated proxy
+# grants the command no egress, blocking auto-update/install) and the prefix is
+# read-granted only, so mutating subcommands die at the fs/egress floor (DCG's
+# package_managers pack is the prompt layer on top). brew is a symlink-to-file
+# chain (/usr/local/bin/brew -> Homebrew/bin/brew, ruby shebang), so the shim
+# rides fs_read_file and the interpreter rides the seatbelt exec rules
+# (can_use is only for policy-anchored child commands; ruby has no entry).
+fs_read = [
+  ".",
+  "core_unix",
+  "agents_scratch",
+  "/Library/Preferences/Logging",
+  "/usr/local",
+  "/opt/homebrew",
+  "~/Library/Application Support/Homebrew",
+  "~/Library/Caches/Homebrew"
+]
+fs_read_file = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+fs_write = [
+  "tmp_workspace",
+  "agents_scratch",
+  "/private/var/folders"
+]
+fs_write_file = ["dtrace_helper_file"]
+# Linux parity for the same child execs (dropped on macOS, where the seatbelt
+# subpaths carry them); /home/linuxbrew covers Linuxbrew installs.
+exec_paths = [
+  "/bin",
+  "/home/linuxbrew/.linuxbrew/bin",
+  "/opt/homebrew/bin",
+  "/usr/bin",
+  "/usr/local/Homebrew/bin"
+]
+unsafe_macos_seatbelt_rules = [
+  # brew's entry chain is bash -> readlink/env -> ruby, spawning system
+  # utilities per subshell. Mirror the chezmoi entry's carve: /bin and /usr/bin
+  # subpaths (the agent session already execs them — no new authority).
+  "(allow process-exec* (subpath \"/bin\"))",
+  "(allow process-exec* (subpath \"/usr/bin\"))"
+]
 
 # Per-command command-sandbox overrides keyed by command name (unlisted names
 # keep the default ["."]). The ["."] default is fatal for git (dies reading
 # ~/.config/git/config; cannot write worktrees, hook caches, TMPDIR) and mise
-# (cannot exec its own binary). apply-dest-guard validates every list.
+# (cannot exec its own binary).
 [ai.base.permissions.apply.sandbox.git]
 # Empirically tested (nono 0.79.0, macOS): `git status` rc 0 from the repo
 # cwd; re-run that probe in the user terminal after touching this list.
@@ -86,14 +140,14 @@ fs_write_file = ["dtrace_helper_file"]
 # replaces the session grants: ungranted, every HTTPS op dies with
 # "error setting certificate verify locations" (measured, nono 0.79.0).
 # The git config chain rides the per-file key (system config is under
-# /private/etc, in core_unix). Credentials are deliberately absent: the
+# /private/etc, in core_unix). The include closure rides the git_config_chain
+# group; `local` rides for later creation (grants are startup-frozen; a new
+# file lands on the next launch). Credentials are deliberately absent: the
 # command sandbox is default-deny, so the store stays unreachable by omission
 # (render-nono-cmd has no fs_deny pass-through; mirror git_gh_creds only if
 # nono ever grants credential paths by default).
 fs_read_file = [
-  "~/.config/git/config",
-  "~/.config/git/ignore",
-  "~/.gitconfig",
+  "git_config_chain",
   "ca_bundle"
 ]
 # The macOS child-exec gate takes literal canonical paths only (no globs) and
@@ -158,14 +212,23 @@ deny = [
   "aws * create-access-key *",
   "aws * get-secret-value *",
   "az keyvault secret show *",
+  # Package removal is closed for sandboxed agents (the user terminal is
+  # unaffected; DCG prompts gate it there). These forms also anchor brew to the
+  # mediation shim, activating the read-only sandbox.brew tier for every other
+  # brew invocation.
+  "brew remove",
+  "brew remove *",
+  "brew uninstall",
+  "brew uninstall *",
   "bun login",
   "bun login *",
   "bun logout",
   "bun logout *",
   # Global-apply forms, enumerated from `chezmoi apply --help`. A POSITIONAL
-  # apply (`chezmoi apply <path>`) is deliberately absent: the filesystem axis
-  # grants it, and the trailing-flag positional form (`<path> --force`) is
-  # unexpressible in the argv matcher, so the command sandbox confines it.
+  # apply (`chezmoi apply <path>`) is deliberately absent: the trailing-flag
+  # positional form (`<path> --force`) is unexpressible in the argv matcher,
+  # and the chezmoi command sandbox confines it — its write list carries no
+  # home destination (see [ai.base.permissions.apply] above).
   "chezmoi --destination *",
   "chezmoi --exclude *",
   "chezmoi --force *",
@@ -192,8 +255,17 @@ deny = [
   "chezmoi apply -x *",
   # Update/clone-and-apply forms: they clone/pull a source tree and apply it
   # globally, so no destination allowlist bounds them.
+  # Bare `init` writes the chezmoi CONFIG dir (outside every apply confine)
+  # and `state` mutates the persistent boltdb in ~/.config/chezmoi — poisoned
+  # state makes the user's apply silently skip changed files. Both bypass the
+  # apply boundary, so the whole forms are core-denied (U2); the --apply/-a
+  # and update/up rows above stay as pinned history.
+  "chezmoi init",
+  "chezmoi init *",
   "chezmoi init --apply *",
   "chezmoi init -a *",
+  "chezmoi state",
+  "chezmoi state *",
   "chezmoi up *",
   "chezmoi update *",
   "diskutil eraseDisk *",
@@ -255,11 +327,6 @@ deny = [
 ]
 
 [ai.base.permissions.filesystem]
-# The engram memory store is neither base-granted nor base-denied: agents that
-# run the engram MCP (opencode, omp) grant ~/.local/share/engram in their own
-# sandbox profiles. A base deny would be unopenable for those MCP children
-# (deny beats grants across extends); a base grant would expose the shared
-# store to every session.
 # shortcut: Linux DCG hook write-denials stay data-absent — a deny of the hook files kills the runtime's own startup reads (no deny-within-allow on Linux); macOS rides the seatbelt write-denies; upgrade when nono supports per-operation denies on Linux.
 deny = [
   "ai_provider_creds",
@@ -280,24 +347,34 @@ deny = [
   "service_creds",
   "shell_history",
   "ssh",
-  "terraform_state"
+  "terraform_state",
+  "tmux_state"
 ]
 # dcg_state is a READ-tier carve-out, not a deny: agents read DCG stores,
 # writes are denied (deny would also kill the reads the allowlist-edit
 # remediation needs). The allow-once store stays unwritable on purpose: the
 # hooks never set DCG_ALLOW_ONCE_PATH and DCG fails closed on the read-only
 # default store (every block stands).
-read = ["dcg_state", "pre_commit_cache", "sandbox_macos", "sandbox_macos_root", "sandbox_read_base"]
+read = [
+  "dcg_state",
+  "pre_commit_cache",
+  "sandbox_macos",
+  "sandbox_macos_root",
+  "sandbox_read_base"
+]
 write = [
   "build_caches",
   "pre_commit_cache",
-  "sandbox_macos",
+  "sandbox_macos_write_caches",
   "sandbox_write_base",
   "sandbox_write_specific"
 ]
-unix_socket_subtree = ["~/.local/share/tmux"]
+unix_socket_subtree = []
 
 [ai.base.permissions.filesystem.paths]
+# SSH ControlMaster socket dir: the AGENT-tier deny key (shared.toml), so the
+# merged profile can carry the user-approved exact-socket grant + bypass.
+agent_ssh_sockets = ["~/.local/share/ssh/sockets", "~/.local/share/ssh/sockets/*"]
 # Shared command-sandbox groups (referenced by apply.sandbox.* fs lists):
 # recurring macOS system reads, the agents scratch dir, the cwd+TMPDIR work
 # pair, and the dtrace probe device every macOS binary writes.
@@ -358,8 +435,6 @@ build_caches = [
   "~/.cargo/registry",
   "~/.local/state/npm"
 ]
-# Path of the rendered CA bundle (GIT_SSL_CAINFO); source of truth is
-# private_dot_config/exact_shell/exact_exports.d/ca-bundle.sh.tmpl — bump together.
 ca_bundle = ["~/.config/certificates/ca-bundle.pem"]
 cert_key_binaries = [
   "**/*.jks",
@@ -398,6 +473,22 @@ db_client_secrets = ["~/.config/pg/pgpass", "~/.pgpass"]
 dtrace_helper_file = ["/dev/dtracehelper"]
 dcg_state = ["~/Library/Application Support/dcg/**", "~/.config/dcg/**"]
 engram = ["~/.local/share/engram"]
+# Git global-config include closure: an unreadable include is fatal for git,
+# not a skip. Rides the per-file keys of every command sandbox that spawns git.
+git_config_chain = [
+  "~/.config/git/base",
+  "~/.config/git/catppuccin.gitconfig",
+  "~/.config/git/color",
+  "~/.config/git/config",
+  "~/.config/git/diff",
+  "~/.config/git/ignore",
+  "~/.config/git/local",
+  "~/.config/git/tools",
+  "~/.config/git/user",
+  "~/.config/git/work",
+  "~/.config/git/work-user",
+  "~/.gitconfig"
+]
 git_gh_creds = [
   "~/.config/gh/hosts.yml",
   "~/.config/git/credentials",
@@ -515,9 +606,10 @@ project_secrets = [
   "**/.envrc.secret",
   "**/.htpasswd"
 ]
-# App-support paths agents read and write. No bare `~/Library` (recursive
-# write over the whole macOS user tree); no LaunchAgents keys (launch_agents
-# denies them and deny-over-grant kills the reads).
+# App-support paths agents READ. No bare `~/Library` (recursive write over the
+# whole macOS user tree); no LaunchAgents keys (launch_agents denies them and
+# deny-over-grant kills the reads). Writes live in sandbox_macos (runtime
+# caches only, below).
 sandbox_macos = [
   "~/Library/Application Support",
   "~/Library/Application Support/Code",
@@ -528,37 +620,34 @@ sandbox_macos = [
   "~/Library/Application Support/Cursor/User",
   "~/Library/Application Support/Cursor/User/keybindings.json",
   "~/Library/Application Support/Cursor/User/settings.json",
-  "~/Library/Caches/go-build",
-  "~/Library/Caches/node-gyp",
   "~/Library/Fonts",
   "~/Library/Scripts",
   "~/Library/Scripts/setenv.sh"
 ]
-# Bare ~/Library is READ-only: tools probe app-support layouts at boot; the
-# write tier dropped it (see sandbox_macos).
+# Bare ~/Library is READ-only: tools probe app-support layouts at boot.
 sandbox_macos_root = ["~/Library"]
+# Runtime-write lane of the app-support paths: build caches only (the macOS
+# twins of build_caches' ~/.cache entries).
+sandbox_macos_write_caches = ["~/Library/Caches/go-build", "~/Library/Caches/node-gyp"]
 sandbox_read_base = [
   ".",
   "~/.agents",
   "~/.cache/chezmoi",
   "~/.config",
+  "~/.config/chezmoi",
   "~/.editorconfig",
   "~/.local/share",
   "~/.omlx"
 ]
 sandbox_write_base = [
+  # ~/.omlx: a managed symlink whose WRITES land in runtime state (omlx
+  # local-LLM tool state), not managed content — keep writable.
   ".",
-  "~/.agents",
   "~/.cache/chezmoi",
-  "~/.editorconfig",
   "~/.omlx"
 ]
 sandbox_write_specific = [
-  # Dir (not just the boltdb file): chezmoi opens its state dir for lock/temp
-  # files, so agents could not run `chezmoi diff` in-sandbox with a file grant.
-  "~/.config/chezmoi",
   "~/.local/share/dotfiles/test",
-  "~/.local/share/tmux",
   # mise trusts repo configs by writing symlinks under state (in-sandbox mise);
   # the trust store leaf itself is denied by render-nono-fs (self-trust defeat).
   "~/.local/state/mise"
@@ -616,6 +705,11 @@ terraform_state = [
 ]
 # `$TMPDIR` is the render-time sentinel (expand-tmpdir); "." is the cwd.
 tmp_workspace = ["$TMPDIR", "."]
+# Host tmux server socket dir (base deny; unopenable by agent grants — the
+# point is host tmux stays unreachable). tmux nests tmux-<uid>/default under
+# TMUX_TMPDIR; on macOS the dir deny emits a recursive seatbelt subpath for
+# network-outbound, so the nested CONNECT is covered by the dir key.
+tmux_state = ["~/.local/share/tmux", "~/.local/share/tmux/*"]
 
 [ai.base.permissions.network.allow_domain]
 agent_search_providers = [

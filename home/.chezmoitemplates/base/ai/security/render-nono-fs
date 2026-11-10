@@ -1,26 +1,18 @@
 {{- /* render-nono-fs — Build the base nono filesystem section from the permission data.
-  Usage: {{ includeTemplate "base/ai/security/render-nono-fs" (dict "root" . "applyDests" $dests) | mustFromJson }}
-  applyDests (required): the render-apply-dests output list, computed ONCE per
-  base render by render-nono-profile (the guard chain runs one time, not per
-  consumer; fail-propagation is identical).
-  Output: JSON { allow, read, write, deny, unix_socket_subtree }
+  Usage: {{ includeTemplate "base/ai/security/render-nono-fs" (dict "root" .) | mustFromJson }}
+  Output: JSON { allow, read, write, deny } plus unix_socket_subtree only
+  when the data grants sockets (empty data key emits nothing).
   Input: ai.permissions.filesystem { read, write, deny, unix_socket_subtree } —
   read/write/deny list path-group names expanded from filesystem.paths.
   Full r+w = every write-group path (nono "allow" is read+write); read-only =
   read-group paths with no write group; tier pipeline in build-fs-tiers. Deny
   carries "~/.config/nono" and its profiles children so an agent cannot edit
-  its own (or the base) profile and escalate on relaunch. Apply-allowlist
-  destinations join the write tier: a destination is applicable if and only
-  if it is granted.
+  its own (or the base) profile and escalate on relaunch.
 */ -}}
 {{- $root := index . "root" -}}
 {{- $fs := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem" "required" true) | mustFromJson) -}}
 {{- $read := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $fs "read" | default list)) | mustFromJson -}}
 {{- $write := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $fs "write" | default list)) | mustFromJson -}}
-{{- /* The allowlist is the grant set; render-apply-dests refused protected/glob/relative. */ -}}
-{{- $dests := index . "applyDests" -}}
-{{- if not (kindIs "slice" $dests) -}}{{- fail "render-nono-fs: applyDests arg (render-apply-dests output list) is required; render-nono-profile computes it once per base render" -}}{{- end -}}
-{{- $write = concat $write $dests -}}
 {{- $deny := includeTemplate "base/ai/security/expand-path-groups" (dict "root" $root "groups" (index $fs "deny" | default list)) | mustFromJson -}}
 {{- /* Deny the nono profile dir so an agent cannot escalate via its own
   profile. A dir-literal deny covers the dir only, so children ride their own
@@ -32,14 +24,22 @@
   and trust lands as links under the granted state parent, so a direct write
   is self-trust — repo mise [tasks] execute on the next mise run. dir+`*`
   keys (share root rides for pre-v6 mise). Renderer-side, NOT a data deny
-  group: expanded deny groups join apply-dest-guard's protected floor, and
+  group: expanded deny groups join sandbox-grant-guard's protected floor, and
   the legitimate mise dir grants contain these leaves — the guard refuses
-  dir grants containing protected roots. */ -}}
+  dir grants containing protected roots. macOS: nono canonicalizes deny
+  globs' matches, so `*` denies the trust LINKS' TARGETS — the
+  `Users-adyranov -> $HOME` record became a home-wide file-read-data deny
+  (sandboxed agent launch died); the seatbelt dir deny is recursive, so the
+  glob is redundant there. Linux: Landlock dir denies cover the dir only,
+  children need the `*` key. */ -}}
 {{- $deny = concat $deny (list
   "~/.local/state/mise/trusted-configs"
+  "~/.local/share/mise/trusted-configs") -}}
+{{- if ne $root.chezmoi.os "darwin" -}}
+{{- $deny = concat $deny (list
   "~/.local/state/mise/trusted-configs/*"
-  "~/.local/share/mise/trusted-configs"
   "~/.local/share/mise/trusted-configs/*") -}}
+{{- end -}}
 {{- /* Base also honors the agents' overlay hook reads: an overlay cannot subtract a
   base allow (realpath-aware: the ~/.pi symlink into ~/.config/pi silently shadowed
   the pi hook carve-out). */ -}}
@@ -48,10 +48,12 @@
 {{- $extraCarve := list -}}
 {{- range $name, $a := $agents -}}{{- if eq (kindOf $a) "map" -}}{{- $extraCarve = concat $extraCarve (includeTemplate "base/ai/security/resolve-path-refs" (dict "root" $root "refs" (dig "sandbox" "filesystem" "read" list $a) "catalogJson" $fsCatalog) | mustFromJson) -}}{{- end -}}{{- end -}}
 {{- $tiers := includeTemplate "base/ai/security/build-fs-tiers" (dict "root" $root "read" $read "write" $write "deny" $deny "extraCarve" $extraCarve) | mustFromJson -}}
-{{- dict
+{{-   $out := dict
   "allow" (index $tiers "allow")
   "read" (index $tiers "read")
   "write" (list)
   "deny" (index $tiers "deny")
-  "unix_socket_subtree" (includeTemplate "base/ai/security/uniq-sort" (index $fs "unix_socket_subtree" | default list) | mustFromJson)
-| toJson -}}
+-}}
+{{- $sockets := index $fs "unix_socket_subtree" | default list -}}
+{{- if $sockets -}}{{- $_ := set $out "unix_socket_subtree" (includeTemplate "base/ai/security/uniq-sort" $sockets | mustFromJson) -}}{{- end -}}
+{{- $out | toJson -}}

@@ -147,43 +147,7 @@ setup_file() {
   assert_output --partial "session-123"
 }
 
-# bats test_tags=toolchain:pi,kind:launcher
-@test "agent pi --profile selects in both positions, prompts reach pi verbatim" {
-  local mock="$BATS_TEST_TMPDIR/bin"
-  mkdir -p "$mock"
-  setup_mock_bins "$mock" curl nc nono git engram pkill pgrep
-  cat >"$mock/pi" <<'EOF'
-#!/usr/bin/env sh
-echo "PROFILE=${PI_CODING_AGENT_DIR:-unset}"
-echo "ARGS=$*"
-EOF
-  chmod +x "$mock/pi"
-
-  # Pre-name and post-name flag forms select the profile; the quoted prompt
-  # is the binary's entire argv (the R6 prompt-safety headline).
-  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" --profile core pi "Hi there"
-  assert_success
-  assert_output --partial "PROFILE=$HOME/.config/pi/profiles/core"
-  assert_output --partial "ARGS=Hi there"
-  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" pi --profile core "Hi there"
-  assert_success
-  assert_output --partial "PROFILE=$HOME/.config/pi/profiles/core"
-  assert_output --partial "ARGS=Hi there"
-
-  # Unknown names die; after `--` flags and profile words reach pi verbatim.
-  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" pi --profile bogus
-  assert_failure
-  assert_output --partial "Unknown profile: bogus"
-  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" pi --profile core -- --weird-flag x
-  assert_success
-  assert_output --partial "ARGS=--weird-flag x"
-  run env $(scratch_env) PATH="$mock:$PATH" "$HOME/.local/bin/agent" pi -- factory
-  assert_success
-  assert_output --partial "ARGS=factory"
-  refute_output --partial "profiles/core"
-}
-
-# bats test_tags=toolchain:pi,kind:launcher
+# bats test_tags=toolchain:pi,kind:config
 @test "agent pi --print-env takes --profile, seeds from pre-name, dies on typos" {
   launcher_probe pi --print-env --profile minimal
   assert_output --partial 'PI_CODING_AGENT_DIR="/fixture-home/.config/pi/agent"'
@@ -193,10 +157,9 @@ EOF
     "$HOME/.local/bin/agent" --profile core pi --print-env
   assert_success
   assert_output --partial 'PI_CODING_AGENT_DIR="/fixture-home/.config/pi/profiles/core"'
-  # Flag-shaped garbage fails loudly: nonzero, names the arg, no env printed.
+  # Flag-shaped garbage dies: no env is printed at all.
   run "$HOME/.local/bin/agent" pi --print-env --typo
   assert_failure
-  assert_output --partial "unknown argument --typo"
   refute_output --partial "ENGRAM_URL"
 }
 
@@ -230,37 +193,6 @@ EOF
     "$proj" "$HOME/.local/bin/agent" pi -c session-outside
   assert_failure
   assert_output --partial "Not inside a git worktree"
-}
-
-# bats test_tags=toolchain:pi,kind:launcher
-# Exercises bootstrap_scratch against a Bats-owned root; it never mutates the
-# live agent scratch directory.
-@test "agent pi rejects symlinks and normalizes scratch modes" {
-  scratch_root="$BATS_TEST_TMPDIR/agents"
-  mkdir -m 700 -p "$scratch_root"
-  mkdir -p "$BATS_TEST_TMPDIR/bin"
-  setup_mock_bins "$BATS_TEST_TMPDIR/bin"
-  cat >"$BATS_TEST_TMPDIR/bin/pi" <<'EOF'
-#!/usr/bin/env sh
-echo "launched"
-EOF
-  chmod +x "$BATS_TEST_TMPDIR/bin/pi"
-
-  # Symlinked scratch dir must fail closed.
-  ln -s /tmp "$scratch_root/pi"
-  run env $(scratch_env) AGENT_LAUNCH_TEST_SCRATCH_ROOT="$scratch_root" PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/agent" pi minimal -c session-1
-  assert_failure
-  assert_output --partial "symlink"
-
-  # Existing permissive modes are repaired for the invoking user.
-  rm -f "$scratch_root/pi"
-  mkdir "$scratch_root/pi"
-  chmod 755 "$scratch_root" "$scratch_root/pi"
-  run env $(scratch_env) AGENT_LAUNCH_TEST_SCRATCH_ROOT="$scratch_root" PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/agent" pi minimal -c session-2
-  assert_success
-  assert_output --partial "launched"
-  assert_scratch_mode_0700 "$scratch_root"
-  assert_scratch_mode_0700 "$scratch_root/pi"
 }
 
 # bats test_tags=toolchain:pi,kind:launcher

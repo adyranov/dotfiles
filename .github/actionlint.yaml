@@ -1,0 +1,7 @@
+# actionlint v1.7.12 (latest upstream) embeds a runner-label list predating the
+# GitHub-hosted `ubuntu-26.04` label and has no runtime label fetch, so declare
+# the label in this config (the key is `self-hosted-runner`; the underscore
+# spelling is silently ignored). Drop once actionlint's list includes the label.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

@@ -22,13 +22,14 @@ unsafe_macos_seatbelt_rules = [
 # and crashes without ("closed stdout before responding") — all three agents
 # run the codegraph server, so it lives here once.
 write = ["**/.codegraph/**", "**/.slim/worktrees/**", "~/.codegraph"]
-# SSH reuse lane: the user's ControlMaster sockets (ControlPath
-# ${SSH_DATA_HOME}/sockets/%C); agents ride an existing master over this dir
-# (no raw egress, no key reads — the ~/.ssh deny floor stays intact).
-# Accepted: masters are secret-bearing (a live socket opens channels on the
-# user's authenticated connections); the intended consumer is git-over-ssh
-# over an existing master.
-unix_socket_subtree = ["~/.local/share/ssh/sockets"]
+# No blanket SSH socket grant: the agent tier denies the ControlMaster socket
+# DIR (agent_ssh_sockets); a socket opens only via the SAME exact path in both
+# sandbox.filesystem.unix_socket AND bypass_protection — the bypass pierces
+# THIS agent-tier deny (a base-tier deny is unopenable). User flow, ordering,
+# delegated-authority risk and revocation: README "SSH reuse" (ControlMaster
+# baseline: ssh config.d git.conf). ssh -O stop on an approved master only
+# stops accepting new multiplexing; -O exit ends the master.
+deny = ["agent_ssh_sockets"]
 
 [ai.base.agents.shared.sandbox.network]
 allow = [{ host = "infer01" }]

@@ -1,5 +1,5 @@
 {{- /* python-anchor — Shared realpath-anchor python fragment for the render-time
-  guards (apply-dest-guard's anchored()/glob_free_prefix(), filter-shadowed-allow's
+  guards (sandbox-grant-guard's anchored()/glob_free_prefix(), filter-shadowed-allow's
   anchor). Included by each script template; callers run the RENDERED script
   (`output python3 -c <rendered> <json>`), because the raw source carries this
   include. Input: dict "casefold" — true folds case on darwin (the guard: the

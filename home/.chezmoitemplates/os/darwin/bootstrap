@@ -20,6 +20,7 @@ echo "🧰 Upgrading casks…"
 brew upgrade --cask --greedy
 echo "🧹 Cleaning up…"
 brew cleanup
+brew autoremove
 {{- end }}
 echo "✅ Homebrew updated."
 {{- if $macportsEnabled }}
@@ -89,6 +90,9 @@ if [ -x {{ $macportsPath }}/bin/port ]; then
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
   echo "📦 Upgrading outdated ports…"
   sudo {{ $macportsPath }}/bin/port -N upgrade outdated
+  echo "🧹 Removing inactive port versions…"
+  # rc 1 = nothing matched (no inactive ports); not a failure.
+  sudo {{ $macportsPath }}/bin/port -N uninstall inactive || true
 {{- end }}
   echo "🧹 Reclaiming MacPorts disk space…"
   sudo {{ $macportsPath }}/bin/port -N clean installed

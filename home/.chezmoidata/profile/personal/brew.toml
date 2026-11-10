@@ -3,6 +3,7 @@ casks = [
   "anydesk",
   "brave-browser",
   "calibre",
+  "claude-code",
   "cryptomator",
   "cursor",
   "drawio",

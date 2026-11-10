@@ -6,6 +6,9 @@
 # set_runtime_env, list_profiles) — no templates, no data files.
 set -eu
 
+# Single uname spawn for the Linux gate and PATH parity.
+UNAME_S=$(uname -s)
+
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 ENGRAM_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/engram"
 ENGRAM_LOG="$ENGRAM_STATE/engram.log"
@@ -247,6 +250,33 @@ stat_field() {
   printf '%s\n' "$__v"
 }
 
+# requireOwner PATH LABEL LABEL_CAP UID / requireMode0700 PATH LABEL LABEL_CAP:
+# die strings are byte-pinned by the suites; LABEL is the lowercase mid-sentence
+# form, LABEL_CAP the sentence-initial form.
+requireOwner() {
+  __o=$(stat_field -f %u -c %u "$1")
+  case "$__o" in
+  '' | *[!0-9]*) die "Cannot determine $2 owner: $1" ;;
+  esac
+  [ "$__o" = "$4" ] || die "$3 owner mismatch: $1 (owner $__o)"
+}
+
+requireMode0700() {
+  __m=$(stat_field -f %Lp -c %a "$1")
+  case "$__m" in
+  '' | *[!0-9]*) die "Cannot determine $2 mode: $1" ;;
+  esac
+  [ "$((0$__m))" -eq $((0700)) ] || die "$3 is not private: $1 (mode $__m)"
+}
+
+# mkdirPrivate DIR LABEL LABEL_CAP: private root, symlink refused.
+mkdirPrivate() {
+  [ -L "$1" ] && die "$3 is a symlink: $1"
+  # shellcheck disable=SC2015  # die if either step fails (A && B || C intended)
+  mkdir -p "$1" 2>/dev/null && chmod 700 "$1" 2>/dev/null ||
+    die "Cannot create $2: $1"
+}
+
 # One env source for both paths: the runtime evals exactly what
 # --print-env prints (scrub loops, exports, profile env, ENGRAM trio).
 set_runtime_env() {
@@ -354,33 +384,15 @@ bootstrap_scratch() {
     die "Scratch dir resolves outside expected root: $_resolved"
 
   _uid=$(id -u)
-  _owner=$(stat_field -f %u -c %u "$_agents_root")
-  case "$_owner" in
-  '' | *[!0-9]*) die "Cannot determine scratch root owner: $_agents_root" ;;
-  esac
-  [ "$_owner" = "$_uid" ] || die "Scratch root owner mismatch: $_agents_root (owner $_owner)"
-
-  _owner=$(stat_field -f %u -c %u "$scratch_dir")
-  case "$_owner" in
-  '' | *[!0-9]*) die "Cannot determine scratch dir owner: $scratch_dir" ;;
-  esac
-  [ "$_owner" = "$_uid" ] || die "Scratch dir owner mismatch: $scratch_dir (owner $_owner)"
+  requireOwner "$_agents_root" "scratch root" "Scratch root" "$_uid"
+  requireOwner "$scratch_dir" "scratch dir" "Scratch dir" "$_uid"
 
   # Normalize inherited permissive modes before the exact-0700 check.
   chmod 700 "$_agents_root" "$scratch_dir" 2>/dev/null ||
     die "Cannot secure scratch directories"
 
-  _mode=$(stat_field -f %Lp -c %a "$_agents_root")
-  case "$_mode" in
-  '' | *[!0-9]*) die "Cannot determine scratch root mode: $_agents_root" ;;
-  esac
-  [ "$((0$_mode))" -eq $((0700)) ] || die "Scratch root is not private: $_agents_root (mode $_mode)"
-
-  _mode=$(stat_field -f %Lp -c %a "$scratch_dir")
-  case "$_mode" in
-  '' | *[!0-9]*) die "Cannot determine scratch dir mode: $scratch_dir" ;;
-  esac
-  [ "$((0$_mode))" -eq $((0700)) ] || die "Scratch dir is not private: $scratch_dir (mode $_mode)"
+  requireMode0700 "$_agents_root" "scratch root" "Scratch root"
+  requireMode0700 "$scratch_dir" "scratch dir" "Scratch dir"
 
   unset _agents_root _root_resolved _resolved _uid _owner _mode
 }
@@ -679,6 +691,18 @@ done
 # the sandboxed exec at the end) and runs before any state mutation.
 pwd_guard
 
+# Linux/WSL2 fail-closed gate: the DCG guard hooks render inside agent-writable
+# roots (the pi/omp agent-dir lockfile contract) and Landlock cannot express
+# deny-within-allow, so hook protection is unenforceable on this host. A plain
+# host --no-sandbox launch (zero enforcement) is the explicit debug remedy; a
+# nested one inherits the parent kernel sandbox.
+if [ "$UNAME_S" = Linux ] &&
+  { [ "$no_sandbox" != true ] || [ -n "${AGENT_SANDBOX:-}" ]; }; then
+  die "Refusing a guarded agent launch on Linux: the DCG guard hooks render inside agent-writable roots and Landlock cannot deny-within-allow, so hook protection cannot be enforced on this host.
+   Run guarded agents on macOS, or launch with an explicit --no-sandbox (debug only: no sandbox, no guards, REAL credentials in the agent env).
+    A nested launch inherits the parent kernel sandbox, so --no-sandbox stays refused there."
+fi
+
 set_runtime_env "$profile"
 
 # Named profile: export rides AFTER set_runtime_env (its scrub clears
@@ -743,13 +767,18 @@ export RTK_RECALL_DB="$scratch_dir/rtk/recall.db"
 export RTK_TEE_DIR="$scratch_dir/rtk/tee"
 unset scratch_dir
 
+# Agents never get a tmux server: host tmux is base-denied and no sandbox-local
+# socket dir is provisioned, so no tmux interaction is possible in any direction.
+# The TMUX scrub keeps an inherited host-session marker out of the agent env.
+unset TMUX
+
 # Sandbox PATH parity: the MacPorts `git` dies on a blocked dylib inside nono,
 # so /usr/bin first gives a working binary (the enforcement suite pins the
 # same PATH). This shadows mise shims by name; narrow to a git-only dir if a
 # hook needs a mise interpreter by bare name. Linux distros ship the system
 # binaries on the inherited PATH already, so the prepend is Darwin-only.
 # Host runs keep PATH.
-if [ "$(uname -s)" = Darwin ]; then
+if [ "$UNAME_S" = Darwin ]; then
   export PATH="/usr/bin:$PATH"
 fi
 

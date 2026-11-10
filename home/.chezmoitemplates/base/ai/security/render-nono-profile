@@ -17,16 +17,26 @@
   emitted darwin-only when non-empty (rules APPEND after the generated tiers,
   last-match-wins in nono 0.79.0; silently ignored on Linux, and honoured in
   user-authored profiles only).
+  unix_socket / bypass_protection pass-through: a leading `~/` in the data is
+  expanded to the canonical homeDir at render (nono silently drops connect
+  grants for sockets missing at launch, so a literal "~/" approval vanishes
+  without a trace).
+  OS gate: $os := dig "os" ... $root lets tests/fixtures override .os
+  (--override-data '{"os":"linux"}' / deep-copy-set-path); it drives the
+  seatbelt darwin gate and the AF_UNIX socket-key emission. Socket grants
+  render darwin-only: Linux pathname AF_UNIX mediation is off by default
+  (allowed host sockets stay reachable), and mediation-on allowed sockets carry
+  a documented seccomp-notify race (incl. the omp daemon socket) — the chosen
+  posture is fail-closed: no socket capabilities on non-darwin. Base gains
+  linux.af_unix_mediation = "pathname" on linux (default-deny mediation; WSL2
+  startup fails closed where seccomp-notify is unavailable).
 */ -}}
 {{- $root := index . "root" -}}
+{{- $os := dig "os" $root.chezmoi.os $root -}}
 {{- $agent := dig "agent" "" . -}}
 {{- if eq $agent "" -}}
-{{- /* Hoisted once per base render: the guard chain (2 python spawns) runs a
-  single time and both consumers take the passed list. Guard refusals
-  propagate identically (a fail in the include fails this render). */ -}}
-{{-   $applyDests := includeTemplate "base/ai/security/render-apply-dests" (dict "root" $root) | mustFromJson -}}
-{{-   $fs := includeTemplate "base/ai/security/render-nono-fs" (dict "root" $root "applyDests" $applyDests) | mustFromJson -}}
-{{-   $cmd := includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $root "applyDests" $applyDests) | mustFromJson -}}
+{{-   $fs := includeTemplate "base/ai/security/render-nono-fs" (dict "root" $root) | mustFromJson -}}
+{{-   $cmd := includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $root) | mustFromJson -}}
 {{-   $net := includeTemplate "base/ai/security/render-nono-net" (dict "root" $root) | mustFromJson -}}
 {{-   $creds := includeTemplate "base/ai/auth/render-credentials" $root | mustFromJson -}}
 {{-   $denyVars := $creds.secrets | default list -}}
@@ -41,12 +51,12 @@
   "environment" (dict "deny_vars" $denyVars)
   "diagnostics" (dict "redaction" (dict "extra_env_vars" (concat $wildcards $gap | uniq | sortAlpha)))
 -}}
+{{-   if eq $os "linux" -}}{{-   $_ := set $profile "linux" (dict "af_unix_mediation" "pathname") -}}{{- end -}}
 {{-   $profile | toPrettyJson -}}
 {{- else -}}
 {{- /* Shared baseline merge: load-section overwrites arrays per layer, so
   concat shared into the agent lists explicitly (network.allow dict entries
-  preserved); the uniq|sortAlpha tiers downstream dedupe. The per-agent
-  /tmp/agents/<agent> scratch pair is interpolated here, never stored in data. */ -}}
+  preserved); the uniq|sortAlpha tiers downstream dedupe. */ -}}
 {{-   $shared := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.shared.sandbox" "required" false) | mustFromJson) -}}
 {{-   $own := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" (printf "ai.agents.%s.sandbox" $agent) "required" false) | mustFromJson) -}}
 {{-   $fsData := dict -}}
@@ -58,14 +68,26 @@
 {{-     $seatbelt = concat $seatbelt (index $map "unsafe_macos_seatbelt_rules" | default list) -}}
 {{-   end -}}
 {{-   $scratch := printf "/tmp/agents/%s" $agent -}}
+{{-   $homeDir := trimSuffix "/" $root.chezmoi.homeDir -}}
+{{-   range $k := list "unix_socket" "bypass_protection" -}}
+{{-     $canon := list -}}
+{{-     range $e := (index $fsData $k | default list) -}}
+{{-       $canon = append $canon (ternary (printf "%s/%s" $homeDir (trimPrefix "~/" $e)) $e (hasPrefix "~/" $e)) -}}
+{{-     end -}}
+{{-     $_ := set $fsData $k $canon -}}
+{{-   end -}}
 {{-   $fsCatalog := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem.paths" "required" true) | mustFromJson) -}}
 {{-   $read := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $fsData "read" | default list) (list $scratch)) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
 {{-   $write := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $fsData "write" | default list) (list $scratch)) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
 {{-   $deny := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (index $fsData "deny" | default list) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
 {{-   $tiers := includeTemplate "base/ai/security/build-fs-tiers" (dict "root" $root "read" $read "write" $write "deny" $deny) | mustFromJson -}}
 {{-   $fs := dict "allow" (index $tiers "allow") "read" (index $tiers "read") "deny" (index $tiers "deny") -}}
-{{-   $sockets := index $fsData "unix_socket_subtree" | default list -}}
-{{-   if $sockets -}}{{-   $_ := set $fs "unix_socket_subtree" (includeTemplate "base/ai/security/uniq-sort" $sockets | mustFromJson) -}}{{- end -}}
+{{-   if eq $os "darwin" -}}
+{{-     $sockets := index $fsData "unix_socket_subtree" | default list -}}
+{{-     if $sockets -}}{{-     $_ := set $fs "unix_socket_subtree" (includeTemplate "base/ai/security/uniq-sort" $sockets | mustFromJson) -}}{{- end -}}
+{{-     $exactSockets := index $fsData "unix_socket" | default list -}}
+{{-     if $exactSockets -}}{{-     $_ := set $fs "unix_socket" (includeTemplate "base/ai/security/uniq-sort" $exactSockets | mustFromJson) -}}{{- end -}}
+{{-   end -}}
 {{-   $readFiles := index $fsData "read_file" | default list -}}
 {{-   if $readFiles -}}{{-   $_ := set $fs "read_file" (includeTemplate "base/ai/security/uniq-sort" $readFiles | mustFromJson) -}}{{- end -}}
 {{-   $bypass := index $fsData "bypass_protection" | default list -}}
@@ -82,7 +104,6 @@
 -}}
 {{-   $network := dict -}}
 {{-   if gt (len $hosts) 0 -}}{{-   $_ := set $network "allow_domain" $hosts -}}{{- end -}}
-{{- /* Session routes attach here (the agent's own clients); the scrub lives in base. */ -}}
 {{-   $creds := includeTemplate "base/ai/auth/render-credentials" (dict "root" $root "agent" $agent) | mustFromJson -}}
 {{-   $netOut := includeTemplate "base/ai/security/render-nono-net" (dict "root" $root "credentials" $creds) | mustFromJson -}}
 {{-   $routeKeys := omit $netOut "allow_domain" "open_port" -}}
@@ -99,17 +120,10 @@
 {{-     end -}}
 {{-   end -}}
 {{-   if $cmdRoutes -}}
-{{-     $dests := includeTemplate "base/ai/security/render-apply-dests" (dict "root" $root) | mustFromJson -}}
-{{-     $_ := set $profile "command_policies" (includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $root "applyDests" $dests) | mustFromJson) -}}
+{{-     $_ := set $profile "command_policies" (includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $root) | mustFromJson) -}}
 {{-   end -}}
-{{- /* Seatbelt S-expressions: $HOME sentinels expand to canonical literal
-  paths (expand-tmpdir's home key, trailing slash trimmed like render-nono-cmd
-  does for its own printf rules); darwin-only — the field is silently ignored
-  on Linux, so it is stripped there. */ -}}
 {{-   $seatbelt = includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $seatbelt "home" (trimSuffix "/" $root.chezmoi.homeDir)) | mustFromJson -}}
-{{-   if and $seatbelt (eq $root.chezmoi.os "darwin") -}}{{-   $_ := set $profile "unsafe_macos_seatbelt_rules" ($seatbelt | uniq) -}}{{- end -}}
-{{- /* omp scrubs the full derived set; others inherit base's scrub and receive
-  gap values by pass-through (gap names are excluded from deny_vars upstream). */ -}}
+{{-   if and $seatbelt (eq $os "darwin") -}}{{-   $_ := set $profile "unsafe_macos_seatbelt_rules" ($seatbelt | uniq) -}}{{- end -}}
 {{-   if eq $agent "omp" -}}{{-   $_ := set $profile "environment" (dict "deny_vars" ($creds.secrets | default list)) -}}{{-   end -}}
 {{-   $profile | toPrettyJson -}}
 {{- end -}}

@@ -4,10 +4,9 @@
 
 load 'common-helper'
 
-# Serialize in-file: the engram supervisor block shares one per-file random
-# port and daemons persist to teardown_file, so in-file parallelism lets
-# pgrep see other tests' daemons (exact-count assertions flake red).
-# BATS_NO_PARALLELIZE_WITHIN_FILE keeps the runner's cross-file --jobs.
+# Serialize in-file: this file's launcher/render probes share staging, so
+# in-file parallelism lets them interleave on the same scratch tree and
+# flake red. BATS_NO_PARALLELIZE_WITHIN_FILE keeps the runner's cross-file --jobs.
 BATS_NO_PARALLELIZE_WITHIN_FILE=true
 
 setup() {
@@ -325,9 +324,9 @@ ENTRY_SET
       (dict "label" "deny-symlink-dir" "line" "Scratch dir is a symlink")
       (dict "label" "deny-symlink-root" "line" "Scratch root is a symlink")
       (dict "label" "deny-root-escape" "line" "Scratch dir resolves outside expected root")
-      (dict "label" "deny-owner" "line" "Scratch dir owner mismatch")
-      (dict "label" "deny-root-mode" "line" "Scratch root is not private")
-      (dict "label" "deny-dir-mode" "line" "Scratch dir is not private")
+      (dict "label" "deny-owner" "line" "requireOwner \"$scratch_dir\" \"scratch dir\" \"Scratch dir\"")
+      (dict "label" "deny-root-mode" "line" "requireMode0700 \"$_agents_root\" \"scratch root\" \"Scratch root\"")
+      (dict "label" "deny-dir-mode" "line" "requireMode0700 \"$scratch_dir\" \"scratch dir\" \"Scratch dir\"")
       (dict "label" "exact-0700" "line" "-eq $((0700))")
       (dict "label" "pkill-anchor" "line" "__pattern=\"engram serve ${ENGRAM_PORT}( |$)\"")
       (dict "label" "supervise-lock" "line" "ENGRAM_LOCK=\"$ENGRAM_STATE/.supervise.lock\"")
@@ -371,7 +370,9 @@ ENTRY_SET
 @test "agent prepends /usr/bin to the sandbox PATH on Darwin only" {
   # The MacPorts-git workaround is Darwin-specific: Linux keeps its inherited
   # PATH (the prepend shadows mise shims by name). uname is stubbed, so both
-  # platforms are probed on any host.
+  # platforms are probed on any host. The Linux arm now dies at the U2
+  # guarded-launch gate (before the PATH block): the die IS the Linux
+  # sandboxed-launch behavior.
   local launch="$HOME/.local/bin/agent" mock offenders="" os out
   mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
   setup_mock_bins "$mock"
@@ -387,7 +388,7 @@ EOF
       "$launch" omp -c session-p 2>&1)" || true
     case "$os:$out" in
     "Darwin:"*PATH_FIRST=/usr/bin*) ;;
-    "Linux:"*PATH_FIRST="$mock"*) ;;
+    "Linux:"*"Refusing a guarded agent launch on Linux"*) ;;
     *) offenders="$offenders [$os: $(printf '%s' "$out" | grep -F 'PATH_FIRST=' | head -n 1)]" ;;
     esac
   done
@@ -408,6 +409,46 @@ EOF
 }
 
 # bats test_tags=kind:launcher
+@test "agent scrubs inherited TMUX and provisions no tmux socket" {
+  # Launcher SOURCE (rendered by setup_file, not applied state): the inherited
+  # host TMUX env never leaks, and no tmux server is provisioned for the
+  # sandbox (no socket dir, no bind grant) — host tmux is base-denied, so tmux
+  # interaction is impossible in any direction.
+  local launch="$BATS_FILE_TMPDIR/launcher.sh"
+  assert_file_exists "$launch"
+  run grep -Fq -e 'unset TMUX' "$launch"
+  assert_success
+  run grep -E 'TMUX_TMPDIR|tmux_sock_dir|allow-unix-socket-subtree-bind' "$launch"
+  assert_failure
+}
+
+# bats test_tags=kind:launcher
+@test "agent refuses guarded launches on Linux, ordered before both launch paths" {
+  # U2 Linux/WSL2 fail-closed: the DCG guard hooks render inside agent-writable
+  # roots and Landlock cannot deny-within-allow, so a guarded session cannot be
+  # enforced on Linux. Launcher SOURCE pin: the gate DIES (never warns), sits
+  # AFTER argument parsing (it consumes no launcher flags) and BEFORE the
+  # --no-sandbox DCG_BYPASS exec and the nono exec, honours the AGENT_SANDBOX
+  # nesting marker (nested launches inherit the parent kernel sandbox), names
+  # the remedy, and is gated on `uname -s` = Linux so the Darwin path is
+  # untouched.
+  local launch="$BATS_FILE_TMPDIR/launcher.sh"
+  assert_file_exists "$launch"
+  run grep -Fq -e 'Refusing a guarded agent launch on Linux' "$launch"
+  assert_success
+  run grep -Fq -e 'dcg allow' "$launch"
+  assert_failure
+  # die, not warn; ordered: after the arg loops (exit-only dispatch) and the
+  # shared pwd_guard, BEFORE the DCG_BYPASS export (unsandboxed branch) and
+  # the nono exec.
+  run awk '/exit_only_flags "\$@" \|\| true/{p=NR} /pwd_guard$/{w=NR} /Refusing a guarded agent launch on Linux/{g=NR} /export DCG_BYPASS=1/{b=NR} /exec nono run --profile/{e=NR} END{exit !(p>0 && w>0 && g>0 && b>0 && e>0 && p<g && w<g && g<b && b<e)}' "$launch"
+  assert_success
+  # the Linux condition honours the nesting marker inside its own condition window.
+  run awk '/\[ "\$UNAME_S" = Linux \] &&/{g=NR} g && NR>=g && NR<=g+3 && /AGENT_SANDBOX:-/ {n=NR} END{exit !(g>0 && n>0)}' "$launch"
+  assert_success
+}
+
+# bats test_tags=kind:launcher
 @test "agent warns when an activated route has no credential source in the shell" {
   local launch="$HOME/.local/bin/agent"
   assert_file_exists "$launch"
@@ -416,6 +457,17 @@ EOF
   # route, deep in its own output). warn() must exist for that call to survive set -u.
   run awk '/^warn\(\)/{d=NR} /Credentials: routes on/{m=NR} /credential_key/{c=NR} /Routes without a credential source/{w=NR} END{exit !(d>0 && m>0 && c>m && w>c)}' "$launch"
   assert_success
+}
+
+# bats test_tags=kind:launcher
+@test "agent launcher source contains no macOS security keychain invocations" {
+  # Source invariant over the rendered launcher, not proof of all runtime
+  # Keychain behavior: nono owns its proxy CA, so the launcher must never
+  # shell out to `security` (find-generic-password -g returns the private key).
+  local launch="$BATS_FILE_TMPDIR/launcher.sh"
+  assert_file_exists "$launch"
+  run grep -E '(^|[;&|$(])[[:space:]]*security[[:space:]]+[a-z-]' "$launch"
+  assert_failure
 }
 
 # --- Launcher word and route invariants ---
@@ -520,6 +572,11 @@ EOF
 
 # bats test_tags=toolchain:ai,kind:launcher
 @test "agent nested launch keeps the flag form on the sandbox-inherited path" {
+{{- if eq .chezmoi.os "linux" }}
+  # The Linux arm of this case is the skip itself: the U2 gate refuses
+  # every guarded nested launch, so the inherited path is unobservable there.
+  skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
+{{- else }}
   # AGENT_SANDBOX set (inside a sandboxed parent) + --no-sandbox: the bypass
   # is off (guards stay active) and the flag-parsed profile still dispatches.
   local mock
@@ -536,84 +593,7 @@ EOF
   assert_output --partial "Sandbox: inherited"
   refute_output --partial "Sandbox: disabled"
   assert_output --partial "launched ARGS=Hi there"
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "launcher grammar aggregate: flag/positional/print-env forms resolve for every agent" {
-  # One pass over every grammar form; reports ALL offenders at once
-  # (corner-cases-only policy: single gate, bounded runtime).
-  local mock offenders="" launch
-  launch="$HOME/.local/bin/agent"
-  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
-  setup_mock_bins "$mock" curl nc nono git engram pkill pgrep
-  # Pinned test HOME: the omp named-root gate reads the profile root, and the
-  # probes must not read the host's ~/.config/omp.
-  local test_home
-  test_home="$(mktemp -d "$BATS_TEST_TMPDIR/home.XXXXXX")"
-  mkdir -p "$test_home/.config/omp/profiles/work/agent/extensions"
-  printf 'modelRoles: {}\n' >"$test_home/.config/omp/profiles/work/agent/config.yml"
-  printf 'providers: {}\n' >"$test_home/.config/omp/profiles/work/agent/models.yml"
-  printf '  DCG_FAIL_CLOSED: "1",\n' >"$test_home/.config/omp/profiles/work/agent/extensions/dcg-guard.ts"
-  local b
-  for b in pi opencode omp; do
-    cat >"$mock/$b" <<'EOF'
-#!/usr/bin/env sh
-echo "PROFILE=${PI_CODING_AGENT_DIR:-${OPENCODE_CONFIG_DIR:-${PI_CONFIG_DIR:-unset}}}"
-echo "OMP_PROFILE=[${OMP_PROFILE:-unset}]"
-echo "OPENCODE_PORT=[${OPENCODE_PORT:-unset}]"
-echo "ARGS=$*"
-EOF
-  done
-  chmod +x "$mock"/*
-
-  probe() { # probe DESC NEEDLE AGENT ARGS...
-    local desc="$1" needle="$2"
-    shift 2
-    local out
-    out="$(env $(scratch_env) AGENT_SANDBOX="${AGENT_SANDBOX:-}" PATH="$mock:$PATH" \
-      HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" "$launch" "$@" 2>&1)" || true
-    case "$out" in *"$needle"*) ;; *) offenders="$offenders [$desc]";; esac
-  }
-  probe_neg() { # probe_neg DESC NEEDLE AGENT ARGS... — must fail, naming NEEDLE
-    local desc="$1" needle="$2"
-    shift 2
-    local out rc
-    out="$(env $(scratch_env) PATH="$mock:$PATH" HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" \
-      "$launch" "$@" 2>&1)" && rc=0 || rc=$?
-    case "$out" in
-    *"$needle"*) [ "$rc" -ne 0 ] || offenders="$offenders [$desc:exit0]" ;;
-    *) offenders="$offenders [$desc]" ;;
-    esac
-  }
-
-  probe "pi pre-name flag" "profiles/core" --profile core pi "Hi there"
-  probe "pi prompt passthrough" "ARGS=Hi there" pi --profile core "Hi there"
-  probe "pi positional compat" "profiles/factory" pi factory
-  probe "oc flag factory port-free" "OPENCODE_PORT=[unset]" oc --profile factory --continue x
-  probe "oc positional compat" "ARGS=--continue x" oc core --continue x
-  probe "omp named profile" "OMP_PROFILE=[work]" omp --profile work -c s
-  probe "omp pre-name equals" "OMP_PROFILE=[work]" --profile=work omp -c s
-  probe_neg "pi unknown profile dies" "Unknown profile: bogus" pi --profile bogus
-  probe_neg "omp positional dies" "--profile <name>" omp core
-  probe_neg "print-env typo dies" "unknown argument --typo" pi --print-env --typo
-  probe_neg "agent-less pre-name dies" "unknown agent" --profile core "Hi there"
-  # The pre-name loop consumes only --profile; the exit-only flags are
-  # post-name (matching the completion), so a pre-name --help/--list/
-  # --print-env dies on agent-name validation, never bypasses it.
-  probe_neg "pre-name --help dies" "unknown agent" --help pi
-  probe_neg "pre-name --list dies" "unknown agent" --list pi
-  probe_neg "pre-name --print-env dies" "unknown agent" --print-env pi
-  # Post-name --help is agent-specific (was: the global help for `pi --help`).
-  probe "post-name --help is agent-specific" "Usage: agent [--profile NAME] pi" pi --help
-
-  AGENT_SANDBOX=1
-  probe "nested sandbox flag form" "Sandbox: inherited" pi --profile core --no-sandbox
-  unset AGENT_SANDBOX
-  unset -f probe probe_neg 2>/dev/null || true
-  if [ -n "$offenders" ]; then
-    printf 'failing grammar forms:%s\n' "$offenders"
-    return 1
-  fi
+{{- end }}
 }
 
 # bats test_tags=toolchain:ai,kind:launcher
@@ -648,313 +628,11 @@ EOF
 # port 7437, the real state dir, or the real engram. The kill paths are
 # anchored to the test port, so teardown can reach only mock daemons.
 
-{{- /* Drive agent: the selectable multi-profile agent (opencode) when its
-       toolchain is enabled; the supervisor is agent-agnostic, so one drive
-       covers it. `agent <one> <profile>` needs a selectable agent. */ -}}
-{{- $sup := dict -}}
-{{- if get .toolchains "opencode" | default false -}}
-{{-   $sup = dict "name" "opencode" "binary" "opencode" "profile" "factory" -}}
-{{- end }}
-
-
 setup_file() {
-  # Dedicated ephemeral port (49152-65535): 7437 is structurally excluded,
-  # and the anchored pkill/pgrep pattern scopes every kill to it. The probe
-  # mirrors the launcher's pick_high_port ephemeral range: if that range
-  # changes, this probe and the 49152-65535 assertion must follow.
-  ENGRAM_TEST_PORT=$(awk 'BEGIN{srand();print int(rand()*16384)+49152}')
-  [ "$ENGRAM_TEST_PORT" != 7437 ]
-  # setup_file vars do not reach per-test processes; share via file.
-  printf '%s' "$ENGRAM_TEST_PORT" >"$BATS_FILE_TMPDIR/port"
-  SUP_PATTERN="engram serve ${ENGRAM_TEST_PORT}( |$)"
-  # Stub bins staged once per file; sup_init copies them per test.
-  mkdir -p "$BATS_FILE_TMPDIR/bin"
-  setup_mock_bins "$BATS_FILE_TMPDIR/bin" curl nc nono git
-  # Stub curl: asserts the real health contract (an argument equal to
-  # $ENGRAM_URL/health, fail-closed when unset) and answers iff mode says up.
-  cat >"$BATS_FILE_TMPDIR/bin/curl" <<'EOF'
-#!/usr/bin/env sh
-for __a in "$@"; do [ "$__a" = "$ENGRAM_URL/health" ] && __hit=1; done
-[ "${__hit:-}" = 1 ] || exit 7
-[ -f "$ENGRAM_TEST_HEALTH" ] || exit 7
-[ "$(cat "$ENGRAM_TEST_HEALTH")" = up ] || exit 7
-EOF
-  # Mock engram: `serve` logs the spawn, flips health up (ENGRAM_TEST_
-  # AUTOPUP=0 keeps the spawn unready), and keeps the exact
-  # `engram serve <port>` argv so the anchored pkill pattern matches it.
-  cat >"$BATS_FILE_TMPDIR/bin/engram" <<'EOF'
-#!/usr/bin/env sh
-case "$1" in
-  version) printf 'engram 9.9.9-test\n' ;;
-  serve)
-    printf 'spawn\n' >> "$ENGRAM_TEST_SPAWNS"
-    [ "${ENGRAM_TEST_AUTOPUP:-1}" = 1 ] && printf 'up\n' > "$ENGRAM_TEST_HEALTH"
-    while :; do sleep 1; done
-    ;;
-  *) exit 1 ;;
-esac
-EOF
-  printf '#!/usr/bin/env sh\nprintf "launched\\n"\n' >"$BATS_FILE_TMPDIR/bin/{{ $sup.binary }}"
-  chmod +x "$BATS_FILE_TMPDIR/bin/curl" "$BATS_FILE_TMPDIR/bin/engram" "$BATS_FILE_TMPDIR/bin/{{ $sup.binary }}"
   # Shared static renders: the _agent completion and the launcher are
   # host-static; render once for the word/flag-drift/zsh-parse tests.
   render_source "{{ .chezmoi.sourceDir }}/private_dot_config/exact_zsh/exact_completions/_agent" "$BATS_FILE_TMPDIR/_agent"
   render_source "{{ .chezmoi.sourceDir }}/private_dot_local/exact_bin/executable_agent" "$BATS_FILE_TMPDIR/launcher.sh"
-}
-
-teardown_file() {
-  local port
-  port=$(cat "$BATS_FILE_TMPDIR/port" 2>/dev/null || true)
-  [ -n "$port" ] || return 0
-  pkill -f "engram serve ${port}( |\$)" 2>/dev/null || true
-}
-
-sup_init() {
-  # Per-test copy: PATH pins $BATS_TEST_TMPDIR/bin and tests mutate it.
-  cp -R "$BATS_FILE_TMPDIR/bin" "$BATS_TEST_TMPDIR/bin"
-  mkdir -p "$BATS_TEST_TMPDIR/state" "$BATS_TEST_TMPDIR/data"
-  : >"$BATS_TEST_TMPDIR/spawns"
-  printf 'down\n' >"$BATS_TEST_TMPDIR/mode"
-  ENGRAM_TEST_PORT=$(cat "$BATS_FILE_TMPDIR/port")
-  SUP_PATTERN="engram serve ${ENGRAM_TEST_PORT}( |$)"
-}
-
-# Array, not a space-joined string: the host PATH can contain spaces
-# (e.g. "VMware Fusion.app"), and unquoted $(sup_env) splits mid-value.
-sup_env_args() {
-  sup_args=(
-    "ENGRAM_TEST_HEALTH=$BATS_TEST_TMPDIR/mode"
-    "ENGRAM_TEST_SPAWNS=$BATS_TEST_TMPDIR/spawns"
-    "ENGRAM_PORT=$ENGRAM_TEST_PORT"
-    "ENGRAM_URL=http://127.0.0.1:$ENGRAM_TEST_PORT"
-    "XDG_STATE_HOME=$BATS_TEST_TMPDIR/state"
-    "ENGRAM_DATA_DIR=$BATS_TEST_TMPDIR/data"
-    AGENT_LAUNCH_TEST_MODE=1
-    "AGENT_LAUNCH_TEST_SCRATCH_ROOT=$BATS_TEST_TMPDIR/agents"
-    # Pinned minimal PATH: the host PATH carries the real engram, which the
-    # no-engram fail-closed probe must not see.
-    "PATH=$BATS_TEST_TMPDIR/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-  )
-}
-
-sup_launch() {
-  sup_env_args
-  run env "${sup_args[@]}" "$HOME/.local/bin/agent" {{ $sup.name }}{{ with $sup.profile }} {{ . }}{{ end }}
-}
-
-sup_pids() { pgrep -f "$SUP_PATTERN" 2>/dev/null | sort | tr '\n' ' '; }
-sup_spawns() { wc -l < "$BATS_TEST_TMPDIR/spawns" | tr -d ' '; }
-sup_state() { printf '%s' "$BATS_TEST_TMPDIR/state/engram"; }
-
-# Warmup: first supervised launch (daemon absent, health down) spawns the
-# mock daemon and writes the identity record; resets the spawn log.
-sup_warm() {
-  sup_launch
-  assert_success
-  assert_output --partial "launched"
-  : >"$BATS_TEST_TMPDIR/spawns"
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "engram supervisor leaves a healthy, current daemon alone" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  sup_init
-  sup_warm
-  local pids
-  pids=$(sup_pids)
-  sup_launch
-  assert_success
-  assert_output --partial "Engram: daemon ready"
-  assert [ "$(sup_spawns)" -eq 0 ]
-  assert [ "$(sup_pids)" = "$pids" ]
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "engram supervisor daemon inherits no coordination fds (bats EOF hang)" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  command -v lsof >/dev/null || skip "lsof not available"
-  sup_init
-  sup_warm
-  local pid
-  pid=$(sup_pids | awk '{print $1}')
-  [ -n "$pid" ]
-  # fd 0 is /dev/null, 1/2 go to the log. The daemon may own regular files
-  # (bash's script fd 255), but no inherited pipe/socket (bats coordination
-  # lives at fd 3 and high fds) may survive, or the suite hangs at EOF.
-  run sh -c 'lsof -a -p "$1" -d 3-255 2>/dev/null | grep -Eq "PIPE|unix|FIFO"; [ "$?" -eq 1 ]' _ "$pid"
-  assert_success
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "engram supervisor tolerates a slow-to-ready daemon (no kill/respawn)" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  # A cold daemon that answers after ~2s must survive the bounded
-  # wait_ready loop. A one-shot 1s re-probe would TERM it and respawn:
-  # spawns>1 (and a swapped pid) is the regression signal.
-  sup_init
-  cat >"$BATS_TEST_TMPDIR/bin/engram" <<'SLOWMOCK'
-#!/usr/bin/env sh
-case "$1" in
-  version) printf 'engram 9.9.9-test\n' ;;
-  serve)
-    printf 'spawn\n' >> "$ENGRAM_TEST_SPAWNS"
-    sleep 2
-    printf 'up\n' > "$ENGRAM_TEST_HEALTH"
-    while :; do sleep 1; done
-    ;;
-  *) exit 1 ;;
-esac
-SLOWMOCK
-  chmod +x "$BATS_TEST_TMPDIR/bin/engram"
-  sup_launch
-  assert_success
-  assert_output --partial "launched"
-  assert [ "$(sup_spawns)" -eq 1 ]
-  assert [ "$(sup_pids | wc -w | tr -d ' ')" -eq 1 ]
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "engram supervisor restarts a daemon whose health fails" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  sup_init
-  sup_warm
-  local pids
-  pids=$(sup_pids)
-  printf 'down\n' >"$BATS_TEST_TMPDIR/mode"
-  sup_launch
-  assert_success
-  assert_output --partial "(re)starting daemon"
-  assert [ "$(sup_spawns)" -eq 1 ]
-  assert [ "$(sup_pids)" != "$pids" ]
-  run head -n 1 "$(sup_state)/daemon.identity"
-  assert_output "engram 9.9.9-test"
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "engram supervisor restarts on mtime-only binary skew" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  sup_init
-  sup_warm
-  local pids
-  pids=$(sup_pids)
-  # Rebuild shape: version and path identical, mtime moves.
-  sleep 1
-  touch "$BATS_TEST_TMPDIR/bin/engram"
-  sup_launch
-  assert_success
-  assert_output --partial "(re)starting daemon"
-  assert [ "$(sup_spawns)" -eq 1 ]
-  assert [ "$(sup_pids)" != "$pids" ]
-  # Record was rewritten: the next launch takes the fast path.
-  : >"$BATS_TEST_TMPDIR/spawns"
-  sup_launch
-  assert_success
-  assert [ "$(sup_spawns)" -eq 0 ]
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "engram supervisor dies fail-closed with no engram on PATH" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  sup_init
-  rm "$BATS_TEST_TMPDIR/bin/engram"
-  sup_launch
-  assert_failure
-  assert_output --partial "engram not found on PATH"
-  assert [ "$(sup_spawns)" -eq 0 ]
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "engram supervisor dies fail-closed when the spawn never readies" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  sup_init
-  # ~10s: the full readiness loop runs out before the die.
-  sup_env_args
-  run env "${sup_args[@]}" ENGRAM_TEST_AUTOPUP=0 "$HOME/.local/bin/agent" {{ $sup.name }}{{ with $sup.profile }} {{ . }}{{ end }}
-  assert_failure
-  assert_output --partial "did not become ready"
-  assert [ "$(sup_spawns)" -eq 1 ]
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "three concurrent launches converge to one daemon" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  sup_init
-  sup_env_args
-  local p rc=0
-  for p in 1 2 3; do
-    env "${sup_args[@]}" "$HOME/.local/bin/agent" {{ $sup.name }}{{ with $sup.profile }} {{ . }}{{ end }} >"$BATS_TEST_TMPDIR/$p.out" 2>&1 &
-  done
-  for p in $(jobs -p); do wait "$p" || rc=1; done
-  [ "$rc" -eq 0 ]
-  assert [ "$(sup_spawns)" -eq 1 ]
-  assert [ "$(sup_pids | wc -w | tr -d ' ')" -eq 1 ]
-  [ ! -d "$(sup_state)/.supervise.lock" ]
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "supervisor takes over a lock left by a dead holder" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  sup_init
-  mkdir -p "$(sup_state)/.supervise.lock"
-  printf '%s\n' 2147483647 >"$(sup_state)/.supervise.lock/pid"
-  sup_launch
-  assert_success
-  assert_output --partial "(re)starting daemon"
-  assert [ "$(sup_spawns)" -eq 1 ]
-  [ ! -d "$(sup_state)/.supervise.lock" ]
-{{- end }}
-}
-
-# bats test_tags=toolchain:ai,kind:launcher
-@test "supervisor never releases a live holder's lock" {
-{{- if eq (len $sup) 0 }}
-  skip "no launcher agent toolchain is enabled on this host"
-{{- else }}
-  # Takeover of a FRESH, LIVE holder must not rm the holder's lock. The
-  # launcher's pid is a live holder (the bats test shell); the probe exits
-  # via the readiness pass, leaving the lock and pid intact.
-  # ~10s: the full readiness loop runs out before the die.
-  sup_init
-  mkdir -p "$(sup_state)/.supervise.lock"
-  printf '%s\n' "$$" >"$(sup_state)/.supervise.lock/pid"
-  sup_env_args
-  run env "${sup_args[@]}" ENGRAM_TEST_AUTOPUP=0 "$HOME/.local/bin/agent" {{ $sup.name }}{{ with $sup.profile }} {{ . }}{{ end }}
-  assert_failure
-  assert_output --partial "waiting for daemon"
-  assert_output --partial "did not become ready"
-  assert [ "$(sup_spawns)" -eq 0 ]
-  # The holder's lock survives: dir and pid file untouched, pid still ours.
-  [ -d "$(sup_state)/.supervise.lock" ]
-  run cat "$(sup_state)/.supervise.lock/pid"
-  assert_success
-  assert_output "$$"
-{{- end }}
 }
 
 # bats test_tags=toolchain:ai,kind:launcher
@@ -983,12 +661,71 @@ SLOWMOCK
   run jq -e '
     (.filesystem.allow | index("**/.slim/worktrees/**") != null) and
     (.filesystem.allow | index("**/.codegraph/**") != null) and
-    (.filesystem.unix_socket_subtree | index("~/.local/share/ssh/sockets") != null) and
+    # The blanket SSH socket-dir lane is gone: the agent tier DENIES the
+    # socket dir (agent_ssh_sockets) and exact approvals render per-agent.
+    (.filesystem.deny | index("~/.local/share/ssh/sockets") != null) and
+    (.filesystem.deny | index("~/.local/share/ssh/sockets/*") != null) and
+    ((.filesystem.unix_socket_subtree // []) | index("~/.local/share/ssh/sockets") == null) and
+    ((.filesystem.unix_socket // []) | index("~/.local/share/ssh/sockets") == null) and
     (.network.allow_domain | index("infer01") != null)
   ' "{{ $nonoProfiles }}/{{ $a.name }}.json"
   assert_success
 }
-{{- end }}
+{{ end }}
+
+{{- /* Socket-approval fixtures (baked here, rendered at test time): exact
+       user-approved master paths render unix_socket + bypass_protection into
+       the agent profile from data ONLY, with the leading `~/` canonicalized to
+       the homeDir (U2); the linux override strips every socket key and sets
+       base mediation fail-closed. One render dict, one chezmoi boot. */ -}}
+{{- $sockTpl := `{{- $r1 := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "agents" "shared" "sandbox" "filesystem" "unix_socket") "value" (list "~/.local/share/ssh/sockets/fixture-master")) | mustFromJson -}}
+{{- $r2 := includeTemplate "base/test/deep-copy-set-path" (dict "root" $r1 "path" (list "ai" "base" "agents" "shared" "sandbox" "filesystem" "bypass_protection") "value" (list "~/.local/share/ssh/sockets/fixture-master")) | mustFromJson -}}
+{{- $rl := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "os") "value" "linux") | mustFromJson -}}
+{{- dict
+  "approvals" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $r2 "agent" "pi") | mustFromJson)
+  "linux" (dict
+    "agent" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $rl "agent" "pi") | mustFromJson)
+    "base" (includeTemplate "base/ai/security/render-nono-profile" (dict "root" $rl) | mustFromJson))
+| toJson -}}` }}
+{{- $piDefault := includeTemplate "base/ai/security/render-nono-profile" (dict "root" . "agent" "pi") | mustFromJson -}}
+
+# bats test_tags=toolchain:ai,kind:nono
+@test "SSH socket keys render from data approvals only; linux renders fail closed" {
+  local cb json offenders=""
+  cb="$(chezmoiBin)"
+  # Default render (no approvals): neither socket key appears.
+  test "{{ if hasKey ($piDefault.filesystem | default dict) "unix_socket" }}present{{ else }}absent{{ end }}" = "absent" ||
+    offenders="$offenders default:unix_socket-leaked"
+  test "{{ if hasKey ($piDefault.filesystem | default dict) "unix_socket_subtree" }}present{{ else }}absent{{ end }}" = "absent" ||
+    offenders="$offenders default:unix_socket_subtree-leaked"
+
+  cat >"$BATS_TEST_TMPDIR/sock.tmpl" <<'FIXTURE'
+{{ $sockTpl }}
+FIXTURE
+
+  run "$cb" execute-template -f "$BATS_TEST_TMPDIR/sock.tmpl"
+  [ "$status" -eq 0 ] || offenders="$offenders fixture:fails-render"
+  json="$(sed -n '/^{/,$p' <<<"$output")"
+  # The fixture data is written `~/...` (the user-typed form): nono drops
+  # connect grants for MISSING sockets silently, so the renderer must emit the
+  # canonical homeDir path, never the literal tilde form (U2).
+  jq -e --arg home '{{ trimSuffix "/" .chezmoi.homeDir }}' '.approvals.filesystem |
+    (.unix_socket | index($home + "/.local/share/ssh/sockets/fixture-master") != null) and
+    (.unix_socket | index("~/.local/share/ssh/sockets/fixture-master") == null) and
+    (.bypass_protection | index($home + "/.local/share/ssh/sockets/fixture-master") != null) and
+    (.bypass_protection | index("~/.local/share/ssh/sockets/fixture-master") == null)' <<<"$json" >/dev/null ||
+    offenders="$offenders approvals:grant+bypass-not-canonical"
+
+  jq -e '
+    (.linux.agent.filesystem | (has("unix_socket") | not) and (has("unix_socket_subtree") | not)) and
+    (.linux.base.linux.af_unix_mediation == "pathname")
+  ' <<<"$json" >/dev/null || offenders="$offenders linux:fail-closed-shape"
+
+  if [ -n "$offenders" ]; then
+    printf 'SSH socket render checks (offending):%s\n' "$offenders"
+    return 1
+  fi
+}
 {{- end }}
 
 # --- nono ignore gating & launch-agent retirement ---
@@ -1034,7 +771,7 @@ SLOWMOCK
 # bats test_tags=toolchain:ai,kind:config
 @test "chezmoidata carries no template directives (data is static TOML)" {
   # .chezmoidata is parsed as plain TOML: template directives in data reach
-  # the apply-dest guard verbatim and their braces read as globs, failing
+  # the sandbox-grant guard verbatim and their braces read as globs, failing
   # every render. Per-machine values ride sentinels (e.g. $TMPDIR + the
   # expand-tmpdir renderer).
   run grep -RnF '{{"{{"}}' "{{ .chezmoi.sourceDir }}/.chezmoidata"
