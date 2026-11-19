@@ -18,7 +18,16 @@
 {{-   $enabledModels = append $enabledModels (includeTemplate "base/ai/agents/pi/render-pi-model-ref" $route) -}}
 {{- end -}}
 {{- end -}}
-{{- $enabledModels = $enabledModels | uniq -}}
+{{- /* Claude-lane ToS guard: claude_only models (anthropic/*) are pi's NATIVE
+   anthropic provider; selecting one replays the proxy-injected OAuth token —
+   a bannable violation (README "pi is the only bridged agent"). pi reaches
+   Claude models only through pi-claude-bridge's own model names. */ -}}
+{{- $claudeOnly := get $enabledAuth "claude_only_models" | default list -}}
+{{- $keepModels := list -}}
+{{- range $m := $enabledModels -}}
+{{-   if not (has $m $claudeOnly) -}}{{- $keepModels = append $keepModels $m -}}{{- end -}}
+{{- end -}}
+{{- $enabledModels = $keepModels | uniq -}}
 {{- $settings := $pi.settings -}}
 {{- $packages := list -}}
 {{- $skills := list -}}

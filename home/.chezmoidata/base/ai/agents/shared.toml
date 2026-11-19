@@ -8,20 +8,41 @@
 # not close it. This seatbelt deny is the only lever; user rules emit last
 # (last-match wins).
 unsafe_macos_seatbelt_rules = [
-  '(deny mach-lookup (global-name "com.apple.SecurityServer"))',
+  '(deny mach-lookup (global-name "com.apple.SecurityServer"))'
+]
+# Shared macOS file-write floors: ONE data owner (render-nono-profile appends
+# them LAST to every agent's raw-rule list; render-nono-cmd appends them LAST
+# to every command-sandbox edge), required on Darwin — a render missing them
+# fails loudly. Appended without dedup: seatbelt is last-match-wins, and a
+# deduped copy sitting before a later allow would let the allow win.
+shared_write_denies = [
   # The deny data's `*` glob expands at sandbox start, so a plist created
   # post-start escapes the per-child denies; the seatbelt subpath is
   # recursive+dynamic and user rules emit last (last-match-wins).
-  '(deny file-write* (subpath "$HOME/Library/LaunchAgents"))'
+  '(deny file-write* (subpath "$HOME/Library/LaunchAgents"))',
+  # Git hard floor: a hook in .git/hooks is arbitrary code executed by the
+  # next git event, so every agent profile write-denies it (a regex, not a
+  # subpath: project .git dirs are cwd-relative and seatbelt subpath cannot
+  # glob). Covers submodule gitdirs (.git/modules/<name>/hooks, nested too)
+  # and named bare repos (foo.git/hooks). APFS is commonly case-insensitive
+  # and inline SBPL case flags are unproven here, so .git/modules/hooks use
+  # POSIX bracket case classes (no case-flag dependency; live seatbelt
+  # matching requires host-terminal verification). Worktree hook paths stay outside the
+  # floor: git runs the common hooks dir, and worktrees (including safe
+  # removal) must stay usable. Git config and worktree pointers stay writable;
+  # DCG checks command text but cannot inspect arbitrary subprocess writes.
+  # macOS-only hard floor; Linux guarded launches are refused by the launcher.
+  '(deny file-write* (regex #"(/|^)[^/]*[.][gG][iI][tT](/[mM][oO][dD][uU][lL][eE][sS]/[^/]+)*/[hH][oO][oO][kK][sS](/|$)"))'
 ]
 
 [ai.base.agents.shared.sandbox.filesystem]
-# CodeGraph runtime state; project-local git worktrees (conventional path).
-# The ** glob is cwd-anchored (project dirs only); the tilde entry is the
-# home state dir (index, update-check.json) the MCP child reads at startup
+# CodeGraph runtime state; project-local git worktrees: .slim/worktrees
+# (Slim/pi/omp) and .claude/worktrees (Claude Code's native --worktree dir).
+# The ** glob is cwd-anchored (project dirs only); the tilde entry is
+# the home state dir (index, update-check.json) the MCP child reads at startup
 # and crashes without ("closed stdout before responding") — all three agents
 # run the codegraph server, so it lives here once.
-write = ["**/.codegraph/**", "**/.slim/worktrees/**", "~/.codegraph"]
+write = ["**/.claude/worktrees/**", "**/.codegraph/**", "**/.slim/worktrees/**", "~/.codegraph"]
 # No blanket SSH socket grant: the agent tier denies the ControlMaster socket
 # DIR (agent_ssh_sockets); a socket opens only via the SAME exact path in both
 # sandbox.filesystem.unix_socket AND bypass_protection — the bypass pierces

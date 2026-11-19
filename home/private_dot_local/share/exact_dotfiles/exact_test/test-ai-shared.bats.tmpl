@@ -100,9 +100,12 @@ setup() {
 {{- $qwenPreset := index $presets "qwen" | default dict -}}
 {{- $hasQwen := hasKey $presets "qwen" -}}
 {{- $qwenTiers := get $qwenPreset "tiers" | default dict -}}
-{{- $qwenModel := index (get $infer01 "models" | default list) 0 | default dict -}}
+{{- $qwenModel := (get $infer01 "models" | default list) | first | default dict -}}
 {{- $activePreset := index $presets "default" | default "balanced" -}}
-{{- $agentTiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.opencode.agent_tiers" "required" true) | mustFromJson -}}
+{{- $agentTiers := dict -}}
+{{- range $role, $rd := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.roles" "required" true) | mustFromJson) -}}
+{{-   $_ := set $agentTiers $role $rd.tier -}}
+{{- end -}}
 {{- /* Loop entry/applicable sets are top-level so the companion test always
        renders; gated loops fill them with `=` assignments. */ -}}
 {{- $infer01Applicable := list -}}
@@ -367,6 +370,18 @@ ENTRY_SET
 }
 
 # bats test_tags=kind:launcher
+@test "agent oc --no-sandbox host path kills orphaned v2 services before exec" {
+  local launch="$HOME/.local/bin/agent"
+  assert_file_exists "$launch"
+  # A v2 service orphan from a sandboxed run keeps the dead nono proxy, so a
+  # host --no-sandbox TUI attaching to it fails every provider (infer01
+  # included). The host-path call must sit in the --no-sandbox branch:
+  # defined above, called before that branch's exec.
+  run awk '/^kill_orphan_service\(\)/{d=NR} /^    kill_orphan_service$/{if(!k)k=NR} /exec "\$BINARY_NAME" "\$@"/{if(!n)n=NR} END{exit !(d>0 && k>d && k<n)}' "$launch"
+  assert_success
+}
+
+# bats test_tags=kind:launcher
 @test "agent prepends /usr/bin to the sandbox PATH on Darwin only" {
   # The MacPorts-git workaround is Darwin-specific: Linux keeps its inherited
   # PATH (the prepend shadows mise shims by name). uname is stubbed, so both
@@ -449,25 +464,65 @@ EOF
 }
 
 # bats test_tags=kind:launcher
-@test "agent warns when an activated route has no credential source in the shell" {
+@test "agent probes credential sources ahead of both launch paths and names every remedy" {
   local launch="$HOME/.local/bin/agent"
   assert_file_exists "$launch"
-  # "routes on" must not overstate: after the mode line the profile's env:// sources are
-  # checked against this shell and the missing names are printed (nono only warns per
-  # route, deep in its own output). warn() must exist for that call to survive set -u.
-  run awk '/^warn\(\)/{d=NR} /Credentials: routes on/{m=NR} /credential_key/{c=NR} /Routes without a credential source/{w=NR} END{exit !(d>0 && m>0 && c>m && w>c)}' "$launch"
+  # Ordering: after the exit-only dispatch (so --print-env never reaches the
+  # probe), after the Linux gate, before both the DCG_BYPASS export and the
+  # nono exec — guarded and unguarded launches share it.
+  run awk '/exit_only_flags "\$@" \|\| true/{o=NR} /Refusing a guarded agent launch on Linux/{g=NR} /^probe_credential_sources/{p=NR} /export DCG_BYPASS=1/{b=NR} /exec nono run --profile/{e=NR} END{exit !(o>0 && g>0 && p>0 && b>0 && e>0 && o<p && g<p && p<b && p<e)}' "$launch"
+  assert_success
+  # The probe owns the source reports: transitional env:// rows keep the
+  # export remedy, keystore rows name the seed command, locks name the
+  # unlock command, client-store refs name the client login. No value may
+  # appear: reads go to scratch variables only (die/warn strings are pinned
+  # here so no test ever sees a secret-shaped interpolation).
+  run grep -Fq -e 'Routes without a credential source in this shell' "$launch"
+  assert_success
+  run grep -Fq -e 'seed-keystore' "$launch"
+  assert_success
+  run grep -Fq -e 'security unlock-keychain' "$launch"
+  assert_success
+  run grep -Fq -e 'unlock-keyring' "$launch"
+  assert_success
+  run grep -Fq -e 'Credential source unresolved — key' "$launch"
+  assert_success
+  # Value discipline: the keystore read is captured into locals only — no
+  # export of a store read outside the documented runtime-only surface.
+  run awk '/-w 2>\/dev\/null \|\| true/{ if (index($0, "__val=\"$(") == 0) exit 1 }' "$launch"
   assert_success
 }
 
 # bats test_tags=kind:launcher
-@test "agent launcher source contains no macOS security keychain invocations" {
-  # Source invariant over the rendered launcher, not proof of all runtime
-  # Keychain behavior: nono owns its proxy CA, so the launcher must never
-  # shell out to `security` (find-generic-password -g returns the private key).
+@test "agent launcher keeps macOS keychain access strictly read-only" {
+  # Re-scoped from the security-free pin: the probe needs read-only
+  # Keychain invocations (find-generic-password -w, show-keychain-info).
+  # Mutation subcommands and -g (private-key return) stay banned: the seed
+  # command is the only writer, and it runs from the user's terminal.
   local launch="$BATS_FILE_TMPDIR/launcher.sh"
   assert_file_exists "$launch"
-  run grep -E '(^|[;&|$(])[[:space:]]*security[[:space:]]+[a-z-]' "$launch"
+  local subs
+  subs="$(awk '{
+    line=$0
+    while (match(line, /[;&|$( \t][ \t]*security[ \t]+[a-z-]+/)) {
+      tok=substr(line, RSTART, RLENGTH)
+      sub(/.*security[ \t]+/, "", tok)
+      print tok
+      line=substr(line, RSTART + RLENGTH)
+    }
+  }' "$launch" | sort -u)"
+  [ -n "$subs" ] || { printf 'no security invocations found (probe regression?)\n'; return 1; }
+  local bad
+  # unlock-keychain is the F5 remedy text inside the die string, never run
+  # by the launcher (naming commands is the remedy pattern).
+  bad="$(printf '%s\n' "$subs" | grep -vE '^(find-generic-password|show-keychain-info|unlock-keychain)$')"
+  [ -z "$bad" ] || { printf 'non-read-only security subcommands: %s\n' "$bad"; return 1; }
+  run grep -E 'security [^;&|]*[[:space:]]-g([[:space:]]|$)' "$launch"
   assert_failure
+  run grep -Fq -e 'find-generic-password -s nono -a' "$launch"
+  assert_success
+  run grep -Fq -e 'show-keychain-info' "$launch"
+  assert_success
 }
 
 # --- Launcher word and route invariants ---
@@ -577,24 +632,133 @@ EOF
   # every guarded nested launch, so the inherited path is unobservable there.
   skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
 {{- else }}
-  # AGENT_SANDBOX set (inside a sandboxed parent) + --no-sandbox: the bypass
-  # is off (guards stay active) and the flag-parsed profile still dispatches.
+  # AGENT_SANDBOX set (inside a sandboxed parent) + --no-sandbox: guards stay
+  # active and a synthetic inherited DCG_BYPASS=1 is stripped from the agent
+  # env; the flag-parsed profile still dispatches.
   local mock
   mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
   setup_mock_bins "$mock" curl nc nono git engram pkill pgrep
   cat >"$mock/pi" <<'EOF'
 #!/usr/bin/env sh
 echo "launched ARGS=$*"
+echo "DCG_BYPASS=${DCG_BYPASS:-absent}"
 EOF
   chmod +x "$mock/pi"
-  run env $(scratch_env) AGENT_SANDBOX=1 PATH="$mock:$PATH" \
+  run env $(scratch_env) AGENT_SANDBOX=1 DCG_BYPASS=1 PATH="$mock:$PATH" \
     "$HOME/.local/bin/agent" pi --profile core --no-sandbox "Hi there"
   assert_success
   assert_output --partial "Sandbox: inherited"
   refute_output --partial "Sandbox: disabled"
   assert_output --partial "launched ARGS=Hi there"
+  assert_output --partial "DCG_BYPASS=absent"
 {{- end }}
 }
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "agent host-debug --no-sandbox exports DCG_BYPASS=1 to the agent" {
+  # Host debug path (no AGENT_SANDBOX): the accepted-risk bypass marker must
+  # reach the agent env; the nested test above pins its absence there.
+  local mock
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  setup_mock_bins "$mock" curl nc nono git engram pkill pgrep
+  cat >"$mock/pi" <<'EOF'
+#!/usr/bin/env sh
+echo "DCG_BYPASS=${DCG_BYPASS:-absent}"
+EOF
+  chmod +x "$mock/pi"
+  run env $(scratch_env) PATH="$mock:$PATH" \
+    "$HOME/.local/bin/agent" pi --profile core --no-sandbox "Hi there"
+  assert_success
+  assert_output --partial "Sandbox: disabled"
+  assert_output --partial "DCG_BYPASS=1"
+}
+
+{{- if get .toolchains "claude" | default false }}
+# bats test_tags=toolchain:claude,kind:launcher
+@test "claude guarded launch probes the exact managed hook registration" {
+  # Launcher claude boot probe, fake-home fixtures only (no real HOME config,
+  # no live security probes). Nested --no-sandbox form: the probe runs, then
+  # the mock claude execs, so no engram/nono/scratch paths are reached. One
+  # aggregate pass: every drift shape must die as unprovisioned; the exact
+  # managed registration (double-slash renderer form) must launch.
+  local launch="$HOME/.local/bin/agent" home mock hook offenders=""
+  if [ "$(uname -s)" = Linux ]; then
+    skip "the launcher's U2 gate refuses guarded sandboxed launches on Linux"
+  fi
+  home="$BATS_TEST_TMPDIR/fakehome"
+  mkdir -p "$home/.config/claude/hooks"
+  : >"$home/.config/claude/hooks/dcg-guard.mjs"
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  setup_mock_bins "$mock" curl nc nono git engram pkill pgrep
+  cat >"$mock/claude" <<'EOF'
+#!/usr/bin/env sh
+echo "launched ARGS=$*"
+EOF
+  chmod +x "$mock/claude"
+  hook="$home/.config/claude/hooks/dcg-guard.mjs"
+  local M='"matcher":"Bash|Write|Edit|MultiEdit|NotebookEdit"'
+  local H='"type":"command","command":"node '"$hook"'"'
+  local reg="{$M,\"hooks\":[{$H}]}"
+  local gap="settings.json (DCG hook registration / fallbackModel / env)"
+  probe_launch() {
+    probe_status=0
+    out="$(env $(scratch_env) AGENT_SANDBOX=1 PATH="$mock:$PATH" HOME="$home" \
+      XDG_CONFIG_HOME="$home/.config" "$launch" claude --no-sandbox 2>&1)" || probe_status=$?
+  }
+  expectDie() { # $1=case name, $2=required substring in the die output
+    probe_launch
+    if [ "$probe_status" -eq 0 ]; then
+      offenders="$offenders $1(launched)"
+    elif ! grep -qF -- "$2" <<<"$out"; then
+      offenders="$offenders $1(msg)"
+    fi
+  }
+  rm -f "$home/.config/claude/settings.json"
+  expectDie missing-settings "Missing: settings.json"
+  printf '%s' "{\"hooks\":{\"PostToolUse\":[$reg]}}" >"$home/.config/claude/settings.json"
+  expectDie unrelated-event "$gap"
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[{\"matcher\":\"B|W|E\",\"hooks\":[{$H}]}]}}" >"$home/.config/claude/settings.json"
+  expectDie token-drift-matcher "$gap"
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[{$M,\"hooks\":[{\"type\":\"command\",\"command\":\"node /usr/bin/true $hook\"}]}]}}" >"$home/.config/claude/settings.json"
+  expectDie altered-command "$gap"
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[{$M,\"hooks\":[{$H,\"if\":true}]}]}}" >"$home/.config/claude/settings.json"
+  expectDie if-handler "$gap"
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[{$M,\"hooks\":[{$H,\"async\":true}]}]}}" >"$home/.config/claude/settings.json"
+  expectDie async-handler "$gap"
+  # Key-shape sanity: some schema-invalid values make Claude skip the WHOLE
+  # file (dropping the hook), so a valid registration + invalid shape dies.
+  # Both keys are optional; the fixtures above omit them and the double-slash
+  # positive below proves absent passes. Fixtures stay valid JSON otherwise,
+  # so each negative tests exactly its named property.
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[$reg]},\"fallbackModel\":\"claude-sonnet-5-5\"}" >"$home/.config/claude/settings.json"
+  expectDie fallbackModel-scalar "$gap"
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[$reg]},\"fallbackModel\":[\"claude-sonnet-5\",42]}" >"$home/.config/claude/settings.json"
+  expectDie fallbackModel-nonstring "$gap"
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[$reg]},\"env\":{\"API_TIMEOUT_MS\":600000}}" >"$home/.config/claude/settings.json"
+  expectDie env-numeric-value "$gap"
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[$reg]},\"env\":[\"not\",\"an\",\"object\"]}" >"$home/.config/claude/settings.json"
+  expectDie env-not-object "$gap"
+  # Claude ignores entries beyond the first three rather than rejecting them.
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[$reg]},\"env\":{\"API_TIMEOUT_MS\":\"600000\"},\"fallbackModel\":[\"a\",\"b\",\"c\",\"d\"]}" >"$home/.config/claude/settings.json"
+  probe_launch
+  if [ "$probe_status" -ne 0 ]; then
+    offenders="$offenders valid-env+fallbackModel(died)"
+  fi
+  case "$out" in *"launched ARGS="*) ;; *) offenders="$offenders valid-env+fallbackModel(no-exec)" ;; esac
+  # Positive: the exact managed registration (double-slash renderer form),
+  # env and fallbackModel absent (both optional keys accepted).
+  printf '%s' "{\"hooks\":{\"PreToolUse\":[{$M,\"hooks\":[{\"type\":\"command\",\"command\":\"node $home//.config/claude/hooks/dcg-guard.mjs\"}]}]}}" >"$home/.config/claude/settings.json"
+  probe_launch
+  if [ "$probe_status" -ne 0 ]; then
+    offenders="$offenders positive(died)"
+  fi
+  case "$out" in *"launched ARGS="*) ;; *) offenders="$offenders positive(no-exec)" ;; esac
+  if [ -n "$offenders" ]; then
+    printf 'claude probe fixture offenders:%s\n' "$offenders"
+    return 1
+  fi
+}
+{{- end }}
 
 # bats test_tags=toolchain:ai,kind:launcher
 @test "profile vocabulary is single-sourced: one gate, die sites only inside the gate" {
@@ -718,7 +882,9 @@ FIXTURE
 
   jq -e '
     (.linux.agent.filesystem | (has("unix_socket") | not) and (has("unix_socket_subtree") | not)) and
-    (.linux.base.linux.af_unix_mediation == "pathname")
+    (.linux.base.linux.af_unix_mediation == "pathname") and
+    ([.linux.base.command_policies.commands[].from[] | select(type == "object")
+      | (.sandbox.unsafe_macos_seatbelt_rules // [])[]] | length) == 0
   ' <<<"$json" >/dev/null || offenders="$offenders linux:fail-closed-shape"
 
   if [ -n "$offenders" ]; then
@@ -871,8 +1037,8 @@ FIXTURE
   local home_ignore comp_ignore off on d
   home_ignore="{{ .chezmoi.sourceDir }}/.chezmoiignore.tmpl"
   comp_ignore="{{ .chezmoi.sourceDir }}/private_dot_config/exact_zsh/exact_completions/.chezmoiignore.tmpl"
-  off='{"toolchains":{"ai":false,"pi":false,"opencode":false,"omp":false}}'
-  on='{"toolchains":{"ai":true,"pi":true,"opencode":false,"omp":false}}'
+  off='{"toolchains":{"ai":false,"pi":false,"opencode":false,"omp":false,"claude":false}}'
+  on='{"toolchains":{"ai":true,"pi":true,"opencode":false,"omp":false,"claude":true}}'
   d="$BATS_TEST_TMPDIR"
   render_source "$home_ignore" "$d/off-home" "$off"
   run grep -Fx .local/bin/agent "$d/off-home"
@@ -906,4 +1072,284 @@ FIXTURE
   # to render at apply time.
   run grep -RnE '\{\{-[[:space:]]{2,}/\*|\{\{[[:space:]]{2,}/\*' "{{ .chezmoi.sourceDir }}/.chezmoitemplates"
   assert_failure
+}
+
+# --- Keystore seeding (apply-time seed + seed-keystore command) ---
+
+{{- /* Fixture renders force os and interactivity so every host exercises the
+       same body; the shared partial is the behavior under test, the real
+       template files are verified by rendering them (below). routes_enabled
+       is forced on so the row set is real data on pass-through hosts too. */ -}}
+{{- $seedRoot := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes_enabled") "value" true) | mustFromJson -}}
+{{- $seedDarwin := includeTemplate "base/test/deep-copy-set-path" (dict "root" $seedRoot "path" (list "os") "value" "darwin") | mustFromJson -}}
+{{- $seedOn := includeTemplate "base/test/deep-copy-set-path" (dict "root" $seedDarwin "path" (list "host" "interactive") "value" true) | mustFromJson -}}
+{{- $seedOff := includeTemplate "base/test/deep-copy-set-path" (dict "root" $seedDarwin "path" (list "host" "interactive") "value" false) | mustFromJson -}}
+{{- $seedLinux := includeTemplate "base/test/deep-copy-set-path" (dict "root" $seedOn "path" (list "os") "value" "linux") | mustFromJson -}}
+{{- $seedApply := includeTemplate "base/ai/auth/render-keystore-seed" (dict "root" $seedOn "mode" "apply") -}}
+{{- $seedCmd := includeTemplate "base/ai/auth/render-keystore-seed" (dict "root" $seedOn "mode" "command") -}}
+{{- $seedIdle := includeTemplate "base/ai/auth/render-keystore-seed" (dict "root" $seedOff "mode" "apply") -}}
+{{- $seedLin := includeTemplate "base/ai/auth/render-keystore-seed" (dict "root" $seedLinux "mode" "apply") -}}
+{{- $seedWant := keys .ai.base.credentials.env_injected | sortAlpha -}}
+{{- range $row := .ai.base.credentials.routes -}}
+{{-   $ck := index $row "credential_key" | default "" -}}
+{{-   if and $ck (not (contains "://" $ck)) -}}{{- $seedWant = append $seedWant $ck -}}{{- end -}}
+{{- end -}}
+{{- $seedWant = $seedWant | uniq | sortAlpha | join " " -}}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "seed render matches the entry-rule, gates non-store hosts, keeps tokens out (aggregate)" {
+  local offenders="" add_line
+  while IFS=$'\t' read -r fact have want; do
+    [ "$have" = "$want" ] || offenders="$offenders $fact"
+  done <<ENTRY
+want-list	{{ regexFind "seed_entries=\"[^\"]*\"" $seedApply }}	seed_entries="{{ $seedWant }}"
+delegated-rows-absent	{{ if regexFind "CLAUDE_CODE_OAUTH_TOKEN|GITHUB_TOKEN|OPENAI_API_KEY" (regexFind "seed_entries=\"[^\"]*\"" $seedApply) }}present{{ else }}absent{{ end }}	absent
+no-credential-literals	{{ if contains "sk-ant-" $seedApply }}present{{ else }}absent{{ end }}	absent
+prompt-is-tty-not-argv	{{ if contains "add-generic-password -s nono -a \"$1\" -T \"$nono_bin\" -U -w" $seedApply }}yes{{ else }}no{{ end }}	yes
+grant-narrows-to-nono	{{ if contains "-A" (regexFind "security add-generic-password.*" $seedApply) }}widened{{ else }}narrow{{ end }}	narrow
+apply-form-has-no-arg-surface	{{ if contains "usage: seed-keystore" $seedApply }}present{{ else }}absent{{ end }}	absent
+command-form-validates-names	{{ if contains "known entries:" $seedCmd }}present{{ else }}absent{{ end }}	present
+non-interactive-is-noop	{{ if contains "seed_entries" $seedIdle }}renders{{ else }}noop{{ end }}	noop
+store-less-host-is-noop	{{ if contains "seed_entries" $seedLin }}renders{{ else }}noop{{ end }}	noop
+ENTRY
+  [ -n "$offenders" ] && { printf 'seed render facts (offenders):%s\n' "$offenders"; return 1; }
+  # The add line is exactly the prompt shape: -T grant, -U overwrite, and -w
+  # last with no value argument (the value never crosses argv).
+  add_line="$(printf '%s\n' "$seedApply" | grep 'security add-generic-password')"
+  [[ "$add_line" == *" -U -w" ]] || { printf 'add line is not prompt-shaped: %s\n' "$add_line"; return 1; }
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "seed body never prompts a present or locked store and keeps values out of argv" {
+  local script mock log out rc
+  script="$BATS_TEST_TMPDIR/seed.sh"
+  cat >"$script" <<'SEEDEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+{{ $seedApply }}
+SEEDEOF
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  cat >"$mock/security" <<'SECSTUB'
+#!/usr/bin/env sh
+case "$1" in
+show-keychain-info) exit "${SEED_TEST_LOCKED:-0}" ;;
+find-generic-password) exit "${SEED_TEST_MISSING:-0}" ;;
+add-generic-password) printf '%s\n' "$*" >>"$SEED_TEST_ARGV_LOG/add.log"; exit 0 ;;
+esac
+exit 0
+SECSTUB
+  printf '#!/usr/bin/env sh\ntest "$1" = which && printf "%%s\\n" /bin/false\nexit 1\n' >"$mock/mise"
+  chmod +x "$mock/security" "$mock/mise"
+  log="$mock/argv"; mkdir -p "$log"
+
+  # Locked store: names the unlock remedy, adds nothing, exits 0 (apply does
+  # not fail here — the launcher probe enforces at launch).
+  out="$(env PATH="$mock:$PATH" SEED_TEST_LOCKED=1 SEED_TEST_ARGV_LOG="$log" bash "$script" 2>&1 </dev/null)" && rc=0 || rc=$?
+  [ "$rc" -eq 0 ] || { printf 'apply form failed on a locked store (rc %d): %s\n' "$rc" "$out"; return 1; }
+  grep -qF "security unlock-keychain" <<<"$out" || { printf 'locked remedy missing: %s\n' "$out"; return 1; }
+  [ ! -e "$log/add.log" ] || { printf 'add happened on a locked store\n'; return 1; }
+
+  # Everything present: silent, zero adds, no prompt text anywhere.
+  out="$(env PATH="$mock:$PATH" SEED_TEST_MISSING=0 SEED_TEST_ARGV_LOG="$log" bash "$script" 2>&1 </dev/null)" || return 1
+  [ ! -e "$log/add.log" ] || { printf 'add happened for a present entry\n'; return 1; }
+  grep -qF "Seeding" <<<"$out" && { printf 'prompt fired for present entries: %s\n' "$out"; return 1; }
+
+  # Missing entries: each is prompted by name and added with no value argv —
+  # every add line ends at the bare -w prompt flag.
+  rm -f "$log"/*.log
+  out="$(env PATH="$mock:$PATH" SEED_TEST_MISSING=44 SEED_TEST_ARGV_LOG="$log" bash "$script" 2>&1 </dev/null)" || return 1
+  local name n=0
+  for name in {{ (keys .ai.base.credentials.env_injected) | sortAlpha | join " " }}; do
+    grep -qF "Seeding $name" <<<"$out" && n=$((n + 1))
+  done
+  [ "$n" -eq {{ len (keys .ai.base.credentials.env_injected) }} ] || { printf 'prompted %d of the gap set: %s\n' "$n" "$out"; return 1; }
+  [ "$(wc -l <"$log/add.log" | tr -d ' ')" -eq "$n" ] || { printf 'add count mismatch:\n%s\n' "$(cat "$log/add.log")"; return 1; }
+  grep -qE -- '-w .+' "$log/add.log" && { printf 'value leaked into argv:\n%s\n' "$(cat "$log/add.log")"; return 1; }
+  grep -qE -- ' -A( |$)' "$log/add.log" && { printf 'keychain-wide -A grant emitted:\n%s\n' "$(cat "$log/add.log")"; return 1; }
+}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "seed-keystore overwrites exactly the named entry and refuses unknown names" {
+  local script mock log
+  script="$BATS_TEST_TMPDIR/seed-cmd.sh"
+  cat >"$script" <<'CMDEOF'
+#!/usr/bin/env bash
+set -euo pipefail
+{{ $seedCmd }}
+CMDEOF
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  cat >"$mock/security" <<'SECSTUB'
+#!/usr/bin/env sh
+case "$1" in
+show-keychain-info) exit 0 ;;
+find-generic-password) exit 0 ;;
+add-generic-password) printf '%s\n' "$*" >>"$SEED_TEST_ARGV_LOG/add.log"; exit 0 ;;
+esac
+exit 0
+SECSTUB
+  printf '#!/usr/bin/env sh\ntest "$1" = which && printf "%%s\\n" /bin/false\nexit 1\n' >"$mock/mise"
+  chmod +x "$mock/security" "$mock/mise"
+  log="$mock/argv"; mkdir -p "$log"
+  local first
+  first={{ (keys .ai.base.credentials.env_injected) | sortAlpha | first | quote }}
+
+  # Named entry: overwrite-one semantics — exactly one add, even though every
+  # entry already exists (find exits 0), and exactly the named one.
+  run env PATH="$mock:$PATH" SEED_TEST_ARGV_LOG="$log" bash "$script" "$first"
+  assert_success
+  [ "$(wc -l <"$log/add.log" | tr -d ' ')" -eq 1 ]
+  grep -qF -- "-a $first -T" "$log/add.log"
+
+  # Unknown name: refuses with the entry list and exits nonzero.
+  run env PATH="$mock:$PATH" SEED_TEST_ARGV_LOG="$log" bash "$script" not-a-credential-entry
+  assert_failure
+  assert_output --partial "known entries:"
+}
+
+{{- if eq .chezmoi.os "darwin" }}
+# bats test_tags=toolchain:ai,kind:config
+@test "seed destinations render from the real templates and stay managed on ai hosts" {
+  # Full-file render on the real host root (darwin + interactive here), then
+  # the pruning proof for the exact_bin addition: managed, not render-only.
+  local cb d
+  cb="$(chezmoiBin)"
+  d="$BATS_TEST_TMPDIR"
+  render_source "{{ .chezmoi.sourceDir }}/.chezmoiscripts/toolchains/ai/run_onchange_after_84_seed-keystore.sh.tmpl" "$d/seed-apply.sh"
+  run grep -Fq -e 'seed_missing' "$d/seed-apply.sh"
+  assert_success
+  run grep -Fq -e 'usage: seed-keystore' "$d/seed-apply.sh"
+  assert_failure
+  render_source "{{ .chezmoi.sourceDir }}/private_dot_local/exact_bin/executable_seed-keystore.tmpl" "$d/seed-cmd.sh"
+  run grep -Fq -e 'known entries:' "$d/seed-cmd.sh"
+  assert_success
+  run "$cb" managed
+  assert_success
+  assert_output --partial ".local/bin/seed-keystore"
+}
+{{- else }}
+# bats test_tags=toolchain:ai,kind:config
+@test "seed destinations render from the real templates and stay managed on ai hosts" {
+  skip "keystore seeding renders only on store-capable (macOS) hosts in this group"
+}
+{{- end }}
+
+# bats test_tags=toolchain:ai,kind:config
+@test "ignore gates prune .local/bin/seed-keystore with the ai toolchain" {
+  local home_ignore off on d
+  home_ignore="{{ .chezmoi.sourceDir }}/.chezmoiignore.tmpl"
+  off='{"toolchains":{"ai":false}}'
+  on='{"toolchains":{"ai":true}}'
+  d="$BATS_TEST_TMPDIR"
+  render_source "$home_ignore" "$d/off" "$off"
+  run grep -Fx .local/bin/seed-keystore "$d/off"
+  assert_success
+  render_source "$home_ignore" "$d/on" "$on"
+  run grep -Fx .local/bin/seed-keystore "$d/on"
+  assert_failure
+}
+
+# --- Credential source probe (live launcher, stubbed store) ---
+#
+# One fixture profile (a keystore row plus a gap name) drives the KTD4
+# outcome matrix: die-on-missing and die-on-locked under the guarded path,
+# warn-and-export under --no-sandbox, exports in the agent process only, and
+# a print-env surface free of keystore values. Darwin is stubbed so every
+# host exercises the Keychain paths.
+
+{{- /* Probe fixture: written by each test via probe_fixture. */ -}}
+probe_fixture() { # writes the fixture HOME under $1, echoes its path
+  local fh="$1/home"
+  mkdir -p "$fh/.config/nono/profiles"
+  cat >"$fh/.config/nono/profiles/pi.json" <<'FIX'
+{"meta":{"name":"pi"},"network":{"credentials":["probe","gap"],"custom_credentials":{"probe":{"upstream":"https://api.openai.com","credential_key":"openai_probe_key","env_var":"OPENAI_API_KEY"}}}}
+FIX
+  cat >"$fh/.config/nono/profiles/base.json" <<'FIX'
+{"meta":{"name":"base"},"diagnostics":{"redaction":{"extra_env_vars":["DCG_*","PROBE_GAP_KEY"]}}}
+FIX
+  printf '%s\n' "$fh"
+}
+
+probe_mocks() { # mock bin dir for launcher launches (agent binary echoes env)
+  local mock
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  setup_mock_bins "$mock" curl nc nono git engram pkill pgrep security
+  printf '#!/usr/bin/env sh\nprintf "Darwin\\n"\n' >"$mock/uname"
+  cat >"$mock/pi" <<'CHILDEOF'
+#!/usr/bin/env sh
+printf 'CHILD_OPENAI=[%s] CHILD_GAP=[%s]\n' "${OPENAI_API_KEY:-unset}" "${PROBE_GAP_KEY:-unset}"
+CHILDEOF
+  chmod +x "$mock/uname" "$mock/pi"
+  printf '%s\n' "$mock"
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "credential probe dies on an unseeded keystore and names the seed command without leaking values" {
+  local fh mock
+  fh="$(probe_fixture "$BATS_TEST_TMPDIR")"
+  mock="$(probe_mocks)"
+  run env $(scratch_env) PATH="$mock:$PATH" HOME="$fh" XDG_CONFIG_HOME="$fh/.config" \
+    AGENT_SANDBOX= KEYCHAIN_STATE=unlocked KEYCHAIN_SEEDED= \
+    "$HOME/.local/bin/agent" pi
+  assert_failure
+  assert_output --partial 'openai_probe_key'
+  assert_output --partial 'seed-keystore'
+  refute_output --partial 'stub-value'
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "credential probe dies on a locked keychain and names the unlock command" {
+  local fh mock
+  fh="$(probe_fixture "$BATS_TEST_TMPDIR")"
+  mock="$(probe_mocks)"
+  run env $(scratch_env) PATH="$mock:$PATH" HOME="$fh" XDG_CONFIG_HOME="$fh/.config" \
+    AGENT_SANDBOX= KEYCHAIN_STATE=locked KEYCHAIN_SEEDED=openai_probe_key,PROBE_GAP_KEY \
+    "$HOME/.local/bin/agent" pi
+  assert_failure
+  assert_output --partial 'security unlock-keychain'
+  refute_output --partial 'stub-value'
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "credential probe reports resolved sources and exports the gap value into the agent env only" {
+  local fh mock
+  fh="$(probe_fixture "$BATS_TEST_TMPDIR")"
+  mock="$(probe_mocks)"
+  run env -u OPENAI_API_KEY -u PROBE_GAP_KEY $(scratch_env) PATH="$mock:$PATH" HOME="$fh" \
+    XDG_CONFIG_HOME="$fh/.config" AGENT_SANDBOX= KEYCHAIN_STATE=unlocked \
+    KEYCHAIN_SEEDED=openai_probe_key,PROBE_GAP_KEY \
+    "$HOME/.local/bin/agent" pi
+  assert_success
+  assert_output --partial 'sources resolved'
+  # Guarded launch: the routed keystore value stays proxy-side (phantom
+  # surface), the gap name rides the agent env as a real value; the test's
+  # own environment was scrubbed of both names before the run and the child
+  # is the only place the value appears.
+  assert_output --partial 'CHILD_OPENAI=[unset]'
+  assert_output --partial 'CHILD_GAP=[stub-value-PROBE_GAP_KEY]'
+  refute_output --partial 'CHILD_GAP=[unset]'
+  test -z "${PROBE_GAP_KEY:-}"
+}
+
+# bats test_tags=toolchain:ai,kind:launcher
+@test "unguarded launch exports keystore values to the agent env; print-env stays value-free" {
+  local fh mock
+  fh="$(probe_fixture "$BATS_TEST_TMPDIR")"
+  mock="$(probe_mocks)"
+  run env -u OPENAI_API_KEY -u PROBE_GAP_KEY $(scratch_env) PATH="$mock:$PATH" HOME="$fh" \
+    XDG_CONFIG_HOME="$fh/.config" AGENT_SANDBOX= KEYCHAIN_STATE=unlocked \
+    KEYCHAIN_SEEDED=openai_probe_key,PROBE_GAP_KEY \
+    "$HOME/.local/bin/agent" pi --no-sandbox
+  assert_success
+  assert_output --partial 'CHILD_OPENAI=[stub-value-openai_probe_key]'
+  assert_output --partial 'CHILD_GAP=[stub-value-PROBE_GAP_KEY]'
+  test -z "${OPENAI_API_KEY:-}"
+
+  # --print-env never runs the probe (it exits before the shared region):
+  # no keystore-derived value, no probe banner.
+  run env PATH="$mock:$PATH" HOME="$fh" XDG_CONFIG_HOME="$fh/.config" \
+    KEYCHAIN_STATE=unlocked KEYCHAIN_SEEDED=openai_probe_key,PROBE_GAP_KEY \
+    "$HOME/.local/bin/agent" pi --print-env
+  assert_success
+  refute_output --partial 'stub-value'
+  refute_output --partial 'sources resolved'
 }

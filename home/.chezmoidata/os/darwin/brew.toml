@@ -3,3 +3,6 @@ taps = [
   { name = "adyranov/tap", url = "https://github.com/adyranov/homebrew-tap" },
   { name = "jundot/omlx", url = "https://github.com/jundot/omlx" }
 ]
+
+[brew.os.darwin.casks]
+azure-cli = { include = { arch = ["arm64"] } }

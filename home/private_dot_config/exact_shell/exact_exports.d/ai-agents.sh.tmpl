@@ -3,6 +3,12 @@
 # Default/core profile: ~/.config/pi/agent/
 export PI_CODING_AGENT_DIR="$XDG_CONFIG_HOME/pi/agent"
 export PI_CODING_AGENT_SESSION_DIR="$XDG_CONFIG_HOME/pi/agent/sessions"
+# Claude Code: plain `claude`, the VS Code/Cursor extension, and Desktop run
+# unsandboxed and share ~/.config/claude with `agent claude` (accepted risk).
+# No CLAUDE_CODE_TMPDIR here: /tmp/agents/claude is the sandbox scratch root, so
+# a global export would point unsandboxed sessions at it; the launcher exports
+# its per-agent dir on every guarded launch.
+export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$XDG_CONFIG_HOME/claude}"
 export ENGRAM_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/engram"
 export ENGRAM_PORT="${ENGRAM_PORT:-7437}"
 export ENGRAM_URL="http://127.0.0.1:${ENGRAM_PORT}"

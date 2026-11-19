@@ -1,0 +1,42 @@
+{{- /*
+  duer.json — whole-session serving profile for nested `claude -p` duers.
+  Rendered only for serving-routed presets (see .chezmoiignore.tmpl).
+*/ -}}
+{{- $ctx := includeTemplate "base/ai/agents/claude/render-claude-context" (dict "root" .) | mustFromJson -}}
+{{- if not $ctx.has_serving -}}{{- fail "duer.json renders only for serving-routed presets" -}}{{- end -}}
+{{- $duers := $ctx.claude.duers -}}
+{{- $ep := index $ctx.serving $ctx.serving_provider -}}
+{{- /* The Anthropic surface is the host root (messages/count_tokens/models on
+       infer01, probed 2026-11-10), so the OpenAI-style /v1 suffix is stripped
+       from base_url. Probe: a duer turn against the stripped URL must hit
+       /v1/messages successfully. */ -}}
+{{- $baseUrl := trimSuffix "/v1" $ep.base_url -}}
+{{- /* Deterministic pick: the named duers.serving_model_tier (default "small"),
+       not map iteration (several tiers may route to the serving provider). */ -}}
+{{- $tierName := $duers.serving_model_tier | default "small" -}}
+{{- $modelId := get (index $ctx.tiers $tierName | default (index $ctx.tiers "small") | default dict) "model" | default "" -}}
+{{- $model := dict -}}
+{{- range $m := $ep.models -}}
+{{-   if eq ($m.id | default "") $modelId -}}{{- $model = $m -}}{{- end -}}
+{{- end -}}
+{{- if not $model -}}{{- fail (printf "duer.json: serving model %q is not declared for %s" $modelId $ctx.serving_provider) -}}{{- end -}}
+{{- $env := merge (dict) $duers.env -}}
+{{- $_ := set $env "ANTHROPIC_BASE_URL" $baseUrl -}}
+{{- /* Alias pins: one model serves every alias, so all three derive from the
+       serving provider's first model id (duers.env carries no literals; a
+       non-serving preset renders no duer.json, so they exist nowhere else). */ -}}
+{{- $aliasModel := (index (index $ctx.serving $ctx.serving_provider).models 0).id -}}
+{{- range $k := list "ANTHROPIC_DEFAULT_HAIKU_MODEL" "ANTHROPIC_DEFAULT_OPUS_MODEL" "ANTHROPIC_DEFAULT_SONNET_MODEL" -}}
+{{-   $_ := set $env $k $aliasModel -}}
+{{- end -}}
+{{- /* Token limits come from the serving model's declaration.
+       Probe: exact Claude Code env-var names for the window/output overrides. */ -}}
+{{- $_ := set $env "CLAUDE_CODE_MAX_CONTEXT_TOKENS" ($model.context_window | toString) -}}
+{{- $_ := set $env "CLAUDE_CODE_MAX_OUTPUT_TOKENS" ($model.max_output | toString) -}}
+{{- $hooks := includeTemplate "base/ai/agents/claude/render-claude-pre-tool-use-hooks" (dict "chezmoi" .chezmoi) | mustFromJson -}}
+{{- dict
+  "permissions" (dict "defaultMode" "bypassPermissions")
+  "autoMemoryEnabled" false
+  "hooks" (dict "PreToolUse" $hooks)
+  "env" $env
+  | toPrettyJson -}}

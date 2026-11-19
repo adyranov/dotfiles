@@ -24,9 +24,9 @@ CLI contract:
 - argv[2] (optional): JSON map `<command> -> {"fs_read": [...], "fs_write": [...]}`
   overriding that command's invocation-policy command sandbox. The sandbox
   replaces the session filesystem grants for policy-controlled commands, so every
-  command with a filesystem carve-out needs its tier rendered here (chezmoi's
-  source-inspection dirs — source dir plus chezmoi's own config/cache/temp;
-  git's and mise's dirs). Lists are
+  command with a filesystem carve-out needs its tier rendered here (git's and
+  mise's dirs; deny-only commands like the bare `brew`/`chezmoi` forms carry
+  no sandbox). Lists are
   DIRECTORIES only: nono rejects a file entry and policy-denies the whole
   invocation ("Expected a directory but got a file"). Unlisted commands keep the
   default `{"fs_read": ["."], "fs_write": ["."]}`.

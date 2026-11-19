@@ -1,0 +1,14 @@
+{{- /* Duer structured-result contract (--json-schema): strict shape, every
+       duers' final message is one of these objects for the orchestrator to
+       reconcile. */ -}}
+{{- dict
+  "type" "object"
+  "additionalProperties" false
+  "required" (list "status" "summary" "details")
+  "properties" (dict
+    "status" (dict "type" "string" "enum" (list "success" "partial" "blocked"))
+    "summary" (dict "type" "string" "description" "One-sentence outcome of the delegated task")
+    "details" (dict "type" "string" "description" "What was done and how; the full Learning section")
+    "changed_paths" (dict "type" "array" "items" (dict "type" "string") "description" "Every file created, edited, or deleted (empty for read-only roles)")
+    "verification" (dict "type" "string" "description" "Commands run as evidence with their outcomes (tests, probes); empty only for read-only roles"))
+  | toPrettyJson -}}

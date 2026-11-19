@@ -1,0 +1,15 @@
+{{- /*
+  claude-powerline XDG config (~/.config/claude-powerline/config.json).
+  Custom theme with pi's footer Catppuccin hexes (exact_pi/.../powerline-footer/
+  theme.json): model #cba6f7, path #89dceb, git #a6e3a1. The footer's state
+  colors (gitDirty/contextWarn #f9e2af, contextError #f38ba8) map onto
+  claude-powerline's built-in warning/error state rendering — its custom-color
+  map has one entry per segment, no state keys — so they ride the tool defaults.
+*/ -}}
+{{- dict
+  "theme" "custom"
+  "colors" (dict "custom" (dict
+    "model" (dict "bg" "#cba6f7" "fg" "#1e1e2e")
+    "directory" (dict "bg" "#89dceb" "fg" "#1e1e2e")
+    "git" (dict "bg" "#a6e3a1" "fg" "#1e1e2e")))
+  | toPrettyJson -}}

@@ -28,7 +28,7 @@ fi
 # ----- Constants & defaults ---------------------------------------------------
 
 PACKAGE_SUITES=(test-system-packages.bats test-mise-packages.bats test-helm-plugins.bats test-krew-plugins.bats)
-AI_SUITES=(test-ai-shared.bats test-ai-pi.bats test-ai-opencode.bats test-ai-omp.bats test-ai-local-llm.bats test-ai-permissions.bats test-ai-dcg.bats test-ai-subagent-limit.bats)
+AI_SUITES=(test-ai-shared.bats test-ai-pi.bats test-ai-opencode.bats test-ai-omp.bats test-ai-local-llm.bats test-ai-permissions.bats test-ai-dcg.bats test-ai-subagent-limit.bats test-ai-claude.bats)
 ALL_SUITES=("${PACKAGE_SUITES[@]}" test-config.bats test-runner.bats "${AI_SUITES[@]}")
 AGGREGATE_TITLE='aggregate install smoke'
 
@@ -71,6 +71,7 @@ suiteAlias() {
   ai-local-llm | ai-llm) echo test-ai-local-llm.bats ;;
   ai-permissions | ai-perms) echo test-ai-permissions.bats ;;
   ai-dcg) echo test-ai-dcg.bats ;;
+  ai-claude) echo test-ai-claude.bats ;;
   ai-subagent-limit | ai-limit) echo test-ai-subagent-limit.bats ;;
   all) printf '%s\n' "${ALL_SUITES[@]}" ;;
   *) return 1 ;;

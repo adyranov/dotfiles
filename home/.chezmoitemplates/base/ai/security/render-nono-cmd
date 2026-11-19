@@ -6,12 +6,12 @@
   nono-cmd-policy maps each pattern to nono 0.79 argv matchers (exact / prefix /
   contains) and drops shell builtins (eval, exec) a PATH shim cannot mediate.
   Invariants:
+  - Bare (all-wildcard) deny forms render deny-only (`from.session = "deny"`,
+    no sandbox): brew and chezmoi are deny-only — the user runs them in the
+    host terminal — so neither carries a command sandbox.
   - The command sandbox REPLACES the session filesystem grants for that command
     and nono accepts only DIRECTORIES in fs_read/fs_write (a file entry
-    policy-denies the whole invocation): the chezmoi entry carries the source
-    dir and chezmoi's own config/cache dirs so in-sandbox source inspection
-    (`chezmoi diff`/`cat`/`execute-template`) works — live-home applies are
-    user-terminal-only and carry no grant here — and never `~/.config` itself
+    policy-denies the whole invocation), and never `~/.config` itself
     (a broad read there re-opens the credential deny groups: gh hosts.yml, git
     credentials, configstore, pgpass). Single files ride fs_read_file/fs_write_file
     (a symlink-to-file entry like `~/.local/bin/mise` cannot ride a dir entry).
@@ -26,27 +26,34 @@
     its own sandbox grants. The per-command fs lists (fs_read/fs_read_file/
     fs_write/fs_write_file) get the same discrimination on the fs axis:
     dotless-slashless entries are `filesystem.paths` group refs resolved
-    before `expand-tmpdir` (the chezmoi-synthesized command_sandbox_* lists
-    are classified the same way).
+    before `expand-tmpdir`.
   - `@provider:token` entries pass through verbatim for nono to expand, but are
     unusable for git config on hosts with a system gitconfig: the expansion
     emits FILE entries into dirs-only lists.
   - Child-exec grants ride `exec_paths` (Linux) and
     `unsafe_macos_seatbelt_rules` (darwin only, order-preserving — emitted
     after the exec-gate deny, last-match-wins).
+  - Shared write floors (darwin): `ai.agents.shared.sandbox.shared_write_denies`
+    is REQUIRED data (missing / wrong type / empty fails the render), its
+    `$HOME` sentinel expands like the agent profiles, and the rules append
+    LAST — no dedup after them (a floor copy kept at an earlier position
+    would let a later allow win) — to every map-shaped `commands[].from[]`
+    sandbox, the converter's DEFAULT_SANDBOX commands included. String "deny"
+    bodies carry no sandbox; an object body without a map sandbox is a
+    render failure. Linux never receives these macOS raw rules.
 */ -}}
 {{- $root := index . "root" -}}
+{{- $os := dig "os" $root.chezmoi.os $root -}}
 {{- $fsCatalog := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.filesystem.paths" "required" true) | mustFromJson) -}}
 {{- $cmd := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.command_policies" "required" true) | mustFromJson -}}
 {{- $script := joinPath $root.chezmoi.sourceDir ".chezmoitemplates/base/ai/security/nono-cmd-policy" -}}
 {{- $deny := index $cmd "deny" | default list -}}
 {{- $joined := $deny | join "\n" -}}
 {{- $apply := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.permissions.apply" "required" false) | mustFromJson) -}}
-{{- /* Floor for every command-sandbox grant (the chezmoi command_sandbox_*
-  lists plus every per-command fs/exec list). The guard reports and exits 0;
-  this renderer turns a report into a loud `fail` (expand-path-groups'
-  precedent). */ -}}
-{{- $dirs := concat (index $apply "command_sandbox_read" | default list) (index $apply "command_sandbox_write" | default list) (index $apply "command_sandbox_read_file" | default list) -}}
+{{- /* Floor for every command-sandbox grant (every per-command fs/exec list).
+  The guard reports and exits 0; this renderer turns a report into a loud
+  `fail` (expand-path-groups' precedent). */ -}}
+{{- $dirs := list -}}
 {{- range $_, $glists := dig "sandbox" dict $apply -}}
 {{-   $dirs = concat $dirs (index $glists "fs_read" | default list) (index $glists "fs_write" | default list)
     (index $glists "fs_read_file" | default list) (index $glists "fs_write_file" | default list)
@@ -62,7 +69,7 @@
 {{- /* The guard is a template (shared python-anchor include): render it and run
   the rendered source with `python3 -c` (argv[1] contract unchanged). */ -}}
 {{- $guard := includeTemplate "base/ai/security/sandbox-grant-guard" dict -}}
-{{- $violations := output "python3" "-c" $guard (dict "grants" $dirs "protected" $protected "exempt" (list "~/.config/chezmoi") "allow_globs" true | toJson) | mustFromJson -}}
+{{- $violations := output "python3" "-c" $guard (dict "grants" $dirs "protected" $protected "exempt" list "allow_globs" true | toJson) | mustFromJson -}}
 {{- if $violations -}}{{- fail (printf "sandbox-grant-guard: %s" ($violations | join "; ")) -}}{{- end -}}
 {{- $sandbox := deepCopy (dig "sandbox" dict $apply) -}}
 {{- range $name, $lists := $sandbox -}}
@@ -100,41 +107,37 @@
 {{- /* Seatbelt S-expressions: order-sensitive (emitted after the exec-gate
   deny, last-match wins), so uniq WITHOUT sortAlpha; darwin-only (the
   renderer strips them elsewhere, where exec_paths carries the same need). */ -}}
-{{-   if and $seat (eq $root.chezmoi.os "darwin") -}}{{- $_ := set $entry "unsafe_macos_seatbelt_rules" ($seat | uniq) -}}{{- end -}}
+{{-   if and $seat (eq $os "darwin") -}}{{- $_ := set $entry "unsafe_macos_seatbelt_rules" ($seat | uniq) -}}{{- end -}}
 {{-   if $net -}}{{-   $_ := set $entry "network" $net -}}{{- end -}}
 {{-   if $cu -}}{{-   $_ := set $entry "can_use" (includeTemplate "base/ai/security/uniq-sort" $cu | mustFromJson) -}}{{- end -}}
 {{-   $_ := set $sandbox $name $entry -}}
 {{- end -}}
-{{- $czRead := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $apply "command_sandbox_read" | default list) (list "/bin" "/usr/bin")) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
-{{- $czWrite := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (concat (index $apply "command_sandbox_write" | default list) (list "/private/var/folders")) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
-{{- $czfile := includeTemplate "base/ai/security/classify-refs" (dict "root" $root "refs" (index $apply "command_sandbox_read_file" | default list) "catalog" "ai.permissions.filesystem.paths" "catalogJson" $fsCatalog) | mustFromJson -}}
-{{- $cz := dict "fs_read" (includeTemplate "base/ai/security/uniq-sort" (includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $czRead) | mustFromJson) | mustFromJson)
-  "fs_write" (includeTemplate "base/ai/security/uniq-sort" (includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $czWrite) | mustFromJson) | mustFromJson) -}}
-{{- $czfile = includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $czfile) | mustFromJson -}}
-{{- if $czfile -}}{{- $_ := set $cz "fs_read_file" (includeTemplate "base/ai/security/uniq-sort" $czfile | mustFromJson) -}}{{- end -}}
-{{- /* Child-exec carve: chezmoi and its run_* scripts fork system interpreters
-  and tools (env, sh, bash, uname, curl, …) plus the mise python3 shim for the
-  render-time guards; without a carve every in-sandbox render dies at the exec
-  gate. Mirror exec_paths: /bin and /usr/bin subpaths (the agent session
-  already execs them — no new authority), and because the gate matches canonical
-  paths, shim symlinks never match by name: allow the shim runner ~/.local/bin/
-  mise (literal) plus every tool mise execs under installs (subpath — the shim
-  chain reaches python3 AND, with shims first on PATH, the real chezmoi binary
-  under installs/chezmoi). */ -}}
-{{- $home := trimSuffix "/" $root.chezmoi.homeDir -}}
-{{- $cz = merge $cz (dict
-  "fs_write_file" (list "dtrace_helper_file")
-  "exec_paths" (list "/bin" "/usr/bin" (printf "%s/.local/bin" $home) (printf "%s/.local/share/mise/shims" $home) (printf "%s/.local/share/mise/installs/python" $home))
-  "unsafe_macos_seatbelt_rules" (list
-    "(allow process-exec* (subpath \"/bin\"))"
-    "(allow process-exec* (subpath \"/usr/bin\"))"
-    "(allow process-exec* (subpath \"/Library/Developer/CommandLineTools\"))"
-    (printf "(allow process-exec* (literal \"%s/.local/bin/mise\"))" $home)
-    (printf "(allow process-exec* (subpath \"%s/.local/share/mise/installs\"))" $home))) -}}
-{{- if not (eq $root.chezmoi.os "darwin") -}}{{- $_ := unset $cz "unsafe_macos_seatbelt_rules" -}}{{- end -}}
-{{- $_ := set $sandbox "chezmoi" $cz -}}
 {{- $out := output "python3" $script $joined ($sandbox | toJson) | mustFromJson -}}
-{{- if not (kindIs "map" (dig "commands" "chezmoi" "from" "session" nil $out)) -}}
-{{-   fail "render-nono-cmd: chezmoi session policy is not a map (a wildcard `chezmoi *` deny in the core collapses it to deny-all and kills in-sandbox chezmoi diff/execute-template); keep the deny core in literal argv forms" -}}
+{{- /* Shared macOS write floors: REQUIRED on darwin — a command policy
+  rendered without the floors is a silent security regression, so missing /
+  non-list / empty data fails the render. $HOME expands with the agent-profile
+  home canonicalization. */ -}}
+{{- if eq $os "darwin" -}}
+{{-   $sharedSb := (includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.shared.sandbox" "required" true) | mustFromJson) -}}
+{{-   $raw := index $sharedSb "shared_write_denies" | default list -}}
+{{-   if not (kindIs "slice" $raw) -}}{{-   fail "render-nono-cmd: ai.agents.shared.sandbox.shared_write_denies is missing or not a list (required macOS write floors)" -}}{{-   end -}}
+{{-   if not (gt (len $raw) 0) -}}{{-   fail "render-nono-cmd: ai.agents.shared.sandbox.shared_write_denies is empty (required macOS write floors)" -}}{{-   end -}}
+{{-   $floors := includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $raw "home" (trimSuffix "/" $root.chezmoi.homeDir)) | mustFromJson -}}
+{{- /* Append the floors LAST to every map-shaped commands[].from[] sandbox
+  (the converter's DEFAULT_SANDBOX commands included), preserving each
+  sandbox's existing raw-rule order. NO uniq after appending: seatbelt is
+  last-match-wins, and a deduped floor copy sitting before a later allow
+  would let the allow win. String "deny" bodies carry no sandbox; an object
+  body without a map sandbox is a render failure, never a silent skip. */ -}}
+{{-   range $_, $cmd := (dig "commands" dict $out) -}}
+{{-     range $_, $body := (dig "from" dict $cmd) -}}
+{{-       if kindIs "string" $body -}}{{-       else -}}
+{{-         $sb := dig "sandbox" dict $body -}}
+{{-         if not (kindIs "map" $sb) -}}{{-         fail (printf "render-nono-cmd: command edge body without a map sandbox: %s" ($body | toJson)) -}}{{-         end -}}
+{{-         if not (gt (len $sb) 0) -}}{{-         fail (printf "render-nono-cmd: command edge body without a sandbox map: %s" ($body | toJson)) -}}{{-         end -}}
+{{-         $_ := set $sb "unsafe_macos_seatbelt_rules" (concat (index $sb "unsafe_macos_seatbelt_rules" | default list) $floors) -}}
+{{-       end -}}
+{{-     end -}}
+{{-   end -}}
 {{- end -}}
 {{- $out | toJson -}}

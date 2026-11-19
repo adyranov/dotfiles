@@ -46,8 +46,9 @@ Prebuilt images are also published to GHCR and Docker Hub:
 ### AI tooling
 
 The `ai` toolchain gates shared model routing, skills, sandbox configuration,
-cloud inference tools, and the nested `pi`, `opencode`, and `omp` agent
-toolchains. Run an agent with `agent pi`, `agent oc`, or `agent omp`.
+cloud inference tools, and the nested `pi`, `opencode`, `omp`, and `claude`
+agent toolchains. Run an agent with `agent pi`, `agent oc`, `agent omp`, or
+`agent claude`.
 
 Guarded launches use **nono** for filesystem, process, and network restrictions,
 and **DCG** (`dcg`) to prompt for destructive commands. The sandbox protects
@@ -65,6 +66,9 @@ terminal. Run the relevant tests after applying, since they check the rendered
 home configuration. Rules live in `home/.chezmoidata/base/ai/`, and rendered
 nono profiles live in `~/.config/nono/profiles/`.
 
+Guarded sessions deny `brew` and `chezmoi` through command mediation; run those
+commands, source rendering, and `mise run lint` in your own terminal.
+
 When an agent is blocked:
 
 - DCG-blocked command: approve a built-in rule with `dcg allow …` or a custom
@@ -72,9 +76,13 @@ When an agent is blocked:
 - Blocked network host: approve the data change and apply it in your terminal.
 
 nono's command mediation uses PATH shims, so an absolute-path exec can bypass
-its command core; DCG's command-text analysis complements it. The core blocks
-standalone Git force flags on every subcommand, including fetch and branch.
-Sandboxed worktrees live under `.slim/worktrees/`.
+its command core. DCG checks the agent's command text, not arbitrary nested
+processes. The core blocks standalone Git force flags on every subcommand,
+including fetch and branch.
+Sandboxed worktrees are project-local: `.slim/worktrees/` (Slim/pi/omp) and
+Claude Code's native `.claude/worktrees/`. OMP's task-isolation checkouts are
+the deliberate exception: they live in the global `~/.local/share/omp/wt`
+(write-granted, outside any checkout) and land on the parent via patch apply.
 
 Select a profile with `--profile NAME` before or after the agent word
 (`agent --profile core pi "Hi there"`). Pi and OpenCode also accept positional
@@ -161,13 +169,74 @@ Sandboxed named profiles require `config.yml`, `models.yml`, and the managed
 are refused before launch, including nested `--no-sandbox` launches.
 Plain `agent omp` uses the managed default root. Managed routing uses Luna as
 the primary/orchestrator model, Terra as the oracle/advisor, and DeepSeek v4
-flash for task workers, with OMP subagents surfaced through OMP's native
-task/session UI rather than automatic tmux or Herdr panes. Its config root is
+flash for scout workers, with delegation on OMP's native bundled roster
+(`scout`/`task`/`sonic`/`reviewer` self-route to roles via agent frontmatter)
+surfaced through OMP's native task/session UI rather than automatic tmux or
+Herdr panes. Its config root is
 `~/.config/omp` and the agent root (config, auth, extensions) is
 `~/.config/omp/agent`; the legacy `~/.omp` path is a managed symlink.
 The managed skills tree loads the Compound Engineering skills and the ponytail
-discipline skill via `skills.customDirectories`. Authenticate
+discipline skill via `skills.customDirectories`. Write-capable delegation runs
+on OMP's task isolation: `isolated: true` tasks get a private checkout under
+`~/.local/share/omp/wt` and their changes auto-apply back as patches. omp
+self-update is managed off — the mise package is the only update lane. Session
+titles use the local tiny model; provision its weights once with
+`omp tiny-models`. Authenticate
 separately with `omp /login`.
+
+#### Claude Code
+
+- `agent claude` (alias `agent cc`) runs Claude Code under the nono `claude`
+  profile with a single configuration root at `~/.config/claude` (no named
+  profiles). The launcher exports `CLAUDE_CONFIG_DIR` and, per guarded launch,
+  `CLAUDE_CODE_TMPDIR` under `/tmp/agents/claude` (never a global export:
+  unsandboxed sessions keep their own scratch); `~/.claude` is a managed symlink
+  to `~/.config/claude` for apps that ignore the environment variable. Guarded
+  launches check the DCG hook, its settings entry, `node`, and the types of
+  `fallbackModel` and `env`; they do not validate the entire settings file.
+- `agent claude -w [name]` opts into Claude Code's native worktrees: it launches
+  `claude --worktree [name]` in a project-local `.claude/worktrees/<name>`; a
+  bare `-w` lets Claude name it.
+- Sign in with `claude setup-token`, then put `CLAUDE_CODE_OAUTH_TOKEN` in your
+  environment like your other provider keys; sandboxed launches get a
+  placeholder and the proxy injects the real token at egress.
+- Plain `claude`, the VS Code/Cursor extension, and Desktop run unsandboxed and
+  share `~/.config/claude`. Accepted risk: a sandboxed session can write the
+  user MCP server and plugin caches there, which unsandboxed runs later execute.
+  Desktop keeps its own `~/.claude.json`.
+- Fresh start: move an existing `~/.claude` aside, apply, verify, then delete it
+  (the managed symlink replaces that path).
+- `DO_NOT_TRACK` is set globally, so Claude telemetry and feature-flag fetching
+  are off: no advisor, and Remote Control may be unavailable.
+- Write-denied inside the sandbox: `~/.config/claude/settings.json`, `/workflows`
+  saves, and skill creation. Edit them in the chezmoi source and apply.
+- Claude's file-writing tools also block project `.claude/CLAUDE.md` and files
+  under `.claude/{rules,agents,commands,skills}/`; edit these in your terminal.
+  This hook does not cover shell writes, MCP calls, other agents' tools, or
+  direct access to a symlink target under a different name.
+- pi is the only bridged agent: it reaches Claude models through
+  `pi-claude-bridge` (loaded from pi's own package list), which spawns the real
+  `claude` with your login (subject to plan limits) in a private config dir at
+  `~/.local/state/pi/claude-bridge`. Do not point pi's own provider at
+  `anthropic/*`: replaying OAuth from a third-party client risks a ban. omp has
+  no installable Claude bridge; opencode reaches Claude models via OpenRouter.
+- Git hardening write-denies `.git/hooks` in agent and mediated command
+  sandboxes on macOS. DCG checks some dangerous Git configuration commands and
+  redirects, and Claude's file-tool guard blocks direct Git config and
+  `config.worktree` writes.
+  Repository config and `.git` pointers remain writable for worktrees; DCG does
+  not inspect arbitrary subprocess writes, so this remains a persistence risk.
+  MCP calls rely on nono and Claude's classifier, not DCG command rules.
+  An empty `init.templateDir` (`~/.config/git/hooks-template`) keeps the hooks
+  deny from breaking sandboxed `git init` and `git clone`.
+- Auto mode runs on prose rules: the shipped `autoMode` lists start with
+  `"$defaults"` so Claude's built-in safety and trust lists stay in force; the
+  additions trust the local infer01 endpoint and describe the duer launches as
+  routine delegation.
+- Turning the `claude` toolchain off and applying with `--remove` deletes the
+  managed config (`~/.config/claude`), not your data: transcripts and history
+  under `~/.local/state/claude` and `~/.local/share/claude` survive for you to
+  remove manually.
 
 #### Cloud inference
 
@@ -317,8 +386,9 @@ See examples in `home/.chezmoidata/base/`, `home/.chezmoidata/os/<distro>/`, and
   - Enable specific: `WITH_DOCKER=true WITH_KUBERNETES=true`
   - Disable specific: `WITHOUT_JAVA=true WITHOUT_NODE=true`
   - Disable all then opt-in: `WITHOUT_TOOLCHAINS=true WITH_PYTHON=true`
-  - AI agents (nested under `ai`): `WITH_PI=true`, `WITH_OPENCODE=true`, or
-    `WITH_OMP=true`; each also supports the corresponding `WITHOUT_*` variable.
+  - AI agents (nested under `ai`): `WITH_PI=true`, `WITH_OPENCODE=true`,
+    `WITH_OMP=true`, or `WITH_CLAUDE=true`; each also supports the
+    corresponding `WITHOUT_*` variable.
 - Environment detection:
   - Ephemeral/container environments are auto-detected and tagged as `ephemeral`.
   - Non-interactive sessions set `.host.interactive = false` (treated as `headless` in package rules).
@@ -400,7 +470,7 @@ Installomator and direct DMG/PKG installers are deferred.
 | Tool                                            | Description            | Install                     | macOS | Ubuntu | Fedora | Arch |
 | ----------------------------------------------- | ---------------------- | --------------------------- | ----- | ------ | ------ | ---- |
 | [AWS CLI](https://github.com/aws/aws-cli)       | Manage AWS services    | `mise ✅` (macOS: `system`) | ✅    | ✅     | ✅     | ✅   |
-| [Azure CLI](https://github.com/Azure/azure-cli) | Manage Azure resources | `system`                    | ✅    | ✅     | ✅     | ✅   |
+| [Azure CLI](https://github.com/Azure/azure-cli) | Manage Azure resources | `system` (macOS: interactive; Intel MacPorts, ARM cask) | ✅    | ✅     | ✅     | ✅   |
 
 ### 🛠 Common CLI
 
@@ -455,8 +525,8 @@ Installomator and direct DMG/PKG installers are deferred.
 | Tool                                                      | Description              | Install                                 | macOS | Ubuntu | Fedora | Arch |
 | --------------------------------------------------------- | ------------------------ | --------------------------------------- | ----- | ------ | ------ | ---- |
 | [Docker Engine](https://www.docker.com/)                  | Container runtime        | `system` (`docker-ce` on Ubuntu/Fedora) | ✅    | ✅     | ✅     | ✅   |
-| [Docker Compose](https://docs.docker.com/compose/)        | Compose v2 plugin        | `system` (`docker-compose-plugin`)      | ✅    | ✅     | ✅     | ✅   |
-| [Docker Buildx](https://docs.docker.com/build/buildx/)    | Extended docker build    | `system` (`docker-buildx-plugin`)       | ✅    | ✅     | ✅     | ✅   |
+| [Docker Compose](https://docs.docker.com/compose/)        | Compose v2 plugin        | `system` (`-plugin` on Intel macOS, Ubuntu, Fedora) | ✅    | ✅     | ✅     | ✅   |
+| [Docker Buildx](https://docs.docker.com/build/buildx/)    | Extended docker build    | `system` (`-plugin` on Intel macOS, Ubuntu, Fedora) | ✅    | ✅     | ✅     | ✅   |
 | [Dive](https://github.com/wagoodman/dive)                 | Analyze container layers | `mise ✅` (macOS: `system`)             | ✅    | ✅     | ✅     | ✅   |
 | [LazyDocker](https://github.com/jesseduffield/lazydocker) | TUI for Docker           | `mise ✅`                               | ✅    | ✅     | ✅     | ✅   |
 
@@ -466,7 +536,7 @@ Installomator and direct DMG/PKG installers are deferred.
 | ----------------------------------------------------------------- | --------------------------------- | -------------------------- | ----- | ------ | ------ | ---- |
 | [age-plugin-yubikey](https://github.com/str4d/age-plugin-yubikey) | YubiKey plugin for age encryption | `system`                   | ✅    | ❌     | ❌     | ❌   |
 | [bubblewrap](https://github.com/containers/bubblewrap)            | Unprivileged sandboxing           | `system`                   | ❌    | ✅     | ✅     | ✅   |
-| [gocryptfs](https://github.com/rfjakob/gocryptfs)                 | Encrypted overlay filesystem      | `system` (`gocryptfs-mac`) | ✅    | ✅     | ✅     | ✅   |
+| [gocryptfs](https://github.com/rfjakob/gocryptfs)                 | Encrypted overlay filesystem      | `system` (macOS arm64: Homebrew formula unsupported) | ❌ (arm64) | ✅ | ✅ | ✅ |
 | [mas](https://github.com/mas-cli/mas)                             | Mac App Store CLI                 | `brew`                     | ✅    | ❌     | ❌     | ❌   |
 | [OpenSC](https://github.com/OpenSC/OpenSC)                        | Smart card middleware             | `system`                   | ✅    | ❌     | ❌     | ❌   |
 | [pam-u2f](https://github.com/Yubico/pam-u2f)                      | U2F PAM module                    | `system`                   | ✅    | ❌     | ❌     | ❌   |
@@ -548,6 +618,7 @@ Installomator and direct DMG/PKG installers are deferred.
 | Tool                                                                | Description                       | Install                     | macOS            | Ubuntu | Fedora | Arch |
 | ------------------------------------------------------------------- | --------------------------------- | --------------------------- | ---------------- | ------ | ------ | ---- |
 | [AIPerf](https://github.com/ai-dynamo/aiperf)                       | LLM endpoint benchmarking         | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
+| [Claude Code](https://code.claude.com/)                              | Anthropic coding agent CLI        | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
 | [codegraph](https://github.com/colbymchenry/codegraph)              | MCP code intelligence             | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
 | [Engram](https://github.com/Gentleman-Programming/engram)           | Agent memory and MCP server       | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
 | [Hugging Face CLI](https://huggingface.co/docs/huggingface_hub/)    | Model download and repository CLI | `mise ✅` (macOS: `system`) | ✅               | ✅     | ✅     | ✅   |
@@ -571,7 +642,6 @@ These desktop apps are installed on macOS via Homebrew casks or the App Store
 | [AnyDesk](https://anydesk.com/)                                        | Remote desktop access               |
 | [Brave Browser](https://brave.com/)                                    | Privacy-focused web browser         |
 | [Calibre](https://calibre-ebook.com/)                                  | E-book manager                      |
-| [Claude Code](https://code.claude.com/)                                | Anthropic coding agent CLI          |
 | [Cryptomator](https://cryptomator.org/)                                | Cloud storage encryption            |
 | [Cursor](https://www.cursor.com/)                                      | AI-powered code editor              |
 | [draw.io Desktop](https://www.diagrams.net/)                           | Diagram editor                      |

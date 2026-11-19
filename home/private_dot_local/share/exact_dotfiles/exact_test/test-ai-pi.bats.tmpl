@@ -346,6 +346,27 @@ setup_file() {
 }
 
 # bats test_tags=toolchain:pi,kind:model
+# Claude-lane ToS guard: anthropic/* is pi's NATIVE anthropic provider;
+# selecting one replays the proxy-injected OAuth token — a bannable violation.
+# pi reaches Claude models only through pi-claude-bridge's own model names, so
+# claude_only provider models must never enter enabledModels. Render the core
+# and factory modify templates as fixtures (render_source) — applied files are
+# the same render.
+@test "pi enabledModels excludes claude_only anthropic models and keeps the bridge lane" {
+  local prof sp out
+  for prof in core factory; do
+    sp="$("$(chezmoiBin)" source-path "$HOME/.config/pi/profiles/$prof/settings.json")"
+    out="$BATS_TEST_TMPDIR/settings-$prof.json"
+    render_source "$sp" "$out"
+    run jq -e '.enabledModels | any(startswith("anthropic/")) | not' "$out"
+    assert_success
+    run jq -e '.packages | map(if type == "object" then .source else . end)
+      | index("npm:pi-claude-bridge") != null' "$out"
+    assert_success
+  done
+}
+
+# bats test_tags=toolchain:pi,kind:model
 @test "pi factory defaults follow the selected preset" {
   assert_file_exists "$HOME/.config/pi/profiles/factory/settings.json"
   run jq -e \

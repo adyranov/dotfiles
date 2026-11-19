@@ -3,6 +3,7 @@
 
 [editors.base.vscode.extensions]
 common = [
+  "anthropic.claude-code",
   "catppuccin.catppuccin-vsc",
   "catppuccin.catppuccin-vsc-icons",
   "editorconfig.editorconfig",
@@ -15,6 +16,7 @@ code = []
 cursor = []
 
 [editors.base.vscode.settings]
+claude_code_env_dir = "~/.config/claude"
 theme = "Catppuccin Mocha"
 iconTheme = "catppuccin-mocha"
 fontFamily = "MesloLGS Nerd Font Mono"

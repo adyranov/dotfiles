@@ -166,10 +166,140 @@ requireDcgPack() {
   assert_success
 }
 
+# bats test_tags=kind:dcg
+@test "dcg git-config-danger blocks hook-persistence config writes, allows reads" {
+  # .git/config stays writable (nono denies .git/hooks writes only on
+  # macOS), so the exec-pointing config keys ride DCG (all platforms, incl. the
+  # unsandboxed lane). The rule needs a set value, so bare reads stay allowed.
+  # github.yaml rides the whole-tree ai gate (not a toolchain gate), so this
+  # probes the rendered packs (requireDcgPack), not a toolchain overlay.
+  requireDcgPack
+  local blocks=(
+    "git config core.hooksPath .githooks|git-config-danger"
+    "git config --global core.hooksPath /tmp/hooks|git-config-danger"
+    "git config core.fsmonitor /bin/true|git-config-danger"
+    "git config include.path ../shared|git-config-danger"
+    "git config alias.deploy '!echo hi'|git-config-danger"
+    'git config core.sshCommand "nc evil"|git-config-danger'
+    "git config core.pager /tmp/p|git-config-danger"
+    "git config core.editor /tmp/e|git-config-danger"
+    "git config core.askPass /tmp/a|git-config-danger"
+    "git config core.gitProxy /tmp/proxy|git-config-danger"
+    "git config diff.external /tmp/d|git-config-danger"
+    "git config diff.tool vimdiff|git-config-danger"
+    "git config mergetool.vimdiff.cmd /tmp/m|git-config-danger"
+    "git config filter.x.clean /tmp/c|git-config-danger"
+    "git config filter.x.smudge /tmp/s|git-config-danger"
+    "git config credential.helper /tmp/h|git-config-danger"
+    "git config gpg.program /tmp/g|git-config-danger"
+    "git config sequence.editor /tmp/e|git-config-danger"
+    "git -c core.hooksPath=/tmp/h commit|git-config-danger"
+    "git -c core.fsmonitor=/bin/true status|git-config-danger"
+    "git -c include.path=other.cfg commit|git-config-danger"
+    "git -c includeIf.gitfile:/tmp/x/.gitconfig.path=y commit|git-config-danger"
+    "git -c core.sshCommand=x push|git-config-danger"
+    "git -c core.editor=/tmp/e commit|git-config-danger"
+    "git -c credential.helper=/tmp/h push|git-config-danger"
+    "git -c mergetool.vimdiff.cmd=/tmp/m mergetool f|git-config-danger"
+  )
+  local allows=(
+    'git config user.name "A Dev"'
+    'git config user.email a@b.c'
+    "git config core.hooksPath"
+    "git config --get include.path"
+    "git -c user.name=x commit"
+    "git -c commit.gpgsign=false commit"
+    "git config color.ui auto"
+    "git config mergetool.keepBackup=true"
+    'printf x > /tmp/notes.txt'
+    'echo a >> .gitignore'
+  )
+  local case cmd rule offenders=()
+  for case in "${blocks[@]}"; do
+    cmd="${case%%|*}" rule="${case##*|}"
+    run dcg test --robot "$cmd"
+    [ "$status" -ne 0 ] || offenders+=("robot allowed: $cmd")
+    run dcg test "$cmd"
+    [[ "$output" == *"$rule"* && "$output" == *"BLOCKED"* ]] ||
+      offenders+=("$cmd: missing '$rule' or BLOCKED")
+  done
+  for cmd in "${allows[@]}"; do
+    run dcg test --robot "$cmd"
+    [ "$status" -eq 0 ] || offenders+=("robot blocked: $cmd")
+  done
+  printf '%s\n' "${offenders[@]}" >&2
+  assert_equal "${#offenders[@]}" 0
+}
+
+# bats test_tags=kind:dcg
+@test "dcg blocks shell writes to git config and worktree config, allows benign redirects" {
+  # printf … >> .git/config writes the exec keys without a git argv token, so
+  # no config-key row sees it; the Write-tool path axis guards .git/hooks.
+  # dcg reports one match (highest priority first), so each pinned case names the
+  # id it actually reports: 0.16.0's built-in core.filesystem owns every
+  # `.git/<path>` spelling, and the custom user.github:git-config-redirect row
+  # owns the bare-repo `foo.git/…` spelling core.filesystem's path model misses.
+  requireDcgPack
+  local blocks=(
+    "printf '[core]' >> .git/config|core.filesystem:redirect-append-git-internals-relative"
+    "cat x > repo/.git/config|core.filesystem:redirect-truncate-git-internals-relative"
+    "tee -a .git/modules/sub/config|core.filesystem:git-internals-write"
+    "tee .git/config|core.filesystem:git-internals-write"
+    "printf x >> upstream.git/config|user.github:git-config-redirect"
+    "echo hi > myrepo.git/config|user.github:git-config-redirect"
+    "tee -a sub/deep.git/config|user.github:git-config-redirect"
+    # Worktree/config.worktree/nested-module shapes on the bare-repo spelling:
+    # only the custom row sees these, so the id is pinned. (Case-variant
+    # spellings like `.GIT/config` are NOT probed here: opening this pack rides
+    # its keyword gate, and whether that gate opens on an uppercase `GIT` token
+    # is host-verification, not a policy claim. The tool axis covers them.)
+    "printf x >> bare.git/worktrees/feat/config.worktree|user.github:git-config-redirect"
+    "tee -a sub/deep.git/modules/a/modules/b/config|user.github:git-config-redirect"
+  )
+  # Blocked-shape cases with NO pinned id: on a `.git/<path>` spelling the
+  # reported id is core.filesystem's, not this row's (first match wins), so
+  # pinning one here would encode shadowing rather than policy.
+  local blockedOnly=(
+    "printf x >> .git/config.worktree"
+    "cat x > repo/.git/worktrees/feat/config.worktree"
+    "tee .git/modules/a/modules/b/config"
+  )
+  local allows=(
+    "echo hi > README.md"
+    "printf x > /tmp/notes.txt"
+    "echo a >> .gitignore"
+    # The worktree/modules segment names only count under a git directory.
+    "echo x > worktrees/feat/config"
+    "printf x > src/config.ts"
+  )
+  local case cmd rule offenders=()
+  for case in "${blocks[@]}"; do
+    cmd="${case%%|*}" rule="${case##*|}"
+    run dcg test --robot "$cmd"
+    [ "$status" -ne 0 ] || offenders+=("robot allowed: $cmd")
+    run dcg test "$cmd"
+    [[ "$output" == *"$rule"* && "$output" == *"BLOCKED"* ]] ||
+      offenders+=("$cmd: missing '$rule' or BLOCKED")
+  done
+  for cmd in "${blockedOnly[@]}"; do
+    run dcg test --robot "$cmd"
+    [ "$status" -ne 0 ] || offenders+=("robot allowed: $cmd")
+    run dcg test "$cmd"
+    [[ "$output" == *"BLOCKED"* ]] || offenders+=("$cmd: missing BLOCKED")
+  done
+  for cmd in "${allows[@]}"; do
+    run dcg test --robot "$cmd"
+    [ "$status" -eq 0 ] || offenders+=("robot blocked: $cmd")
+  done
+  printf '%s\n' "${offenders[@]}" >&2
+  assert_equal "${#offenders[@]}" 0
+}
+
 {{- $hooks := list }}
 {{- if get .toolchains "opencode" | default false }}{{ $hooks = append $hooks "$HOME/.config/opencode/plugins/dcg-guard.js" }}{{ end }}
 {{- if get .toolchains "pi" | default false }}{{ $hooks = append $hooks "$HOME/.config/pi/agent/extensions/dcg-guard.ts" }}{{ end }}
 {{- if get .toolchains "omp" | default false }}{{ $hooks = append $hooks "$HOME/.config/omp/agent/extensions/dcg-guard.ts" }}{{ end }}
+{{- if get .toolchains "claude" | default false }}{{ $hooks = append $hooks "$HOME/.config/claude/hooks/dcg-guard.mjs" }}{{ end }}
 
 # bats test_tags=kind:dcg
 @test "dcg bypass: hooks carry the DCG_BYPASS boot snapshot" {
@@ -202,7 +332,7 @@ requireDcgPack() {
   local f
   for f in "${hooks[@]}"; do
     # The single-source shape, verbatim: the core's template literal inlines
-    # into every hook, so one fixed-string grep pins all three at once.
+    # into every hook, so one fixed-string grep pins them all at once.
     run grep -F -e 'dcg allow ${rule} --reason' "$f"
     assert_success
   done

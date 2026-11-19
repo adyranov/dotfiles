@@ -4,25 +4,16 @@
 
 {{- $presetsConfig := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.presets" "required" true) | mustFromJson -}}
 
-{{- /* Mapping: slim agent to tier, from data (ai.agents.opencode.agent_tiers;
-     opencode-specific agent names; the tiers are the primary data, resolved
-     per preset). */ -}}
-{{- $agentMap := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.opencode.agent_tiers" "required" true) | mustFromJson -}}
+{{- /* Role roster: the roles section IS the roster (orchestrator,
+     oracle, explorer, fixer, designer); agent name = role name. Each role
+     carries its tier (resolved per preset), mcps, skills, permission. */ -}}
+{{- $roles := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.roles" "required" true) | mustFromJson -}}
 
-{{- /* MCP/skills per agent */ -}}
-{{- $engramMcps := list "engram" -}}
-{{- $explorerMcps := list "codegraph" -}}
-{{- $emptyMcps := list -}}
-{{- $orchestratorSkills := list "*" -}}
-{{- $oracleSkills := list "ce-pov" "ce-code-review" -}}
-{{- $designerSkills := list "ce-polish" "ce-test-browser" -}}
-{{- $fixerSkills := list "ce-work" "ce-debug" "ce-simplify-code" -}}
-{{- $emptySkills := list -}}
-
-{{- /* Unattended policy: only the orchestrator asks, and the path axis is
-  not gated in-agent: subagents declare no external_directory key, so they
-  inherit the factory's standing allow and nono + DCG stay the boundary
-  (parity with pi/omp, which have no native path layer). */ -}}
+{{- /* Unattended policy: only the orchestrator asks (the "interactive" class
+  carries no permission key), and the path axis is not gated in-agent:
+  subagents declare no external_directory key, so they inherit the factory's
+  standing allow and nono + DCG stay the boundary (parity with pi/omp, which
+  have no native path layer). */ -}}
 {{- $asklessPermissions := dict "question" "deny" -}}
 {{- /* Read-only research permissions for advisory agents */ -}}
 {{- $researchPermissions := merge (deepCopy $asklessPermissions) (dict "edit" "deny" "shell" "deny" "subagent" "deny") -}}
@@ -35,42 +26,30 @@
 {{-   range $presetName, $_ := $presetsConfig -}}
 {{-     if eq $presetName "default" -}}{{- continue -}}{{- end -}}
 {{-     $presetData := index $presetsConfig $presetName -}}
+{{- /* Claude-lane presets stay out of opencode: its own anthropic provider is a third-party client; OAuth replay to api.anthropic.com is a bannable Anthropic ToS violation. */ -}}
+{{-     if get $presetData "claude_only" | default false -}}{{- continue -}}{{- end -}}
 {{-     $tiers := index $presetData "tiers" -}}
 {{-     $councilMap := index $presetData "council" -}}
 {{-     $presetAgents := dict -}}
-{{-     range $agent, $tier := $agentMap -}}
+{{-     range $role, $roleData := $roles -}}
+{{-       $tier := index $roleData "tier" -}}
 {{-       $route := index $tiers $tier -}}
 {{-       if not $route -}}
-{{-         fail (printf "render-opencode-slim-config: preset %q has no route for tier %q (mapped by slim agent %q)" $presetName $tier $agent) -}}
+{{-         fail (printf "render-opencode-slim-config: preset %q has no route for tier %q (mapped by slim agent %q)" $presetName $tier $role) -}}
 {{-       end -}}
-{{-       $models := includeTemplate "base/ai/models/render-route-model-list" (dict "route" $route "root" $root "label" $agent) | mustFromJson -}}
-{{-       $cfg := dict "model" $models -}}
-
-{{-       if eq $agent "orchestrator" -}}
-{{-         $_ := set $cfg "mcps" $engramMcps -}}
-{{-         $_ := set $cfg "skills" $orchestratorSkills -}}
-{{-       else if eq $agent "oracle" -}}
-{{-         $_ := set $cfg "mcps" $engramMcps -}}
-{{-         $_ := set $cfg "skills" $oracleSkills -}}
+{{-       $models := includeTemplate "base/ai/models/render-route-model-list" (dict "route" $route "root" $root "label" $role) | mustFromJson -}}
+{{-       $cfg := dict
+             "model" $models
+             "mcps" (get $roleData "mcps" | default list)
+             "skills" (get $roleData "skills" | default list)
+           -}}
+{{-       $permission := get $roleData "permission" -}}
+{{-       if eq $permission "askless" -}}
 {{-         $_ := set $cfg "permission" $asklessPermissions -}}
-{{-       else if eq $agent "explorer" -}}
-{{-         $_ := set $cfg "mcps" $explorerMcps -}}
-{{-         $_ := set $cfg "skills" $emptySkills -}}
+{{-       else if eq $permission "research" -}}
 {{-         $_ := set $cfg "permission" $researchPermissions -}}
-{{-       else if eq $agent "designer" -}}
-{{-         $_ := set $cfg "mcps" $emptyMcps -}}
-{{-         $_ := set $cfg "skills" $designerSkills -}}
-{{-         $_ := set $cfg "permission" $asklessPermissions -}}
-{{-       else if eq $agent "fixer" -}}
-{{-         $_ := set $cfg "mcps" $emptyMcps -}}
-{{-         $_ := set $cfg "skills" $fixerSkills -}}
-{{-         $_ := set $cfg "permission" $asklessPermissions -}}
-{{-       else -}}
-{{-         $_ := set $cfg "mcps" $emptyMcps -}}
-{{-         $_ := set $cfg "skills" $emptySkills -}}
 {{-       end -}}
-
-{{-       $_ := set $presetAgents $agent $cfg -}}
+{{-       $_ := set $presetAgents $role $cfg -}}
 {{-     end -}}
 
 {{- /*  Build council councillors for this preset  */ -}}

@@ -1,0 +1,10 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* NON-.tmpl on purpose: chezmoi renders .tmpl modifiers once BEFORE the
+        directive check, which consumes the merge body and leaves stdin unused.
+        A plain modify_ file is regex-checked on raw contents and rendered ONCE
+        with .chezmoi.stdin — the pi/Cursor idiom. */ -}}
+{{- /* Merge managed keys over Claude's own writes (managed wins, user keys
+        preserved). autoMode lists are prose for the classifier and ride
+        verbatim; "$defaults" is resolved by Claude at run time — do not expand
+        it at apply time. */ -}}
+{{- includeTemplate "base/ai/agents/claude/render-claude-modify-settings" (dict "root" . "chezmoi" .chezmoi) -}}

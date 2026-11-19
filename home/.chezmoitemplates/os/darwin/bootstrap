@@ -12,7 +12,30 @@ export HOMEBREW_NO_ASK=1
 echo "🍺 Updating Homebrew…"
 brew update
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
-{{- if ne .host.arch "amd64" }}
+{{- if eq .host.arch "amd64" }}
+{{- /* Homebrew ended Intel macOS support, so never bulk-upgrade the Intel
+  prefix; refresh only the configured exceptions, derived from the Intel
+  brewfile's brew entries (anything beyond the allow-list fails that render,
+  so its brew lines are exactly the approved set). The installed filter skips
+  absent optional formulae, e.g. first runs before brew bundle installs them. */ -}}
+{{- $intelFormulae := list -}}
+{{- range $line := regexFindAll `(?m)^brew "[^"]+"` (includeTemplate "os/darwin/brewfile" .) -1 -}}
+{{-   $intelFormulae = append $intelFormulae (trimAll "\"" (trimPrefix "brew " $line)) -}}
+{{- end -}}
+{{- if $intelFormulae }}
+echo "📦 Upgrading Intel Homebrew formulae…"
+_brew_upgrades=""
+for _brew_formula in {{ join " " $intelFormulae }}; do
+  if brew list --formula "${_brew_formula}" >/dev/null 2>&1; then
+    _brew_upgrades="${_brew_upgrades} ${_brew_formula}"
+  fi
+done
+if [ -n "${_brew_upgrades}" ]; then
+  # shellcheck disable=SC2086  # formula tokens split by design
+  brew upgrade --formula ${_brew_upgrades}
+fi
+{{- end }}
+{{- else }}
 echo "📦 Upgrading formulae…"
 brew upgrade
 {{- end }}
@@ -89,7 +112,10 @@ if [ -x {{ $macportsPath }}/bin/port ]; then
   sudo {{ $macportsPath }}/bin/port -N selfupdate
 {{- if or (eq .host.type "ephemeral") .host.interactive }}
   echo "📦 Upgrading outdated ports…"
-  sudo {{ $macportsPath }}/bin/port -N upgrade outdated
+  {{- /* One upstream-broken port (e.g. pandoc's GHC-breakage class, pulled as a
+    build dependency) must not fail every apply forever; os/darwin/install still
+    hard-fails when a required port is absent. */}}
+  sudo {{ $macportsPath }}/bin/port -N upgrade outdated || echo "⚠️ Some ports failed to upgrade (see 'port outdated' and the port logs); continuing."
   echo "🧹 Removing inactive port versions…"
   # rc 1 = nothing matched (no inactive ports); not a failure.
   sudo {{ $macportsPath }}/bin/port -N uninstall inactive || true

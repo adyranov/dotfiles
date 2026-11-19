@@ -180,6 +180,56 @@ done
 exit 1
 GITSTUB
       ;;
+    security)
+      # Keychain surface for the launcher credential probe and the seed
+      # script: lock state and seeded names are env-controlled; mutation
+      # subcommands exit 99 so any launcher use of add-/delete-/set- is a
+      # loud stub failure (the suites' source pin is the static twin).
+      cat >"$d/security" <<'SECSTUB'
+#!/usr/bin/env sh
+case "$1" in
+show-keychain-info) [ "${KEYCHAIN_STATE:-unlocked}" = locked ] && exit 1; exit 0 ;;
+find-generic-password)
+  a=''
+  while [ $# -gt 0 ]; do
+    [ "$1" = -a ] && a="${2:-}"
+    shift
+  done
+  case ",${KEYCHAIN_SEEDED:-}," in
+  *,"$a",*)
+    printf 'stub-value-%s\n' "$a"
+    exit 0
+    ;;
+  esac
+  exit 44
+  ;;
+add-* | delete-* | set-*) exit 99 ;;
+esac
+exit 0
+SECSTUB
+      ;;
+    secret-tool)
+      # Secret Service CLI mirror of the security stub (Linux/WSL2 paths).
+      cat >"$d/secret-tool" <<'SECRESTUB'
+#!/usr/bin/env sh
+if [ "${1:-}" = lookup ]; then
+  case ",${SECRESTORE_SEEDED:-}," in
+  *,"${*##* },"*)
+    printf 'stub-value-%s\n' "${*##* }"
+    exit 0
+    ;;
+  esac
+  exit 1
+fi
+exit 0
+SECRESTUB
+      ;;
+    busctl)
+      # Unlocked Secret Service collection by default; the Locked property
+      # value is env-controlled (true, or "unreachable" to drop the bus).
+      # shellcheck disable=SC2016  # stub ships literal ${DBUS_LOCKED} for the stub shell
+      printf '#!/usr/bin/env sh\n[ "${DBUS_LOCKED:-false}" = unreachable ] && exit 1\nprintf "boolean %%s\\n" "${DBUS_LOCKED:-false}"\n' >"$d/busctl"
+      ;;
     engram)
       # Offline daemon: `version` answers for the identity probe; every other
       # subcommand (serve) exits at once, so a spawned "daemon" is a no-op

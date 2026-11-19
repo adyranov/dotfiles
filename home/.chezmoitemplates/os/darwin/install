@@ -19,7 +19,26 @@ fi
 {{- else }}
 {{- includeTemplate "base/helpers/sudo-keep-alive" . }}
 {{- end }}
-sudo {{ $macportsPath }}/bin/port -N install {{ $ports }}
+if ! sudo {{ $macportsPath }}/bin/port -N install {{ $ports }}; then
+  # An upstream build breakage in one port's dependency chain (e.g. the pandoc/GHC
+  # class) must not block apply forever while the requested ports stay active;
+  # a port missing at every version stays fatal.
+  _ports_missing=""
+  _active_ports="$(sudo {{ $macportsPath }}/bin/port -q echo active 2>/dev/null | awk '{print $1}')"
+  for _port in {{ $ports }}; do
+    # "openssh +fido2" style entries: variants are not port names.
+    case "${_port}" in +*) continue;; esac
+    _port="${_port%%+*}"
+    if ! printf '%s\n' "${_active_ports}" | grep -Fxq "${_port}"; then
+      _ports_missing="${_ports_missing} ${_port}"
+    fi
+  done
+  if [ -n "${_ports_missing}" ]; then
+    echo "❌ MacPorts packages are not active and cannot be installed:${_ports_missing}" >&2
+    exit 1
+  fi
+  echo "⚠️ MacPorts could not refresh some ports (upstream build breakage?); active versions remain."
+fi
 echo "✅ MacPorts packages applied."
 {{- end }}
 {{- end }}

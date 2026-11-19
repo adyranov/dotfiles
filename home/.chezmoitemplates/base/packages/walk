@@ -1,30 +1,44 @@
 {{- /* base/packages/walk — Layered, filtered package iterator.
 
-  Walks every enabled toolchain (core + any flags in `.toolchains` that are true),
-  merges base → os.<distro> → profile.<profile> layers per package id, and applies
-  host filters (`os`, `disabled`, `exclude_arch`). It then resolves the effective
-  manager: scalar `manager` defaults to "system"; on Darwin only, "system" resolves
-  to "macports" on `amd64` and "brew" otherwise. Unsupported scalar manager values
-  fail the render. The result is emitted as JSON so callers can `mustFromJson` it.
+  Walks every enabled toolchain (core + any flags in `.toolchains` that are
+  true), and per package id resolves one logical entry from the base →
+  os.<distro> → profile.<profile> layers. Within each layer the entry's
+  explicit fields are applied first, then each `variants` entry whose own
+  include/exclude predicate matches the host, in declaration order; a later
+  applicable field wins. Fields are applied by key presence, so an explicit
+  `false` is honored, and no layer input is mutated. A variant's
+  include/exclude act only as its match predicate and never modify the
+  entry-level selection. Entry include/exclude merge axis-wise across layers
+  (base/packages/merge-selector): axes from earlier layers persist, an
+  explicit empty axis list clears an inherited axis, and an explicit empty
+  selector map clears it.
+
+  After layering, the entry's selection (`base/packages/select`) and
+  `disabled` state are evaluated: `disabled = true` filters; a supplied
+  non-boolean `disabled` (including the old tag lists) fails the render.
+  Variants may flip `disabled` (e.g. a base-layer `disabled = true`
+  re-enabled by a matching variant) and set the effective `toolchain` tag.
+
+  Then the effective manager is resolved: scalar `manager` defaults to
+  "system"; on Darwin only, "system" resolves to "macports" on `amd64` and
+  "brew" otherwise. Unsupported scalar manager values fail the render. Each
+  field application (entry fields, then each variant) gets an increasing
+  origin number, unbounded per layer; a manager set by a later application
+  discards a package name inherited from an earlier one, while a name
+  supplied by the changing application (or a later one) wins over that
+  reset. The result is emitted as JSON so callers can `mustFromJson` it.
 
   Output shape:
     [
-      { "id": "btop", "pkg": { ...merged TOML... }, "manager": "system", "toolchain": "core" },
+      { "id": "btop", "pkg": { ...resolved TOML fields... }, "manager": "system", "toolchain": "core" },
       ...
     ]
 
   Args (dict):
     root — template data root (required).
-
-  Disabled tags:
-    `disabled = true` always filters; `disabled = ["headless", "restricted",
-    "<host.type>"]` filters when the host matches any tag. Supported tags:
-    `headless` (when `!host.interactive`), `restricted` (when `host.restricted`),
-    and any host.type value (e.g. `ephemeral`).
 */ -}}
 {{- $root := .root -}}
 {{- $distroId := $root.host.distro.id -}}
-{{- $arch := $root.host.arch -}}
 
 {{- $enabledToolchains := list "core" -}}
 {{- range $toolName, $enabled := $root.toolchains -}}
@@ -32,54 +46,101 @@
 {{- end -}}
 
 {{- $profileKey := "" -}}{{- if hasKey $root.host "profile" -}}{{- $profileKey = $root.host.profile -}}{{- end -}}
-{{- $osLayers := index $root.packages "os" | default dict -}}
-{{- $profileLayers := index $root.packages "profile" | default dict -}}
-{{- $osPackages := index $osLayers $distroId | default dict -}}
-{{- $profilePackages := index $profileLayers $profileKey | default dict -}}
 {{- $basePackages := index $root.packages "base" | default dict -}}
+{{- $osPackages := index (index $root.packages "os" | default dict) $distroId | default dict -}}
+{{- $profilePackages := index (index $root.packages "profile" | default dict) $profileKey | default dict -}}
 
+{{- $validManagers := list "system" "brew" "macports" "mise" "helm" "krew" "external" -}}
+{{- $selectorKeys := list "include" "exclude" -}}
 {{- $result := list -}}
 {{- range $toolName := $enabledToolchains -}}
-{{-   $packages := includeTemplate "base/helpers/load-section" (dict "root" $root "section" (printf "packages.%s" $toolName)) | mustFromJson -}}
 {{-   $baseLayer := index $basePackages $toolName | default dict -}}
 {{-   $osLayer := index $osPackages $toolName | default dict -}}
 {{-   $profileLayer := index $profilePackages $toolName | default dict -}}
-{{-   range $id := sortAlpha (keys $packages) -}}
-{{-     $pkg := index $packages $id | default dict -}}
-{{-     $basePkg := index $baseLayer $id | default dict -}}
-{{-     $osPkg := index $osLayer $id | default dict -}}
-{{-     $profilePkg := index $profileLayer $id | default dict -}}
-{{-     $override := $osPkg | merge $profilePkg -}}
-
-{{-     $pkgOs := index $pkg "os" | default "" -}}
-{{-     if and $pkgOs (ne $pkgOs $distroId) -}}{{- continue -}}{{- end -}}
-
-{{-     $rawDisabled := index $pkg "disabled" | default false -}}
-{{-     $disabled := false -}}
-{{-     if kindIs "bool" $rawDisabled -}}
-{{-       $disabled = $rawDisabled -}}
-{{-     else if kindIs "slice" $rawDisabled -}}
-{{-       range $tag := $rawDisabled -}}
-{{-         if eq $tag "headless" -}}
-{{-           if not $root.host.interactive -}}{{- $disabled = true -}}{{- end -}}
-{{-         else if eq $tag "restricted" -}}
-{{-           if $root.host.restricted -}}{{- $disabled = true -}}{{- end -}}
-{{-         else if eq $tag $root.host.type -}}
-{{-           $disabled = true -}}
+{{-   $ids := sortAlpha (uniq (concat (keys $baseLayer) (keys $osLayer) (keys $profileLayer))) -}}
+{{-   range $id := $ids -}}
+{{-     $eff := dict -}}
+{{-     $origin := 0 -}}
+{{-     $mgrOrigin := 0 -}}
+{{-     $pkgOrigin := 0 -}}
+{{-     $baseMgr := "system" -}}
+{{-     $baseMgrOrigin := 0 -}}
+{{-     range $layerIdx, $layerEntry := (list (index $baseLayer $id | default dict) (index $osLayer $id | default dict) (index $profileLayer $id | default dict)) -}}
+{{-       if not (kindIs "map" $layerEntry) -}}
+{{-         fail (printf "package %s: layer entry must be a table" $id) -}}
+{{-       end -}}
+{{-       $origin = add $origin 1 -}}
+{{-       range $key := sortAlpha (keys $layerEntry) -}}
+{{-         if eq $key "variants" -}}{{- continue -}}{{- end -}}
+{{-         $value := index $layerEntry $key -}}
+{{-         if has $key $selectorKeys -}}
+{{-           if not (kindIs "map" $value) -}}
+{{-             fail (printf "package %s: selector %s must be a table of axis = [values]" $id $key) -}}
+{{-           end -}}
+{{-           $_ := set $eff $key (includeTemplate "base/packages/merge-selector" (dict "current" (index $eff $key | default dict) "spec" $value) | mustFromJson) -}}
+{{-         else -}}
+{{-           $_ := set $eff $key $value -}}
 {{-         end -}}
 {{-       end -}}
+{{-       if hasKey $layerEntry "manager" -}}{{- $mgrOrigin = $origin -}}{{- end -}}
+{{-       if hasKey $layerEntry "package" -}}{{- $pkgOrigin = $origin -}}{{- end -}}
+{{-       if hasKey $layerEntry "variants" -}}
+{{-         $variants := index $layerEntry "variants" -}}
+{{-         if not (kindIs "slice" $variants) -}}
+{{-           fail (printf "package %s: variants must be a list of variant tables" $id) -}}
+{{-         end -}}
+{{-         range $variantIdx, $variant := $variants -}}
+{{-           if not (kindIs "map" $variant) -}}
+{{-             fail (printf "package %s: variant %d must be a table" $id (add $variantIdx 1)) -}}
+{{-           end -}}
+{{-           $origin = add $origin 1 -}}
+{{-           $vArgs := dict "root" $root -}}
+{{-           if hasKey $variant "include" -}}{{- $_ := set $vArgs "include" (index $variant "include") -}}{{- end -}}
+{{-           if hasKey $variant "exclude" -}}{{- $_ := set $vArgs "exclude" (index $variant "exclude") -}}{{- end -}}
+{{-           $selected := includeTemplate "base/packages/select" $vArgs -}}
+{{-           if eq $selected "true" -}}
+{{-             range $key := sortAlpha (keys $variant) -}}
+{{-               if not (has $key $selectorKeys) -}}
+{{-                 $_ := set $eff $key (index $variant $key) -}}
+{{-               end -}}
+{{-             end -}}
+{{-             if hasKey $variant "manager" -}}{{- $mgrOrigin = $origin -}}{{- end -}}
+{{-             if hasKey $variant "package" -}}{{- $pkgOrigin = $origin -}}{{- end -}}
+{{-           end -}}
+{{-         end -}}
+{{-       end -}}
+{{-       if eq $layerIdx 0 -}}
+{{-         $baseMgr = index $eff "manager" | default "system" -}}
+{{-         $baseMgrOrigin = $mgrOrigin -}}
+{{-       end -}}
 {{-     end -}}
-{{-     if $disabled -}}{{- continue -}}{{- end -}}
 
-{{-     $excludeArch := index $pkg "exclude_arch" | default list -}}
-{{-     $archExcluded := false -}}
-{{-     range $a := $excludeArch -}}
-{{-       if eq $arch $a -}}{{- $archExcluded = true -}}{{- end -}}
+{{-     if hasKey $eff "disabled" -}}
+{{-       $disabled := index $eff "disabled" -}}
+{{-       if not (kindIs "bool" $disabled) -}}
+{{-         fail (printf "package %s: disabled must be a boolean; use include/exclude selectors for conditional selection" $id) -}}
+{{-       end -}}
+{{-       if $disabled -}}{{- continue -}}{{- end -}}
 {{-     end -}}
-{{-     if $archExcluded -}}{{- continue -}}{{- end -}}
 
-{{-     $manager := printf "%s" (index $pkg "manager" | default "system") -}}
-{{-     $validManagers := list "system" "brew" "macports" "mise" "helm" "krew" "external" -}}
+{{-     $selArgs := dict "root" $root -}}
+{{-     if hasKey $eff "include" -}}{{- $_ := set $selArgs "include" (index $eff "include") -}}{{- end -}}
+{{-     if hasKey $eff "exclude" -}}{{- $_ := set $selArgs "exclude" (index $eff "exclude") -}}{{- end -}}
+{{-     if ne (includeTemplate "base/packages/select" $selArgs) "true" -}}{{- continue -}}{{- end -}}
+
+{{-     $pkgOut := $eff -}}
+{{-     if and (hasKey $eff "package") (gt $mgrOrigin $baseMgrOrigin) (ne (printf "%s" (index $eff "manager" | default "system")) $baseMgr) (lt $pkgOrigin $mgrOrigin) -}}
+{{/*
+    Manager changed by a later layer: discard the inherited provider name so
+    consumers fall back to the id.
+*/ -}}
+{{-       $pkgOut = dict -}}
+{{-       range $key := keys $eff -}}
+{{-         if ne $key "package" -}}{{- $_ := set $pkgOut $key (index $eff $key) -}}{{- end -}}
+{{-       end -}}
+{{-     end -}}
+
+{{-     $manager := printf "%s" (index $eff "manager" | default "system") -}}
 {{-     if not (has $manager $validManagers) -}}
 {{-       fail (printf "package %s: unsupported manager %q (expected one of: system, brew, macports, mise, helm, krew, external)" $id $manager) -}}
 {{-     end -}}
@@ -91,7 +152,16 @@
 {{-       end -}}
 {{-     end -}}
 
-{{-     $result = append $result (dict "id" $id "pkg" $pkg "basePkg" $basePkg "override" $override "toolchain" $toolName "manager" $manager) -}}
+{{-     $toolchain := $toolName -}}
+{{-     if hasKey $eff "toolchain" -}}
+{{-       $tcVal := index $eff "toolchain" -}}
+{{-       if not (kindIs "string" $tcVal) -}}
+{{-         fail (printf "package %s: toolchain must be a string" $id) -}}
+{{-       end -}}
+{{-       $toolchain = $tcVal -}}
+{{-     end -}}
+
+{{-     $result = append $result (dict "id" $id "pkg" $pkgOut "toolchain" $toolchain "manager" $manager) -}}
 {{-   end -}}
 {{- end -}}
 {{- $result | toJson -}}

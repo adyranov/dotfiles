@@ -9,10 +9,10 @@ command = "engram"
 instructions = false
 
 [ai.base.agents.omp.sandbox]
-# omp 18.8.x (dirs.ts) runs from an agent root at <config-root>/agent
+# omp 18.18.x (dirs.ts) runs from an agent root at <config-root>/agent
 # (~/.config/omp/agent): config.yml flush + proper-lockfile lock dirs +
 # auth.json live there, so the agent root must be writable (the pi 1.0.4
-# contract). Named profiles (omp >=18.9, `agent omp --profile <name>`)
+# contract). Named profiles (omp 18.18.x, `agent omp --profile <name>`)
 # relocate the agent root to <config-root>/profiles/<name>/agent — the
 # profiles grant below covers those roots. The DCG hook write-denials ride
 # the seatbelt rules below (write-only deny inside writable roots —
@@ -27,7 +27,9 @@ unsafe_macos_seatbelt_rules = [
 ]
 
 [ai.base.agents.omp.sandbox.filesystem]
-deny = ["opencode_auth_files", "pi_auth_files", "~/.local/share/pi-lens/**"]
+# Cross-agent auth theft stays denied (claude_auth_files, opencode_auth_files,
+# pi_auth_files here).
+deny = ["claude_auth_files", "opencode_auth_files", "pi_auth_files", "~/.local/share/pi-lens/**"]
 read = [
   "~/.local/share/omp",
   "engram",
@@ -46,13 +48,16 @@ write = [
   # Agent root (config.yml flush, lock dirs, auth.json); extensions/ is
   # write-denied by the seatbelt rule above (macOS).
   "~/.config/omp/agent",
-  # Named-profile agent roots (omp >=18.9): ~/.config/omp/profiles/<name>/agent
+  # Named-profile agent roots (omp 18.18.x): ~/.config/omp/profiles/<name>/agent
   # carries the same config.yml/lock/auth.json writes; per-name extensions
   # are write-denied by the seatbelt rule above (macOS).
   "~/.config/omp/profiles",
   # omp cache category root
   "~/.cache/omp",
-  # Session/sandbox runtime dirs + agent.db with its WAL sidecars (data root)
+  # Session/sandbox runtime dirs + agent.db with its WAL sidecars (data
+  # root); wt/ carries the isolation checkouts (managed worktree.base) —
+  # the whole subtree is granted so clones/patch materialization never
+  # hits a write denial.
   "~/.local/share/omp",
   # Engram memory store (MCP save tool; subagents inherit it)
   "engram",
@@ -63,8 +68,14 @@ write = [
 [ai.base.agents.omp.settings]
 append_only_context = "on"
 artifact_spill_threshold = 50
-# Prompt-cache lifetime (omp >=18.9): "idle" warms the cache when the agent
-# goes idle; "off" disables, "streaming" warms per stream.
+# Automated tool-issue reporting (omp 18.18.x): the push endpoint
+# (qa.omp.sh) is not allow-listed, so egress is off; the consent gate
+# accepts granted|denied in config, so "denied" pre-answers the privacy
+# prompt non-interactively (no blocking prompt at startup).
+autoqa = false
+autoqa_consent = "denied"
+# Prompt-cache lifetime: "idle" warms the cache when the agent goes idle;
+# "off" disables, "streaming" warms per stream.
 cache_warming = "idle"
 # Wave-2 tuning knobs (2026-10-12 wave). Defaults keep today's behavior:
 # A/B arms flip these in data, measure, and commit the winner.
@@ -72,24 +83,77 @@ completion_probe = true
 compaction_method_order = ["remote", "snapcompact", "handoff", "shake", "soft"]
 compaction_model_thresholds = {}
 compaction_threshold_percent = 92
-# Composer draft predictions; empty keeps the key unmanaged until the resolved
-# OMP release exposes it, "on"/"off" manage it (A/B arms).
+# Composer draft predictions; served by the ACTIVE model (one extra full
+# request per completed turn), so it is a slot cost — stays unmanaged/off.
+# "on"/"off" manage it (A/B arms).
 composer_predictions = ""
 # Extra model roles as role -> tier key (e.g. judge = "small"). Post-adoption
 # role keys land here so the map stays complete without template edits.
 extra_model_roles = {}
-# Error classes that may trigger model fallback (e.g. ["network"]); empty
-# keeps the key unmanaged until the resolved OMP release exposes it.
-fallback_on = []
-# Shared-checkout guard (omp >=18.9): refuses destructive git mutations on
-# linked worktrees; "on"/"off" manage the key, "" leaves it unmanaged.
+# Error classes that may trigger model fallback; the 18.18.x enum is
+# any|usage-limit|except-usage-limit. Empty keeps the key unmanaged.
+fallback_on = ""
+# Shared-checkout guard (omp 18.18.x): refuses destructive git mutations in
+# the MAIN checkout (stash, reset --hard, switch, checkout, restore) and
+# runs them inside linked worktrees, saving discarded work to
+# refs/omp/discarded; "on"/"off" manage the key, "" leaves it unmanaged.
 git_guard = "on"
+# Parallel-write isolation (omp 18.18.x): the model marks write-capable
+# tasks isolated:true; enabled is the gate, apply auto-lands successful
+# changes on the parent as a patch (merge: patch|branch). backend selects
+# the materialization (auto|apfs|btrfs|...; base "" = unmanaged/auto;
+# the darwin os overlay pins apfs against the ovnfs hijack of auto).
+# commits (generic|ai) stays unmanaged.
+isolation_apply = "on"
+isolation_backend = ""
+isolation_enabled = "on"
+isolation_merge = "patch"
+# MCP stdio servers (engram, codegraph) cold-start slower than the 250 ms
+# default; a timeout silently drops a managed tool for the whole session.
+mcp_startup_timeout_ms = 2000
+# Subagents self-selecting models per call; routing authority stays in
+# chezmoi (eval|on widen it; project settings can only narrow).
+per_call_model = "off"
 personality = "none"
-# Credential-shaped token redaction in tool output (omp >=18.9).
+# Credential-shaped token redaction in tool output.
 secrets_redaction = true
+# Native security scanning is opt-in, never silently on.
+security_enabled = false
+# Skills discovery: the pi user-skills dir is sandbox-denied; probing it
+# only produces failed-discovery noise.
+skills_enable_pi_user = false
 # Specialist subagents as agent -> tier key; rendered to task.agentModelOverrides.
-subagent_tiers = { explorer = "small", librarian = "small", oracle = "oracle", fixer = "medium" }
+# Native OMP roster (18.18.x): scout self-routes model "@smol",
+# reviewer/security-reviewer "@slow" via frontmatter — the map stays empty so
+# native self-routing wins; entries here override frontmatter.
+subagent_tiers = {}
 symbol_preset = "nerd"
+# Delegating to cheap subagents is nudged ("default" = model decides,
+# "always" = force).
+task_eager = "preferred"
+# Wall-clock ceiling per subagent: defends an endpoint slot against
+# provider stream hangs that escape the inference-layer watchdog; 0 = off.
+task_max_runtime_ms = 1800000
+# Subagents drop from the reasoning model to the smol role at their first
+# file edit; mechanical phases stop paying xhigh thinking.
+task_prewalk = true
 telemetry_otlp_export = false
 theme_dark = "dark-catppuccin"
 theme_light = "light-catppuccin"
+# Tiny-model local inference (titles): this host is Intel (mlx is Apple
+# silicon only), so the ONNX CPU device is pinned. Weights are provisioned
+# out-of-band with `omp tiny-models`.
+tiny_model_device = "cpu"
+# Session titles: tiny (local tiny model) instead of fork (active model).
+title_generator = "tiny"
+# omp self-update writes the mise install tree outside the sandbox grants
+# and desyncs mise's version bookkeeping; mise owns the update lane.
+update_auto = false
+# Isolation checkouts land here (absolute/~ only; unset default ~/.omp/wt
+# is outside the sandbox write grants). The path rides the data-root write
+# grant (~/.local/share/omp, wt/ included); wt/t<9hex>/m is the layout.
+worktree_base = "~/.local/share/omp/wt"
+# CoW cloning exhausts disk in multi-agent reuse (upstream #15475: CoW is
+# free until each checkout rebuilds build output, then full copies);
+# plain checkouts are the documented fix.
+worktree_clone = false

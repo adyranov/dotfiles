@@ -1,0 +1,684 @@
+#!/usr/bin/env bats
+
+# bats file_tags=suite:ai
+
+load 'common-helper'
+
+setup() {
+  common_setup
+}
+
+{{- if get .toolchains "claude" | default false }}
+# Every Claude render fact is derived at template time from the same data the
+# renderer reads, so the applied tree and the assertion cannot drift. Two preset
+# roots (personal/qwen, work/anthropic) are built explicitly so the runner
+# matrix pins BOTH presets on any host (the runner-matrix contract).
+{{- $ctx := includeTemplate "base/ai/agents/claude/render-claude-context" (dict "root" .) | mustFromJson }}
+{{- $pRoot := merge (dict) . }}{{- $ph := merge (dict) .host }}{{- $_ := set $ph "profile" "personal" }}{{- $_ := set $pRoot "host" $ph }}
+{{- $wRoot := merge (dict) . }}{{- $wh := merge (dict) .host }}{{- $_ := set $wh "profile" "work" }}{{- $_ := set $wRoot "host" $wh }}
+{{- $pctx := includeTemplate "base/ai/agents/claude/render-claude-context" (dict "root" $pRoot) | mustFromJson }}
+{{- $wctx := includeTemplate "base/ai/agents/claude/render-claude-context" (dict "root" $wRoot) | mustFromJson }}
+{{- $fanout := 0 }}{{- if $ctx.has_serving }}{{- $fanout = sub (int (index $ctx.serving $ctx.serving_provider).slots) 1 }}{{- end }}
+{{- $aliasId := "" }}{{- if $ctx.has_serving }}{{- $aliasId = (index (index $ctx.serving $ctx.serving_provider).models 0).id }}{{- end }}
+{{- $claude := $ctx.claude }}
+{{- /* Managed settings.json top-level keys, baked from the same renderer the
+       modify template merges (anti-drift: no hand-copied key list). */ -}}
+{{- $managedKeys := includeTemplate "base/ai/agents/claude/render-claude-settings" (dict "root" . "chezmoi" .chezmoi) | mustFromJson | keys | sortAlpha }}
+{{- /* Plugin sets baked from the same plugins data the renderer shapes: the
+       enabled id renders as "<id>@<marketplace>"=true, each marketplace as
+       {source:{source,repo}}. Empty data renders {} and the set assertions
+       still pin it. */ -}}
+{{- $pluginIds := list }}{{- range $p := $claude.plugins.enabled }}{{- $pluginIds = append $pluginIds (printf "%s@%s" $p.id $p.marketplace) }}{{- end }}
+{{- $pluginMkts := dict }}{{- range $n, $m := $claude.plugins.marketplaces }}{{- $pluginMkts = mergeOverwrite $pluginMkts (dict $n (dict "source" $m.source "repo" $m.repo)) }}{{- end }}
+
+setup_file() {
+  # Shared static renders for the active (applied) profile's config tree.
+  render_source "$(tmplFile private_dot_config/claude/modify_settings.json)" "$BATS_FILE_TMPDIR/settings.json"
+  render_source "$(tmplFile private_dot_config/claude/modify_settings.json)" "$BATS_FILE_TMPDIR/settings-work.json" '{"host":{"profile":"work"}}'
+  render_source "$(tmplFile private_dot_config/claude/agents/orchestrator.md.tmpl)" "$BATS_FILE_TMPDIR/orchestrator.md"
+{{- range $prof := list "personal" "work" }}
+{{-   range $a := list "designer" "explorer" "fixer" "oracle" "orchestrator" }}
+  render_source "$(tmplFile private_dot_config/claude/agents/{{ $a }}.md.tmpl)" "$BATS_FILE_TMPDIR/{{ $prof }}-{{ $a }}.md" '{"host":{"profile":"{{ $prof }}"}}'
+{{-   end }}
+{{- end }}
+  render_source "$(tmplFile private_dot_config/claude/.chezmoiignore.tmpl)" "$BATS_FILE_TMPDIR/ignore-personal" '{"host":{"profile":"personal"}}'
+  render_source "$(tmplFile private_dot_config/claude/.chezmoiignore.tmpl)" "$BATS_FILE_TMPDIR/ignore-work" '{"host":{"profile":"work"}}'
+  render_source "$(tmplFile private_dot_config/claude/workflows/factory-deepwork.js.tmpl)" "$BATS_FILE_TMPDIR/deepwork-personal.js" '{"host":{"profile":"personal"}}'
+  render_source "$(tmplFile private_dot_config/claude/workflows/factory-deepwork.js.tmpl)" "$BATS_FILE_TMPDIR/deepwork-work.js" '{"host":{"profile":"work"}}'
+{{- if $ctx.has_serving }}
+  render_source "$(tmplFile private_dot_config/claude/duer.json.tmpl)" "$BATS_FILE_TMPDIR/duer.json"
+{{- end }}
+  render_source "$(tmplFile private_dot_config/claude/hooks/dcg-guard.mjs.tmpl)" "$BATS_FILE_TMPDIR/dcg-guard.mjs"
+  # Language-server package keys, baked from the same packages.ai data the
+  # package renderer reads (anti-drift). The LSP test greps the APPLIED
+  # settings.json for each key an *-lsp plugin needs.
+  cat >"$BATS_FILE_TMPDIR/pkg.keys" <<'PKGKEYS'
+{{ includeTemplate "base/helpers/load-section" (dict "root" . "section" "packages.ai" "required" true) | fromJson | keys | sortAlpha | join "\n" }}
+PKGKEYS
+}
+
+# --- a. Runner matrix: every role of BOTH presets -> runner+model+effort+tools ---
+
+# The plan's contract is the baked literal; the left-hand side is the runner the
+# committed render-claude-runner partial produces from data. Duer roles (serving
+# presets only) carry the exact --tools string baked from duers.role_tools (an
+# over-grant drifts the assert); native roles carry no tools key.
+# bats test_tags=toolchain:claude,kind:model
+@test "claude runner maps every qwen (personal) role to the plan runner/model/effort/tools" {
+  local offenders="" role kind model effort tools got
+{{- range $role := list "explorer" "fixer" "designer" "oracle" "orchestrator" }}
+{{-   $r := includeTemplate "base/ai/agents/claude/render-claude-runner" (dict "ctx" $pctx "role" $role) | mustFromJson }}
+{{-   $rt := index ($pctx.claude.duers.role_tools | default dict) $role | default $pctx.claude.duers.tools }}
+  role="{{ $role }}"; kind="{{ $r.kind }}"; model="{{ $r.model }}"; effort="{{ $r.effort }}"
+  tools="{{ get $r "tools" | default "" }}"; got="$role:$kind:$model:$effort:tools=$tools"
+  run test "$got" = "$role:{{ if eq $role "explorer" }}duer:qwen3.8-flash-next:low:tools={{ $rt }}{{ else if eq $role "fixer" }}duer:qwen3.8-flash-next:xhigh:tools={{ $rt }}{{ else if eq $role "designer" }}duer:qwen3.8-flash-next:xhigh:tools={{ $rt }}{{ else if eq $role "oracle" }}subagent:claude-opus-5-5:xhigh:tools={{ else }}subagent:claude-opus-5-5:xhigh:tools={{ end }}"
+  [ "$status" -eq 0 ] || offenders="$offenders [$role $(printf '%s' "$output" | tr -d '\n')]"
+{{- end }}
+  # Research-class roles (roles.toml permission=research) must never get an
+  # exec/edit tool: the duer runs under bypassPermissions, so tools is the gate.
+  while IFS='|' read -r role tools; do
+    case " $tools " in *"Edit"*|*"Write"*|*"Bash"*) offenders="$offenders $role-overgrant";; esac
+  done <<'RESEARCH'
+{{- range $n, $rd := $pctx.roles }}{{- if eq $rd.permission "research" }}
+{{ $n }}|{{ get (includeTemplate "base/ai/agents/claude/render-claude-runner" (dict "ctx" $pctx "role" $n) | mustFromJson) "tools" | default "" }}
+{{- end }}{{- end }}
+RESEARCH
+  [ -z "$offenders" ] || { printf 'qwen runner matrix drift:%s\n' "$offenders"; return 1; }
+}
+
+# bats test_tags=toolchain:claude,kind:model
+@test "claude runner maps every anthropic (work) role to native subagents (no duers)" {
+  local offenders="" role kind model effort tools got
+{{- range $role := list "explorer" "fixer" "designer" "oracle" "orchestrator" }}
+{{-   $r := includeTemplate "base/ai/agents/claude/render-claude-runner" (dict "ctx" $wctx "role" $role) | mustFromJson }}
+  role="{{ $role }}"; kind="{{ $r.kind }}"; model="{{ $r.model }}"; effort="{{ $r.effort }}"
+  tools="{{ get $r "tools" | default "" }}"; got="$role:$kind:$model:$effort:tools=$tools"
+  run test "$got" = "$role:{{ if eq $role "explorer" }}subagent:claude-haiku-5-5:low:tools={{ else if eq $role "fixer" }}subagent:claude-sonnet-5-5:medium:tools={{ else if eq $role "designer" }}subagent:claude-sonnet-5-5:medium:tools={{ else if eq $role "oracle" }}subagent:claude-opus-5-5:xhigh:tools={{ else }}subagent:claude-opus-5-5:high:tools={{ end }}"
+  [ "$status" -eq 0 ] || offenders="$offenders [$role $(printf '%s' "$output" | tr -d '\n')]"
+{{- end }}
+  [ -z "$offenders" ] || { printf 'anthropic runner matrix drift:%s\n' "$offenders"; return 1; }
+}
+
+# bats test_tags=toolchain:claude,kind:model
+@test "claude serving-preset tier thinking stays inside the endpoint effort set" {
+  # Every duer command's --effort renders from a serving tier's thinking (off
+  # renders as thinking_off_effort). The llama.cpp chat template takes
+  # low/medium/xhigh only — a high/max tier makes every duer launch 400.
+  local offenders=""
+{{- range $name, $tier := $pctx.tiers }}
+  case "{{ $tier.thinking | default "off" }}" in
+    off|low|medium|xhigh) ;;
+    *) offenders="$offenders {{ $name }}={{ $tier.thinking | default "off" }}";;
+  esac
+{{- end }}
+  case "{{ $claude.tier_routing.thinking_off_effort }}" in
+    low|medium|xhigh) ;;
+    *) offenders="$offenders off-effort={{ $claude.tier_routing.thinking_off_effort }}";;
+  esac
+  [ -z "$offenders" ] || { printf 'serving effort outside endpoint set:%s\n' "$offenders"; return 1; }
+}
+
+# --- b. autoMode: prose lists restoring the built-ins via "$defaults" ---
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude autoMode prose lists restore the built-ins and cover the duer launch" {
+  # autoMode entries are prose rules read by the LLM classifier (the
+  # byte-prefix parity design is dead); a list WITHOUT the literal "$defaults"
+  # replaces the entire built-in list, so both sections must open with it.
+  local file="$BATS_FILE_TMPDIR/settings.json"
+  run jq -e '
+    (.autoMode.allow[0] == "$defaults") and
+    (.autoMode.environment[0] == "$defaults") and
+    ([.autoMode.allow[] | select(test("duer"; "i"))] | length > 0) and
+    ([.autoMode.environment[] | select(contains("infer01"))] | length > 0)
+  ' "$file"
+  assert_success
+}
+
+# --- c. settings.json managed key set ---
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude settings.json carries the managed policy set (auto mode, cross-session, attribution, env)" {
+  local file="$BATS_FILE_TMPDIR/settings.json"
+  run jq -e --argjson fbm '{{ $claude.settings.fallback_model | toJson }}' '
+    (.permissions.defaultMode == "auto") and
+    (.permissions.deny | index("Agent(general-purpose)")) and
+    (.permissions.deny | index("Agent(fork)")) and
+    (.crossSessionInbound == "refuse") and
+    (.isolatePeerMachines == true) and
+    (.sandbox.enabled == false) and
+    (.autoMemoryEnabled == false) and
+    (.ultracode == false) and
+    (.attribution.commit == "") and
+    (.attribution.pr == "") and
+    (.syncClaudeAiSkills == false) and
+    (.syncClaudeAiPlugins == false) and
+    (.theme | length > 0) and
+    (.preferredNotifChannel | length > 0) and
+    (.spinnerTipsEnabled | type == "boolean") and
+    (.fallbackModel | type == "array") and
+    (.fallbackModel | length > 0) and
+    (all(.fallbackModel[]; type == "string")) and
+    (.fallbackModel == $fbm) and
+    (.hooks.PreToolUse[0].hooks[0].command | startswith("node "))
+  ' "$file"
+  assert_success
+  run jq -e --arg n "{{ $ctx.subagent_limit }}" '
+    (.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS == $n) and
+    (all(.env[]; type == "string"))
+  ' "$file"
+  assert_success
+}
+
+# --- c2. modify-template merge: Claude's own writes survive the managed render ---
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude modify_settings.json keeps user keys, wins managed keys, strips comments, stays JSON" {
+  # modify_settings.json (plain modifier — chezmoi renders it once with the
+  # target as stdin) exists ONLY so Claude's own writes survive: merge
+  # it over a seeded JSONC file (user key + // comment + trailing comma, the
+  # shape Claude itself writes) and pin the merge contract, including migration
+  # from a scalar fallbackModel to the managed array, and from a seeded NUMERIC
+  # CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS (the pre-stringify shape) to the
+  # managed STRING cap, while a user-owned env key survives.
+  local cb out
+  cb="$(chezmoiBin)"
+  run "$cb" execute-template -f "$(tmplFile private_dot_config/claude/modify_settings.json)" --with-stdin <<'SEED'
+{
+  // user comment: editorMode is mine
+  "editorMode": "vim",
+  "theme": "light",
+  "fallbackModel": "stale-scalar-model",
+  "env": {"CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": 42, "USER_OWNED_TEST": "keep"},
+}
+SEED
+  assert_success
+  out="$BATS_TEST_TMPDIR/merged.json"
+  printf '%s\n' "$output" >"$out"
+  # Parses as JSON (jq reads it), the user key survives, every managed key is
+  # present, managed wins on conflict (theme was seeded "light"), the seeded
+  # scalar fallbackModel is replaced by the managed array, the seeded numeric
+  # cap migrates to the managed string cap, and USER_OWNED_TEST survives.
+  run jq -e --argjson keys '{{ $managedKeys | toJson }}' --arg theme "{{ $claude.settings.theme }}" --argjson fbm '{{ $claude.settings.fallback_model | toJson }}' --arg cap "{{ $ctx.subagent_limit }}" '
+    (.editorMode == "vim") and (.theme == $theme) and
+    (.fallbackModel == $fbm) and
+    (.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS == $cap) and
+    (.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS | type == "string") and
+    (.env.USER_OWNED_TEST == "keep") and
+    (. as $r | all($keys[]; . as $k | ($r | has($k))))
+  ' "$out"
+  assert_success
+  run grep -F 'user comment' "$out"
+  assert_failure
+}
+
+# --- c3. Plugin sets: data-derived keys, wholesale replace on merge ---
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude settings.json enabledPlugins/extraKnownMarketplaces are the data-derived sets" {
+  # Anti-drift: both expected sets bake from the same ai.agents.claude.plugins
+  # data the renderer reads, so a data edit needs no test edit. Enabled ids
+  # render as "<id>@<marketplace>" = true; marketplaces as
+  # {source:{source,repo}}. Empty plugin data renders {} and passes.
+  local file="$BATS_FILE_TMPDIR/settings.json"
+  run jq -e --argjson ids '{{ $pluginIds | toJson }}' '
+    (.enabledPlugins | keys | sort) == ($ids | sort) and
+    (all(.enabledPlugins[]; . == true))
+  ' "$file"
+  assert_success
+  run jq -e --argjson mkts '{{ $pluginMkts | toJson }}' '
+    . as $r |
+    ((.extraKnownMarketplaces | keys | sort) == ($mkts | keys | sort)) and
+    (all($mkts | keys[]; . as $k | $r.extraKnownMarketplaces[$k] == {source: $mkts[$k]}))
+  ' "$file"
+  assert_success
+}
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude modify_settings.json wholesale-replaces enabledPlugins: stale plugin dies, user keys stay" {
+  # mergeOverwrite is deep, so a plugin REMOVED from the data would survive a
+  # plain merge (deep merge has no delete); the modify template replaces this
+  # one key wholesale. extraKnownMarketplaces rides the deep merge, so a
+  # user-added marketplace survives — the deliberate asymmetry.
+  local cb out
+  cb="$(chezmoiBin)"
+  run "$cb" execute-template -f "$(tmplFile private_dot_config/claude/modify_settings.json)" --with-stdin <<'SEED'
+{
+  "editorMode": "vim",
+  "enabledPlugins": {"stale-removed-plugin@stale-marketplace": true},
+  "extraKnownMarketplaces": {"user-added-marketplace": {"source": {"source": "github", "repo": "someone/else"}}}
+}
+SEED
+  assert_success
+  out="$BATS_TEST_TMPDIR/merged-plugins.json"
+  printf '%s\n' "$output" >"$out"
+  # Stale entry gone, managed set exactly the data set, user key intact.
+  run jq -e --argjson ids '{{ $pluginIds | toJson }}' '
+    (.enabledPlugins | keys | sort) == ($ids | sort) and
+    (.enabledPlugins | has("stale-removed-plugin@stale-marketplace") | not)
+  ' "$out"
+  assert_success
+  run jq -e '(.editorMode == "vim") and (.extraKnownMarketplaces | has("user-added-marketplace"))' "$out"
+  assert_success
+}
+
+# --- d. duer.json (serving preset only): bypass + serving endpoint + aliases ---
+{{- if $ctx.has_serving }}
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude duer.json points duers at the serving endpoint with bypass + DCG hook" {
+  local file="$BATS_FILE_TMPDIR/duer.json"
+  run jq -e '
+    (.permissions.defaultMode == "bypassPermissions") and
+    (.autoMemoryEnabled == false) and
+    (.hooks.PreToolUse[0].hooks[0].command | startswith("node ")) and
+    (.env.ANTHROPIC_API_KEY == "local") and
+    (.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC == "1")
+  ' "$file"
+  assert_success
+  # Alias pins derive from the serving provider's first model id (duers.env
+  # carries no literals).
+  run jq -e --arg m "{{ $aliasId }}" '
+    (.env.ANTHROPIC_DEFAULT_HAIKU_MODEL == $m) and
+    (.env.ANTHROPIC_DEFAULT_OPUS_MODEL == $m) and
+    (.env.ANTHROPIC_DEFAULT_SONNET_MODEL == $m)
+  ' "$file"
+  assert_success
+  # The Anthropic surface is the host root: base_url with /v1 stripped.
+  run jq -e --arg url "{{ trimSuffix "/v1" (index $ctx.serving $ctx.serving_provider).base_url }}" '.env.ANTHROPIC_BASE_URL == $url' "$file"
+  assert_success
+}
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude orchestrator prompt fan-out cap = serving slots - 1" {
+  run grep -Fq "{{ $fanout }} concurrent duers" "$BATS_FILE_TMPDIR/orchestrator.md"
+  assert_success
+}
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude duer.json + duer-roles are chezmoiignored on the work (native) preset only" {
+  # Serving preset (personal/qwen): duer kit renders, native subagent role files
+  # are pruned. Native preset (work/anthropic): duer kit is pruned, subagent
+  # role files render.
+  run grep -Fx 'duer.json' "$BATS_FILE_TMPDIR/ignore-personal"
+  assert_failure
+  run grep -Fx 'agents/explorer.md' "$BATS_FILE_TMPDIR/ignore-personal"
+  assert_success
+  run grep -Fx 'duer.json' "$BATS_FILE_TMPDIR/ignore-work"
+  assert_success
+  run grep -Fx 'duer-roles/**' "$BATS_FILE_TMPDIR/ignore-work"
+  assert_success
+}
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude orchestrator endpoint probe is /v1/models (GET /v1/messages is 405)" {
+  run grep -Fq '/v1/models' "$BATS_FILE_TMPDIR/orchestrator.md"
+  assert_success
+  run grep -Fq '/v1/messages' "$BATS_FILE_TMPDIR/orchestrator.md"
+  assert_failure
+}
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude alias pins render only into duer.json (settings.json env clean on both presets)" {
+  # The ANTHROPIC_DEFAULT_*_MODEL pins exist solely in duer.json (serving
+  # preset; duer.json.tmpl fails the render elsewhere): non-serving presets
+  # keep them empty — settings.json env carries none on either preset.
+  local f
+  for f in "$BATS_FILE_TMPDIR/settings.json" "$BATS_FILE_TMPDIR/settings-work.json"; do
+    run jq -e '[.env | keys[] | select(startswith("ANTHROPIC_DEFAULT_"))] | length == 0' "$f"
+    assert_success
+  done
+}
+{{- end }}
+
+# --- d2. Agent frontmatter contract (both presets) ---
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude agent files use effort: (never effortLevel:) with in-set values, both presets" {
+  # frontmatter key is `effort`; valid values low|medium|high|xhigh|max
+  # (effortLevel is a settings.json key, silently ignored in frontmatter).
+  local offenders="" f p
+  for f in designer explorer fixer oracle orchestrator; do
+    for p in personal work; do
+      if ! grep -Eq '^effort: (low|medium|high|xhigh|max)$' "$BATS_FILE_TMPDIR/$p-$f.md"; then
+        offenders="$offenders $p/$f:effort"
+      fi
+      if grep -q '^effortLevel:' "$BATS_FILE_TMPDIR/$p-$f.md"; then
+        offenders="$offenders $p/$f:effortLevel"
+      fi
+    done
+  done
+  [ -z "$offenders" ] || { printf 'agent effort frontmatter drift:%s\n' "$offenders"; return 1; }
+}
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude orchestrator frontmatter carries no tools/agent/fallbackModel keys" {
+  # tools: omission grants all (deny Agent(...) rules live in settings.json);
+  # agent/fallbackModel are settings.json keys, not frontmatter.
+  local fm
+  fm="$(awk '/^---$/{n++; next} n==1' "$BATS_FILE_TMPDIR/orchestrator.md")"
+  if grep -Eq '^(tools|agent|fallbackModel):' <<<"$fm"; then
+    printf 'orchestrator frontmatter offenders:\n'
+    grep -En '^(tools|agent|fallbackModel):' <<<"$fm"
+    return 1
+  fi
+}
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude orchestrator frontmatter preloads the roster's three skills" {
+  # roles.toml lists the orchestrator skills explicitly (no wildcard); the
+  # frontmatter renders them, so the preload survives without prose.
+  run grep -Eq '^skills: deepwork, verification-planning, step-back$' "$BATS_FILE_TMPDIR/orchestrator.md"
+  assert_success
+}
+
+# --- d3. Saved workflow (docs shape: meta literal first, runnable body) ---
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude saved workflow factory-deepwork: meta object first, node --check parses (both presets)" {
+  local wf
+  for wf in "$BATS_FILE_TMPDIR/deepwork-personal.js" "$BATS_FILE_TMPDIR/deepwork-work.js"; do
+    run grep -Fq 'export const meta = {' "$wf"
+    assert_success
+    command -v node >/dev/null 2>&1 || { echo "SKIP: node not on PATH" >&3; skip "no node"; }
+    run node --check "$wf"
+    assert_success
+  done
+}
+
+# bats test_tags=toolchain:claude,kind:config
+@test "claude saved workflow names its agent types and implements per preset" {
+  # settings.json permissions.deny blocks Agent(general-purpose), so every
+  # agent() call carries an explicit agentType that EXISTS in the preset's
+  # agent registry: serving presets prune agents/fixer.md (duers launch via
+  # Bash), so implement runs as the orchestrator executing the fixer duer
+  # command; native presets spawn fixer directly.
+  local wf calls typed
+  for wf in "$BATS_FILE_TMPDIR/deepwork-personal.js" "$BATS_FILE_TMPDIR/deepwork-work.js"; do
+    calls="$(grep -c 'agent(' "$wf")"
+    typed="$(grep -c 'agentType: "' "$wf")"
+    [ "$calls" -eq "$typed" ] || { printf 'agent() calls %s, agentType args %s\n' "$calls" "$typed"; return 1; }
+    run grep -Fq 'agentType: "oracle"' "$wf"
+    assert_success
+    run grep -Fq 'agentType: "orchestrator"' "$wf"
+    assert_success
+  done
+  run grep -Fq 'agentType: "fixer"' "$BATS_FILE_TMPDIR/deepwork-personal.js"
+  assert_failure
+  run grep -Fq 'agentType: "fixer"' "$BATS_FILE_TMPDIR/deepwork-work.js"
+  assert_success
+}
+
+# --- e. LSP plugin id => language-server package present (cross-file data invariant) ---
+
+# bats test_tags=toolchain:claude,kind:packages
+@test "every claude LSP plugin id has its language-server package in ai packages" {
+  # Add an *-lsp plugin to ai.agents.claude.plugins.enabled and forget the
+  # server package, and the LSP plugin ships a client with nothing to spawn.
+  # The id->package map is the pinned contract (typescript-lsp -> typescript-language-server).
+  local offenders="" id pkg
+  while IFS='|' read -r id pkg; do
+    grep -qxF "$pkg" "$BATS_FILE_TMPDIR/pkg.keys" || offenders="$offenders $id->$pkg"
+  done <<'LSPPAIRS'
+{{- $pkgMap := dict
+      "pyright-lsp" "pyright"
+      "gopls-lsp" "gopls"
+      "rust-analyzer-lsp" "rust-analyzer"
+      "typescript-lsp" "typescript-language-server" -}}
+{{- range $p := $claude.plugins.enabled }}
+{{-   $id := $p.id }}
+{{-   if hasKey $pkgMap $id }}
+{{ $id }}|{{ index $pkgMap $id }}
+{{-   end }}
+{{- end }}
+LSPPAIRS
+  if [ -n "$offenders" ]; then
+    printf 'claude LSP plugin missing its language-server package:%s\n' "$offenders"
+    return 1
+  fi
+}
+
+# --- f. Live duer round-trip probe (host-authoritative; skips freely) ---
+
+# bats test_tags=toolchain:claude,kind:probe
+@test "live duer: one-turn claude -p round trip against the serving endpoint" {
+  [ "${AGENT_SANDBOX:-}" = "" ] || skip "AGENT_SANDBOX set; live duer probe is host-authoritative"
+  [ "$(printf '%s' '{{ .host.type }}')" = "ephemeral" ] && { echo "SKIP: ephemeral host" >&3; skip "ephemeral host"; }
+{{- if $ctx.has_serving }}
+  command -v claude >/dev/null 2>&1 || { echo "SKIP: claude binary not on PATH" >&3; skip "no claude binary" ; }
+  command -v timeout >/dev/null 2>&1 || command -v gtimeout >/dev/null 2>&1 || { echo "SKIP: no timeout" >&3; skip "no timeout" ; }
+  local tout base_url d
+  tout="$(command -v timeout || command -v gtimeout)"
+  base_url="{{ trimSuffix "/v1" (index $ctx.serving $ctx.serving_provider).base_url }}"
+  d="$(mktemp -d "${TMPDIR:-/tmp}/claude-duer-probe.XXXXXX")"
+  # One bounded turn; any clean JSON turn is a green round trip.
+  # --effort is load-bearing: duer.json sets ALWAYS_ENABLE_EFFORT=1, and
+  # claude's default effort "high" is not a level the serving chat template
+  # takes (it accepts low/medium/xhigh) — omitting it 400s the probe.
+  run env -u CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CONFIG_DIR="$d" \
+    ANTHROPIC_BASE_URL="$base_url" ANTHROPIC_API_KEY=local \
+    "$tout" 60 claude -p --setting-sources "" \
+    --settings "$HOME/.config/claude/duer.json" --strict-mcp-config \
+    --no-session-persistence --permission-prompts none \
+    --model "{{ (index (index $ctx.serving $ctx.serving_provider).models 0).id }}" \
+    --effort low \
+    --output-format json "reply with the single word ok"
+  rm -rf "$d"
+  [ "$status" -eq 0 ] || { printf 'live duer round trip failed (status %s): %s\n' "$status" "$output"; return 1; }
+{{- else }}
+  skip "the active preset routes every tier natively (no serving duer to probe)"
+{{- end }}
+}
+
+# --- g. Launcher claude branch: guarded launch, print-env, profile words ---
+
+# bats test_tags=toolchain:claude,kind:launcher
+@test "claude --print-env emits config dir, tmpdir and gh state, never a token value" {
+  launcher_probe claude --print-env
+  local out="$output" line
+  run grep -F 'export CLAUDE_CONFIG_DIR="/fixture-home/.config/claude"' <<<"$out"
+  assert_success
+  run grep -F 'export CLAUDE_CODE_TMPDIR="/tmp/agents/claude"' <<<"$out"
+  assert_success
+  for line in \
+    'export GH_CONFIG_DIR="$HOME/.cache/gh-sandbox/config"' \
+    'export GH_DATA_DIR="$HOME/.cache/gh-sandbox/data"' \
+    'export GH_CACHE_DIR="$HOME/.cache/gh-sandbox/cache"'; do
+    run grep -Fxq -e "$line" <<<"$out"
+    assert_success
+  done
+  # Token names never ride the printed env: the launcher exports config dirs,
+  # never credential values (scrub/route mechanics live in nono).
+  run grep -E 'OAUTH_TOKEN|GH_TOKEN|ANTHROPIC_API_KEY' <<<"$out"
+  assert_failure
+}
+
+# bats test_tags=toolchain:claude,kind:launcher
+@test "claude profile words: positional word dies with the single-root message; --profile default accepted, factory refused" {
+  run "$HOME/.local/bin/agent" claude factory
+  assert_failure
+  assert_output --partial "single configuration root"
+  run "$HOME/.local/bin/agent" claude --print-env --profile default
+  assert_success
+  run "$HOME/.local/bin/agent" claude --print-env --profile factory
+  assert_failure
+  assert_output --partial "Unknown profile"
+}
+
+{{- if eq .chezmoi.os "darwin" }}
+# The Linux arm of the guarded-launch cases is the launcher's U2 gate (it dies
+# before the claude probe), pinned in test-ai-shared; darwin-only here.
+# bats test_tags=toolchain:claude,kind:launcher
+@test "claude guarded launch refuses every provisioning gap: hook file, settings.json, hook reference" {
+  local mock home cfg launch offenders=""
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  setup_mock_bins "$mock" git
+  # The hook runs as 'node <hook>': stub the runtime so only the file gaps can
+  # trip the probe (a missing node is its own pinned missing token).
+  printf '#!/usr/bin/env sh\nexit 0\n' >"$mock/node"
+  chmod +x "$mock/node"
+  home="$BATS_TEST_TMPDIR/fake-home"
+  cfg="$home/.config/claude"
+  mkdir -p "$cfg/hooks"
+  launch="$HOME/.local/bin/agent"
+  # pwd_guard requires a git worktree; the chezmoi source dir sits in one.
+  cd "{{ .chezmoi.sourceDir }}"
+  checkGap() { # $1=case label, $2=expected missing token
+    run env HOME="$home" XDG_CONFIG_HOME="$home/.config" PATH="$mock:$PATH" "$launch" claude
+    [ "$status" -ne 0 ] || { offenders="$offenders $1:launch.succeeded"; return; }
+    [[ "$output" == *"Claude Code config is not provisioned"* ]] || offenders="$offenders $1:die.marker"
+    [[ "$output" == *"$2"* ]] || offenders="$offenders $1:missing.$2"
+  }
+  : >"$cfg/hooks/dcg-guard.mjs"
+  # The provisioning marker is the ACTUAL managed hook entry shape (matcher +
+  # command handler type, per render-claude-pre-tool-use-hooks).
+  printf '{"hooks":{"PreToolUse":[{"matcher":"Bash|Write|Edit|MultiEdit|NotebookEdit","hooks":[{"type":"command","command":"node %s/.config/claude/hooks/dcg-guard.mjs"}]}]}}\n' \
+    "$home" >"$cfg/settings.json"
+  rm "$cfg/hooks/dcg-guard.mjs"
+  checkGap hook-file hooks/dcg-guard.mjs
+  : >"$cfg/hooks/dcg-guard.mjs"
+  rm -f "$cfg/settings.json"
+  checkGap settings-missing settings.json
+  # settings.json EXISTS with no hook reference: existence is not enough, the
+  # rendered hook reference is the provisioning marker.
+  printf '{"theme":"light"}\n' >"$cfg/settings.json"
+  checkGap settings-no-hookref settings.json
+  [ -z "$offenders" ] || { printf 'claude guarded-launch probe (offenders):%s\n' "$offenders"; return 1; }
+}
+
+# bats test_tags=toolchain:claude,kind:launcher
+@test "claude guarded launch dies on a relocated XDG_CONFIG_HOME (grants are home-anchored)" {
+  # The seatbelt grants and the registered hook command are $HOME/.config/
+  # claude-anchored; a relocated root is a launch the sandbox cannot cover.
+  local mock launch
+  mock="$(mktemp -d "$BATS_TEST_TMPDIR/mock.XXXXXX")"
+  setup_mock_bins "$mock" git
+  launch="$HOME/.local/bin/agent"
+  cd "{{ .chezmoi.sourceDir }}"
+  run env HOME="$BATS_TEST_TMPDIR/fake-home" XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-config" \
+    PATH="$mock:$PATH" "$launch" claude
+  [ "$status" -ne 0 ] || { echo "launch succeeded with a relocated XDG_CONFIG_HOME"; return 1; }
+  assert_output --partial "XDG_CONFIG_HOME"
+  assert_output --partial "--no-sandbox"
+}
+{{- end }}
+
+# --- hook self-check: rendered node hook parses + fails closed on malformed stdin ---
+
+# bats test_tags=toolchain:claude,kind:dcg
+@test "claude dcg-guard hook: node --check parses and malformed stdin exits 2" {
+  [ "$(printf '%s' '{{ .host.type }}')" = "ephemeral" ] && { echo "SKIP: ephemeral host" >&3; skip "ephemeral host"; }
+  command -v node >/dev/null 2>&1 || { echo "SKIP: node not on PATH" >&3; skip "no node" ; }
+  local hook="$BATS_FILE_TMPDIR/dcg-guard.mjs"
+  assert_file_exists "$hook"
+  run node --check "$hook"
+  assert_success
+  # Fail-closed: an unparsable PreToolUse payload must exit 2 (block).
+  run bash -c 'printf "not-json" | node "$1"' _ "$hook"
+  assert_failure
+  assert_equal "$status" 2
+}
+
+# bats test_tags=toolchain:claude,kind:dcg
+@test "claude dcg-guard hook: write-axis blocks exit 2; benign writes and Bash behavior unchanged" {
+  [ "$(printf '%s' '{{ .host.type }}')" = "ephemeral" ] && { echo "SKIP: ephemeral host" >&3; skip "ephemeral host"; }
+  command -v node >/dev/null 2>&1 || { echo "SKIP: node not on PATH" >&3; skip "no node" ; }
+  # The Bash twins measure the binary + rendered packs, like the dcg suite.
+  require_dcg
+  local hook="$BATS_FILE_TMPDIR/dcg-guard.mjs" repo="$BATS_TEST_TMPDIR/repo" offenders="" p
+  mkdir -p "$repo/src"
+  # The git-floor shapes over every layout (project, submodule gitdir incl.
+  # nested, linked worktree, named bare repo) and both config leaves; paths need
+  # not exist — the hook canonicalizes the deepest existing ancestor — so every
+  # input below is static text and the probe never writes a protected path.
+  for p in repo/.git/config repo/.git/modules/sub/config bare/foo.git/config \
+           repo/.git/hooks/pre-commit repo/.git/modules/sub/hooks/x \
+           repo/.git/config.worktree repo/.git/modules/sub/config.worktree \
+           repo/.git/modules/a/modules/b/config \
+           repo/.git/worktrees/feat/config.worktree \
+           bare/foo.git/worktrees/feat/config.worktree \
+           repo/.GIT/config repo/.git/WORKTREES/feat/Config.Worktree \
+           repo/.git/Modules/SUB/HOOKS/pre-commit; do
+    run bash -c 'printf %s "$1" | node "$2"' _ \
+      "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$p\"},\"cwd\":\"$repo\"}" "$hook"
+    [ "$status" -eq 2 ] || offenders="$offenders [write:$p=$status]"
+  done
+  # Tool-shape probes: $1=label $2=expected exit $3=payload (all static).
+  shape() {
+    run bash -c 'printf %s "$1" | node "$2"' _ "$3" "$hook"
+    [ "$status" -eq "$2" ] || offenders="$offenders [$1=$status want $2]"
+  }
+  # Each write tool is policed on its OWN path key: NotebookEdit carries
+  # notebook_path, so its file_path is not the write target.
+  shape edit-config 2 "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"repo/.git/config\"},\"cwd\":\"$repo\"}"
+  shape multiedit-config 2 "{\"tool_name\":\"MultiEdit\",\"tool_input\":{\"file_path\":\"repo/.git/hooks/pre-commit\"},\"cwd\":\"$repo\"}"
+  shape notebook-config 2 "{\"tool_name\":\"NotebookEdit\",\"tool_input\":{\"notebook_path\":\"repo/.git/config\"},\"cwd\":\"$repo\"}"
+  shape notebook-instructions 2 "{\"tool_name\":\"NotebookEdit\",\"tool_input\":{\"notebook_path\":\"repo/.claude/rules/x.md\"},\"cwd\":\"$repo\"}"
+  # Fail closed on an unresolvable path (the boot bypass returns earlier, so a
+  # host --no-sandbox launch is unaffected).
+  shape missing-path 2 '{"tool_name":"Write","tool_input":{},"cwd":"'"$repo"'"}'
+  shape empty-path 2 '{"tool_name":"Write","tool_input":{"file_path":""},"cwd":"'"$repo"'"}'
+  shape non-string-path 2 '{"tool_name":"Write","tool_input":{"file_path":42},"cwd":"'"$repo"'"}'
+  # NotebookEdit has no notebook_path: no file_path fallback, fail closed.
+  shape notebook-no-path 2 '{"tool_name":"NotebookEdit","tool_input":{"file_path":"repo/.git/config"},"cwd":"'"$repo"'"}'
+  # Benign writes: ordinary files, the .git gitfile pointer, worktree HEAD/index
+  # (git worktree add needs them), and near-miss shapes.
+  for p in src/app.ts repo/.git repo/.git/HEAD repo/.git/worktrees/feat/HEAD \
+           repo/.git/worktrees/feat/index repo/.gitignore repo/.github/config \
+           repo/.claude/settings.json repo/CLAUDE.md repo/.claude/notes.txt \
+           repo/src/agents/a.md repo/skills/deepwork/SKILL.md \
+           repo/worktrees/feat/config repo/.claude/rules-internal/a.md; do
+    run bash -c 'printf %s "$1" | node "$2"' _ \
+      "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$p\"},\"cwd\":\"$repo\"}" "$hook"
+    [ "$status" -eq 0 ] || offenders="$offenders [benign:$p=$status]"
+  done
+  shape benign-notebook 0 '{"tool_name":"NotebookEdit","tool_input":{"notebook_path":"nb.ipynb"},"cwd":"'"$repo"'"}'
+  # Instruction-file floor: project .claude instructions (incl. a nested
+  # worktree checkout and case variants) are prompt-injection targets.
+  for p in repo/.claude/CLAUDE.md repo/.claude/rules/review.md repo/.claude/agents/a.md \
+           repo/.claude/commands/deploy.md repo/.claude/skills/deep/SKILL.md \
+           repo-wt/nested/.claude/CLAUDE.md repo/.Claude/Rules/x.md \
+           repo/.claude/CLAUDE.MD; do
+    run bash -c 'printf %s "$1" | node "$2"' _ \
+      "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$p\"},\"cwd\":\"$repo\"}" "$hook"
+    [ "$status" -eq 2 ] || offenders="$offenders [instructions:$p=$status]"
+  done
+  # Alias shapes, on scratch symlinks only (under $BATS_TEST_TMPDIR): a named
+  # .claude/.git symlink is caught by the LEXICAL shape (its canonical target
+  # carries a different name), and an ordinary-named alias resolving INTO a
+  # protected directory is caught by the CANONICAL shape.
+  local lnk="$BATS_TEST_TMPDIR/alias-named" real="$BATS_TEST_TMPDIR/alias-into"
+  mkdir -p "$lnk/instructions/rules" "$lnk/gitstore" "$real/.claude/rules"
+  ln -s instructions "$lnk/.claude"
+  ln -s gitstore "$lnk/.git"
+  ln -s .claude "$real/cc"
+  shape link-claude-rules 2 '{"tool_name":"Write","tool_input":{"file_path":".claude/rules/x.md"},"cwd":"'"$lnk"'"}'
+  shape link-claude-md 2 '{"tool_name":"Edit","tool_input":{"file_path":".claude/CLAUDE.md"},"cwd":"'"$lnk"'"}'
+  shape link-git-config 2 '{"tool_name":"Write","tool_input":{"file_path":".git/config"},"cwd":"'"$lnk"'"}'
+  shape link-git-config-worktree 2 '{"tool_name":"Write","tool_input":{"file_path":".GIT/config.worktree"},"cwd":"'"$lnk"'"}'
+  shape link-git-hooks 2 '{"tool_name":"Write","tool_input":{"file_path":".git/hooks/pre-commit"},"cwd":"'"$lnk"'"}'
+  shape alias-into-instructions 2 '{"tool_name":"Edit","tool_input":{"file_path":"cc/rules/x.md"},"cwd":"'"$real"'"}'
+  shape alias-into-benign 0 '{"tool_name":"Write","tool_input":{"file_path":"notes.md"},"cwd":"'"$real"'"}'
+  shape link-benign-target 0 '{"tool_name":"Write","tool_input":{"file_path":"instructions/README.md"},"cwd":"'"$lnk"'"}'
+  # Cwd anchoring: a relative path with no absolute cwd cannot be resolved, so
+  # it fails closed; an absolute path needs no cwd. Ordinary relative paths over
+  # a valid absolute cwd are the loops above.
+  shape no-cwd-relative 2 '{"tool_name":"Write","tool_input":{"file_path":"repo/.git/config"}}'
+  shape non-string-cwd 2 '{"tool_name":"Write","tool_input":{"file_path":"repo/.git/config"},"cwd":42}'
+  shape relative-cwd 2 '{"tool_name":"Write","tool_input":{"file_path":"repo/.git/config"},"cwd":"repo"}'
+  shape abs-path-no-cwd 2 '{"tool_name":"Write","tool_input":{"file_path":"'"$repo"'/.git/config"}}'
+  shape abs-instructions-no-cwd 2 '{"tool_name":"Edit","tool_input":{"file_path":"'"$repo"'/.claude/rules/x.md"}}'
+  shape abs-benign-no-cwd 0 '{"tool_name":"Write","tool_input":{"file_path":"'"$repo"'/src/app.ts"}}'
+  run bash -c 'printf %s "$1" | node "$2"' _ \
+    '{"tool_name":"Bash","tool_input":{"command":"git config core.hooksPath /tmp/h"},"cwd":"/tmp"}' "$hook"
+  [ "$status" -eq 2 ] || offenders="$offenders [bash-deny=$status]"
+  run bash -c 'printf %s "$1" | node "$2"' _ \
+    '{"tool_name":"Bash","tool_input":{"command":"echo hi"},"cwd":"/tmp"}' "$hook"
+  [ "$status" -eq 0 ] || offenders="$offenders [bash-allow=$status]"
+  # The tool-only guard must leave Git's own worktree plumbing to the Bash axis.
+  run bash -c 'printf %s "$1" | node "$2"' _ \
+    '{"tool_name":"Bash","tool_input":{"command":"git worktree add ../wt -b feat"},"cwd":"/tmp"}' "$hook"
+  [ "$status" -eq 0 ] || offenders="$offenders [bash-worktree-add=$status]"
+  [ -z "$offenders" ] || { printf 'claude dcg-guard write-axis probe (offenders):%s\n' "$offenders"; return 1; }
+}
+{{- end }}

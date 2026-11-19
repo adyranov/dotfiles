@@ -89,6 +89,15 @@ setup() {
 }
 
 # bats test_tags=kind:git
+@test "git init templateDir is the managed empty hooks-template (sandbox floor has no sample writes)" {
+  run git config --file "$HOME/.config/git/base" init.templateDir
+  assert_output "~/.config/git/hooks-template"
+  assert [ -d "$HOME/.config/git/hooks-template" ]
+  run ls -A "$HOME/.config/git/hooks-template"
+  assert_output ""
+}
+
+# bats test_tags=kind:git
 @test "git config pull.rebase is true" {
   run git config --file "$HOME/.config/git/base" pull.rebase
   assert_output "true"
@@ -284,4 +293,17 @@ setup() {
   render_source "$src" "$BATS_FILE_TMPDIR/sys.bats" '{"host":{"distro":{"id":"ubuntu","family":"linux"},"arch":"arm64"}}'
   run grep -F '}# bats' "$BATS_FILE_TMPDIR/sys.bats"
   assert_failure
+}
+
+# bats test_tags=kind:config
+@test "global gitignore carries both in-repo agent worktree dirs" {
+  # Claude's native .claude/worktrees and Slim/pi/omp's .slim/worktrees
+  # land inside each clone, so the chezmoi-managed global gitignore keeps every
+  # clone clean. Plain source file: grep the located source directly.
+  local src
+  src="$(tmplFile private_dot_config/exact_git/ignore)"
+  run grep -F -x '.claude/worktrees/' "$src"
+  assert_success
+  run grep -F -x '.slim/worktrees/' "$src"
+  assert_success
 }

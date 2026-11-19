@@ -1,0 +1,49 @@
+{{- /*
+  render-claude-settings — The managed settings.json key set (values from
+  ai.agents.claude.settings + auto_mode + plugins + env; key names shaped here).
+*/ -}}
+{{- $ctx := includeTemplate "base/ai/agents/claude/render-claude-context" (dict "root" .root) | mustFromJson -}}
+{{- $claude := $ctx.claude -}}
+{{- $s := $claude.settings -}}
+{{- $marketplaces := dict -}}
+{{- range $name, $mkt := $claude.plugins.marketplaces -}}
+{{-   $marketplaces = mergeOverwrite $marketplaces (dict $name (dict "source" (dict "source" $mkt.source "repo" $mkt.repo))) -}}
+{{- end -}}
+{{- $enabled := dict -}}
+{{- range $p := $claude.plugins.enabled -}}
+{{-   $enabled = mergeOverwrite $enabled (dict (printf "%s@%s" $p.id $p.marketplace) true) -}}
+{{- end -}}
+{{- $env := merge (dict) $claude.env -}}
+{{- /* The published settings schema expects string env values, so stringify
+       the limit (ctx rides JSON, where subagent_limit is a number). */ -}}
+{{- $_ := set $env "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS" (toString $ctx.subagent_limit) -}}
+{{- /* plansDirectory is consumed verbatim (no ~ expansion), so compose the
+       absolute path here; same ~/ idiom as render-nono-profile. */ -}}
+{{- $plans := printf "%s/%s" (trimSuffix "/" .chezmoi.homeDir) (trimPrefix "~/" $claude.plans_directory) -}}
+{{- $hooks := includeTemplate "base/ai/agents/claude/render-claude-pre-tool-use-hooks" (dict "chezmoi" .chezmoi) | mustFromJson -}}
+{{- dict
+  "agent" "orchestrator"
+  "attribution" $s.attribution
+  "autoMemoryEnabled" $s.auto_memory
+  "autoMode" (dict "environment" $claude.auto_mode.environment "allow" $claude.auto_mode.allow)
+  "bashOutputMaxChars" $s.bash_output_max_chars
+  "crossSessionInbound" $s.cross_session_inbound
+  "enabledPlugins" $enabled
+  "env" $env
+  "extraKnownMarketplaces" $marketplaces
+  "fallbackModel" $s.fallback_model
+  "hooks" (dict "PreToolUse" $hooks)
+  "isolatePeerMachines" $s.isolate_peer_machines
+  "model" $s.model
+  "permissions" (dict "defaultMode" $s.default_mode "deny" $s.permissions_deny)
+  "plansDirectory" $plans
+  "preferredNotifChannel" $s.notif_channel
+  "sandbox" (dict "enabled" $s.sandbox_enabled)
+  "spinnerTipsEnabled" $s.spinner_tips
+  "statusLine" (dict "type" "command" "command" $s.statusline_command)
+  "subagentPromptCacheTtl" $s.subagent_prompt_cache_ttl
+  "syncClaudeAiPlugins" $s.sync_claude_ai_plugins
+  "syncClaudeAiSkills" $s.sync_claude_ai_skills
+  "theme" $s.theme
+  "ultracode" $s.ultracode
+  | toPrettyJson -}}

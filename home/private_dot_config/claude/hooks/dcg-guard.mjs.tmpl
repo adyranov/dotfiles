@@ -1,0 +1,47 @@
+// dcg-guard: chezmoi-managed Claude Code PreToolUse hook (do not edit in-agent
+// — nono seatbelt write-denies agent writes to this file on macOS; on Linux keep this file out of
+// the sandbox write allow, where Landlock cannot deny). Routes
+// Bash tool calls through `dcg hook --robot --batch` (mirroring the opencode
+// wrapper) and the file-writing tool calls through the core's write-axis path
+// floors.
+// Claude hook protocol: stdin JSON {tool_name, tool_input, cwd};
+// exit 2 blocks the call and stderr is fed to the model. Internal failure
+// exits 2 (fail closed: an armed guard that cannot check must refuse).
+// The boot-probe seals (module-load DCG_BYPASS snapshot, real-home write probe,
+// AGENT_SANDBOX_HOME pin) live in the core: nono scrubs nested DCG_* env, so a
+// nested `DCG_BYPASS=1 claude …` never sees the bypass at boot.
+{{ (includeTemplate "base/ai/security/dcg-guard-core") | trim }}
+
+import { readFileSync } from "node:fs";
+
+// Claude Code routes every tool through PreToolUse: Bash carries the command
+// string DCG can analyze (the opencode wrapper's bash/shell filter), and the
+// file-writing tools carry a path policed by the core's write-axis floors
+// (.git/config must stay writable for worktree operations that update it;
+// .claude instruction files are seatbelt-uncovered). Each tool's path key is
+// routed explicitly: NotebookEdit carries notebook_path, not file_path.
+const FILE_WRITE_TOOLS = ["Write", "Edit", "MultiEdit", "NotebookEdit"];
+function fileWriteToolPath(toolName, args) {
+  return toolName === "NotebookEdit" ? args.notebook_path : args.file_path;
+}
+
+function main() {
+  const input = JSON.parse(readFileSync(0, "utf8"));
+  if (!input) return;
+  const args = input.tool_input || {};
+  let reason = null;
+  if (input.tool_name === "Bash") reason = dcgBlockReason(args.command, input.cwd);
+  else if (FILE_WRITE_TOOLS.includes(input.tool_name))
+    reason = fileWriteBlockReason(fileWriteToolPath(input.tool_name, args), input.cwd);
+  if (reason) {
+    console.error(reason);
+    process.exit(2);
+  }
+}
+
+try {
+  main();
+} catch (err) {
+  console.error(`[dcg] PreToolUse hook internal error (fail closed): ${err && err.message ? err.message : err}`);
+  process.exit(2);
+}

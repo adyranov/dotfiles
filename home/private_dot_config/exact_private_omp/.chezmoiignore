@@ -1,4 +1,4 @@
-# OMP layout (18.8.x): the managed set is the agent root
+# OMP layout (18.18.x): the managed set is the agent root
 # (~/.config/omp/agent/{config.yml,models.yml,.mcp.json,SYSTEM.md,AGENTS.md,
 # extensions/dcg-guard.ts}); everything else at the config root and inside
 # the agent root is app runtime state — ignore-listed so the exact_ pruning
@@ -10,7 +10,7 @@ gpu_cache.json
 install-id
 last-changelog-version
 terminal-sessions/**
-# Named profiles (omp >=18.9) are app-created; the exact_ pruning law must
+# Named profiles (omp 18.18.x) are app-created; the exact_ pruning law must
 # not delete a user's profile config at apply.
 profiles/**
 sessions/**
@@ -30,7 +30,9 @@ mcp-cache.json
 extensions/**
 
 # Agent-root runtime: whitelist the managed files; everything else (auth.json,
-# *.lock, sessions, state, ...) is app-owned.
+# *.lock, sessions, state, ...) is app-owned. agents/ is fully app-owned after
+# the native-roster switch (bundled scout/task/reviewer + user `omp agents
+# unpack`); the old mirrored *.md are removed via .chezmoiremove.
 agent/*
 !agent/config.yml
 !agent/models.yml
@@ -38,8 +40,5 @@ agent/*
 !agent/SYSTEM.md
 !agent/AGENTS.md
 !agent/extensions
-!agent/agents
-agent/agents/*
-!agent/agents/*.md
 agent/extensions/*
 !agent/extensions/dcg-guard.ts

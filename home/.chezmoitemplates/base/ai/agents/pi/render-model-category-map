@@ -24,7 +24,7 @@
 {{- range $name, $tierClass := $classMap -}}
 {{-   $route := index $tiers $tierClass -}}
 {{-   if not (kindIs "map" $route) -}}
-{{-     fail (printf "ai.agent_tiers.%s maps %q to unknown tier %q" $field $name $tierClass) -}}
+{{-     fail (printf "render-model-category-map: %s maps %q to unknown tier %q" $field $name $tierClass) -}}
 {{-   end -}}
 {{-   if not (hasKey $route "model") -}}
 {{-     fail (printf "ai.tiers.%s maps %s but has no model route" $tierClass $field) -}}

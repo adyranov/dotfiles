@@ -16,7 +16,10 @@
   unsafe_macos_seatbelt_rules: $HOME sentinels expand via expand-tmpdir;
   emitted darwin-only when non-empty (rules APPEND after the generated tiers,
   last-match-wins in nono 0.79.0; silently ignored on Linux, and honoured in
-  user-authored profiles only).
+  user-authored profiles only). Agent profiles end with the shared
+  shared_write_denies floors (ai.agents.shared.sandbox, REQUIRED on darwin:
+  missing/wrong-type/empty fails the render) appended LAST, without dedup,
+  after the agent's own rules.
   unix_socket / bypass_protection pass-through: a leading `~/` in the data is
   expanded to the canonical homeDir at render (nono silently drops connect
   grants for sockets missing at launch, so a literal "~/" approval vanishes
@@ -123,7 +126,20 @@
 {{-     $_ := set $profile "command_policies" (includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $root) | mustFromJson) -}}
 {{-   end -}}
 {{-   $seatbelt = includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $seatbelt "home" (trimSuffix "/" $root.chezmoi.homeDir)) | mustFromJson -}}
-{{-   if and $seatbelt (eq $os "darwin") -}}{{-   $_ := set $profile "unsafe_macos_seatbelt_rules" ($seatbelt | uniq) -}}{{- end -}}
+{{- /* Shared macOS write floors (one data owner: shared.toml): REQUIRED on
+  darwin — missing / non-list / empty floor data fails the render — expanded
+  with the same canonical home as the agent rules. Dedup the agent rules
+  first, then append the floors with NO dedup after them: seatbelt is
+  last-match-wins, and a deduped floor copy sitting before a later allow
+  would let the allow win. Linux never receives these rules. */ -}}
+{{-   if eq $os "darwin" -}}
+{{-     $raw := index $shared "shared_write_denies" | default list -}}
+{{-     if not (kindIs "slice" $raw) -}}{{-     fail "render-nono-profile: ai.agents.shared.sandbox.shared_write_denies is missing or not a list (required macOS write floors)" -}}{{-     end -}}
+{{-     if not (gt (len $raw) 0) -}}{{-     fail "render-nono-profile: ai.agents.shared.sandbox.shared_write_denies is empty (required macOS write floors)" -}}{{-     end -}}
+{{-     $floors := includeTemplate "base/ai/security/expand-tmpdir" (dict "list" $raw "home" $homeDir) | mustFromJson -}}
+{{-     $seatbelt = concat ($seatbelt | uniq) $floors -}}
+{{-   end -}}
+{{-   if and $seatbelt (eq $os "darwin") -}}{{-   $_ := set $profile "unsafe_macos_seatbelt_rules" $seatbelt -}}{{- end -}}
 {{-   if eq $agent "omp" -}}{{-   $_ := set $profile "environment" (dict "deny_vars" ($creds.secrets | default list)) -}}{{-   end -}}
 {{-   $profile | toPrettyJson -}}
 {{- end -}}

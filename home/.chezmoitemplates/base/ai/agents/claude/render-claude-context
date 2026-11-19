@@ -1,0 +1,58 @@
+{{- /*
+  render-claude-context — Resolve the Claude render context once per template.
+
+  Input (dict):
+    root — chezmoi data root
+
+  Output (JSON):
+    claude         — merged ai.agents.claude (base + active profile overlay)
+    preset         — the worker preset name (ai.profile.<p>.agents.claude.preset)
+    tiers          — the active preset's tier routes (ai.profile.<p>.presets.<preset>.tiers)
+    roles          — the shared Slim role roster (ai.agents.roles)
+    serving        — the active profile's serving endpoints (ai.profile.<p>.serving)
+    has_serving    — true when any tier routes to a serving provider (duers exist)
+    serving_provider — the serving provider a duer tier routes to ("" when none)
+    fanout         — concurrent duer cap: serving slots - 1, 0 without serving
+    subagent_limit — the preset's subagent_limit (shared resolver)
+*/ -}}
+{{- $root := .root -}}
+{{- $claude := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.claude" "required" true) | mustFromJson -}}
+{{- $preset := get $claude "preset" | default "" -}}
+{{- if not $preset -}}{{- fail "ai.agents.claude.preset is required" -}}{{- end -}}
+{{- $presetSection := includeTemplate "base/helpers/load-section" (dict "root" $root "section" (printf "ai.presets.%s" $preset) "required" true) | mustFromJson -}}
+{{- $tiers := get $presetSection "tiers" | default dict -}}
+{{- if not $tiers -}}{{- fail (printf "preset %s has no tiers" $preset) -}}{{- end -}}
+{{- $roles := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.agents.roles" "required" true) | mustFromJson -}}
+{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.serving" "required" false) | mustFromJson -}}
+{{- $native := $claude.tier_routing.native_provider -}}
+{{- $servingProviders := list -}}
+{{- range $name, $tier := $tiers -}}
+{{-   $provider := get $tier "provider" | default "" -}}
+{{-   if and (ne $provider $native) (hasKey $serving $provider) (not (has $provider $servingProviders)) -}}
+{{-     $servingProviders = append $servingProviders $provider -}}
+{{-   end -}}
+{{- end -}}
+{{- if lt 1 (len $servingProviders) -}}
+{{-   fail (printf "render-claude-context: preset %s routes tiers to %s; duers need every serving tier on one provider" $preset (join ", " $servingProviders)) -}}
+{{- end -}}
+{{- $servingProvider := first $servingProviders | default "" -}}
+{{- $fanout := 0 -}}
+{{- if $servingProvider -}}
+{{- /* get+default: a missing key is a hard template error via .slots. */ -}}
+{{-   $slots := int (get (index $serving $servingProvider) "slots" | default 0) -}}
+{{-   if lt $slots 1 -}}
+{{-     fail (printf "render-claude-context: preset %s serving provider %s declares no positive slots; the duer fan-out cap is undefined" $preset $servingProvider) -}}
+{{-   end -}}
+{{-   $fanout = sub $slots 1 -}}
+{{- end -}}
+{{- dict
+  "claude" $claude
+  "preset" $preset
+  "tiers" $tiers
+  "roles" $roles
+  "serving" $serving
+  "has_serving" (ne $servingProvider "")
+  "serving_provider" $servingProvider
+  "fanout" $fanout
+  "subagent_limit" (includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" $root "preset" $preset) | int)
+  | toJson -}}

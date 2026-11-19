@@ -2,6 +2,50 @@
 {{- $vscode := includeTemplate "base/helpers/load-section" (dict "root" . "section" "editors.vscode" "required" true) | mustFromJson -}}
 # extensions hash: {{ $vscode.extensions | toJson | sha256sum }}
 # settings hash: {{ $vscode.settings | toJson | sha256sum }}
+{{- /* One JSONC-strip definition (comments + trailing commas), emitted into
+       every python3 heredoc below (each heredoc is its own interpreter). */}}
+{{- $stripFn := `def strip_jsonc(text):
+    result = []
+    in_string = False
+    escape = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if escape:
+            result.append(ch)
+            escape = False
+            i += 1
+            continue
+        if ch == '\\' and in_string:
+            result.append(ch)
+            escape = True
+            i += 1
+            continue
+        if ch == '"' and not in_string:
+            in_string = True
+            result.append(ch)
+            i += 1
+            continue
+        if ch == '"' and in_string:
+            in_string = False
+            result.append(ch)
+            i += 1
+            continue
+        if not in_string and ch == '/' and i + 1 < len(text):
+            if text[i + 1] == '/':
+                while i < len(text) and text[i] != '\n':
+                    i += 1
+                continue
+            if text[i + 1] == '*':
+                i += 2
+                while i + 1 < len(text) and not (text[i] == '*' and text[i + 1] == '/'):
+                    i += 1
+                i += 2
+                continue
+        result.append(ch)
+        i += 1
+    text = ''.join(result)
+    return re.sub(r',\s*([}\]])', r'\1', text)` }}
 
 install_extensions() {
     local binary="$1"
@@ -27,50 +71,7 @@ merge_editor_settings() {
     python3 - "$settings_file" <<'PY'
 import json, re, sys
 
-def strip_jsonc(text):
-    result = []
-    in_string = False
-    escape = False
-    i = 0
-    while i < len(text):
-        ch = text[i]
-        if escape:
-            result.append(ch)
-            escape = False
-            i += 1
-            continue
-        if ch == '\\' and in_string:
-            result.append(ch)
-            escape = True
-            i += 1
-            continue
-        if ch == '"' and not in_string:
-            in_string = True
-            result.append(ch)
-            i += 1
-            continue
-        if ch == '"' and in_string:
-            in_string = False
-            result.append(ch)
-            i += 1
-            continue
-        if not in_string and ch == '/' and i + 1 < len(text):
-            if text[i + 1] == '/':
-                while i < len(text) and text[i] != '\n':
-                    i += 1
-                continue
-            if text[i + 1] == '*':
-                i += 2
-                while i + 1 < len(text) and not (text[i] == '*' and text[i + 1] == '/'):
-                    i += 1
-                i += 2
-                continue
-        result.append(ch)
-        i += 1
-    text = ''.join(result)
-    text = re.sub(r',\s*([}\]])', r'\1', text)
-    text = re.sub(r'(true|false|null|\d+|"[^"]*"|\}|\])\s*\n(\s*")', r'\1,\n\2', text)
-    return text
+{{ $stripFn }}
 
 path = sys.argv[1]
 current = {}
@@ -79,14 +80,16 @@ if __import__('os').path.isfile(path):
         raw = f.read().strip()
     if raw:
         try:
-            current = json.loads(strip_jsonc(raw))
+            # settings.json is newline-separated JSONC: re-insert the commas
+            # strip_jsonc's comment removal can leave dangling.
+            current = json.loads(re.sub(r'(true|false|null|\d+|"[^"]*"|\}|\])\s*\n(\s*")', r'\1,\n\2', strip_jsonc(raw)))
         except json.JSONDecodeError:
             current = {}
 
 managed = json.loads(r'''
 {{- $s := $vscode.settings }}
 {{- $font := $s.fontFamily }}
-{{- $os := .chezmoi.os }}
+{{- $claudeEnvDir := $s.claude_code_env_dir }}
 {{- $managed := dict
   "workbench.colorTheme" $s.theme
   "workbench.iconTheme" $s.iconTheme
@@ -112,13 +115,12 @@ managed = json.loads(r'''
   "git.confirmSync" false
   "git.enableSmartCommit" true
 -}}
-{{- if eq $os "darwin" -}}
-{{-   $_ := set $managed "terminal.integrated.defaultProfile.osx" "zsh" -}}
-{{- else -}}
 {{-   $_ := set $managed "terminal.integrated.defaultProfile.linux" "zsh" -}}
-{{- end }}
-{{ $managed | toJson }}
-''')
+{{- /* Editors read this setting outside the shell, so Claude Code (plain
+       `claude`, extension) shares the launcher's config dir; absolute path. */ -}}
+{{-   $_ := set $managed "claude-code.environmentVariables" (dict "CLAUDE_CONFIG_DIR" (printf "%s/%s" .chezmoi.homeDir (trimPrefix "~/" $claudeEnvDir))) -}}
+ {{ $managed | toJson }}
+ ''')
 
 current.update(managed)
 with open(path, 'w', encoding='utf-8') as f:
@@ -132,49 +134,7 @@ merge_editor_keybindings() {
     python3 - "$keybindings_file" <<'PY'
 import json, re, sys
 
-def strip_jsonc(text):
-    result = []
-    in_string = False
-    escape = False
-    i = 0
-    while i < len(text):
-        ch = text[i]
-        if escape:
-            result.append(ch)
-            escape = False
-            i += 1
-            continue
-        if ch == '\\' and in_string:
-            result.append(ch)
-            escape = True
-            i += 1
-            continue
-        if ch == '"' and not in_string:
-            in_string = True
-            result.append(ch)
-            i += 1
-            continue
-        if ch == '"' and in_string:
-            in_string = False
-            result.append(ch)
-            i += 1
-            continue
-        if not in_string and ch == '/' and i + 1 < len(text):
-            if text[i + 1] == '/':
-                while i < len(text) and text[i] != '\n':
-                    i += 1
-                continue
-            if text[i + 1] == '*':
-                i += 2
-                while i + 1 < len(text) and not (text[i] == '*' and text[i + 1] == '/'):
-                    i += 1
-                i += 2
-                continue
-        result.append(ch)
-        i += 1
-    text = ''.join(result)
-    text = re.sub(r',\s*([}\]])', r'\1', text)
-    return text
+{{ $stripFn }}
 
 path = sys.argv[1]
 current = []
@@ -188,11 +148,7 @@ if __import__('os').path.isfile(path):
             current = []
 
 managed = [
-{{- if eq .chezmoi.os "darwin" }}
-    {"key": "cmd+shift+p", "command": "workbench.action.showCommands"},
-{{- else }}
     {"key": "ctrl+shift+p", "command": "workbench.action.showCommands"},
-{{- end }}
 ]
 
 existing = {(b.get("key"), b.get("command")) for b in current}
@@ -214,6 +170,57 @@ deploy_settings() {
     merge_editor_keybindings "$user_dir/keybindings.json"
     echo "  Settings merged into $user_dir"
 }
+{{- else }}
+
+# macOS settings.json is user-managed (no wholesale merge); seed only the
+# Claude Code extension env dir so the extension shares ~/.config/claude.
+mergeClaudeEnvSetting() {
+    local settings_file="$1"
+    python3 - "$settings_file" <<'PY'
+import json, os, re, sys
+
+{{ $stripFn }}
+
+path = sys.argv[1]
+raw = ''
+if os.path.isfile(path):
+    with open(path, encoding='utf-8') as f:
+        raw = f.read().strip()
+current = {}
+jsonc_fallback = False
+if raw:
+    try:
+        current = json.loads(raw)
+    except json.JSONDecodeError:
+        try:
+            current = json.loads(strip_jsonc(raw))
+            jsonc_fallback = True
+        except json.JSONDecodeError:
+            print(f"  [warn] not JSON, leaving untouched: {path}")
+            sys.exit(0)
+
+managed = {"claude-code.environmentVariables": {
+    "CLAUDE_CONFIG_DIR": os.path.expanduser(r'''{{ $vscode.settings.claude_code_env_dir }}''')}}
+managed_ok = all(current.get(k) == v for k, v in managed.items())
+if jsonc_fallback:
+    # The file needed the JSONC fallback (comments/trailing commas): json.dump
+    # would silently strip the user's comments, and this file is user-managed.
+    # Never write a comment-stripped file over a commented one.
+    if managed_ok:
+        print(f"  [skip] JSONC user file left alone (managed key already set): {path}")
+    else:
+        print(f"  [skip] JSONC user file not rewritten (json.dump would strip comments); add manually to {path}:")
+        for k, v in managed.items():
+            print(f'    {json.dumps(k)}: {json.dumps(v)}')
+    sys.exit(0)
+if managed_ok:
+    sys.exit(0)
+current.update(managed)
+with open(path, 'w', encoding='utf-8') as f:
+    json.dump(current, f, indent=2)
+    f.write('\n')
+PY
+}
 {{- end }}
 
 {{ range $name, $variant := $vscode.variants -}}
@@ -229,7 +236,9 @@ if command -v {{ $name }} &>/dev/null; then
 {{- end }}
 {{- end }}
         # end
-{{- if ne $.chezmoi.os "darwin" }}
+{{- if eq $.chezmoi.os "darwin" }}
+    mergeClaudeEnvSetting "$HOME/Library/Application Support/{{ $variant.path }}/User/settings.json"
+{{- else }}
     echo "Deploying settings for {{ $name }}..."
     deploy_settings "${XDG_CONFIG_HOME:-$HOME/.config}/{{ $variant.path }}"
 {{- end }}
