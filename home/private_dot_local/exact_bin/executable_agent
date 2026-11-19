@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 # Universal launcher for sandboxed AI coding agents.
-# Invoked as: agent [--profile NAME] <pi|oc|opencode|omp> [profile] [flags...].
+# Invoked as: agent [--profile NAME] <pi|oc|opencode|omp|claude|cc> [profile]
+# [flags...]  (claude only: -w [name] opts into a native git worktree).
 # Agent identity is the first argument; every per-agent fact is a plain
 # literal below (dispatch case, profile_dir, print_profile_env, print_env,
 # set_runtime_env, list_profiles) — no templates, no data files.
@@ -22,7 +23,8 @@ ENGRAM_URL="${ENGRAM_URL:-http://127.0.0.1:$ENGRAM_PORT}"
 ENGRAM_DATA_DIR="${ENGRAM_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/engram}"
 
 usage_hint() {
-  printf 'usage: agent [--profile NAME] <pi|oc|opencode|omp> [profile] [--no-sandbox] [--list] [--print-env [profile]] [--help]\n' >&2
+  printf 'usage: agent [--profile NAME] <pi|oc|opencode|omp|claude|cc> [profile] [-w [name]] [--no-sandbox] [--list] [--print-env [profile]] [--help]\n' >&2
+  printf '       (-w is claude only: native --worktree)\n' >&2
 }
 
 # Pre-name flag position: `agent --profile NAME <agent> ...` selects the
@@ -125,6 +127,20 @@ omp)
   AGENT_PROFILE_DESC='single configuration root (no named profiles)'
   AGENT_SCRUB_DESC='OPENCODE_* OMP_PROFILE PI_*'
   ;;
+claude | cc)
+  shift
+  AGENT_NAME=claude
+  BINARY_NAME=claude
+  NONO_PROFILE=claude
+  AGENT_CONFIG_DIR="$CONFIG_HOME/claude"
+  AGENT_DEFAULT_PROFILE=default
+  AGENT_PROFILES=" default "
+  AGENT_SELECTABLE=false
+  AGENT_PROFILE_DESC='single configuration root (no named profiles)'
+  # CLAUDE_CONFIG_DIR from the shell exports.d layer is overridden by
+  # print_env; nothing else needs a launcher-side scrub.
+  AGENT_SCRUB_DESC=''
+  ;;
 "")
   usage_hint
   exit 1
@@ -171,6 +187,7 @@ profile_dir() {
   opencode:factory) printf '%s\n' "$CONFIG_HOME/opencode/profiles/factory" ;;
   opencode:minimal) printf '%s\n' "$CONFIG_HOME/opencode" ;;
   omp:default) printf '%s\n' "$AGENT_CONFIG_DIR" ;;
+  claude:default) printf '%s\n' "$AGENT_CONFIG_DIR" ;;
   *) die "Unmapped profile: $1" ;;
   esac
 }
@@ -180,7 +197,7 @@ profile_dir() {
 print_profile_env() {
   case "$AGENT_NAME:$1" in
   omp:default)
-    # omp 18.8.x (dirs.ts): PI_CONFIG_DIR is the home-relative config-root
+    # omp 18.18.x (dirs.ts): PI_CONFIG_DIR is the home-relative config-root
     # name; the agent root is <root>/agent (config.yml, auth.json, lock
     # dirs, extensions). State/data/cache relocate under
     # $XDG_{STATE,DATA,CACHE}_HOME/omp, each per-category root gated on
@@ -211,6 +228,16 @@ print_gh_state_env() {
   printf 'export GH_CACHE_DIR="$HOME/.cache/gh-sandbox/cache"\n'
 }
 
+# Agent SDK bridges: pi loads pi-claude-bridge, which spawns the real claude
+# with the user's login — give it a private config dir, never the user's
+# ~/.config/claude. omp/opencode have no bridge lane (see README), so they get
+# no CLAUDE_CONFIG_DIR: a bridge-dir export would imply a bridge that exists.
+print_claude_bridge_env() {
+  # Single quotes: the emitted line expands XDG_STATE_HOME at eval time.
+  # shellcheck disable=SC2016  # emitted for eval by the consumer
+  printf 'export CLAUDE_CONFIG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/%s/claude-bridge"\n' "$AGENT_NAME"
+}
+
 print_env() {
   profile="$1"
   dir=$(profile_dir "$profile")
@@ -219,6 +246,7 @@ print_env() {
     printf 'export PI_CODING_AGENT_DIR="%s"\n' "$dir"
     printf 'export PI_CODING_AGENT_SESSION_DIR="%s/sessions"\n' "$dir"
     print_gh_state_env
+    print_claude_bridge_env
     ;;
   opencode)
     # Scrub first: an eval consumer must not have its exports unset after.
@@ -231,6 +259,13 @@ print_env() {
     ;;
   omp)
     printf "for __v in \$(env | awk -F= '/^(OPENCODE_.*|PI_.*)/ || \$1 ~ /^(OMP_PROFILE)$/ { print \$1 }'); do unset \"\$__v\"; done 2>/dev/null || :\n"
+    ;;
+  claude)
+    printf 'export CLAUDE_CONFIG_DIR="%s"\n' "$AGENT_CONFIG_DIR"
+    print_gh_state_env
+    # Claude's own temp root: the same dir bootstrap_scratch creates and
+    # exports as TMPDIR (CLAUDE_CODE_TMPDIR keeps its writes in the sandbox).
+    printf 'export CLAUDE_CODE_TMPDIR="%s/%s"\n' "${AGENT_LAUNCH_TEST_SCRATCH_ROOT:-/tmp/agents}" "$AGENT_NAME"
     ;;
   esac
   print_profile_env "$profile"
@@ -277,8 +312,11 @@ mkdirPrivate() {
     die "Cannot create $2: $1"
 }
 
-# One env source for both paths: the runtime evals exactly what
-# --print-env prints (scrub loops, exports, profile env, ENGRAM trio).
+# One env source for both paths: the runtime evals exactly what --print-env
+# prints (scrub loops, exports, profile env, ENGRAM trio) — plus, at runtime
+# only, the probe's keystore-derived exports: printing those would put secret
+# values into a user-evalable surface, so parity holds for everything the
+# launcher knows statically and stops there.
 set_runtime_env() {
   profile="$1"
   dir=$(profile_dir "$profile")
@@ -307,6 +345,8 @@ usage() {
   printf '                      pi/opencode: core|default|factory|minimal, positional words\n'
   printf '                      stay compat aliases; omp: free-form, agent root\n'
   printf '                      <config-root>/profiles/NAME/agent)\n'
+  [ "$AGENT_NAME" = claude ] && printf '  -w [NAME]           native git worktree: launches claude --worktree [NAME]\n'
+  [ "$AGENT_NAME" = claude ] && printf '                      (project-local .claude/worktrees/; a bare -w lets claude name it)\n'
   printf '  Args after -- reach %s verbatim (profile words and flags not consumed).\n' "$BINARY_NAME"
   printf '  Note: this --profile selects the agent config profile; the sandbox\n'
   printf '  profile (nono run --profile) is a separate namespace, chosen per agent.\n'
@@ -324,9 +364,14 @@ list_profiles() {
   omp)
     printf 'agent %s uses a single configuration root (no positional profiles).\n' "$AGENT_NAME"
     printf 'Named profiles: --profile <name> relocates the agent root to\n'
-    printf '  %s/profiles/<name>/agent (omp >=18.9); the config root stays shared.\n' "${HOME%/}/.config/omp"
+    printf '  %s/profiles/<name>/agent (omp 18.18.x); the config root stays shared.\n' "${HOME%/}/.config/omp"
     printf '  A named root must carry the managed set (config.yml, models.yml,\n'
     printf '  extensions/dcg-guard.ts); the launcher refuses an unprovisioned root.\n'
+    ;;
+  claude)
+    printf 'agent %s uses a single configuration root (no profiles): %s\n' "$AGENT_NAME" "$AGENT_CONFIG_DIR"
+    printf 'Worktrees: -w [name] launches claude --worktree [name] (project-local\n'
+    printf '  .claude/worktrees/); a bare -w lets claude name the worktree.\n'
     ;;
   esac
 }
@@ -625,7 +670,9 @@ fi
 
 no_sandbox=false
 profile="$AGENT_DEFAULT_PROFILE"
-# omp named profile (omp >=18.9): name passed via --profile, exported as
+claude_wt=false
+claude_wt_name=""
+# omp named profile (omp 18.18.x): name passed via --profile, exported as
 # OMP_PROFILE after set_runtime_env (its scrub clears inherited values).
 omp_profile=""
 # Pre-name --profile selection is the starting point; the post-name loop may
@@ -657,12 +704,32 @@ while [ $# -gt 0 ]; do
       shift
     fi
     ;;
+  -w)
+    # claude-only opt-in: maps to the binary's --worktree [name]. The name is
+    # optional (a bare -w lets claude name the worktree), so a following
+    # flag-shaped arg is not consumed as a name.
+    [ "$AGENT_NAME" = claude ] ||
+      die "-w is a claude-only flag (native git worktree)"
+    claude_wt=true
+    case "${2:-}" in
+    '' | -*) shift ;;
+    *)
+      claude_wt_name="$2"
+      shift 2
+      ;;
+    esac
+    ;;
   core | default | factory | minimal)
     # Acceptance is per-agent: the word sets the profile only when it is in
     # this agent's own profile set. Non-selectable agents (omp, the
     # single-root agent) reject any word in the cross-agent profile union
     # (the pattern above) with the generic single-root message.
     if [ "$AGENT_SELECTABLE" = false ]; then
+      # claude has no named-profile mechanism at all (its gate accepts
+      # "default" only), so the omp remedy would die with "Unknown profile".
+      if [ "$AGENT_NAME" = claude ]; then
+        die "agent $AGENT_NAME uses a single configuration root at $AGENT_CONFIG_DIR (no named profiles)"
+      fi
       die "agent $AGENT_NAME uses a single configuration root; pass a named profile with --profile <name>"
     fi
     case "$AGENT_PROFILES" in
@@ -743,14 +810,317 @@ if [ "$AGENT_NAME" = omp ] && [ -n "$omp_profile" ] &&
   unset __root __f __missing
 fi
 
+# Claude's DCG PreToolUse hook plus settings render are chezmoi-managed: a
+# guarded launch without them would run unguarded, so refuse before exec. A
+# nested --no-sandbox inherits the parent sandbox, so only a host debug run
+# (no AGENT_SANDBOX) skips the probe.
+if [ "$AGENT_NAME" = claude ] &&
+  { [ "$no_sandbox" != true ] || [ -n "${AGENT_SANDBOX:-}" ]; }; then
+  # XDG pin: the seatbelt grants (claude.toml literals) and the registered hook
+  # command (render-claude-pre-tool-use-hooks) are $HOME/.config/claude-
+  # anchored; a relocated root is a launch the sandbox cannot cover, not a
+  # supported configuration. The hook path missing from the sandbox kills node
+  # with exit 127, which Claude Code does not treat as a block.
+  [ "$CONFIG_HOME" = "$HOME/.config" ] ||
+    die "Claude Code needs the default config root: XDG_CONFIG_HOME=$CONFIG_HOME relocates it outside the \$HOME/.config/claude-anchored sandbox grants.
+    Unset XDG_CONFIG_HOME, or run 'agent claude --no-sandbox' (the accepted-risk debug path)."
+  __missing=''
+  [ -f "$AGENT_CONFIG_DIR/hooks/dcg-guard.mjs" ] ||
+    __missing="$__missing hooks/dcg-guard.mjs"
+  # settings.json is a modify render Claude Code also writes, so existence is
+  # not enough: the exact managed DCG registration must be present. Claude
+  # parses a matcher as exact tool-name tokens (a drift like "B|W|E" matches
+  # nothing), so pin the exact managed matcher token set — never emulate the
+  # matcher with jq regex. Require hooks.PreToolUse and every entry's hooks
+  # to be arrays, a handler of type command with no if/async, and the exact
+  # 'node <managed hook>' command after collapsing only the harmless
+  # homeDir double slash the renderer emits (homeDir carries a trailing
+  # separator). Strict JSON fails closed: invalid JSON, the hook string
+  # under an unrelated event/key, a drifted matcher/command, if/async
+  # handlers, non-array hooks, or disableAllHooks all refuse. Some
+  # schema-invalid values make Claude skip the WHOLE settings file (Settings
+  # Error; the docs distinguish per-entry Settings Warnings), unregistering
+  # the hook, so sanity-check the model/env keys Claude validates strictly:
+  # a present fallbackModel must be an array of model strings; a present env
+  # must be an object of string values
+  # (absent passes: both keys are optional). Registration sanity check, not a
+  # full schema validator — other malformed values can skip the file too.
+  # This pins the managed registration only; runtime settings precedence over
+  # this file cannot be proven here.
+  if [ ! -f "$AGENT_CONFIG_DIR/settings.json" ]; then
+    __missing="$__missing settings.json"
+  elif ! command -v jq >/dev/null 2>&1; then
+    die "Cannot verify the Claude DCG hook registration in $AGENT_CONFIG_DIR/settings.json: jq is missing.
+     jq is a core dependency here; apply the chezmoi-managed packages, then relaunch.
+     'agent claude --no-sandbox' is the accepted-risk debug path."
+  elif ! jq -e --arg hook "$AGENT_CONFIG_DIR/hooks/dcg-guard.mjs" \
+    --arg matcher 'Bash|Write|Edit|MultiEdit|NotebookEdit' '
+      (.disableAllHooks // false) == false and
+      (.hooks | type) == "object" and
+      (.hooks.PreToolUse | type) == "array" and
+      all(.hooks.PreToolUse[]; (.hooks | type) == "array") and
+      any(.hooks.PreToolUse[];
+        .matcher == $matcher and
+        any(.hooks[];
+          .type == "command" and (has("if") | not) and (has("async") | not) and
+          ((.command // "") | gsub("//+"; "/")) == ("node " + $hook))) and
+       ((has("fallbackModel") | not) or
+        ((.fallbackModel | type) == "array" and all(.fallbackModel[]; type == "string"))) and
+       ((has("env") | not) or
+        ((.env | type) == "object" and all(.env[]; type == "string")))
+    ' "$AGENT_CONFIG_DIR/settings.json" >/dev/null 2>&1; then
+    __missing="$__missing settings.json (DCG hook registration / fallbackModel / env)"
+  fi
+  # The hook runs as 'node <hook>', so no node means exit 127: Claude Code
+  # blocks only on exit 2, so every Bash call would run unguarded.
+  command -v node >/dev/null || __missing="$__missing node (hook runtime)"
+  [ -z "$__missing" ] || die "Claude Code config is not provisioned: $AGENT_CONFIG_DIR
+   Missing:$__missing
+     Apply the chezmoi-managed Claude config (the DCG hook and its node runtime
+     must exist to guard the launch; a hook that cannot run fails open).
+     Some schema-invalid values make Claude Code skip the whole settings.json,
+     dropping the hook registration: a fallbackModel that is not an array of
+     strings, or an env value that is not a string, is a possible cause.
+     'agent claude --no-sandbox' is the accepted-risk debug path."
+  unset __missing
+fi
+
+# claude -w: the worktree args lead the forwarded argv (args after -- follow),
+# so both exec paths below run claude --worktree [name] …
+if [ "$claude_wt" = true ]; then
+  if [ -n "$claude_wt_name" ]; then
+    set -- --worktree "$claude_wt_name" "$@"
+  else
+    set -- --worktree "$@"
+  fi
+fi
+
+# --- Credential source probe (shared: guarded and --no-sandbox paths) ---
+# Verifies every credential source the APPLIED profile actually reads before
+# exec, replacing the env://-only warning. Values are read into shell
+# variables and dropped or exported to the agent process only: no secret
+# reaches a banner, the log, or a die string (die strings are byte-pinned).
+# Outcomes: store LOCKED → die + the unlock command. Keystore entry missing →
+# die + seed command (guarded) or warn + seed command (--no-sandbox). Client-
+# store reference, cmd:// reader, or gap name missing, and unset env://
+# transitional rows → warn with the per-source remedy, launch anyway. The
+# export surface is keystore-derived values only (gap names always; routed
+# keystore rows under --no-sandbox), and --print-env — which exits long
+# before this point — never carries them.
+probe_credential_sources() {
+  NONO_PROFILE_FILE="$HOME/.config/nono/profiles/$NONO_PROFILE.json"
+  NONO_BASE_PROFILE="$HOME/.config/nono/profiles/base.json"
+  # Nested launches: the outer launch probed already, and an in-sandbox store
+  # read is denied by design, so results here could not be trusted.
+  if [ -n "${AGENT_SANDBOX:-}" ]; then return 0; fi
+  # Applied state is the probe's data; an unprovisioned host surfaces through
+  # the credential-mode line below, not a false "missing keystore".
+  if [ ! -f "$NONO_PROFILE_FILE" ]; then return 0; fi
+  if ! command -v jq >/dev/null 2>&1; then
+    warn "Cannot verify credential sources before launch: jq is missing (core dependency; apply the managed packages)"
+    return 0
+  fi
+
+  __p_keystore='' __p_client='' __p_cmd='' __p_env='' __p_unresolved=0
+  while IFS='	' read -r __p_ck __p_ev; do
+    [ -n "$__p_ck" ] || continue
+    case "$__p_ck" in
+    'env://'*) __p_env="$__p_env ${__p_ck#env://}" ;;
+    'apple-password://'* | 'keyring://'*) __p_client="$__p_client $__p_ev|${__p_ck#*://}" ;;
+    'cmd://'*) __p_cmd="$__p_cmd ${__p_ck#cmd://}" ;;
+    *) __p_keystore="$__p_keystore $__p_ev|${__p_ck}" ;;
+    esac
+  done <<PROWS
+$(jq -r '(.network.custom_credentials // {}) | to_entries[]
+  | [(.value.credential_key // ""), (.value.env_var // .key)] | @tsv' "$NONO_PROFILE_FILE" 2>/dev/null)
+PROWS
+
+  # env:// rows (pre-flip and transitional): the exported source stays the
+  # launching shell, so an unset name is a warn-and-launch, never a die.
+  __p_envmiss=''
+  for __n in $__p_env; do
+    [ -n "$(printenv "$__n" 2>/dev/null)" ] || __p_envmiss="$__p_envmiss $__n"
+  done
+  [ -z "$__p_envmiss" ] ||
+    warn "Routes without a credential source in this shell:${__p_envmiss} — the proxy denies them (export the var, e.g. via direnv)"
+
+  # No keystore row means the store path is not live on this host (pre-flip
+  # or pass-through): the shell env is the source and the gap names ride it
+  # exactly as before.
+  if [ -z "$__p_keystore" ]; then return 0; fi
+
+  # Lock state (both platforms, promptless; a bare store read conflates
+  # locked with missing and may prompt, so it is never the lock probe).
+  if [ "$UNAME_S" = Darwin ]; then
+    security show-keychain-info >/dev/null 2>&1 ||
+      die "Login keychain is locked: keystore-backed credentials cannot be read from this session.
+   Unlock it, then relaunch:
+     security unlock-keychain"
+  else
+    __p_locked="$(busctl --user get-property org.freedesktop.secrets \
+      /org/freedesktop/secrets/aliases/default org.freedesktop.Secret.Collection Locked 2>/dev/null)" ||
+      __p_locked='unreachable'
+    case "$__p_locked" in
+    'boolean false') ;;
+    'boolean true')
+      die "Login keyring is locked: keystore-backed credentials cannot be read from this session.
+   Unlock it, then relaunch:
+     unlock-keyring"
+      ;;
+    *)
+      die "The Secret Service is not reachable on the session bus: keystore-backed credentials cannot be resolved from this session (unattended context before an interactive login).
+   Log in interactively (or unlock the keyring), then relaunch:
+     unlock-keyring"
+      ;;
+    esac
+  fi
+
+  # Keystore rows: live read per entry; values feed only the --no-sandbox
+  # export (the guarded path gets phantoms and proxy injection).
+  __p_miss=''
+  for __row in $__p_keystore; do
+    __ev="${__row%%|*}"
+    __key="${__row#*|}"
+    if [ "$UNAME_S" = Darwin ]; then
+      __val="$(security find-generic-password -s nono -a "$__key" -w 2>/dev/null || true)"
+    else
+      __val="$(secret-tool lookup service nono username "$__key" 2>/dev/null || true)"
+    fi
+    if [ -z "$__val" ]; then
+      __p_miss="$__p_miss $__key"
+    elif [ "$no_sandbox" = true ]; then
+      export "$__ev=$__val"
+    fi
+    __val=''
+  done
+  if [ -n "$__p_miss" ]; then
+    if [ "$no_sandbox" = true ]; then
+      warn "Keystore entries missing, launching without them:${__p_miss} — seed them: seed-keystore"
+    else
+      die "Keystore entries are missing on this host:${__p_miss} — the applied profile reads them at egress.
+   Seed them, then relaunch:
+     seed-keystore"
+    fi
+  fi
+
+  # Client-store references (apple-password/keyring): a failed read only warns
+  # — the remedy is the provider client's own login, and the read path's real
+  # item semantics are spike-verified data, not probe assumptions.
+  for __row in $__p_client; do
+    __ev="${__row%%|*}"
+    __ref="${__row#*|}"
+    __ok=false
+    case "$__ref" in
+    'apple-password://'*)
+      __acct="${__ref#apple-password://}"
+      __svc="${__acct##*/}"
+      __acct="${__acct%/*}"
+      security find-generic-password -a "$__acct" -s "$__svc" >/dev/null 2>&1 && __ok=true
+      ;;
+    'keyring://'*)
+      __svc="${__ref#keyring://}"
+      __svc="${__svc%/*}"
+      if [ "$UNAME_S" = Darwin ]; then
+        security find-generic-password -s "$__svc" >/dev/null 2>&1 && __ok=true
+      else
+        secret-tool lookup service "$__svc" >/dev/null 2>&1 && __ok=true
+      fi
+      ;;
+    esac
+    if [ "$__ok" != true ]; then
+      case "$__ev" in
+      CLAUDE_CODE_OAUTH_TOKEN | ANTHROPIC_API_KEY) __remedy='run the provider client login: claude login' ;;
+      GH_TOKEN | GITHUB_TOKEN) __remedy='run the provider client login: gh auth login' ;;
+      *) __remedy="log in to the provider client that owns this credential" ;;
+      esac
+      warn "Credential source unresolved — key $__ev: $__remedy"
+      __p_unresolved=$((__p_unresolved + 1))
+    fi
+  done
+
+  # cmd:// readers: run the profile's capture command; empty output warns
+  # (same client-login remedy; the proxy would 503 the route at use).
+  for __cap in $__p_cmd; do
+    __cmd="$(jq -r --arg n "$__cap" '(.credential_capture[$n].command // null)
+      | if . == null then "" else @sh end' "$NONO_PROFILE_FILE" 2>/dev/null || true)"
+    __val=''
+    if [ -n "$__cmd" ]; then
+      # eval over jq @sh quoting: capture commands are simple argv readers.
+      __val="$(eval "$__cmd" 2>/dev/null || true)"
+    fi
+    [ -n "$__val" ] || {
+      warn "Credential source unresolved — key $__cap: the capture command returned nothing; run the provider client login for it"
+      __p_unresolved=$((__p_unresolved + 1))
+    }
+    __val=''
+  done
+
+  # Gap names: the names are exactly the redaction extra_env_vars minus the
+  # wildcard deny_vars entries — the same derivation the base profile renders
+  # from env_injected. Present values reach the agent process env only.
+  __gmiss=''
+  __gap_names="$(jq -r '(.diagnostics.redaction.extra_env_vars // [])[]
+    | select(contains("*") | not)' "$NONO_BASE_PROFILE" 2>/dev/null)"
+  for __n in $__gap_names; do
+    if [ "$UNAME_S" = Darwin ]; then
+      __val="$(security find-generic-password -s nono -a "$__n" -w 2>/dev/null || true)"
+    else
+      __val="$(secret-tool lookup service nono username "$__n" 2>/dev/null || true)"
+    fi
+    if [ -n "$__val" ]; then
+      export "$__n=$__val"
+    else
+      __gmiss="$__gmiss $__n"
+    fi
+    __val=''
+  done
+  [ -z "$__gmiss" ] || {
+    warn "Gap-name credentials missing, tools will fail at use:${__gmiss} — seed them: seed-keystore"
+    __p_unresolved=$((__p_unresolved + 1))
+  }
+
+  # The clean-launch report only prints when nothing above warned: the per-row
+  # remedy lines are the report otherwise.
+  if [ "$__p_unresolved" -eq 0 ] && [ -z "$__p_envmiss" ]; then
+    ok "Credentials: sources resolved (keystore$(printf '%s\n' "$__p_keystore" | wc -w | tr -d ' ') client$(printf '%s\n' "$__p_client" | wc -w | tr -d ' ') gap$(printf '%s\n' "$__gap_names" | wc -w | tr -d ' '))"
+  fi
+}
+probe_credential_sources || :
+
+# The v2 service outlives the TUI; once its nono proxy dies its egress fails
+# forever (a surviving host-side TUI/CLI attaches to it and sees "cannot
+# connect" for every provider, infer01 included). ppid 1 = guaranteed-dead
+# proxy: kill at launch, the consumer spawns a fresh one (in the sandbox for
+# the guarded path, on the host for --no-sandbox). Nested kills hit EPERM
+# silently. Bats: skip.
+kill_orphan_service() {
+  # shellcheck disable=SC2046  # pgrep prints one pid per line; splitting is the point
+  for __pid in $(pgrep -f 'opencode[^ ]* serve --service' 2>/dev/null); do
+    [ "$(ps -o ppid= -p "$__pid" 2>/dev/null | tr -d '[:space:]')" = 1 ] || continue
+    kill "$__pid" 2>/dev/null &&
+      warn "Stopped orphaned opencode service (pid $__pid): fresh service will start for this launch"
+  done
+}
+
 if [ "$no_sandbox" = true ]; then
   if [ -n "${AGENT_SANDBOX:-}" ]; then
+    # Guards stay active in the inherited sandbox: strip any inherited
+    # DCG_BYPASS so a nested --no-sandbox child's env carries no bypass
+    # marker (guard-core honoring of the marker is version-dependent).
+    unset DCG_BYPASS
     ok "Sandbox: inherited (nested launch); DCG guards: active"
   else
     ok "Sandbox: disabled (--no-sandbox); DCG guards: bypassed; the agent env carries REAL credential values"
+    # Honored at boot by the shared DCG guard-core hooks; only meaningful here because the nono profiles scrub DCG_* from sandboxed agent env.
+    export DCG_BYPASS=1
   fi
-  # Honored at boot by the shared DCG guard-core hooks; only meaningful here because the nono profiles scrub DCG_* from sandboxed agent env.
-  export DCG_BYPASS=1
+  # Host debug launch: clear a dead-egress v2 orphan before the TUI attaches
+  # to it. A nested --no-sandbox inherits the parent sandbox, where the kill
+  # EPERMs and the parent proxy still serves egress, so it stays skipped.
+  if [ "$AGENT_NAME" = opencode ] && [ -z "${AGENT_SANDBOX:-}" ] &&
+    [ "${AGENT_LAUNCH_TEST_MODE:-}" != 1 ]; then
+    kill_orphan_service
+  fi
   exec "$BINARY_NAME" "$@"
 fi
 
@@ -800,24 +1170,14 @@ export NONO_LOG_FILE="$TMPDIR/nono.log"
 
 # Credential mode of the applied profile: routes on, pass-through, or
 # scrub-only. The scrub lives in the base profile; agent profiles inherit it.
-# The probe reads base.json, where omp's full deny_vars set is absent, so the
-# explicit omp exclusion above is load-bearing.
-NONO_PROFILE_FILE="$HOME/.config/nono/profiles/$NONO_PROFILE.json"
-NONO_BASE_PROFILE="$HOME/.config/nono/profiles/base.json"
+# The mode reads base.json, where omp's full deny_vars set is absent, so the
+# explicit omp exclusion above is load-bearing. The source probe above already
+# verified (or warned about) every source; nothing here repeats that read.
 if grep -q '"custom_credentials"' "$NONO_PROFILE_FILE" 2>/dev/null; then
   cred_mode=routes
   dim "Credentials: routes on — the proxy injects values at egress"
-  # A route whose env:// source is unset in THIS shell injects nothing: the proxy warns
-  # and denies that route, so "routes on" alone would overstate what the agent gets.
-  if command -v jq >/dev/null 2>&1; then
-    missing_creds="$(jq -r '[(.network.custom_credentials // {}) | to_entries[]
-      | select((.value.credential_key // "") | startswith("env://"))
-      | select(((.value.credential_key | sub("^env://"; "")) as $n | ($ENV[$n] // "")) == "")
-      | .key] | join(" ")' "$NONO_PROFILE_FILE" 2>/dev/null)"
-    [ -n "$missing_creds" ] && warn "Routes without a credential source in this shell: $missing_creds — the proxy denies them (export the var, e.g. via direnv)"
-  fi
 elif [ "$NONO_PROFILE" != omp ] && command -v jq >/dev/null 2>&1 &&
-  jq -e '.environment.deny_vars | (index("ANTHROPIC_API_KEY") == null and
+  jq -e '.environment.deny_vars | (index("CLAUDE_CODE_OAUTH_TOKEN") == null and
     index("OPENAI_API_KEY") == null)' "$NONO_BASE_PROFILE" >/dev/null 2>&1; then
   cred_mode=pass-through
   dim "Credentials: pass-through — exported provider keys are in the agent env (names redacted in the audit trail); GitHub is not delegated: gh/git work stays in your terminal"
@@ -838,17 +1198,8 @@ esac
 if [ "$AGENT_NAME" = opencode ] && [ "${OPENCODE_CONFIG_DIR:-}" = "$AGENT_CONFIG_DIR" ]; then
   touch "$AGENT_CONFIG_DIR/service.json" 2>/dev/null || :
 fi
-# The v2 service outlives the TUI; once its nono proxy dies its egress fails
-# forever. ppid 1 = guaranteed-dead proxy: kill at launch, the TUI spawns a
-# fresh one in this sandbox. Nested launches hit EPERM silently. Bats: skip.
-kill_orphan_service() {
-  # shellcheck disable=SC2046  # pgrep prints one pid per line; splitting is the point
-  for __pid in $(pgrep -f 'opencode[^ ]* serve --service' 2>/dev/null); do
-    [ "$(ps -o ppid= -p "$__pid" 2>/dev/null | tr -d '[:space:]')" = 1 ] || continue
-    kill "$__pid" 2>/dev/null &&
-      warn "Stopped orphaned opencode service (pid $__pid): fresh service will start in this sandbox"
-  done
-}
+# ppid 1 = guaranteed-dead proxy: kill at launch (function defined above the
+# --no-sandbox branch); the TUI spawns a fresh one in this sandbox.
 if [ "$AGENT_NAME" = opencode ] && [ "${AGENT_LAUNCH_TEST_MODE:-}" != 1 ]; then
   kill_orphan_service
 fi

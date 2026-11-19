@@ -304,7 +304,11 @@ EOF
 
 # bats test_tags=toolchain:omp,kind:config
 @test "omp config.yml has managed routing, resilience, and core settings" {
-  assert_yq 'has("modelRoles") and has("retry") and has("memory") and (has("advisor") | not) and .memory.backend == "off" and .theme.dark == "dark-catppuccin" and .theme.light == "light-catppuccin" and .symbolPreset == "nerd" and (has("mcp") | not) and .task.maxConcurrency == {{ $subagentLimit }} and .task.completionProbe == true and .personality == "none" and .provider.appendOnlyContext == "on" and .providers.cacheWarming == "idle" and .secrets.enabled == true and .bash.gitGuard == true and (.compaction.methodOrder | join(",")) == "remote,snapcompact,handoff,shake,soft" and .tools.artifactSpillThreshold == 50 and .compaction.thresholdPercent == 92 and .telemetry.otlpExportEnabled == false' "$OMP_DIR/config.yml"
+  # MCP server wiring rides .mcp.json; config.yml carries only the managed
+  # mcp.* settings, never a server map (the 18.18.x registry has no
+  # mcp.servers key — the old `has("mcp") | not` tripwire predates the
+  # managed startupTimeoutMs pin landing in this map).
+  assert_yq 'has("modelRoles") and has("retry") and has("memory") and (has("advisor") | not) and .memory.backend == "off" and .theme.dark == "dark-catppuccin" and .theme.light == "light-catppuccin" and .symbolPreset == "nerd" and (.mcp.servers == null) and .task.maxConcurrency == {{ $subagentLimit }} and .task.completionProbe == true and .personality == "none" and .provider.appendOnlyContext == "on" and .providers.cacheWarming == "idle" and .secrets.enabled == true and .bash.gitGuard == true and (.compaction.methodOrder | join(",")) == "remote,snapcompact,handoff,shake,soft" and .tools.artifactSpillThreshold == 50 and .compaction.thresholdPercent == 92 and .telemetry.otlpExportEnabled == false' "$OMP_DIR/config.yml"
   # Skills are loaded from the managed compound-engineering and ponytail libraries.
   assert_yq '.skills.customDirectories | length == 2' "$OMP_DIR/config.yml"
   assert_yq ".skills.customDirectories[0] == \"${HOME}/.config/agents/libraries/extensions/compound-engineering/skills\"" "$OMP_DIR/config.yml"
@@ -319,11 +323,29 @@ EOF
   # when X is missing, and `and` over an empty operand fails ("no matches
   # found") — the renderer prunes emptied maps, so .composer is absent.
   assert_yq '.composer.predictions == null and .retry.fallbackOn == null and .compaction.modelThresholds == null' "$OMP_DIR/config.yml"
-  # Specialist subagent model pins render from tier data. The `and` rides
-  # INSIDE the pipe parens: yq v4 fails (`no matches found`) when `and` sits
-  # outside a piped context (`X | a and b`), even when both sides are true.
-  assert_yq '.task.agentModelOverrides | ((keys | length) == 4 and (has("explorer") and has("librarian") and has("oracle") and has("fixer")))' "$OMP_DIR/config.yml"
-  assert_yq '.task.agentModelOverrides.explorer == .modelRoles.smol and .task.agentModelOverrides.fixer == .modelRoles.task' "$OMP_DIR/config.yml"
+  # Native roster: no managed agent-model pins (scout/reviewer self-route via
+  # frontmatter role refs), so the renderer never emits the block; a stale
+  # applied one migrates out. The `and` rides INSIDE the pipe parens: yq v4
+  # fails (`no matches found`) when `and` sits outside a piped context.
+  assert_yq '.task | has("agentModelOverrides") | not' "$OMP_DIR/config.yml"
+  # Parallel-write isolation: gate on, patch auto-apply; checkouts under the
+  # granted data-root subtree (worktree.base); CoW cloning off (upstream
+  # multi-agent disk-exhaustion bug).
+  assert_yq '.task.isolation.enabled == true and .task.isolation.apply == true and .task.isolation.merge == "patch" and .worktree.base == "~/.local/share/omp/wt" and .worktree.clone == false' "$OMP_DIR/config.yml"
+{{- if eq .chezmoi.os "darwin" }}
+  # The darwin overlay pins apfs (upstream auto prefers an ovnfs on PATH).
+  assert_yq '.task.isolation.backend == "apfs"' "$CONFIG_FILE"
+{{- else }}
+  assert_yq '.task.isolation.backend == null' "$CONFIG_FILE"
+{{- end }}
+  # Endpoint economics + autonomy: prewalk hand-off, tiny-model titles on the
+  # host device, eager delegation, runtime ceiling, no per-call model picks.
+  assert_yq '.task.prewalk == true and .task.eager == "preferred" and .task.maxRuntimeMs == 1800000 and .task.perCallModel == "off" and .title.generator == "tiny" and .providers.tinyModelDevice == "cpu"' "$OMP_DIR/config.yml"
+  # Hygiene pins: no autoqa egress with consent pre-denied, MCP cold-start
+  # headroom, no sandbox-denied pi-skills probe, security opt-in only.
+  assert_yq '.dev.autoqa == false and .dev.autoqaConsent == "denied" and .mcp.startupTimeoutMs == 2000 and .skills.enablePiUser == false and .security.enabled == false' "$OMP_DIR/config.yml"
+  # mise owns the update lane: no self-update writes into the install tree.
+  assert_yq '.update.auto == false' "$CONFIG_FILE"
 }
 
 {{- if eq $activePreset "qwen" }}
@@ -390,6 +412,25 @@ compaction:
   modelThresholds:
     stale/model: f1
   strategy: auto
+dev:
+  autoqa: true
+  autoqaConsent: granted
+  userKey: keep-me
+mcp:
+  startupTimeoutMs: 250
+  userKey: keep-me
+update:
+  auto: true
+  userKey: keep-me
+security:
+  enabled: true
+worktree:
+  base: "~/elsewhere"
+  clone: true
+  userKey: keep-me
+title:
+  generator: fork
+  userKey: keep-me
 modelRoles:
   designer: stale/model:high
   default: stale/model:high
@@ -404,6 +445,7 @@ retry:
     designer: ["stale/model:high"]
     task: ["stale/model:high"]
 providers:
+  tinyModelDevice: mlx
   userProviderKey: keep-me
 tools:
   artifactSpillThreshold: 99
@@ -411,6 +453,16 @@ tools:
 task:
   agentModelOverrides:
     stale: stale/model:high
+  isolation:
+    enabled: false
+    apply: false
+    merge: branch
+    backend: overlayfs
+    userKey: keep-me
+  eager: always
+  maxRuntimeMs: 60000
+  perCallModel: on
+  prewalk: false
   userKey: keep-me
 YAML
   assert_success
@@ -419,10 +471,22 @@ YAML
   assert_success
   # Previously applied retired blocks and retry fields migrate out; user-owned
   # fields survive.
-  run yq -e '(has("advisor") | not) and (.compaction | has("strategy") | not) and (.compaction | has("modelThresholds") | not) and (.retry | has("enabled") | not) and (.retry | has("baseDelayMs") | not) and (.retry | has("modelFallback") | not) and (.retry | has("fallbackRevertPolicy") | not) and (.retry | has("fallbackOn") | not) and (.task.agentModelOverrides | has("stale") | not)' <<< "$rendered"
+  run yq -e '(has("advisor") | not) and (.compaction | has("strategy") | not) and (.compaction | has("modelThresholds") | not) and (.retry | has("enabled") | not) and (.retry | has("baseDelayMs") | not) and (.retry | has("modelFallback") | not) and (.retry | has("fallbackRevertPolicy") | not) and (.retry | has("fallbackOn") | not)' <<< "$rendered"
   assert_success
   # Managed values win; user-owned fields survive.
-  run yq -e '.compaction.thresholdPercent == 92 and (.compaction.methodOrder | join(",")) == "remote,snapcompact,handoff,shake,soft" and .providers.cacheWarming == "idle" and .providers.userProviderKey == "keep-me" and .secrets.enabled == true and .bash.gitGuard == true and (.retry.fallbackChains | has("designer") | not) and (.retry.fallbackChains | has("vision")) and (.retry.userField == "keep-me") and .bash.userFlag == "keep-me" and (.task.agentModelOverrides | keys | length == 4) and .task.userKey == "keep-me" and .tools.artifactSpillThreshold == 50 and .tools.userOwned == "keep-me" and .task.maxConcurrency == {{ $subagentLimit }} and .task.completionProbe == true and .composer.predictions == null and .personality == "none" and .provider.appendOnlyContext == "on"' <<< "$rendered"
+  run yq -e '.compaction.thresholdPercent == 92 and (.compaction.methodOrder | join(",")) == "remote,snapcompact,handoff,shake,soft" and .providers.cacheWarming == "idle" and .providers.userProviderKey == "keep-me" and .secrets.enabled == true and .bash.gitGuard == true and (.retry.fallbackChains | has("designer") | not) and (.retry.fallbackChains | has("vision")) and (.retry.userField == "keep-me") and .bash.userFlag == "keep-me" and (.task | has("agentModelOverrides") | not) and .task.userKey == "keep-me" and .tools.artifactSpillThreshold == 50 and .tools.userOwned == "keep-me" and .task.maxConcurrency == {{ $subagentLimit }} and .task.completionProbe == true and .composer.predictions == null and .personality == "none" and .provider.appendOnlyContext == "on"' <<< "$rendered"
+  assert_success
+  # Isolation/economics/hygiene/update pins overwrite stale applied values;
+  # user-owned siblings in every partially managed map survive.
+  run yq -e '.task.isolation.enabled == true and .task.isolation.apply == true and .task.isolation.merge == "patch" and .task.isolation.userKey == "keep-me" and .task.eager == "preferred" and .task.maxRuntimeMs == 1800000 and .task.perCallModel == "off" and .task.prewalk == true and .worktree.base == "~/.local/share/omp/wt" and .worktree.clone == false and .worktree.userKey == "keep-me" and .title.generator == "tiny" and .title.userKey == "keep-me" and .providers.tinyModelDevice == "cpu" and .dev.autoqa == false and .dev.autoqaConsent == "denied" and .dev.userKey == "keep-me" and .mcp.startupTimeoutMs == 2000 and .mcp.userKey == "keep-me" and .update.auto == false and .update.userKey == "keep-me" and .security.enabled == false' <<< "$rendered"
+  assert_success
+{{- if eq .chezmoi.os "darwin" }}
+  # The darwin overlay overwrites a stale applied backend.
+  run yq -e '.task.isolation.backend == "apfs"' <<< "$rendered"
+{{- else }}
+  # Unmanaged backend migrates out on hosts without the overlay pin.
+  run yq -e '.task.isolation.backend == null' <<< "$rendered"
+{{- end }}
   assert_success
 }
 
@@ -440,16 +504,18 @@ YAML
   assert_success
   run grep -q "No check, no claim" "$sys"
   assert_success
+  # Isolation-enabled delegation contract: the stale "isolation is off"
+  # wording must not survive (the model marks tasks isolated:true).
+  run grep -qF 'isolated: true' "$sys"
+  assert_success
+  run grep -qF 'isolation is off' "$sys"
+  assert_failure
 }
 # bats test_tags=toolchain:omp,kind:config
-@test "omp specialist subagent definitions exist with frontmatter" {
+@test "omp retired Slim-mirror agents are removed (native roster owns delegation)" {
   local f
-  for f in explorer librarian oracle fixer; do
-    assert_file_exists "${OMP_DIR}/agents/${f}.md"
-    run grep -q "^name: ${f}$" "${OMP_DIR}/agents/${f}.md"
-    assert_success
-    run grep -q "^description: " "${OMP_DIR}/agents/${f}.md"
-    assert_success
+  for f in explorer fixer librarian oracle; do
+    assert_file_not_exists "${OMP_DIR}/agents/${f}.md"
   done
 }
 

@@ -38,6 +38,7 @@ Library
 .config/zsh/functions.d/skyl
 .runpod
 .local/bin/llm-serve
+.local/bin/seed-keystore
 .local/share/dotfiles/test/test-ai-*.bats
 {{- end }}
 {{- /* Legacy argv0 symlinks (subcommand dispatch replaced them):
@@ -71,8 +72,29 @@ Library/Application Support/greyproxy
 .config/omp
 .config/omp/**
 {{- end }}
+{{- /* Native-roster switch (18.18.x): the Slim-mirror agent files are retired;
+       OMP's bundled scout/task/sonic/reviewer/security-reviewer/seance cover
+       them, self-routed via frontmatter role refs. */ -}}
+{{- if (get .toolchains "omp" | default false) }}
+.config/omp/agent/agents/explorer.md
+.config/omp/agent/agents/fixer.md
+.config/omp/agent/agents/librarian.md
+.config/omp/agent/agents/oracle.md
+{{- end }}
+{{- /* Config only: transcripts and history under .local/state/claude and
+       .local/share/claude are user data and intentionally survive the gate-off
+       removal (their seeds are .gitkeep dirs, so --remove just leaves them
+       behind); the operator removes that data manually. Their .chezmoiignore
+       entries stay: ignore = unmanaged, not deleted. */ -}}
+{{- if not (get .toolchains "claude" | default false) }}
+.config/claude
+.config/claude/**
+.claude
+.config/claude-powerline
+.config/claude-powerline/**
+{{- end }}
 {{- /* Launcher gate: mirrors home/.chezmoiignore.tmpl. */ -}}
-{{- if not (or (get .toolchains "pi" | default false) (get .toolchains "opencode" | default false) (get .toolchains "omp" | default false)) }}
+{{- if not (includeTemplate "base/helpers/any-agent-toolchain" (dict "root" .) | mustFromJson) }}
 .local/bin/agent
 {{- end }}
 {{ if eq .host.profile "work" -}}

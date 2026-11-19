@@ -1,3 +1,6 @@
+[ai.profile.work.agents.claude]
+preset = "anthropic"
+
 [ai.profile.work.presets.balanced.council]
 # councillors — 3 for work (has github-copilot diversity)
 alpha = { provider = "github-copilot", model = "gpt-6.1-sol", thinking = "high" }
@@ -12,6 +15,7 @@ oracle = { provider = "github-copilot", model = "gpt-6.1-sol", thinking = "high"
 visual = { provider = "github-copilot", model = "gemini-3.8-flash", thinking = "low" }
 
 [ai.profile.work.providers]
+anthropic = { enabled = true, models = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"] }
 github-copilot = { enabled = true, models = [
   "claude-sonnet-5.5",
   "gemini-3.8-flash",

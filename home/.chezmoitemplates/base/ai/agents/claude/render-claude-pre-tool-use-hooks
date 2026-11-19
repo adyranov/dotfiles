@@ -1,0 +1,11 @@
+{{- /*
+  render-claude-pre-tool-use-hooks — DCG PreToolUse hook entries, shared
+  by settings.json and duer.json. The node script inlines dcg-guard-core with
+  absolute-path DCG discovery: Bash commands carry a DCG-checkable command
+  string, and the file-writing tools carry a file_path policed by the core's
+  git-axis path rules.
+*/ -}}
+{{- $hook := dict
+  "type" "command"
+  "command" (printf "node %s/.config/claude/hooks/dcg-guard.mjs" .chezmoi.homeDir) -}}
+{{- list (dict "matcher" "Bash|Write|Edit|MultiEdit|NotebookEdit" "hooks" (list $hook)) | toJson -}}

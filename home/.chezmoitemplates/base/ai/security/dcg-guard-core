@@ -5,7 +5,8 @@
 // `dcg allowlist add-command '<command>'` (custom pack ids die with "Unknown
 // pack ID" on dcg allow); inspect with `dcg explain`.
 import { spawnSync } from "node:child_process";
-import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
+import { normalize } from "node:path";
 
 const HOME = process.env.HOME || "";
 const DCG_CANDIDATES = [
@@ -194,4 +195,110 @@ function dcgBlockReason(command, cwd) {
   if (decision === "allow") return null;
   if (result.status === 0) return "Blocked by DCG: dcg exited 0 without a verdict (fail-closed).";
   return `Blocked by DCG: dcg ended without a verdict (exit ${result.status}${result.signal ? ` signal ${result.signal}` : ""}; fail-closed).`;
+}
+
+// Tool-axis file-write floors (Claude file tools; other agents' mains do not
+// call this, so this is a TOOL-only guard: Bash/git subprocess writes and
+// other agents' file tools are NOT covered here). Pattern shapes are
+// suffix-anchored, so a linked worktree checkout at any depth is covered; the
+// floors never look at Git's own pointers (`.git` gitfile, worktree HEAD/index)
+// and never touch the Bash axis, so `git worktree add`/`checkout` keep working.
+// Floor 1 — git hook-persistence. Seatbelt denies .git/hooks writes
+// (shared.toml floor) but .git/config must stay writable — some worktree
+// operations update it — so a Write/Edit of core.hooksPath/include.path into
+// .git/config installs hook-persistence code that git runs UNSANDBOXED. Same
+// threat class as the BASH-axis git-config-danger pack rule, policed on the
+// path axis. Every git-directory shape is in scope — plain project (.git/…),
+// submodule gitdirs (.git/modules/<n>/…), linked worktrees
+// (.git/worktrees/<id>/…), named bare repos (foo.git/…), at any nesting
+// depth — over the leaves git reads for exec-pointing keys: config
+// (repository) and config.worktree (per-worktree; the effective one once
+// extensions.worktreeConfig is enabled; the administrative
+// worktrees/<id>/config is not read, it rides the same leaf shape at no cost)
+// and the hooks dir.
+// Floor 2 — project instruction files. `.claude/CLAUDE.md` and everything
+// under `.claude/{rules,agents,commands,skills}/` are the instructions and
+// slash-commands/skills the model re-reads later: a write here is deferred
+// prompt injection (the seatbelt floor covers only .claude/settings*.json).
+// Root-level CLAUDE.md, .claude/settings*.json (seatbelt's own floor) and
+// every other project file stay writable.
+// Case-insensitive because APFS is commonly case-insensitive; actual kernel
+// matching requires operator-terminal verification.
+const WRITE_AXIS_FLOORS = [
+  {
+    rule: "chezmoi.custom:git-axis-write",
+    verdict: "is git hook-persistence — writing git's config (config or config.worktree) can point core.hooksPath/include.path at code git runs unsandboxed, a hooks-dir write IS that code (BASH-axis twin rule: git-config-danger)",
+    patterns: [
+      /(^|\/)[^/]*\.git(\/(?:modules|worktrees)\/[^/]+)*\/(?:config|config\.worktree)$/i,
+      /(^|\/)[^/]*\.git(\/(?:modules|worktrees)\/[^/]+)*\/hooks(\/|$)/i,
+    ],
+  },
+  {
+    rule: "chezmoi.custom:claude-instructions-write",
+    verdict: "is a project Claude instruction file — a write here is prompt injection the model re-reads later (CLAUDE.md, rules, agents, commands, skills)",
+    patterns: [
+      /(^|\/)\.claude\/CLAUDE\.md$/i,
+      /(^|\/)\.claude\/(?:rules|agents|commands|skills)(\/|$)/i,
+    ],
+  },
+];
+// Path-axis blocks are never dcg-rule-approvable: dcg never sees the path, so
+// its allowlist cannot match it. The approval route is the README remediation
+// for a blocked path: user edits the chezmoi source and applies.
+const WRITE_AXIS_APPROVAL = "Approval (operator terminal, not the agent): not dcg-rule-approvable (path axis, chezmoi-managed); operator edits the write-axis floors in home/.chezmoitemplates/base/ai/security/dcg-guard-core and chezmoi applies; see: dcg explain";
+// Lexical shape: absolute, normalized (`..` collapsed), no symlink resolution.
+function writeAxisLexicalPath(p, cwd) {
+  return normalize(p.startsWith("/") ? p : `${cwd}/${p}`);
+}
+// Canonical shape: the deepest EXISTING ancestor is realpath-resolved (a link
+// into .git/ must not slip past a textual check) and the missing tail — a Write
+// usually creates its file — rejoined.
+function writeAxisCanonicalPath(p, cwd) {
+  const full = normalize(p.startsWith("/") ? p : `${cwd || ""}/${p}`);
+  const tail = [];
+  let cur = full;
+  for (;;) {
+    try {
+      cur = realpathSync(cur);
+      break;
+    } catch {
+      const i = cur.lastIndexOf("/");
+      if (i <= 0) break; // "/": top reached, tail fully collected
+      tail.unshift(cur.slice(i + 1));
+      cur = cur.slice(0, i);
+    }
+  }
+  return tail.length ? `${cur.replace(/\/$/, "")}/${tail.join("/")}` : cur;
+}
+// Both shapes are policed: the lexical path AND the canonicalized one, so a
+// project whose .claude (or .git) is a symlink into a differently named
+// directory is caught by the lexical shape, and an ordinary-named alias that
+// resolves INTO a protected directory is caught by the canonical shape.
+// Residuals this axis cannot see: Bash/subprocess writes, a symlink's target
+// accessed directly under an unprotected name, and aliases changed after the
+// check.
+function fileWriteBlockReason(filePath, cwd) {
+  // Boot bypass disarms the tool axis too: a --no-sandbox host launch is the
+  // operator's own machine, same as the Bash axis. This check stays FIRST so
+  // the intentional host bypass boot keeps running without path checks.
+  if (DCG_BYPASS_AT_BOOT) return null;
+  // Fail closed: a file-write tool call whose path this guard cannot resolve
+  // (missing/empty/non-string, e.g. a tool whose path key is not routed) is an
+  // unchecked write, so it is refused.
+  if (typeof filePath !== "string" || filePath.length === 0)
+    return `Blocked by DCG: file-write tool call carries no usable path (type ${typeof filePath}); the write-axis floors cannot check it (fail-closed).\n\nRule: chezmoi.custom:write-axis\n${WRITE_AXIS_APPROVAL}`;
+  // A relative path needs an absolute cwd to anchor: without one the shape the
+  // floors would match is a guess, so fail closed. Absolute paths need no cwd.
+  const abs = filePath.startsWith("/");
+  if (!abs && !(typeof cwd === "string" && cwd.startsWith("/")))
+    return `Blocked by DCG: relative write path with no absolute cwd to anchor it (cwd type ${typeof cwd}); the write-axis floors cannot check it (fail-closed).\n\nRule: chezmoi.custom:write-axis\n${WRITE_AXIS_APPROVAL}`;
+  const shapes = [writeAxisLexicalPath(filePath, cwd)];
+  const canonical = writeAxisCanonicalPath(filePath, cwd);
+  if (canonical !== shapes[0]) shapes.push(canonical);
+  for (const floor of WRITE_AXIS_FLOORS) {
+    const shape = shapes.find((s) => floor.patterns.some((re) => re.test(s)));
+    if (shape)
+      return `Blocked by DCG: ${shape} ${floor.verdict}.\n\nRule: ${floor.rule}\n${WRITE_AXIS_APPROVAL}`;
+  }
+  return null;
 }

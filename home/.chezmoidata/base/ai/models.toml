@@ -7,7 +7,33 @@
 [ai.base.presets]
 default = "balanced"
 
+# SHARED anthropic preset (plan D23): identical in every profile, so it lives
+# in base once; profiles keep only the agents.claude.preset selection.
+# claude_only: Claude-lane preset, consumed by agents.claude.preset and the
+# Agent SDK bridges' real-claude children. Third-party clients (opencode's own
+# anthropic provider) must never reach api.anthropic.com with the proxy-
+# injected OAuth token — Anthropic treats that replay as a bannable violation,
+# so the Slim renderer skips claude_only presets.
+[ai.base.presets.anthropic]
+claude_only = true
+
+[ai.base.presets.anthropic.tiers]
+small = { provider = "anthropic", model = "claude-haiku-5-5", thinking = "off" }
+medium = { provider = "anthropic", model = "claude-sonnet-5-5", thinking = "medium" }
+big = { provider = "anthropic", model = "claude-opus-5-5", thinking = "high" }
+oracle = { provider = "anthropic", model = "claude-opus-5-5", thinking = "xhigh" }
+visual = { provider = "anthropic", model = "claude-sonnet-5-5", thinking = "medium" }
+
 [ai.base.providers]
+# Claude Code authenticates via OAuth (claude setup-token); pi is the only
+# bridged agent: pi-claude-bridge (from pi's own package list) spawns the
+# real claude binary with the same login. Bridge model names are launcher
+# literals (see the agent launcher, "Agent SDK bridges").
+# claude_only: Claude-lane provider — pi's renderer excludes these models
+# from enabledModels so pi's native anthropic provider never replays the
+# proxy-injected OAuth token (a bannable ToS violation); they stay valid
+# routes for claude's own preset tiers.
+anthropic = { claude_only = true }
 deepseek = { api_key_env = "DEEPSEEK_API_KEY", auth_keys = ["deepseek"] }
 github-copilot = {}
 openai-codex = { opencode_alias = "openai" }

@@ -1,0 +1,167 @@
+# Claude Code config source of truth: every rendered value under
+# ~/.config/claude (settings.json, duer.json, agents/, hooks/, skills/,
+# sandbox profile, auto-mode) derives from this section plus the active
+# profile's ai.profile.<p>.agents.claude overlay. Data holds values only;
+# all shaping lives in the templates.
+[ai.base.agents.claude]
+# Tilde expanded at render (render-claude-settings): plansDirectory is verbatim.
+plans_directory = "~/.local/state/claude/plans"
+preset = "qwen"
+
+[ai.base.agents.claude.auto_mode]
+# autoMode is PROSE for the auto-mode classifier (natural-language rules, not
+# command prefixes — the literal-prefix parity design is dead). A list without
+# the literal "$defaults" REPLACES the built-in list, and the repo+remotes
+# trust default lives in environment, so every list opens with "$defaults" to
+# keep the built-ins. The classifier reads autoMode only from
+# ~/.claude/settings.json / managed settings / --settings (duers ride
+# --settings duer.json, so they are covered).
+allow = [
+  "$defaults",
+  "Launching nested claude -p duer workers with ~/.config/claude/duer.json against the local infer01 endpoint is routine delegation"
+]
+environment = [
+  "$defaults",
+  "Trusted local inference server: infer01 (http://infer01:8080) on my LAN",
+  "Host containment: runs inside a nono sandbox with an egress allowlist"
+]
+
+[ai.base.agents.claude.duers]
+# Fan-out cap = serving slots - 1 (one slot stays free for the orchestrator's
+# own requests); the template derives it from the active preset provider's
+# ai.profile.<p>.serving.<provider>.slots. Not stored here.
+# Roles that need a self-contained duer prompt file (duer-roles/<role>.md);
+# duers ignore mcps/skills.
+roles = ["explorer", "fixer", "designer"]
+# Named tier whose model id duer.json pins (falls back to "small"): a named
+# lookup, because map iteration over the preset tiers is nondeterministic.
+serving_model_tier = "medium"
+tools = "Read,Edit,Write,Bash,Grep,Glob"
+
+# duer.json env: the serving endpoint speaks the Anthropic API, so the duers
+# carry no real credential (route-scrubbed; "local" satisfies the client).
+[ai.base.agents.claude.duers.env]
+ANTHROPIC_API_KEY = "local"
+# One model serves every alias on the serving endpoint: the alias pins
+# (ANTHROPIC_DEFAULT_{HAIKU,OPUS,SONNET}_MODEL) are derived at render time in
+# duer.json.tmpl from the serving provider's first model id; a non-serving
+# preset renders no duer.json, so they exist nowhere else (empty elsewhere).
+# Local serving with xhigh thinking runs minutes, not seconds.
+API_TIMEOUT_MS = "600000"
+CLAUDE_CODE_ALWAYS_ENABLE_EFFORT = "1"
+CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+
+# Per-role --tools overrides for duers (roles.toml permission classes): the
+# explorer is research-class (no edit/write/shell) and must not carry the
+# full tools string under bypassPermissions; roles with no entry get duers.tools.
+[ai.base.agents.claude.duers.role_tools]
+designer = "Read,Edit,Write,Bash,Grep,Glob"
+explorer = "Read,Grep,Glob"
+fixer = "Read,Edit,Write,Bash,Grep,Glob"
+
+# settings.json env block. DO_NOT_TRACK=1 stays a global export (exports.d),
+# not per-agent data. CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS is rendered from
+# the active preset's subagent_limit.
+[ai.base.agents.claude.env]
+CLAUDE_CODE_DISABLE_EXPLORE_PLAN_AGENTS = "1"
+DISABLE_AUTOUPDATER = "1"
+DISABLE_ERROR_REPORTING = "1"
+
+[ai.base.agents.claude.plugins]
+# Plugin ids are probe-confirmed on the host; bump with the probe record.
+# The marketplaces key is the marketplace's own name (marketplace.json), which
+# is what the plugin id suffix resolves to: pyright-lsp@claude-plugins-official,
+# one marketplace copy. The official marketplace (anthropics/
+# claude-plugins-official) ships pyright-lsp (no basedpyright-lsp); the compound
+# marketplace.json name is compound-engineering-plugin while the plugin inside
+# it is compound-engineering.
+enabled = [
+  { id = "compound-engineering", marketplace = "compound-engineering-plugin" },
+  { id = "engram", marketplace = "engram" },
+  { id = "ponytail", marketplace = "ponytail" },
+  { id = "pyright-lsp", marketplace = "claude-plugins-official" },
+  { id = "gopls-lsp", marketplace = "claude-plugins-official" },
+  { id = "rust-analyzer-lsp", marketplace = "claude-plugins-official" },
+  { id = "typescript-lsp", marketplace = "claude-plugins-official" }
+]
+
+[ai.base.agents.claude.plugins.marketplaces]
+claude-plugins-official = { repo = "anthropics/claude-plugins-official", source = "github" }
+compound-engineering-plugin = { repo = "EveryInc/compound-engineering-plugin", source = "github" }
+engram = { repo = "Gentleman-Programming/engram", source = "github" }
+ponytail = { repo = "dietrichgebert/ponytail", source = "github" }
+
+[ai.base.agents.claude.sandbox]
+# Claude's own sandbox stays off (sandbox_enabled below): nono is the sandbox.
+# The managed files below ride the write grant; seatbelt last-match-wins
+# write-denies stop the agent editing its own guardrails (Linux renders no
+# deny: Landlock deny-within-allow ceiling, as in pi/omp).
+unsafe_macos_seatbelt_rules = [
+  '(deny file-write* (literal "$HOME/.config/claude/CLAUDE.md"))',
+  '(deny file-write* (literal "$HOME/.config/claude/duer-result.schema.json"))',
+  '(deny file-write* (literal "$HOME/.config/claude/duer.json"))',
+  '(deny file-write* (literal "$HOME/.config/claude/settings.json"))',
+  '(deny file-write* (subpath "$HOME/.config/claude/agents"))',
+  '(deny file-write* (subpath "$HOME/.config/claude/duer-roles"))',
+  '(deny file-write* (subpath "$HOME/.config/claude/hooks"))',
+  '(deny file-write* (subpath "$HOME/.config/claude/skills"))',
+  '(deny file-write* (subpath "$HOME/.config/claude/workflows"))',
+  # Seatbelt cannot glob project paths: regex covers **/.claude/settings.json
+  # and settings.local.json.
+  '(deny file-write* (regex #"\.claude/settings[^/]*\.json$"))'
+]
+
+[ai.base.agents.claude.sandbox.filesystem]
+read = [
+  "~/.config/agents",
+  "~/.config/claude-powerline",
+  "**/.claude/**",
+  # Engram memory store (MCP child state; children inherit this sandbox).
+  "engram"
+]
+write = [
+  "~/.config/claude",
+  "~/.local/state/claude",
+  "~/.local/share/claude",
+  "engram",
+  # Relocated gh state (launcher GH_*_DIR exports), same as pi/opencode.
+  "~/.cache/gh-sandbox"
+]
+
+# settings.json managed keys (values only; key names are the template's).
+[ai.base.agents.claude.settings]
+# Empty string disables attribution per sub-key (docs); {} would be the
+# Claude Code DEFAULTS (Co-Authored-By + Generated-with ON), not "off".
+attribution = { commit = "", pr = "" }
+auto_memory = false
+bash_output_max_chars = 51200
+cross_session_inbound = "refuse"
+default_mode = "auto"
+# A scalar fallbackModel invalidates the entire Claude settings file.
+fallback_model = ["claude-sonnet-5-5"]
+isolate_peer_machines = true
+model = "claude-opus-5-5"
+notif_channel = "ghostty"
+# permissions.deny: Agent(name) rules scope the Agent tool; the built-in
+# general-purpose and fork subagents must never spawn from this fleet.
+permissions_deny = ["Agent(general-purpose)", "Agent(fork)"]
+sandbox_enabled = false
+spinner_tips = false
+# Pi-footer lineage (Catppuccin) lives in the claude-powerline config.
+statusline_command = "claude-powerline"
+subagent_prompt_cache_ttl = "1h"
+sync_claude_ai_plugins = false
+sync_claude_ai_skills = false
+theme = "dark-ansi"
+ultracode = false
+
+# Tier -> runner routing over the active preset's tiers: the rule lives in
+# render-claude-runner (with the suites), not here.
+[ai.base.agents.claude.tier_routing]
+native_provider = "anthropic"
+opus_model = "claude-opus-5-5"
+opus_substitution_tiers = ["big", "oracle"]
+thinking_off_effort = "low"
+
+# Skill triage: CE ships via its plugin, ponytail via plugin only, claude.ai
+# sync off; the skills/symlink_* tree is the roster.

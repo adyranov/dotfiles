@@ -1,0 +1,29 @@
+{{- /* base/packages/merge-selector — Merge a supplied selector axis map onto a current one.
+
+  Axis-wise union: axes present only in the current map persist; every axis
+  present in the supplied map replaces the current axis value, so an explicit
+  empty axis list clears an inherited constraint. An explicit empty supplied
+  map clears the whole selector. A supplied non-table (including false and
+  other falsey non-map values) fails the render; the caller enforces key
+  presence so absent keys never reach here as erasable defaults.
+
+  Args (dict):
+    current — axis map (optional; default empty)
+    spec    — supplied axis map (required key)
+
+  Output: the merged axis map as JSON.
+*/ -}}
+{{- if not (hasKey . "spec") -}}
+{{-   fail "merge-selector requires spec" -}}
+{{- end -}}
+{{- $spec := index . "spec" -}}
+{{- if not (kindIs "map" $spec) -}}
+{{-   fail "selector spec must be a table of axis = [values]" -}}
+{{- end -}}
+{{- $current := index . "current" | default dict -}}
+{{- $merged := dict -}}
+{{- if $spec -}}
+{{-   range $axis := keys $current -}}{{- $_ := set $merged $axis (index $current $axis) -}}{{- end -}}
+{{-   range $axis := keys $spec -}}{{- $_ := set $merged $axis (index $spec $axis) -}}{{- end -}}
+{{- end -}}
+{{- $merged | toJson -}}

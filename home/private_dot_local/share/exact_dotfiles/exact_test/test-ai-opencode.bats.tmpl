@@ -15,7 +15,10 @@ setup() {
 {{- $localPort := get $localServing "port" | default 8321 -}}
 {{- $hasLocalModels := gt (len (get $localServing "models" | default list)) 0 -}}
 {{- $presets := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.presets" "required" false) | mustFromJson -}}
-{{- $agentTiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.opencode.agent_tiers" "required" true) | mustFromJson -}}
+{{- $agentTiers := dict -}}
+{{- range $role, $rd := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.roles" "required" true) | mustFromJson) -}}
+{{-   $_ := set $agentTiers $role $rd.tier -}}
+{{- end -}}
 {{- $slim := "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json" -}}
 {{- $activePreset := index $presets "default" | default "balanced" -}}
 {{- $subagentLimit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" .) | int -}}
@@ -75,6 +78,18 @@ setup() {
 {{- else }}
     and (.council | not)
 {{- end }}
+  ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
+  assert_success
+}
+
+@test "opencode slim keeps the anthropic claude-lane preset out of the render" {
+  # The anthropic preset is claude_only (OAuth lane: claude native + Agent SDK
+  # bridges). opencode's own anthropic provider is a third-party client, so no
+  # rendered agent/council model may sit on the anthropic provider.
+  run jq -e '
+    (.presets | has("anthropic") | not) and
+    ([.presets[][], ((.council.presets // {}) | to_entries[] | .value | to_entries[] | .value)
+      | .model[]? | .id] | map(startswith("anthropic/")) | any | not)
   ' "$HOME/.config/opencode/profiles/factory/oh-my-opencode-slim.json"
   assert_success
 }
@@ -310,7 +325,9 @@ setup() {
 printf '%s\n' "$@"
 EOF
   chmod +x "$BATS_TEST_TMPDIR/bin/opencode"
-  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/agent" oc --no-sandbox --continue session-123
+  # scratch_env: the host --no-sandbox path kills orphaned v2 services;
+  # test mode keeps the probe off real processes.
+  run env $(scratch_env) PATH="$BATS_TEST_TMPDIR/bin:$PATH" "$HOME/.local/bin/agent" oc --no-sandbox --continue session-123
   assert_success
   assert_output --partial "--continue"
   assert_output --partial "session-123"

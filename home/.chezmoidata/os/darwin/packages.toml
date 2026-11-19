@@ -1,35 +1,35 @@
 [packages.os.darwin.ai]
 llamacpp = { bin = "llama-server", manager = "brew", package = "adyranov/tap/llama-cpp" }
-omlx = { exclude_arch = [
-  "amd64"
-], manager = "system", package = "jundot/omlx/omlx" }
+omlx = { exclude = { arch = ["amd64"] }, manager = "system", package = "jundot/omlx/omlx" }
 
 [packages.os.darwin.cloud]
-aws = { disabled = ["headless"] }
+aws = { exclude = { mode = ["headless"] } }
 
 [packages.os.darwin.core]
 age-plugin-yubikey = {}
 atuin = { manager = "system" }
 coreutils = { version = "grealpath --version" }
-gnupg = { exclude_arch = ["arm64"], package = "gnupg2" }
-gnupg-arm64 = { bin = "gpg", exclude_arch = [
-  "amd64"
-], manager = "brew", package = "gnupg" }
+gnupg = { variants = [
+  { include = { arch = ["amd64"] }, package = "gnupg2" },
+  { include = { arch = ["arm64"] }, manager = "brew", package = "gnupg" }
+] }
 mas = { manager = "brew", version = "mas version" }
-openssh-client = { exclude_arch = [
-  "arm64"
-], package = "openssh +fido2", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }
-openssh-client-arm64 = { bin = "ssh", exclude_arch = [
-  "amd64"
-], manager = "brew", package = "openssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }
+openssh-client = { variants = [
+  { include = { arch = ["amd64"] }, package = "openssh +fido2" },
+  { include = { arch = ["arm64"] }, manager = "brew", package = "openssh" }
+] }
 
 [packages.os.darwin.docker]
-docker-buildx = { package = "docker-buildx-plugin" }
-docker-compose = { package = "docker-compose-plugin" }
+# MacPorts patches docker to find its plugins, so the -plugin port names are Intel-only;
+# ARM keeps the canonical ids and the inherited docker CLI version probes.
+docker-buildx = { variants = [{ include = { arch = ["amd64"] }, package = "docker-buildx-plugin" }] }
+docker-compose = { variants = [{ include = { arch = ["amd64"] }, package = "docker-compose-plugin" }] }
 
 [packages.os.darwin.extra]
 gocryptfs = { package = "gocryptfs" }
 opensc = { bin = "opensc-tool" }
 pam-u2f = { bin = "pamu2fcfg" }
-ykman = { exclude_arch = ["arm64"], package = "yubikey-manager" }
-ykman-arm64 = { bin = "ykman", exclude_arch = ["amd64"], manager = "brew", package = "ykman" }
+ykman = { variants = [
+  { include = { arch = ["amd64"] }, package = "yubikey-manager" },
+  { include = { arch = ["arm64"] }, manager = "brew", package = "ykman" }
+] }

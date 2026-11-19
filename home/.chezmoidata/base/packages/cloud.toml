@@ -1,6 +1,3 @@
 [packages.base.cloud.aws]
 manager = "mise"
 package = "aws-cli"
-
-[packages.base.cloud.azure-cli]
-bin = "az"

@@ -21,7 +21,10 @@ packages = [
   "pi-btw",
   "pi-web-access",
   "pi-context",
-  "gentle-engram"
+  "gentle-engram",
+  # Agent SDK bridge: spawns the real claude (anthropic lane); its private
+  # CLAUDE_CONFIG_DIR grant lives in this agent's sandbox write tier.
+  "pi-claude-bridge"
 ]
 skills = ["karpathy-guidelines"]
 
@@ -95,9 +98,9 @@ unsafe_macos_seatbelt_rules = [
 # kills the runtime's login/refresh, not just tool children. Model-side
 # protection is the other guards (command sandboxes never grant pi paths,
 # proxy credential injection, DCG). Cross-agent theft stays denied
-# (opencode_auth_files, omp_auth_files here; pi_auth_files denied in
-# opencode/omp profiles).
-deny = ["omp_auth_files", "opencode_auth_files"]
+# (claude_auth_files, opencode_auth_files, omp_auth_files here; pi_auth_files
+# denied in opencode/omp profiles).
+deny = ["claude_auth_files", "omp_auth_files", "opencode_auth_files"]
 read = [
   # pi-powerline-footer scans the legacy ~/.pi/sessions dir next to the
   # profile session dir. ~/.pi symlinks into ~/.config/pi (pi's own tree;
@@ -128,5 +131,8 @@ write = [
   "~/.pi-lens",
   # Relocated gh state (launcher GH_*_DIR exports): gh creates its missing
   # state files here instead of reading the floor-denied ~/.config/gh/hosts.yml.
-  "~/.cache/gh-sandbox"
+  "~/.cache/gh-sandbox",
+  # pi-claude-bridge's private CLAUDE_CONFIG_DIR: the Agent SDK bridge
+  # spawns the real claude with this dir, never the ~/.config/claude login.
+  "~/.local/state/pi/claude-bridge"
 ]

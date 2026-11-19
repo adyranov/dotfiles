@@ -1,7 +1,11 @@
 [packages.base.core]
 atuin = { completion = { generate = "atuin gen-completions --shell zsh" }, manager = "mise" }
+azure-cli = { bin = "az", disabled = true, variants = [
+  { include = { os = ["linux"], toolchains = ["cloud"] }, disabled = false, toolchain = "cloud" },
+  { include = { arch = ["amd64"], mode = ["interactive"], os = ["darwin"] }, disabled = false }
+] }
 bat = { completion = { generate = "if bat --help 2>&1 | grep -q -- '--completion'; then bat --completion zsh; fi" } }
-btop = { disabled = ["ephemeral"] }
+btop = { exclude = { type = ["ephemeral"] } }
 curl = {}
 dcg = { manager = "mise", package = "github:Dicklesworthstone/destructive_command_guard" }
 direnv = { version = "direnv version" }
@@ -15,9 +19,7 @@ git = {}
 git-delta = { bin = "delta", completion = { generate = "delta --generate-completion zsh" } }
 glow = { completion = true, manager = "mise", package = "github:charmbracelet/glow" }
 gnupg = { bin = "gpg" }
-nono = { disabled = [
-  "ephemeral"
-], manager = "mise", package = "github:nolabs-ai/nono" }
+nono = { exclude = { type = ["ephemeral"] }, manager = "mise", package = "github:nolabs-ai/nono" }
 hyperfine = { manager = "mise" }
 jnv = { manager = "mise", package = "github:ynqa/jnv" }
 jq = {}

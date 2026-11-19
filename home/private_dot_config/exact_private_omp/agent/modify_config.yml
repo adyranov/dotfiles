@@ -60,6 +60,45 @@
 {{- $currentTask := get $current "task" | default dict -}}
 {{- if kindIs "map" $currentTask -}}
 {{-   $_ := unset $currentTask "agentModelOverrides" -}}
+{{-   $currentIsolation := get $currentTask "isolation" | default dict -}}
+{{-   if kindIs "map" $currentIsolation -}}
+{{-     $_ := unset $currentIsolation "enabled" -}}
+{{-     $_ := unset $currentIsolation "apply" -}}
+{{-     $_ := unset $currentIsolation "merge" -}}
+{{-     $_ := unset $currentIsolation "backend" -}}
+{{-     if not (keys $currentIsolation) -}}{{- $_ := unset $currentTask "isolation" -}}{{- end -}}
+{{-   end -}}
+{{- end -}}
+{{- /* Partially user-owned maps: migrate managed leaves only. */ -}}
+{{- $currentUpdate := get $current "update" | default dict -}}
+{{- if kindIs "map" $currentUpdate -}}
+{{-   $_ := unset $currentUpdate "auto" -}}
+{{- end -}}
+{{- $currentDev := get $current "dev" | default dict -}}
+{{- if kindIs "map" $currentDev -}}
+{{-   $_ := unset $currentDev "autoqa" -}}
+{{-   $_ := unset $currentDev "autoqaConsent" -}}
+{{- end -}}
+{{- $currentMcp := get $current "mcp" | default dict -}}
+{{- if kindIs "map" $currentMcp -}}
+{{-   $_ := unset $currentMcp "startupTimeoutMs" -}}
+{{- end -}}
+{{- $currentTitle := get $current "title" | default dict -}}
+{{- if kindIs "map" $currentTitle -}}
+{{-   $_ := unset $currentTitle "generator" -}}
+{{- end -}}
+{{- $currentWorktree := get $current "worktree" | default dict -}}
+{{- if kindIs "map" $currentWorktree -}}
+{{-   $_ := unset $currentWorktree "base" -}}
+{{-   $_ := unset $currentWorktree "clone" -}}
+{{- end -}}
+{{- $currentProviders := get $current "providers" | default dict -}}
+{{- if kindIs "map" $currentProviders -}}
+{{-   $_ := unset $currentProviders "tinyModelDevice" -}}
+{{- end -}}
+{{- $currentSkills := get $current "skills" | default dict -}}
+{{- if kindIs "map" $currentSkills -}}
+{{-   $_ := unset $currentSkills "enablePiUser" -}}
 {{- end -}}
 
 {{- /* ── Load tier data --- */ -}}
@@ -141,21 +180,47 @@
   )
   "providers" (dict
     "cacheWarming" $settings.cache_warming
+    "tinyModelDevice" $settings.tiny_model_device
   )
   "retry" (dict
     "fallbackChains" $fallbackChains
     "maxDelayMs" 30000
     "maxRetries" 3
   )
+  "dev" (dict
+    "autoqa" $settings.autoqa
+    "autoqaConsent" $settings.autoqa_consent
+  )
+  "mcp" (dict
+    "startupTimeoutMs" ($settings.mcp_startup_timeout_ms | int)
+  )
+  "security" (dict
+    "enabled" $settings.security_enabled
+  )
+  "update" (dict
+    "auto" $settings.update_auto
+  )
+  "worktree" (dict
+    "base" $settings.worktree_base
+    "clone" $settings.worktree_clone
+  )
+  "title" (dict
+    "generator" $settings.title_generator
+  )
  "skills" (dict
      "customDirectories" (list
        (printf "%s/.config/agents/libraries/extensions/compound-engineering/skills" .chezmoi.homeDir)
        (printf "%s/.config/agents/libraries/skills/ponytail" .chezmoi.homeDir))
+     "enablePiUser" $settings.skills_enable_pi_user
    )
   "symbolPreset" $settings.symbol_preset
   "task" (dict
     "maxConcurrency" $subagentLimit
     "completionProbe" $settings.completion_probe
+    "prewalk" $settings.task_prewalk
+    "eager" $settings.task_eager
+    "maxRuntimeMs" ($settings.task_max_runtime_ms | int)
+    "perCallModel" $settings.per_call_model
   )
   "secrets" (dict
     "enabled" $settings.secrets_redaction
@@ -189,6 +254,20 @@
 {{- end -}}
 {{- if $settings.fallback_on -}}
 {{-   $_ := set $managed.retry "fallbackOn" $settings.fallback_on -}}
+{{- end -}}
+{{- /* Parallel-write isolation (18.18.x): enabled is the gate knob; the
+  model still marks each task isolated:true. backend ships only when the
+  knob opts in (base "" = upstream auto; darwin overlay pins apfs). */ -}}
+{{- if $settings.isolation_enabled -}}
+{{-   $isolation := dict
+        "enabled" (eq $settings.isolation_enabled "on")
+        "apply" (eq $settings.isolation_apply "on")
+        "merge" $settings.isolation_merge
+  -}}
+{{-   if $settings.isolation_backend -}}
+{{-     $_ := set $isolation "backend" $settings.isolation_backend -}}
+{{-   end -}}
+{{-   $_ := set $managed.task "isolation" $isolation -}}
 {{- end -}}
 {{- $overrides := dict -}}
 {{- range $agent, $tierKey := ($settings.subagent_tiers | default dict) -}}

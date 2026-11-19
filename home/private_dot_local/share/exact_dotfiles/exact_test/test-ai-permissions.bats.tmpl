@@ -59,8 +59,14 @@ setup() {
 {{- end -}}
 {{- $sessionRouteNames = $sessionRouteNames | uniq | sortAlpha -}}
 {{- $allRouteNames := $sessionRouteNames -}}
+{{- /* Per-agent route expectations, derived from the same agents-scoped
+   render the profiles use: opencode drops anthropic (no bridge wired),
+   omp has no bridge lane at all (473dddf6), so it renders no routes. */ -}}
+{{- $ocCreds := includeTemplate "base/ai/auth/render-credentials" (dict "root" . "agent" "opencode") | mustFromJson -}}
+{{- $ocRouteNames := list -}}
+{{- range $r := ($ocCreds.routes | default list) -}}{{- $ocRouteNames = append $ocRouteNames (includeTemplate "base/ai/auth/route-key" (dict "row" $r)) -}}{{- end -}}
+{{- $ocRouteNames = $ocRouteNames | uniq | sortAlpha -}}
 {{- $netCredsRender := includeTemplate "base/ai/security/render-nono-net" (dict "root" . "credentials" $creds) | mustFromJson -}}
-{{- $applyData := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.apply" "required" false) | mustFromJson) }}
 {{- /* Presence pins are derived at render time from the data: concat every
    [network.allow_domain] category value (base categories carry literals
    only — group refs are sandbox-side by design). */ -}}
@@ -70,13 +76,6 @@ setup() {
 {{-   $wantHosts = concat $wantHosts ($hosts | default list) -}}
 {{- end -}}
 {{- $wantHosts = includeTemplate "base/ai/security/uniq-sort" $wantHosts | mustFromJson }}
-{{- /* chezmoi command sandbox expected sets: the data fs lists plus the
-   renderer's own constant additions. Set equality against the rendered
-   profile proves nothing destination-derived enters the sandbox — the
-   apply-destination mechanism is gone and live-home applies are
-   user-terminal-only. */ -}}
-{{- $czWantRead := includeTemplate "base/ai/security/uniq-sort" (concat (index $applyData "command_sandbox_read" | default list) (list "/bin" "/usr/bin")) | mustFromJson }}
-{{- $czWantWrite := includeTemplate "base/ai/security/uniq-sort" (concat (index $applyData "command_sandbox_write" | default list) (list "/private/var/folders")) | mustFromJson }}
 
 # bats test_tags=kind:nono
 @test "nono base profile is deployed and valid" {
@@ -202,13 +201,25 @@ setup() {
   # is SESSION-READ (read tier) — chezmoi's config AND persistent-state boltdb
   # live there, and a session write grant lets an agent poison apply
   # bookkeeping (silently-skipped changed files), bypassing the user's apply
-  # boundary. The chezmoi BINARY keeps its writes through the command sandbox
-  # (fs_write pin in the command-sandbox test), which replaces the session
-  # tier for chezmoi invocations.
+  # boundary. There is no command-sandbox write companion: the chezmoi command
+  # edge renders deny-only (the security-first fallback), so no in-sandbox
+  # chezmoi invocation touches the state at all.
   run jq -e '
+    def overlaps($p): . as $g | $g == $p or ($p | startswith($g + "/")) or ($g | startswith($p + "/"));
     (.filesystem.read | index("~/.config/chezmoi") != null) and
     (.filesystem.allow | index("~/.config/chezmoi") == null) and
     (.filesystem.allow | index("~/.local/state/mise") != null) and
+    # Shared stores are session READ-only: agents run the user-prewarmed hook
+    # envs; store installs/bootstrap stay user-terminal. No ALLOW entry may
+    # equal or ancestor-cover the mise install store (the store itself, its
+    # parents and subpaths) nor the pre-commit caches (an ancestor grant like
+    # ~/.cache counts); the mise install store rides the ~/.local/share READ
+    # parent.
+    (.filesystem.read | index("~/.local/share") != null) and
+    ([.filesystem.allow[] | select(overlaps("~/.local/share/mise")
+        or overlaps("~/.cache/pre-commit") or overlaps("~/.cache/pre-commit-zipapp"))] | length) == 0 and
+    (.filesystem.read | index("~/.cache/pre-commit") != null) and
+    (.filesystem.read | index("~/.cache/pre-commit-zipapp") != null) and
     # The trust store leaf is denied INSIDE that grant (deny beats grants):
     # a direct write is self-trust — repo [tasks] execute on the next mise run.
     (.filesystem.deny | index("~/.local/state/mise/trusted-configs") != null) and
@@ -256,56 +267,23 @@ setup() {
 }
 
 # bats test_tags=kind:nono
-@test "chezmoi command sandbox: source-inspection grants only; git/mise overrides" {
-  # The chezmoi command sandbox REPLACES the session tier for chezmoi and
-  # carries ONLY the source-inspection grants (the data fs lists + the
-  # renderer constants, pinned by set equality below): the apply-destination
-  # mechanism is gone, no destination-derived entry can enter, and live-home
-  # applies are user-terminal-only. fs_read also carries the source dir, and
-  # never a broad config parent: `~/.config`/`~/.local/share` reads would
-  # re-open the credential deny groups living under them — gh hosts.yml, git
-  # credentials, configstore, pgpass, amazon/azure/engram state
-  # (user-terminal probe: `nono run --profile base -- cat ~/.config/gh/hosts.yml`
-  # must EPERM). The git/mise keys are the overrides (nono 0.79.0): the ["."]
-  # default is fatal for both; git reads its config CHAIN per file
+@test "git/mise command sandboxes: credential floors, read-only stores, exec gates" {
+  # The git/mise keys are the command-sandbox overrides (nono 0.79.0): the
+  # ["."] default is fatal for both; git reads its config CHAIN per file
   # (`fs_read_file`: no `~/.config/git` dir grant — it would re-open the
   # credential store — and the `@git:config-files` token is fatal on hosts
   # with a system gitconfig, file entries in dirs-only lists) — writes
   # `/dev/dtracehelper` like every macOS binary, and reaches git-core/hooks
   # via `unsafe_macos_seatbelt_rules` (macOS exec gate: literals, no globs;
   # `exec_paths` is Linux-only); mise's symlinked binary rides `fs_read_file`.
-  run jq -e --argjson wread '{{ $czWantRead | toJson }}' --argjson wwrite '{{ $czWantWrite | toJson }}' '
-    def sands: [.command_policies.commands[].from.session | (if type == "object" then .sandbox // {} else {} end)];
+  # chezmoi and brew render deny-only edges (no sandbox at all): pinned in
+  # the control-axis test.
+  run jq -e '
+    def sands: [.command_policies.commands[].from[] | (if type == "object" then .sandbox // {} else {} end)];
+    def covers($p): . as $g | . == $p or ($p | startswith($g + "/"));
     . as $r |
-    ($r.command_policies.commands.chezmoi.from.session.sandbox) as $cz |
     ($r.command_policies.commands.git.from.session.sandbox) as $git |
     ($r.command_policies.commands.mise.from.session.sandbox) as $mise |
-    # SET EQUALITY (no apostrophes in here: this comment lives inside a
-    # single-quoted jq): the chezmoi sandbox write set is exactly the data
-    # list + the renderer temp constant — any destination-derived grant
-    # (the removed mechanism) breaks equality. Effective in-sandbox apply
-    # behavior is host-test evidence, not asserted by this pin.
-    ($cz.fs_read | sort) == ($wread | sort) and
-    ($cz.fs_write | sort) == ($wwrite | sort) and
-    ($cz.fs_read | index("~/.config/git") | not) and
-    ($cz.fs_write | index("~/.config/git") | not) and
-    ($cz.fs_write | index("~/.config/mise") | not) and
-    ($cz.fs_write | index("~/.config/chezmoi") != null) and
-    ($cz.fs_read | index("~/.config/chezmoi") != null) and
-    ($cz.fs_read | index("~/.local/share/chezmoi") != null) and
-    ($cz.fs_read | index("~/.config") | not) and
-    ($cz.fs_read | index("~/.local/share") | not) and
-    # chezmoi spawns git for repo discovery: an unreadable config chain
-    # re-inits chezmoi inside its own sandbox (run_once churn).
-    ($cz.fs_read_file + $cz.fs_read
-      | all(. as $p | ("~/.config/git/credentials" | startswith($p + "/")) | not)) and
-    ($cz.fs_read_file | index("~/.config/git/config") != null) and
-    ($cz.fs_read_file | index("~/.config/git/base") != null) and
-    ($cz.exec_paths | index("/usr/bin") != null) and
-    ($cz.exec_paths | index("{{ trimSuffix "/" .chezmoi.homeDir }}/.local/share/mise/shims") != null) and
-{{- if eq .chezmoi.os "darwin" }}
-    ($cz.unsafe_macos_seatbelt_rules | index("(allow process-exec* (subpath \"/usr/bin\"))") != null) and
-{{- end }}
     ($git.fs_read | index("@git:config-files") | not) and
     # Credential floor INSIDE the command sandbox: no fs entry may be a
     # path-ancestor of ~/.config/git/credentials (this catches every
@@ -343,9 +321,24 @@ setup() {
     ($mise.fs_write | index("$TMPDIR") | not) and
     ($mise.fs_read | index("~/.local/bin") | not) and
     ($mise.fs_read_file | index("~/.local/bin/mise") != null) and
-    ($mise.fs_write | index("~/.local/state/mise") != null) and
+    # Mise install/state stores and the shared pre-commit caches are READ-only
+    # in every command sandbox: no fs_write/fs_write_file entry may equal,
+    # ancestor-cover, or sit inside them (the command tier replaces session
+    # grants and inherits no trusted-configs deny, so a write grant here is a
+    # trust-planting / install hole; warm stores run, never install).
+    ($mise.fs_write | index("~/.local/state/mise") | not) and
+    ($mise.fs_read | index("~/.local/state/mise") != null) and
     ($mise.fs_read | index("~/Library/Caches/mise") != null) and
     ($mise.fs_write | index("~/Library/Caches/mise") != null) and
+    ($mise.fs_read | index("~/.local/share/mise") != null) and
+    ($mise.fs_write | index("~/.local/share/mise") | not) and
+    ([sands[] | ((.fs_write // []) + (.fs_write_file // []))[]]
+      | map(select(. as $e | ["~/.cache/pre-commit", "~/.cache/pre-commit-zipapp",
+                             "~/.local/share/mise", "~/.local/state/mise"]
+                   | any(. as $p | $e == $p or ($e | startswith($p + "/")) or ($p | startswith($e + "/")))))
+      | length) == 0 and
+    ($git.fs_write | any(covers("~/.cache/pre-commit")) | not) and
+    ($git.fs_read | index("~/.cache/pre-commit") != null) and
     # Sandbox network lists resolve through the [network.groups] catalog; the
     # pins are EXACT sets (group refs are narrow by design — a base-category
     # reference would widen the mediated sandbox and must never render).
@@ -371,7 +364,7 @@ setup() {
 {{- $guardScript := includeTemplate "base/ai/security/sandbox-grant-guard" dict }}
 {{- $guardProtected := includeTemplate "base/ai/security/expand-path-groups" (dict "root" . "groups" (index (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.filesystem" "required" true) | mustFromJson) "deny" | default list)) | mustFromJson }}
 {{- $guardCases := list }}
-{{- range $c := list "~/.config/nono" "~/.config/nono/profiles/base.json" "~/.config/opencode/opencode.jsonc" "~/.config" "~/.config/tmux/**" "relative/config.json" "/" "~/../.." "~@evil" }}
+{{- range $c := list "~/.config/nono" "~/.config/nono/profiles/base.json" "~/.config/opencode/opencode.jsonc" "~/.config/chezmoi" "~/.config" "~/.config/tmux/**" "relative/config.json" "/" "~/../.." "~@evil" }}
 {{-   $guardCases = append $guardCases (dict "dest" $c "expect" "refused") }}
 {{- end }}
 {{- /* Provider tokens are the guard's blind spot BY DESIGN (the provider enforces
@@ -491,49 +484,12 @@ setup() {
     (.command_policies.commands.git.from.session.invocation_policy.default == "allow") and
     # destructive-but-normal commands left nono for DCG ownership
     (.command_policies.commands | (has("kubectl") or has("helm") or has("docker") or has("tofu") or has("rm") or has("sed")) | not) and
-    # chezmoi: global applies denied (exact variants + --remove prefix); a
-    # positional apply carries no destination write grant in the sandbox (pin above)
-    (rules("chezmoi") | any(.exact == ["apply"])) and
-    (rules("chezmoi") | any(.prefix == ["--remove"])) and
-    (hit("chezmoi"; ["apply"])) and (hit("chezmoi"; ["--remove","apply"])) and
-    (hit("chezmoi"; ["apply","--remove"])) and (hit("chezmoi"; ["apply","--force"])) and (hit("chezmoi"; ["--force","apply"])) and
-    (hit("chezmoi"; ["apply","~/.zshrc"]) | not) and (hit("chezmoi"; ["diff","~/.zshrc"]) | not) and
-    # global-flag-leading forms are literal prefix variants (no --global flag in
-    # chezmoi: a global apply is the bare form above)
-    (rules("chezmoi") | any(.prefix == ["--force"])) and (rules("chezmoi") | any(.prefix == ["--include"])) and
-    (rules("chezmoi") | any(.prefix == ["--exclude"])) and (rules("chezmoi") | any(.prefix == ["--destination"])) and
-    (rules("chezmoi") | any(.prefix == ["--source"])) and (rules("chezmoi") | any(.prefix == ["-i"])) and
-    (rules("chezmoi") | any(.prefix == ["-x"])) and (rules("chezmoi") | any(.prefix == ["-D"])) and
-    (rules("chezmoi") | any(.prefix == ["-S"])) and (rules("chezmoi") | any(.prefix == ["apply","--force"])) and
-    (hit("chezmoi"; ["--force","apply","~/.zshrc"])) and (hit("chezmoi"; ["--include","files","apply"])) and
-    (hit("chezmoi"; ["--exclude","files","apply","~/.zshrc"])) and (hit("chezmoi"; ["--destination","/tmp","apply"])) and
-    (hit("chezmoi"; ["--source","/tmp","apply"])) and (hit("chezmoi"; ["-D","/tmp","apply"])) and
-    (hit("chezmoi"; ["-S","/tmp","apply"])) and (hit("chezmoi"; ["-i","files","apply"])) and (hit("chezmoi"; ["-x","files","apply"])) and
-    (hit("chezmoi"; ["apply","--force","~/.zshrc"])) and (hit("chezmoi"; ["apply","--include","files","~/.zshrc"])) and
-    (hit("chezmoi"; ["apply","-D","/tmp","~/.zshrc"])) and
-    # clone-and-apply / update forms apply globally: nothing bounds them in-sandbox
-    (rules("chezmoi") | any(.prefix == ["init","--apply"])) and (rules("chezmoi") | any(.prefix == ["init","-a"])) and
-    (rules("chezmoi") | any(.prefix == ["up"])) and (rules("chezmoi") | any(.prefix == ["update"])) and
-    # U2: bare `init` writes the chezmoi config dir and `state` mutates the
-    # persistent boltdb (~/.config/chezmoi) — both bypass the apply boundary
-    # (poisoned state makes an apply silently skip changed files), so
-    # the whole forms are core-denied.
-    (rules("chezmoi") | any(.exact == ["init"])) and (rules("chezmoi") | any(.prefix == ["init"])) and
-    (rules("chezmoi") | any(.exact == ["state"])) and (rules("chezmoi") | any(.prefix == ["state"])) and
-    (hit("chezmoi"; ["init"])) and (hit("chezmoi"; ["init","--repo","https://example.com/dotfiles"])) and
-    (hit("chezmoi"; ["state"])) and (hit("chezmoi"; ["state","data"])) and
-    (hit("chezmoi"; ["init","--apply"])) and (hit("chezmoi"; ["init","--apply","https://example.com/dotfiles"])) and
-    (hit("chezmoi"; ["init","-a","https://example.com/dotfiles"])) and (hit("chezmoi"; ["update"])) and
-    (hit("chezmoi"; ["update","--force"])) and (hit("chezmoi"; ["up"])) and
-    # Boundary: a positional apply — with or without a trailing flag — matches
-    # no deny rule; the chezmoi command sandbox grants it no home destination
-    # write (the exact-set pin in the sandbox test), and effective in-sandbox
-    # behavior is host-test evidence.
-    # The =-valued equals form is the same boundary on the flag-leading side.
-    (hit("chezmoi"; ["apply","~/.config/git/config","--force"]) | not) and
-    (hit("chezmoi"; ["apply","~/.config/git/config","-i","files"]) | not) and
-    (hit("chezmoi"; ["--force=true","apply"]) | not) and
-    (hit("chezmoi"; ["--force=true","apply","~/.config/git/config"]) | not) and
+    # Security-first fallback: chezmoi and brew carry NO command sandbox —
+    # every sandboxed invocation is a hard session deny (applies and package
+    # mutations are user-terminal-only). The old chezmoi argv deny-list and
+    # source-inspection sandbox are gone with the renderer; the gh/ssh
+    # command-axis absence tests cover the rest of that surface.
+    (denied_only("chezmoi")) and (denied_only("brew")) and
     # every Git force flag denied at any argv position (flag-only contains
     # windows, so the deny is not push-scoped); ordinary ops allowed
     (rules("git") | all(has("contains"))) and (rules("git") | all(.contains | index("push") == null)) and
@@ -643,9 +599,10 @@ setup() {
   # follows any addition; this literal guards the base audit invariant.
   # Named check: `jq -e` prints nothing on false, so a bare conjunct gives
   # zero diagnostic for the drift it guards.
+  # 155 includes code.claude.com for official Claude Code documentation.
   local n
   n=$(jq '.network.allow_domain | length' "{{ $nonoProfiles }}/base.json")
-  [ "$n" = "153" ] || { echo "network literal drift: got $n, expected 153 — bump intentionally in a commit that names the consumer"; return 1; }
+  [ "$n" = "155" ] || { echo "network literal drift: got $n, expected 155 — bump intentionally in a commit that names the consumer"; return 1; }
 }
 
 {{ $routeRender := omit $netCredsRender "allow_domain" "open_port" -}}
@@ -664,11 +621,17 @@ setup() {
 }
 
 # bats test_tags=kind:nono
-@test "agent profiles carry the routes; omp renders no credential keys" {
+@test "agent profiles carry the bridge-appropriate routes" {
   # The agent profiles render per toolchain (the $nonoAgents idiom): on an
   # ai-enabled/pi-off host pi.json is absent, so the loop arms are gated.
+  # pi keeps every route (pi-claude-bridge needs the anthropic lane);
+  # opencode drops anthropic (no bridge wired, third-party provider).
   for agent in{{- if .toolchains.pi }} pi{{- end }}{{- if .toolchains.opencode }} opencode{{- end }}; do
-    run jq -e --argjson keys '{{ $allRouteNames | toJson }}' '
+    case "$agent" in
+      opencode) keys='{{ $ocRouteNames | toJson }}';;
+      *) keys='{{ $allRouteNames | toJson }}';;
+    esac
+    run jq -e --argjson keys "$keys" '
       ((.network.custom_credentials // {}) | keys | sort) == $keys and
       (.env_credentials == null)
     ' "{{ $nonoProfiles }}/$agent.json"
@@ -681,11 +644,17 @@ setup() {
     assert_success
   done
 {{- if (get .toolchains "omp" | default false) }}
-  run jq -e '(.network | has("custom_credentials") | not) and (.env_credentials == null) and
-             (.command_policies == null) and
-             (.environment.deny_vars | index("GITHUB_TOKEN") != null) and
-             (.environment.deny_vars | index("GH_TOKEN") != null) and
-             (.environment.deny_vars | index("GEMINI_API_KEY") != null)' "{{ $nonoProfiles }}/omp.json"
+  # omp has no Claude bridge lane (no installable bridge release), so the
+  # anthropic route stays out entirely; the full env scrub is load-bearing.
+  run jq -e '
+    ((.network.custom_credentials // {}) | has("anthropic") | not) and
+    ((.network.credentials // []) | index("anthropic") | not) and
+    (.env_credentials == null) and
+    (.command_policies == null) and
+    (.environment.deny_vars | index("CLAUDE_CODE_OAUTH_TOKEN") != null) and
+    (.environment.deny_vars | index("GITHUB_TOKEN") != null) and
+    (.environment.deny_vars | index("GH_TOKEN") != null) and
+    (.environment.deny_vars | index("GEMINI_API_KEY") != null)' "{{ $nonoProfiles }}/omp.json"
   assert_success
 {{- end }}
   run jq -e 'all(.command_policies.commands[].from.session; . == "deny" or ((type == "object") and ((.sandbox // {}) | has("credentials") | not)))' "{{ $nonoProfiles }}/base.json"
@@ -753,7 +722,12 @@ setup() {
 }
 
 {{- /* Route validation fixtures: every bad row must FAIL the render, naming the
-     row and the reason. */}}
+     row and the reason. Each pins routes_enabled=true: the gate lives in the
+     os overlay (base is false, darwin true, Linux hosts stay false), and every
+     row check sits inside it, so an overlay-derived value would silently
+     no-op the fixtures on a non-enforcing host. A poisoned row name must be a
+     REAL base routes row (the gap-dup check compares routes against
+     env_injected; a name with no route row has nothing to collide with). */}}
 # runCapped ARGS... — nested-render chezmoi boots can hang on sandbox init
 # churn (git config EPERM → curl to a dead proxy port); cap each render so
 # one hang fails its own test, not the whole suite cap.
@@ -770,12 +744,47 @@ runCapped() {
     return 1
   fi
 }
-{{- $routeNotSecretTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes" "NOT_A_SECRET_TYP0") "value" (dict "attach" "session" "upstream" "https://example.invalid" "env_var" "NOT_A_SECRET_TYP0")) | mustFromJson -}}
-{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
-{{- $routeGapDupTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "env_injected") "value" (dict "ANTHROPIC_API_KEY" "delivered two ways")) | mustFromJson -}}
-{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
-{{- $routeHttpTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes" "ANTHROPIC_API_KEY" "upstream") "value" "http://insecure.invalid") | mustFromJson -}}
-{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
+# collapseRoots JSON_PATHS — print the JSON array of the tilde-anchored `~/X/**`
+# roots (`~/X`) that exist as directories on this machine. A host apply collapses
+# exactly those to the dir-literal (strip-tilde-tails SIGILL guard), so a pin
+# written against the native glob must accept that prefix too. A sandboxed render
+# cannot stat, keeps native globs, and gets an empty list here.
+# shortcut: roots are probed at TEST time, so deleting a collapsed root after
+# apply turns this red (re-apply renders it native again).
+collapseRoots() {
+  local path root out=()
+  while IFS= read -r path; do
+    case $path in
+      '~'*/\*\*) root="${path%/\*\*}" ;;
+      *) continue ;;
+    esac
+    if [ -d "${root/#\~/$HOME}" ]; then
+      out+=("$root")
+    fi
+  done < <(printf '%s\n' "$1" | jq -r '.[] | select(type == "string")')
+  if [ ${#out[@]} -eq 0 ]; then
+    printf '[]'
+  else
+    printf '%s\n' "${out[@]}" | jq -R . | jq -sc .
+  fi
+}
+# denyHas PROFILE GLOB — deny-tier pin that survives that collapse: the native
+# glob, or the collapsed dir-literal, accepting ONLY the glob's own root prefix
+# (verified to exist) — never an arbitrary string. macOS seatbelt dir denies
+# recurse, so the literal is semantically equal-or-stronger than the glob.
+denyHas() {
+  jq -e --arg g "$2" --argjson roots "$(collapseRoots "[\"$2\"]")" '
+    .filesystem.deny as $d |
+    (($d | index($g)) != null) or
+    (($g | startswith("~/")) and ($g | endswith("/**")) and
+      (($g | rtrimstr("/**")) as $root |
+        (any($roots[]; . == $root)) and (($d | index($root)) != null)))
+  ' "$1"
+}
+{{- $routesOn := `{{- $r0 := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "credentials" "routes_enabled") "value" true) | mustFromJson -}}` }}
+{{- $routeNotSecretTpl := printf "%s\n%s\n%s" $routesOn `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" $r0 "path" (list "ai" "base" "credentials" "routes" "NOT_A_SECRET_TYP0") "value" (dict "attach" "session" "upstream" "https://example.invalid" "env_var" "NOT_A_SECRET_TYP0")) | mustFromJson -}}` `{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
+{{- $routeGapDupTpl := printf "%s\n%s\n%s" $routesOn `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" $r0 "path" (list "ai" "base" "credentials" "env_injected") "value" (dict "OPENAI_API_KEY" "delivered two ways")) | mustFromJson -}}` `{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
+{{- $routeHttpTpl := printf "%s\n%s\n%s" $routesOn `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" $r0 "path" (list "ai" "base" "credentials" "routes" "CLAUDE_CODE_OAUTH_TOKEN" "upstream") "value" "http://insecure.invalid") | mustFromJson -}}` `{{- includeTemplate "base/ai/auth/render-credentials" $r -}}` }}
 
 # bats test_tags=kind:nono
 @test "credential route validation fails the render naming the offending row" {
@@ -799,12 +808,13 @@ FIXTURE
 
   runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-gap-dup.tmpl" || return 1
   [ "$status" -ne 0 ] || offenders="$offenders gap-dup:fails-render"
-  [[ "$output" == *ANTHROPIC_API_KEY* ]] || offenders="$offenders gap-dup:named"
+  [[ "$output" == *OPENAI_API_KEY* ]] || offenders="$offenders gap-dup:named"
   [[ "$output" == *"also in env_injected"* ]] || offenders="$offenders gap-dup:reason-marker"
 
   runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/route-http.tmpl" || return 1
   [ "$status" -ne 0 ] || offenders="$offenders http:fails-render"
-  [[ "$output" == *"must be https"* ]] || offenders="$offenders http:reason-marker"
+  [[ "$output" == *"credential route CLAUDE_CODE_OAUTH_TOKEN upstream must be https"* ]] ||
+    offenders="$offenders http:route-reason-marker"
 
   if [ -n "$offenders" ]; then
     printf 'credential route validation (offending checks):%s\n' "$offenders"
@@ -845,11 +855,17 @@ FIXTURE
 {{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r) -}}` }}
 {{- /* A protected path in a command-sandbox GRANT list (the guard's surviving
       job after the destination mechanism's removal) must fail the render —
-      dir lists AND the file lists (command_sandbox_read_file joins the guard
-      input). */ -}}
+      dir lists AND the file lists (fs_read_file joins the guard input). */ -}}
 {{- $badGrantTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "fs_read") "value" (list "~/.config/nono")) | mustFromJson -}}
 {{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r) -}}` }}
-{{- $badReadFileTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "command_sandbox_read_file") "value" (list "~/.config/git/credentials")) | mustFromJson -}}
+{{- $badReadFileTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "permissions" "apply" "sandbox" "git" "fs_read_file") "value" (list "~/.config/git/credentials")) | mustFromJson -}}
+{{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r) -}}` }}
+{{- /* Shared floors are load-bearing: an empty shared_write_denies must fail
+      render-nono-cmd loudly (never silently render a floor-less sandbox).
+      The fail() must be prefixed "render-nono-cmd: " (anti-echo: the fixture
+      text quotes the template path WITHOUT a trailing colon) and name the key.
+      Darwin-only: the Linux renderer strips the raw seatbelt axis entirely. */ -}}
+{{- $noFloorsTpl := `{{- $r := includeTemplate "base/test/deep-copy-set-path" (dict "root" . "path" (list "ai" "base" "agents" "shared" "sandbox" "shared_write_denies") "value" (list)) | mustFromJson -}}
 {{- includeTemplate "base/ai/security/render-nono-cmd" (dict "root" $r) -}}` }}
 
 # bats test_tags=kind:nono
@@ -862,7 +878,9 @@ FIXTURE
   # source rendering stays usable without the destination machinery).
   # Violations→fail wiring: a protected sandbox grant — dir list and file
   # list — must die in the nested render-nono-cmd naming sandbox-grant-guard
-  # and the entry (only these fixtures reach its fail line).
+  # and the entry (only these fixtures reach its fail line), and an empty
+  # shared_write_denies must die naming the key (macOS; the floors are
+  # load-bearing).
   local cb json offenders=""
   cb="$(chezmoiBin)"
 
@@ -881,6 +899,11 @@ FIXTURE
   cat >"$BATS_TEST_TMPDIR/bad-readfile.tmpl" <<'FIXTURE'
 {{ $badReadFileTpl }}
 FIXTURE
+{{- if eq .chezmoi.os "darwin" }}
+  cat >"$BATS_TEST_TMPDIR/no-floors.tmpl" <<'FIXTURE'
+{{ $noFloorsTpl }}
+FIXTURE
+{{- end }}
 
   runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/net-typo.tmpl" || return 1
   [ "$status" -ne 0 ] || offenders="$offenders net:typo.fails-render"
@@ -905,6 +928,14 @@ FIXTURE
 
   runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/bad-readfile.tmpl" || return 1
   { [ "$status" -ne 0 ] && [[ "$output" == *sandbox-grant-guard* ]] && [[ "$output" == *~/.config/git/credentials* ]]; } || offenders="$offenders readfile-guard:wiring.fails-render"
+
+{{- if eq .chezmoi.os "darwin" }}
+  # Shared floors are load-bearing: an empty shared_write_denies (the key
+  # present-but-empty is the same guard path as absent) must die in the
+  # nested render-nono-cmd, naming the key.
+  runCapped "$cb" execute-template -f "$BATS_TEST_TMPDIR/no-floors.tmpl" || return 1
+  { [ "$status" -ne 0 ] && [[ "$output" == *"render-nono-cmd: "* ]] && [[ "$output" == *shared_write_denies* ]]; } || offenders="$offenders floors:empty.fails-render"
+{{- end }}
 
   if [ -n "$offenders" ]; then
     printf 'loud-fail/resolve fixtures (offending checks):%s\n' "$offenders"
@@ -1189,6 +1220,268 @@ FIXTURE
   assert_file_exists "{{ $agent.file }}"
   run jq -e '(((.filesystem.allow // []) - (.filesystem.read // [])) | length) == ((.filesystem.allow // []) | length)' "{{ $agent.file }}"
   assert_success
+}
+{{- end }}
+
+{{- /* Git-hooks floor pins derived from the single data owner: the
+       shared_write_denies rules that are not the LaunchAgents floor,
+       home-expanded as the renderer emits them (this rule carries no $HOME,
+       so expanded == raw). Matched verbatim below — case-variant-tolerant. */ -}}
+{{- $claudeSb := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.shared.sandbox" "required" true) | mustFromJson -}}
+{{- $gitFloors := list -}}
+{{- range $f := (get $claudeSb "shared_write_denies" | default list) -}}
+{{-   if contains "LaunchAgents" $f | not -}}{{-   $gitFloors = append $gitFloors (replace "$HOME" (trimSuffix "/" $.chezmoi.homeDir) $f) -}}{{-   end -}}
+{{- end -}}
+{{- if get .toolchains "claude" | default false }}
+# bats test_tags=toolchain:claude,kind:nono
+@test "claude config floor: pi/opencode/omp deny claude paths; claude owns its config; git-hooks + worktrees + bridge dirs" {
+  # The claude config/auth tree (claude_auth_files) leaves the
+  # unopenable base-tier deny so the claude profile can own it; every other
+  # agent denies it. .git/hooks write-deny + the .claude/worktrees grant ride
+  # every profile; the per-agent claude-bridge write dir rides pi alone
+  # (pi-claude-bridge) — opencode's bridge grant and omp's were retracted
+  # (473dddf6: no installable bridge release), so they render no bridge dir.
+  local offenders="" claude_file="{{ $nonoProfiles }}/claude.json" a f
+  check() { local n="$1"; shift; "$@" >/dev/null 2>&1 || offenders="$offenders $n"; }
+  check "claude.json renders" test -f "$claude_file"
+  for a in{{ range $na := $nonoAgents }} {{ $na.name }}{{ end }}; do
+    f="{{ $nonoProfiles }}/${a}.json"
+    check "$a denies claude config" denyHas "$f" '~/.config/claude/**'
+    if [ "$a" = pi ]; then
+      check "pi bridge config dir" jq -e '.filesystem.allow | index("~/.local/state/pi/claude-bridge") != null' "$f"
+    fi
+    check "$a claude worktrees grant" jq -e '.filesystem.allow | index("**/.claude/worktrees/**") != null' "$f"
+{{- if eq .chezmoi.os "darwin" }}
+    check "$a git-hooks write-deny" jq -e --argjson want '{{ $gitFloors | toJson }}' '(.unsafe_macos_seatbelt_rules // []) as $u | ($want | length) > 0 and (all($want[]; . as $r | ($u | index($r)) != null))' "$f"
+{{- end }}
+  done
+  # The claude profile owns its tree: denies no claude path, writes its config,
+  # carries the worktree grant (and the git-hooks seatbelt on macOS).
+  check "claude denies no claude path" jq -e '.filesystem.deny | map(select(test("claude"))) | length == 0' "$claude_file"
+  check "claude writes ~/.config/claude" jq -e '.filesystem.allow | index("~/.config/claude") != null' "$claude_file"
+  check "claude claude worktrees grant" jq -e '.filesystem.allow | index("**/.claude/worktrees/**") != null' "$claude_file"
+{{- if eq .chezmoi.os "darwin" }}
+  check "claude git-hooks write-deny" jq -e --argjson want '{{ $gitFloors | toJson }}' '(.unsafe_macos_seatbelt_rules // []) as $u | ($want | length) > 0 and (all($want[]; . as $r | ($u | index($r)) != null))' "$claude_file"
+{{- end }}
+  [ -z "$offenders" ] || { printf 'claude floor-split (offenders):%s\n' "$offenders"; return 1; }
+}
+{{- end }}
+
+{{- /* Floor/grant inputs baked from the shared data the renderer reads
+       (anti-drift): the shared file-write floors from
+       ai.agents.shared.sandbox.shared_write_denies (the renderer expands
+       $HOME; the rendered rules carry the expanded home), the worktree grant
+       from the shared write list, the deny from the claude_auth_files
+       group. */}}
+{{ $blank := true }}
+{{- $sharedSb := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.shared.sandbox" "required" true) | mustFromJson -}}
+{{- $floors := get $sharedSb "shared_write_denies" | default list -}}
+{{- $floorsExp := list -}}
+{{- range $f := $floors -}}{{- $floorsExp = append $floorsExp (replace "$HOME" (trimSuffix "/" $.chezmoi.homeDir) $f) -}}{{- end -}}
+{{- $gitFloor := list -}}
+{{- $laFloor := list -}}
+{{- range $f := $floors -}}
+{{-   if contains "LaunchAgents" $f -}}{{-   $laFloor = append $laFloor $f -}}{{-   else -}}{{-   $gitFloor = append $gitFloor $f -}}{{-   end -}}
+{{- end -}}
+{{- $wtGrants := list -}}
+{{- range $w := (index $sharedSb "filesystem" "write" | default list) -}}
+{{-   if contains "/.claude/worktrees/" $w -}}{{-   $wtGrants = append $wtGrants $w -}}{{-   end -}}
+{{- end -}}
+{{- $authDeny := index (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.permissions.filesystem.paths" "required" true) | mustFromJson) "claude_auth_files" | default list -}}
+{{- $floorAgents := list -}}
+{{- range $a := $nonoAgents -}}{{- $floorAgents = append $floorAgents $a.name -}}{{- end -}}
+{{- if get .toolchains "claude" | default false -}}{{- $floorAgents = append $floorAgents "claude" -}}{{- end -}}
+
+# bats test_tags=kind:nono
+@test "the shared write floors END every agent profile and command sandbox; the narrowed claude_auth deny leaves the worktree grant live" {
+  # Toolchain-independent pin (the claude-gated floor test above never runs on
+  # a claude-off host): every rendered agent profile (pi, opencode, omp,
+  # claude) ENDS with the expanded shared file-write floors (git-hooks +
+  # LaunchAgents), and every map-shaped command edge sandbox in base.json
+  # ends with them too (macOS seatbelt is last-match-wins, so a floor at the
+  # tail cannot be overridden by any agent-specific/raw rule after it; the
+  # renderer strips the raw axis on Linux, where the launcher refuses guarded
+  # launches — no raw rules may render there).
+  # Deny/allow interaction pin: the shared **/.claude/worktrees/** write grant
+  # and the narrowed claude_auth_files deny (project entry = settings files,
+  # mirroring claude.toml's seatbelt regex) BOTH render in the pi/opencode/omp
+  # profiles; deny beats grant, so the render-shape check alone is not enough
+  # — the glob probe below asserts the grant is LIVE (see the probe comment).
+  local agents=( {{ range $n := $floorAgents }}"{{ $n }}" {{ end }})
+  [ "${#agents[@]}" -gt 0 ] || skip "no agent nono profiles on this host"
+  # Non-vacuity: the source-derived floors carry BOTH named floors — empty
+  # floor data would satisfy every tail/all check below vacuously.
+  run jq -e -n --argjson hooks '{{ $gitFloor | toJson }}' --argjson la '{{ $laFloor | toJson }}' '
+    ($hooks | length) > 0 and ($la | length) > 0'
+  assert_success
+  local a f
+  for a in "${agents[@]}"; do
+    f="{{ $nonoProfiles }}/$a.json"
+    assert_file_exists "$f"
+{{- if eq .chezmoi.os "darwin" }}
+    # The expanded shared floors are the LAST raw rules of the profile.
+    run jq -e --argjson floors '{{ $floorsExp | toJson }}' '
+      (.unsafe_macos_seatbelt_rules // []) as $u |
+      ($floors | length) > 0 and
+      ($u | length) >= ($floors | length) and
+      ($u[($u | length) - ($floors | length):] == $floors)
+    ' "$f"
+    assert_success
+{{- else }}
+    # Linux: launcher fail-closed, so no raw seatbelt rules render.
+    run jq -e '((.unsafe_macos_seatbelt_rules // []) | length) == 0' "$f"
+    assert_success
+{{- end }}
+    if [ "$a" != claude ]; then
+      run jq -e --argjson grant '{{ $wtGrants | toJson }}' --argjson deny '{{ $authDeny | toJson }}' --argjson roots "$(collapseRoots '{{ $authDeny | toJson }}')" '
+        . as $r |
+        # Collapse-aware deny presence (see collapseRoots): the native glob, or
+        # the dir-literal that this host apply collapsed it to — the literal
+        # must be the root prefix of that glob, never just any string.
+        # (No apostrophes in this comment: it lives inside a single-quoted jq.)
+        def kept($d): (($r.filesystem.deny | index($d)) != null) or
+          (($d | startswith("~/")) and ($d | endswith("/**")) and
+            (($d | rtrimstr("/**")) as $root |
+              (any($roots[]; . == $root)) and (($r.filesystem.deny | index($root)) != null)));
+        (all($grant[]; . as $g | ($r.filesystem.allow | index($g)) != null)) and
+        (all($deny[]; kept(.)))
+      ' "$f"
+      assert_success
+      # Glob interaction probe (doublestar semantics: ** crosses '/', * does
+      # not; full-path match): the grant MATCHES a sample project worktree
+      # path and NO rendered deny glob matches it (grant live, not shadowed
+      # by a broad claude deny), while the narrowed claude_auth_files deny
+      # still matches a sample project settings file.
+      run jq -e --argjson grant '{{ $wtGrants | toJson }}' --argjson deny '{{ $authDeny | toJson }}' '
+        def g2r:
+          gsub("\\*\\*/"; "\u0001")
+          | gsub("\\*\\*"; "\u0002")
+          | gsub("\\*"; "\u0003")
+          | gsub("\\?"; "\u0004")
+          | gsub("(?<c>[.+\\[\\]^${}()|\\\\])"; "\u005c\(.c)")
+          | gsub("\u0001"; "(.*/)?")
+          | gsub("\u0002"; ".*")
+          | gsub("\u0003"; "[^/]*")
+          | gsub("\u0004"; "[^/]");
+        def matches($p): ("^" + g2r + "$") as $re | ($p | test($re));
+        .filesystem.deny as $d |
+        (all($grant[]; matches("proj/.claude/worktrees/demo/app.py"))) and
+        (any($d[]; matches("proj/.claude/worktrees/demo/app.py")) | not) and
+        (any($deny[]; matches("proj/.claude/settings.local.json")))
+      ' "$f"
+      assert_success
+    fi
+  done
+{{- if eq .chezmoi.os "darwin" }}
+  # Every map-shaped command edge (from.session today, any future
+  # from.<caller> map) carries a sandbox whose raw rules END with the
+  # expanded shared floors; string "deny" edges (chezmoi, brew) have no
+  # sandbox to check and are pinned deny-only in the control-axis test.
+  run jq -e --argjson floors '{{ $floorsExp | toJson }}' '
+    all(.command_policies.commands[].from[] | select(type == "object");
+      (.sandbox | type) == "object" and
+      ((.sandbox.unsafe_macos_seatbelt_rules // []) as $u |
+        ($u | length) >= ($floors | length) and
+        ($u[($u | length) - ($floors | length):] == $floors)))
+  ' "{{ $nonoProfiles }}/base.json"
+  assert_success
+{{- else }}
+  # Linux: no raw seatbelt rules in any command sandbox (launcher fail-closed).
+  run jq -e '([.command_policies.commands[].from[] | select(type == "object")
+    | (.sandbox.unsafe_macos_seatbelt_rules // []) | length] | add // 0) == 0' \
+    "{{ $nonoProfiles }}/base.json"
+  assert_success
+{{- end }}
+}
+{{- /* Case-fold probe: grep -E is a lexical regex simulation over the rule
+       extracted from the shared data, on literal synthetic paths. It proves
+       the pattern shape only; SBPL flavor and host-kernel matching are NOT
+       proven here — live macOS seatbelt enforcement requires host-terminal
+       verification. The bracket classes avoid depending on any inline SBPL case
+       flag; APFS is commonly case-insensitive. */ -}}
+{{- $gitRe := "" -}}
+{{- range $f := $gitFloor -}}{{- $gitRe = trimSuffix `"))` (trimPrefix `(deny file-write* (regex #"` $f) -}}{{- end -}}
+{{- if eq .chezmoi.os "darwin" }}
+
+# bats test_tags=kind:nono
+@test "git-hooks floor regex case-folds .git/modules/hooks on literal paths" {
+  local re='{{ $gitRe }}' want p
+  case $re in
+    '' | *'deny file-write'*) printf 'git-floor regex extraction failed (trimPrefix/trimSuffix marker missing)\n'; return 1 ;;
+  esac
+  local cases='match|repo/.git/hooks/pre-commit
+match|REPO/.GIT/HOOKS/pre-commit
+match|Repo/.Git/hooks/pre-commit
+match|bare/foo.git/hooks/pre-commit
+match|bare/FOO.GIT/Hooks/pre-commit
+match|repo/.git/modules/sub/hooks/pre-commit
+match|repo/.git/modules/Ext/Modules/deep/HOOks/pre-commit
+nomatch|repo/hooks/pre-commit
+nomatch|repo/src/git/hooks/pre-commit
+nomatch|repo/.gitmodules
+nomatch|repo/.gitignore/hooks/pre-commit
+nomatch|repo/.git/worktrees/demo/hooks/pre-commit'
+  while IFS='|' read -r want p; do
+    [ -n "$p" ] || continue
+    if printf '%s' "$p" | grep -Eq -- "$re"; then
+      [ "$want" = match ] || { printf 'git floor OVERMATCHES %s\n' "$p"; return 1; }
+    else
+      [ "$want" = nomatch ] || { printf 'git floor MISSES %s\n' "$p"; return 1; }
+    fi
+  done <<<"$cases"
+}
+{{- end }}
+
+{{- if $creds.routes_enabled }}
+# bats test_tags=toolchain:claude,kind:nono
+@test "claude oauth token: anthropic route is env:// placeholder mechanics with no token literal in any profile" {
+  # The real CLAUDE_CODE_OAUTH_TOKEN is read supervisor-side (env://) and swapped
+  # by the proxy at api.anthropic.com; the sandbox sees only the placeholder. A
+  # rendered profile must never carry a token VALUE (route mechanics: env:// key,
+  # "Bearer {}" format template, deny_vars name only).
+  local profiles
+  profiles=$(echo "{{ $nonoProfiles }}"/*.json)
+  # Empty discovery (missing/empty dir) leaves the literal glob, grep exits 2,
+  # and assert_failure would pass vacuously on zero profiles scanned.
+  [ -f "{{ $nonoProfiles }}/base.json" ] || {
+    printf 'no rendered nono profiles under %s\n' "{{ $nonoProfiles }}"; return 1; }
+  run jq -e '
+    (.network.custom_credentials.anthropic // {}) as $c |
+    ($c.credential_key == "env://CLAUDE_CODE_OAUTH_TOKEN") and
+    ($c.credential_format == "Bearer {}")
+  ' "{{ $nonoProfiles }}/claude.json"
+  assert_success
+{{- if .toolchains.pi }}
+  # pi: pi-claude-bridge's claude child authenticates through the route.
+  run jq -e '
+    (.network.custom_credentials.anthropic // {}) as $c |
+    ($c.credential_key == "env://CLAUDE_CODE_OAUTH_TOKEN") and
+    ($c.credential_format == "Bearer {}") and
+    ((.network.credentials // []) | index("anthropic") != null)
+  ' "{{ $nonoProfiles }}/pi.json"
+  assert_success
+{{- end }}
+{{- if (get .toolchains "omp" | default false) }}
+  # omp: no bridge lane installed, so the OAuth token is not injectable
+  # here; the env stays scrubbed.
+  run jq -e '
+    ((.network.custom_credentials // {}) | has("anthropic") | not) and
+    ((.network.credentials // []) | index("anthropic") | not) and
+    (.environment.deny_vars | index("CLAUDE_CODE_OAUTH_TOKEN") != null)
+  ' "{{ $nonoProfiles }}/omp.json"
+  assert_success
+{{- end }}
+{{- if .toolchains.opencode }}
+  # opencode: no bridge wired, so the OAuth token is not injectable here.
+  run jq -e '
+    ((.network.custom_credentials // {}) | has("anthropic") | not) and
+    ((.network.credentials // []) | index("anthropic") | not)
+  ' "{{ $nonoProfiles }}/opencode.json"
+  assert_success
+{{- end }}
+  # No profile (incl. base) bakes a token literal.
+  run grep -lF 'sk-ant-' $profiles
+  assert_failure
 }
 {{- end }}
 

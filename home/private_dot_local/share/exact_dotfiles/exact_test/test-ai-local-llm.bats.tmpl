@@ -26,7 +26,8 @@ setup() {
 {{-     end }}
 {{-   end }}
 {{- end }}
-{{- $agentTiers := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.opencode.agent_tiers" "required" true) | mustFromJson }}
+{{- $agentTiers := dict }}
+{{- range $role, $rd := (includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.roles" "required" true) | mustFromJson) }}{{ $_ := set $agentTiers $role $rd.tier }}{{ end }}
 {{- $assignedTiers := values $agentTiers | uniq }}
 {{- $swapConfig := "$HOME/.config/llama-swap/config.yaml" }}
 {{- $llamaCppPreset := "$HOME/.config/llama.cpp/models.ini" }}
@@ -140,6 +141,13 @@ setup() {
   assert_success
   run grep -F 'export HF_HUB_CACHE="$HF_HOME/hub"' "$HOME/.config/shell/exports.d/ai-agents.sh"
   assert_success
+}
+
+# bats test_tags=toolchain:ai,kind:local-llm
+@test "global shell exports never set CLAUDE_CODE_TMPDIR (the launcher exports it per guarded launch)" {
+  assert_file_exists "$HOME/.config/shell/exports.d/ai-agents.sh"
+  run grep -F 'export CLAUDE_CODE_TMPDIR' "$HOME/.config/shell/exports.d/ai-agents.sh"
+  assert_failure
 }
 
 # bats test_tags=toolchain:ai,kind:local-llm

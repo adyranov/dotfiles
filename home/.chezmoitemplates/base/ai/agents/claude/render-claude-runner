@@ -1,0 +1,47 @@
+{{- /*
+  render-claude-runner — Map one tier of the active Claude preset to its runner.
+
+  Input (dict):
+    ctx   — the render-claude-context (claude data, tiers, roles, serving)
+    role  — role name in ctx.roles; its tier drives the route (tier may be
+            given directly instead, for tier-matrix callers; role also picks
+            the tools entry)
+    tier  — tier name (big|oracle|small|medium|visual), used when role is absent
+
+  Output (JSON): {kind: "subagent"|"duer", model, effort, tools?}
+    tier provider == tier_routing.native_provider  -> native subagent
+    tier provider is a serving key                 -> duer; a big/oracle route is
+      substituted with tier_routing.opus_model at the preset's thinking (big =
+      main agent, oracle = native Opus subagent)
+    effort = the tier's thinking; "off" renders as tier_routing.thinking_off_effort
+    tools = duers.role_tools[role] | default duers.tools for duers (the --tools
+    flag); native agents carry their own tools from the role files, so
+    subagents get no tools key
+*/ -}}
+{{- $claude := .ctx.claude -}}
+{{- $routing := $claude.tier_routing -}}
+{{- $role := get . "role" | default "" -}}
+{{- $tier := get . "tier" | default "" -}}
+{{- if $role -}}{{- $tier = (index .ctx.roles $role).tier -}}{{- end -}}
+{{- $route := index .ctx.tiers $tier -}}
+{{- if not $route -}}{{- fail (printf "claude runner: preset has no tier %q" $tier) -}}{{- end -}}
+{{- $provider := get $route "provider" | default "" -}}
+{{- $isNative := eq $provider $routing.native_provider -}}
+{{- $isServing := hasKey .ctx.serving $provider -}}
+{{- if not (or $isNative $isServing) -}}
+{{-   fail (printf "claude runner: tier %s provider %q is neither %q nor a serving endpoint" $tier $provider $routing.native_provider) -}}
+{{- end -}}
+{{- $effort := $route.thinking | default "off" -}}
+{{- if eq $effort "off" -}}{{- $effort = $routing.thinking_off_effort -}}{{- end -}}
+{{- $substituted := and $isServing (has $tier $routing.opus_substitution_tiers) -}}
+{{- $kind := "duer" -}}
+{{- $model := $route.model -}}
+{{- $result := dict -}}
+{{- if or $isNative $substituted -}}
+{{-   $kind = "subagent" -}}
+{{-   if $substituted -}}{{- $model = $routing.opus_model -}}{{- end -}}
+{{- else -}}
+{{-   $tools := index ($claude.duers.role_tools | default dict) $role | default $claude.duers.tools -}}
+{{-   $result = dict "tools" $tools -}}
+{{- end -}}
+{{- dict "kind" $kind "model" $model "effort" $effort | merge $result | toJson -}}

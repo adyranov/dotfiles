@@ -103,5 +103,9 @@ ehthumbs.db
 .slim/deepwork/
 # END oh-my-opencode-slim worktrees
 
+# BEGIN Claude Code native worktrees (agent claude -w)
+.claude/worktrees/
+# END Claude Code native worktrees
+
 # skill-scan ledger (local)
 .skill-scan.json

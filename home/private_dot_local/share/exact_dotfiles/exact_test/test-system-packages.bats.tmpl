@@ -38,6 +38,14 @@ setup() {
   assert_equal "{{ contains "openssh +fido2" $macportsPackages }}" "true"
   assert_equal "{{ contains "openssh" $brewPackages }}" "false"
 }
+{{- if .host.interactive }}
+
+# bats test_tags=suite:packages,mgr:macports
+@test "interactive Intel installs Azure CLI from MacPorts with a working az" {
+  run /opt/local/bin/az --version
+  assert_success
+}
+{{- end }}
 {{- else if eq .host.arch "arm64" }}
 # bats test_tags=suite:packages,kind:selector
 @test "arm64 Homebrew selects plain openssh without FIDO2 variants" {
@@ -51,8 +59,18 @@ setup() {
   assert_equal "{{ contains "gnupg2" $brewPackages }}" "false"
   assert_equal "{{ contains "gnupg" $brewPackages }}" "true"
 }
+{{- if .host.interactive }}
+
+# bats test_tags=suite:packages,mgr:brew
+@test "interactive arm64 installs the Azure CLI cask with a working az" {
+  run brew list --cask azure-cli
+  assert_success
+  run "$(brew --prefix)/bin/az" --version
+  assert_success
+}
+{{- end }}
 {{ end }}
-{{ end }}
+{{- end }}
 {{- /* Synthetic package map so routing assertions do not depend on real package data. */ -}}
 {{- $sel := dict
   "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "arm64" "interactive" true "restricted" false "type" "workstation" "profile" "personal")
@@ -61,7 +79,7 @@ setup() {
     "base" (dict "core" (dict
       "brew-only" (dict "manager" "brew")
       "system-default" (dict "manager" "system")
-      "port-only" (dict "manager" "macports" "exclude_arch" (list "arm64"))
+      "port-only" (dict "manager" "macports" "exclude" (dict "arch" (list "arm64")))
     ))
     "os" (dict)
     "profile" (dict)
@@ -71,7 +89,7 @@ setup() {
 {{- $selArmPort := includeTemplate "base/packages/collect-packages" (dict "root" $sel "manager" "macports" "format" "install") -}}
 {{- $selAmd64 := dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict) "packages" (index $sel "packages") -}}
 {{- $selAmd64Brew := includeTemplate "base/packages/collect-packages" (dict "root" $selAmd64 "manager" "brew" "format" "install") -}}
-{{- $selAmd64Port := includeTemplate "base/packages/collect-packages" (dict "root" $selAmd64 "manager" "macports" "format" "install") -}}
+{{- $selAmd64Port := includeTemplate "base/packages/collect-packages" (dict "root" $selAmd64 "manager" "macports" "format" "install") }}
 
 # bats test_tags=suite:packages,kind:selector
 @test "system packages route to Homebrew on arm64" {
@@ -94,11 +112,344 @@ TMPL
   assert_failure
 }
 
+{{- /* Real layered package data under synthetic hosts: Darwin cask routing, Intel MacPorts routing, Docker names. */ -}}
+{{- $dcPkgs := dict "base" (index .packages "base" | default dict) "os" (index .packages "os" | default dict) "profile" (index .packages "profile" | default dict) -}}
+{{- $dcDarwin := dict "distro" (dict "id" "darwin" "family" "darwin") "restricted" false "type" "workstation" "profile" "personal" -}}
+{{- $dcArm := merge (dict "arch" "arm64" "interactive" true) $dcDarwin -}}
+{{- $dcArmQuiet := merge (dict "arch" "arm64" "interactive" false) $dcDarwin -}}
+{{- $dcIntel := merge (dict "arch" "amd64" "interactive" true) $dcDarwin -}}
+{{- $dcIntelQuiet := merge (dict "arch" "amd64" "interactive" false) $dcDarwin -}}
+{{- $dcCloudDocker := dict "cloud" true "docker" true -}}
+{{- $dcArmRoot := dict "host" $dcArm "toolchains" $dcCloudDocker "packages" $dcPkgs "brew" .brew -}}
+{{- $dcArmNoCloudRoot := dict "host" $dcArm "toolchains" (dict "docker" true) "packages" $dcPkgs "brew" .brew -}}
+{{- $dcArmQuietRoot := dict "host" $dcArmQuiet "toolchains" $dcCloudDocker "packages" $dcPkgs "brew" .brew -}}
+{{- $dcIntelRoot := dict "host" $dcIntel "toolchains" $dcCloudDocker "packages" $dcPkgs "brew" .brew -}}
+{{- $dcIntelQuietRoot := dict "host" $dcIntelQuiet "toolchains" $dcCloudDocker "packages" $dcPkgs "brew" .brew -}}
+{{- $dcLinuxRoot := dict "host" (dict "distro" (dict "id" "ubuntu" "family" "linux") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" $dcCloudDocker "packages" $dcPkgs -}}
+{{- $dcLinuxNoCloudRoot := dict "host" (dict "distro" (dict "id" "ubuntu" "family" "linux") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict "docker" true) "packages" $dcPkgs -}}
+{{- $dcArmBrewfile := includeTemplate "os/darwin/brewfile" $dcArmRoot -}}
+{{- $dcArmWork := merge (dict "arch" "arm64" "interactive" true "profile" "work") $dcDarwin -}}
+{{- $dcArmWorkRoot := dict "host" $dcArmWork "toolchains" $dcCloudDocker "packages" $dcPkgs "brew" .brew -}}
+{{- $dcIntelWork := merge (dict "arch" "amd64" "interactive" true "profile" "work") $dcDarwin -}}
+{{- $dcIntelWorkRoot := dict "host" $dcIntelWork "toolchains" $dcCloudDocker "packages" $dcPkgs "brew" .brew -}}
+{{- $dcArmNoCloudBrewfile := includeTemplate "os/darwin/brewfile" $dcArmNoCloudRoot -}}
+{{- $dcArmQuietBrewfile := includeTemplate "os/darwin/brewfile" $dcArmQuietRoot -}}
+{{- $dcIntelBrewfile := includeTemplate "os/darwin/brewfile" $dcIntelRoot -}}
+{{- $dcIntelQuietBrewfile := includeTemplate "os/darwin/brewfile" $dcIntelQuietRoot -}}
+{{- $dcArmBrew := includeTemplate "base/packages/collect-packages" (dict "root" $dcArmRoot "manager" "brew" "format" "install") -}}
+{{- $dcArmBrewTest := includeTemplate "base/packages/collect-packages" (dict "root" $dcArmRoot "manager" "brew" "format" "test") -}}
+{{- $dcIntelBrew := includeTemplate "base/packages/collect-packages" (dict "root" $dcIntelRoot "manager" "brew" "format" "install") -}}
+{{- $dcIntelMacports := includeTemplate "base/packages/collect-packages" (dict "root" $dcIntelQuietRoot "manager" "macports" "format" "install") -}}
+{{- $dcLinuxSystem := includeTemplate "base/packages/collect-packages" (dict "root" $dcLinuxRoot "manager" "system" "format" "install") -}}
+{{- $dcLinuxNoCloud := includeTemplate "base/packages/collect-packages" (dict "root" $dcLinuxNoCloudRoot "manager" "system" "format" "install") -}}
+{{- $dcLinuxSystemTest := includeTemplate "base/packages/collect-packages" (dict "root" $dcLinuxRoot "manager" "system" "format" "test") -}}
+{{- $dcIntelPortsTest := includeTemplate "base/packages/collect-packages" (dict "root" $dcIntelRoot "manager" "macports" "format" "test") -}}
+{{- /* Synthetic brew layers: name-keyed casks merge across layers, so the arch-selected Darwin cask and profile casks coexist, and a profile exclusion on an OS cask cannot resurrect it there. */ -}}
+{{- $dcLayerBrew := dict
+  "base" (dict)
+  "os" (dict "darwin" (dict "casks" (dict
+    "Arm64 Cask" (dict "include" (dict "arch" (list "arm64")))
+    "Shared Cask" (dict)
+    "Personal-Only Cask" (dict "exclude" (dict "profile" (list "personal")))
+  )))
+  "profile" (dict
+    "personal" (dict "casks" (dict "Personal Cask" (dict)))
+    "work" (dict "casks" (dict "Arm64 Cask" (dict "exclude" (dict "profile" (list "work")))))
+  )
+-}}
+{{- $dcLayerPkgs := dict "base" (dict) "os" (dict) "profile" (dict) -}}
+{{- $dcLayerPersonalArm := includeTemplate "os/darwin/brewfile" (dict "host" $dcArm "toolchains" $dcCloudDocker "packages" $dcLayerPkgs "brew" $dcLayerBrew) -}}
+{{- $dcLayerPersonalIntel := includeTemplate "os/darwin/brewfile" (dict "host" $dcIntel "toolchains" $dcCloudDocker "packages" $dcLayerPkgs "brew" $dcLayerBrew) -}}
+{{- $dcLayerWork := includeTemplate "os/darwin/brewfile" (dict "host" $dcArmWork "toolchains" $dcCloudDocker "packages" $dcLayerPkgs "brew" $dcLayerBrew) -}}
+{{- $dcIntelNoCloudRoot := dict "host" $dcIntel "toolchains" (dict "docker" true) "packages" $dcPkgs "brew" .brew -}}
+{{- $dcIntelPorts := includeTemplate "base/packages/collect-packages" (dict "root" $dcIntelRoot "manager" "macports" "format" "install") -}}
+{{- $dcIntelWorkPorts := includeTemplate "base/packages/collect-packages" (dict "root" $dcIntelWorkRoot "manager" "macports" "format" "install") -}}
+{{- $dcIntelNoCloudPorts := includeTemplate "base/packages/collect-packages" (dict "root" $dcIntelNoCloudRoot "manager" "macports" "format" "install") -}}
+{{- $dcArmPorts := includeTemplate "base/packages/collect-packages" (dict "root" $dcArmRoot "manager" "macports" "format" "install") }}
+
+# bats test_tags=suite:packages,kind:selector
+@test "interactive ARM emits exactly one Azure CLI cask on every profile and without the cloud toolchain" {
+  assert_equal "{{ len (regexFindAll "cask \"azure-cli\"" $dcArmBrewfile -1) }}" "1"
+  assert_equal "{{ len (regexFindAll "cask \"azure-cli\"" (includeTemplate "os/darwin/brewfile" $dcArmWorkRoot) -1) }}" "1"
+  # The cask comes from the brew data domain, so the cloud toolchain is not required.
+  assert_equal "{{ len (regexFindAll "cask \"azure-cli\"" $dcArmNoCloudBrewfile -1) }}" "1"
+  # Name-keyed Darwin casks merge with the profile casks; Intel skips the arm64 cask, other profiles skip personal casks.
+  assert_equal "{{ contains "cask \"Arm64 Cask\"" $dcLayerPersonalArm }}" "true"
+  assert_equal "{{ contains "cask \"Personal Cask\"" $dcLayerPersonalArm }}" "true"
+  assert_equal "{{ contains "cask \"Arm64 Cask\"" $dcLayerPersonalIntel }}" "false"
+  assert_equal "{{ contains "cask \"Personal Cask\"" $dcLayerPersonalIntel }}" "true"
+  # The work profile excludes the OS-level Arm64 cask there without removing it from personal hosts.
+  assert_equal "{{ contains "cask \"Arm64 Cask\"" $dcLayerWork }}" "false"
+  assert_equal "{{ contains "cask \"Personal Cask\"" $dcLayerWork }}" "false"
+  # A cask excluded for the personal profile stays absent there while the OS-level cask keeps working on work hosts.
+  assert_equal "{{ contains "cask \"Shared Cask\"" $dcLayerPersonalArm }}" "true"
+  assert_equal "{{ contains "cask \"Shared Cask\"" $dcLayerWork }}" "true"
+  assert_equal "{{ contains "cask \"Personal-Only Cask\"" $dcLayerPersonalArm }}" "false"
+  assert_equal "{{ contains "cask \"Personal-Only Cask\"" $dcLayerWork }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "interactive Intel emits no Azure CLI cask and provisions it from MacPorts on every profile and without the cloud toolchain" {
+  assert_equal "{{ len (regexFindAll "cask \"azure-cli\"" $dcIntelBrewfile -1) }}" "0"
+  assert_equal "{{ len (regexFindAll "cask \"azure-cli\"" (includeTemplate "os/darwin/brewfile" $dcIntelWorkRoot) -1) }}" "0"
+  # The core package is independent of the cloud toolchain.
+  assert_equal "{{ contains "azure-cli" $dcIntelPorts }}" "true"
+  assert_equal "{{ contains "azure-cli" $dcIntelWorkPorts }}" "true"
+  assert_equal "{{ contains "azure-cli" $dcIntelNoCloudPorts }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "macOS never selects an Azure CLI Homebrew formula on either architecture" {
+  assert_equal "{{ contains "brew \"azure-cli\"" $dcArmBrewfile }}" "false"
+  assert_equal "{{ contains "brew \"azure-cli\"" $dcIntelBrewfile }}" "false"
+  assert_equal "{{ contains "azure-cli" $dcArmBrew }}" "false"
+  assert_equal "{{ contains "azure-cli" $dcIntelBrew }}" "false"
+  assert_equal "{{ contains "azure-cli" $dcArmPorts }}" "false"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "headless Darwin emits no casks and no Azure CLI" {
+  assert_equal "{{ contains "cask \"" $dcArmQuietBrewfile }}" "false"
+  assert_equal "{{ contains "cask \"" $dcIntelQuietBrewfile }}" "false"
+  assert_equal "{{ contains "azure-cli" $dcArmQuietBrewfile }}" "false"
+  assert_equal "{{ contains "azure-cli" $dcIntelQuietBrewfile }}" "false"
+  assert_equal "{{ contains "azure-cli" $dcIntelMacports }}" "false"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "Intel installs Docker plugins from MacPorts including headless" {
+  assert_equal "{{ contains "docker-buildx-plugin" $dcIntelMacports }}" "true"
+  assert_equal "{{ contains "docker-compose-plugin" $dcIntelMacports }}" "true"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "arm64 Docker uses Homebrew formula names probed through the docker CLI" {
+  assert_equal "{{ contains "docker-buildx" $dcArmBrew }}" "true"
+  assert_equal "{{ contains "docker-compose" $dcArmBrew }}" "true"
+  assert_equal "{{ contains "docker-buildx-plugin" $dcArmBrew }}" "false"
+  assert_equal "{{ contains "docker-compose-plugin" $dcArmBrew }}" "false"
+  assert_equal "{{ contains "docker buildx version" $dcArmBrewTest }}" "true"
+  assert_equal "{{ contains "docker compose version" $dcArmBrewTest }}" "true"
+}
+
+{{- /* Synthetic brew root with no casks: Docker packages must not depend on the Rancher cask. */ -}}
+{{- $dcNoRancherBrew := dict "base" (dict) "os" (dict "darwin" (dict "taps" (list))) "profile" (dict) -}}
+{{- $dcNoRancherArmRoot := dict "host" $dcArm "toolchains" $dcCloudDocker "packages" $dcPkgs "brew" $dcNoRancherBrew -}}
+{{- $dcNoRancherIntelRoot := dict "host" $dcIntel "toolchains" $dcCloudDocker "packages" $dcPkgs "brew" $dcNoRancherBrew -}}
+{{- $dcNoRancherArmBrew := includeTemplate "base/packages/collect-packages" (dict "root" $dcNoRancherArmRoot "manager" "brew" "format" "install") -}}
+{{- $dcNoRancherIntelPorts := includeTemplate "base/packages/collect-packages" (dict "root" $dcNoRancherIntelRoot "manager" "macports" "format" "install") -}}
+{{- $dcNoRancherArmBrewfile := includeTemplate "os/darwin/brewfile" $dcNoRancherArmRoot }}
+
+# bats test_tags=suite:packages,kind:selector
+@test "Linux selects Azure only with the cloud toolchain and keeps its Docker port names" {
+  assert_equal "{{ contains (printf " %s " "azure-cli") (printf " %s " $dcLinuxSystem) }}" "true"
+  assert_equal "{{ contains (printf " %s " "azure-cli") (printf " %s " $dcLinuxNoCloud) }}" "false"
+  # The Linux Azure test association stays on the cloud toolchain tag.
+  assert_equal "{{ contains (printf "toolchain:%s" "cloud") $dcLinuxSystemTest }}" "true"
+  # Intel MacPorts Azure keeps the core toolchain tag (it is a core entry by host attributes).
+  assert_equal "{{ contains (printf "pkg:%s" "azure-cli") $dcIntelPortsTest }}" "true"
+  assert_equal "{{ contains (printf "toolchain:%s" "cloud") $dcIntelPortsTest }}" "false"
+  assert_equal "{{ contains "docker-buildx-plugin" $dcLinuxSystem }}" "true"
+  assert_equal "{{ contains "docker-compose-plugin" $dcLinuxSystem }}" "true"
+  assert_equal "{{ contains "-arm64" $dcLinuxSystem }}" "false"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "Docker CLI and both plugins are selected independently of the Rancher Desktop cask" {
+  # No casks inventory at all (no Rancher): the package selections stand.
+  assert_equal "{{ contains (printf " %s " "docker") (printf " %s " $dcNoRancherArmBrew) }}" "true"
+  assert_equal "{{ contains (printf " %s " "docker-buildx") (printf " %s " $dcNoRancherArmBrew) }}" "true"
+  assert_equal "{{ contains (printf " %s " "docker-compose") (printf " %s " $dcNoRancherArmBrew) }}" "true"
+  assert_equal "{{ contains "rancher" $dcNoRancherArmBrewfile }}" "false"
+  assert_equal "{{ contains (printf " %s " "docker") (printf " %s " $dcNoRancherIntelPorts) }}" "true"
+  assert_equal "{{ contains "docker-buildx-plugin" $dcNoRancherIntelPorts }}" "true"
+  assert_equal "{{ contains "docker-compose-plugin" $dcNoRancherIntelPorts }}" "true"
+}
+
+{{- /* One synthetic entry per selector axis plus combination/precedence corners, evaluated on a
+  work + linux + ubuntu + arm64 + headless + rootless + ephemeral host with cloud enabled. */ -}}
+{{- $axBrew := dict "manager" "brew" -}}
+{{- $axPkgs := dict "base" (dict "core" (dict
+  "a1" (merge (dict "include" (dict "profile" (list "work"))) $axBrew)
+  "a2" (merge (dict "include" (dict "os" (list "linux"))) $axBrew)
+  "a3" (merge (dict "include" (dict "distro" (list "ubuntu"))) $axBrew)
+  "a4" (merge (dict "include" (dict "arch" (list "arm64"))) $axBrew)
+  "a5" (merge (dict "include" (dict "mode" (list "headless"))) $axBrew)
+  "a6" (merge (dict "include" (dict "privilege" (list "rootless"))) $axBrew)
+  "a7" (merge (dict "include" (dict "type" (list "ephemeral"))) $axBrew)
+  "a8" (merge (dict "include" (dict "toolchains" (list "cloud"))) $axBrew)
+  "a9" (merge (dict "include" (dict "arch" (list "amd64") "mode" (list "interactive"))) $axBrew)
+  "a10" (merge (dict "exclude" (dict "mode" (list "headless")) "include" (dict "mode" (list "headless"))) $axBrew)
+  "a11" (merge (dict "include" (dict "arch" (list))) $axBrew)
+)) "os" (dict) "profile" (dict) -}}
+{{- $axHost := dict "arch" "arm64" "distro" (dict "id" "ubuntu" "family" "linux") "interactive" false "profile" "work" "restricted" true "type" "ephemeral" -}}
+{{- $axBrewList := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $axHost "toolchains" (dict "cloud" true) "packages" $axPkgs) "manager" "brew" "format" "install") }}
+
+# bats test_tags=suite:packages,kind:selector
+@test "selectors match every axis with OR inside an axis and exclusion winning" {
+  # a1-a8 match their axis (host: work, linux, ubuntu, arm64, headless, rootless, ephemeral, cloud).
+  # a9 fails AND (amd64+interactive); a10 is excluded (exclude wins over include); a11 has an empty axis.
+  assert_equal "{{ $axBrewList }}" "a1 a11 a2 a3 a4 a5 a6 a7 a8"
+}
+
+{{- $varPkgs := dict "base" (dict "core" (dict
+  "reenabled" (dict "disabled" true "manager" "brew" "variants" (list (dict "include" (dict "profile" (list "work")) "disabled" false)))
+  "still-disabled" (dict "disabled" true "manager" "brew" "variants" (list (dict "include" (dict "profile" (list "personal")) "disabled" false)))
+  "keepeexclude" (dict "exclude" (dict "arch" (list "arm64")) "manager" "brew" "variants" (list (dict "include" (dict "profile" (list "work")) "package" "cleared-name")))
+  "laterwins" (dict "manager" "brew" "variants" (list (dict "package" "first") (dict "include" (dict "arch" (list "arm64")) "package" "second")))
+  "mgrreset" (dict "manager" "mise" "package" "provider-name")
+  "mgrname" (dict "manager" "mise" "package" "provider-name")
+)) "os" (dict "ubuntu" (dict "core" (dict
+  "mgrreset" (dict "manager" "system")
+  "mgrname" (dict "manager" "system" "package" "explicit-name")
+))) "profile" (dict "work" (dict "core" (dict "laterwins" (dict "package" "profile-layer")))) -}}
+{{- $varBrewList := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $axHost "toolchains" (dict) "packages" $varPkgs) "manager" "brew" "format" "install") -}}
+{{- $varSystemList := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $axHost "toolchains" (dict) "packages" $varPkgs) "manager" "system" "format" "install") }}
+
+# bats test_tags=suite:packages,kind:selector
+@test "variants honor explicit false, apply in order, and reset inherited names on manager change" {
+  # reenabled (variant flips disabled=true); keepeexclude keeps its entry exclude (a matching
+  # variant's include is only its match predicate); laterwins -> the profile layer's name wins
+  # over both matching variants (second then profile-layer).
+  assert_equal "{{ $varBrewList }}" "profile-layer reenabled"
+  assert_equal "{{ contains "cleared-name" $varBrewList }}" "false"
+  # still-disabled stays absent; mgrreset loses provider-name (id used); mgrname keeps the explicit name.
+  assert_equal "{{ $varSystemList }}" "explicit-name mgrreset"
+}
+
+{{- /* Bug reproductions: entry selectors survive a matching variant, layer selector maps
+  merge axis-wise, and the manager-change reset uses unbounded application ordering. */ -}}
+{{- $persBrew := dict "manager" "brew" -}}
+{{- $persPkgs := dict "base" (dict "core" (dict
+  "widget" (merge (dict "include" (dict "profile" (list "work")) "variants" (list (dict "include" (dict "arch" (list "arm64")) "package" "widget-arm"))) $persBrew)
+  "cross" (merge (dict "exclude" (dict "profile" (list "personal"))) $persBrew)
+)) "os" (dict "ubuntu" (dict "core" (dict "cross" (dict "exclude" (dict "arch" (list "amd64")))))) "profile" (dict) -}}
+{{- $persPersonal := dict "arch" "arm64" "distro" (dict "id" "ubuntu" "family" "linux") "interactive" true "profile" "personal" "restricted" false "type" "workstation" -}}
+{{- $persWork := dict "arch" "arm64" "distro" (dict "id" "ubuntu" "family" "linux") "interactive" true "profile" "work" "restricted" false "type" "workstation" -}}
+{{- $persIntelWork := dict "arch" "amd64" "distro" (dict "id" "ubuntu" "family" "linux") "interactive" true "profile" "work" "restricted" false "type" "workstation" -}}
+{{- $persP := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $persPersonal "toolchains" (dict) "packages" $persPkgs) "manager" "brew" "format" "install") -}}
+{{- $persW := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $persWork "toolchains" (dict) "packages" $persPkgs) "manager" "brew" "format" "install") -}}
+{{- $persIW := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $persIntelWork "toolchains" (dict) "packages" $persPkgs) "manager" "brew" "format" "install") }}
+
+# bats test_tags=suite:packages,kind:selector
+@test "entry selectors survive a matching variant and merge axis-wise across layers" {
+  # base include profile=work is not overwritten by the matching arm64 variant, and the base
+  # exclude profile=personal keeps applying next to the OS layer's exclude arch=amd64.
+  assert_equal "{{ $persP }}" ""
+  assert_equal "{{ $persW }}" "cross widget-arm"
+  assert_equal "{{ $persIW }}" "widget"
+}
+
+{{- $widePkgs := dict "base" (dict "core" (dict "widget" (dict "manager" "mise" "package" "provider-name" "variants" (list
+  (dict "include" (dict "profile" (list "n1")))
+  (dict "include" (dict "profile" (list "n2")))
+  (dict "include" (dict "profile" (list "n3")))
+  (dict "include" (dict "profile" (list "n4")))
+  (dict "include" (dict "profile" (list "n5")))
+  (dict "include" (dict "profile" (list "n6")))
+  (dict "include" (dict "profile" (list "n7")))
+  (dict "include" (dict "profile" (list "n8")))
+  (dict "include" (dict "profile" (list "n9")))
+  (dict "include" (dict "profile" (list "n10")))
+  (dict "package" "github:wrong-provider")
+)))) "os" (dict "ubuntu" (dict "core" (dict "widget" (dict "manager" "system")))) "profile" (dict) -}}
+{{- $wideList := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $persWork "toolchains" (dict) "packages" $widePkgs) "manager" "system" "format" "install") }}
+
+# bats test_tags=suite:packages,kind:selector
+@test "manager-change name reset survives more than ten base-layer variants" {
+  # The 11th (matching) variant supplies the provider name; the Ubuntu manager change resets to the id.
+  assert_equal "{{ $wideList }}" "widget"
+}
+
+{{- $clearBrew := dict
+  "base" (dict)
+  "os" (dict "darwin" (dict "casks" (dict "Clearable Cask" (dict "include" (dict "arch" (list "arm64"))))))
+  "profile" (dict "personal" (dict "casks" (dict "Clearable Cask" (dict "include" (dict "arch" (list))))))
+-}}
+{{- $clearIntelPersonal := includeTemplate "os/darwin/brewfile" (dict "host" $dcIntel "toolchains" $dcCloudDocker "packages" $dcLayerPkgs "brew" $clearBrew) -}}
+{{- $clearIntelWork := includeTemplate "os/darwin/brewfile" (dict "host" $dcIntelWork "toolchains" $dcCloudDocker "packages" $dcLayerPkgs "brew" $clearBrew) }}
+
+# bats test_tags=suite:packages,kind:selector
+@test "an explicitly empty cask axis in the profile layer clears the OS cask constraint there" {
+  assert_equal "{{ contains "cask \"Clearable Cask\"" $clearIntelPersonal }}" "true"
+  assert_equal "{{ contains "cask \"Clearable Cask\"" $clearIntelWork }}" "false"
+}
+
+{{- $goHostQuiet := dict "arch" "amd64" "distro" (dict "id" "ubuntu" "family" "linux") "interactive" false "profile" "personal" "restricted" false "type" "workstation" -}}
+{{- $goHostRestricted := dict "arch" "amd64" "distro" (dict "id" "ubuntu" "family" "linux") "interactive" true "profile" "personal" "restricted" true "type" "workstation" -}}
+{{- $goTc := dict "extra" true -}}
+{{- $goQuiet := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $goHostQuiet "toolchains" $goTc "packages" $dcPkgs) "manager" "system" "format" "install") -}}
+{{- $goRestricted := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $goHostRestricted "toolchains" $goTc "packages" $dcPkgs) "manager" "system" "format" "install") -}}
+{{- $goInteractive := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" (dict "arch" "amd64" "distro" (dict "id" "ubuntu" "family" "linux") "interactive" true "profile" "personal" "restricted" false "type" "workstation") "toolchains" $goTc "packages" $dcPkgs) "manager" "system" "format" "install") }}
+
+# bats test_tags=suite:packages,kind:selector
+@test "gocryptfs selection is unchanged: headless and rootless-policy hosts exclude it" {
+  assert_equal "{{ contains (printf " %s " "gocryptfs") (printf " %s " $goInteractive) }}" "true"
+  assert_equal "{{ contains (printf " %s " "gocryptfs") (printf " %s " $goQuiet) }}" "false"
+  assert_equal "{{ contains (printf " %s " "gocryptfs") (printf " %s " $goRestricted) }}" "false"
+}
+
+{{- $dcFullTc := dict "cloud" true "docker" true "extra" true -}}
+{{- $canArmRoot := dict "host" $dcArm "toolchains" $dcFullTc "packages" $dcPkgs "brew" .brew -}}
+{{- $canIntelRoot := dict "host" $dcIntel "toolchains" $dcFullTc "packages" $dcPkgs "brew" .brew -}}
+{{- $armFirst := includeTemplate "base/packages/collect-packages" (dict "root" $canArmRoot "manager" "brew" "format" "install") -}}
+{{- $intelFirst := includeTemplate "base/packages/collect-packages" (dict "root" $canIntelRoot "manager" "macports" "format" "install") -}}
+{{- $armSecond := includeTemplate "base/packages/collect-packages" (dict "root" $canArmRoot "manager" "brew" "format" "install") -}}
+{{- $intelSecond := includeTemplate "base/packages/collect-packages" (dict "root" $canIntelRoot "manager" "macports" "format" "install") }}
+
+# bats test_tags=suite:packages,kind:selector
+@test "package ids are canonical and renders from shared input are order-independent" {
+  # Whole-token comparison: "openssh" must not match "openssh-client" and vice versa.
+  assert_equal "{{ contains (printf " %s " "openssh") (printf " %s " $armFirst) }}" "true"
+  assert_equal "{{ contains (printf " %s " "openssh-client") (printf " %s " $armFirst) }}" "false"
+  assert_equal "{{ contains (printf " %s " "openssh +fido2") (printf " %s " $intelFirst) }}" "true"
+  assert_equal "{{ contains (printf " %s " "openssh-client") (printf " %s " $intelFirst) }}" "false"
+  # All five former -arm64 twins resolve under their canonical ids only.
+  assert_equal "{{ contains "-arm64" $armFirst }}" "false"
+  assert_equal "{{ contains "-arm64" $intelFirst }}" "false"
+  assert_equal "{{ contains (printf " %s " "gnupg") (printf " %s " $armFirst) }}" "true"
+  assert_equal "{{ contains (printf " %s " "ykman") (printf " %s " $armFirst) }}" "true"
+  assert_equal "{{ contains (printf " %s " "docker-buildx") (printf " %s " $armFirst) }}" "true"
+  assert_equal "{{ contains (printf " %s " "docker-compose") (printf " %s " $armFirst) }}" "true"
+  # Intel and ARM rendered in both orders from the same data give identical results.
+  assert_equal "{{ $armFirst }}" "{{ $armSecond }}"
+  assert_equal "{{ $intelFirst }}" "{{ $intelSecond }}"
+}
+
+# bats test_tags=suite:packages,kind:selector
+@test "malformed selectors and migrated selector forms fail template rendering" {
+  run chezmoi execute-template 2>/dev/null <<'TMPL'
+{{ "{{" }}- $root := dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict) "packages" (dict "base" (dict "core" (dict "bad-axis" (dict "include" (dict "nope" (list "x"))))) "os" (dict) "profile" (dict)) -}}
+{{ "{{" }} includeTemplate "base/packages/walk" (dict "root" $root) }}
+TMPL
+  assert_failure
+  run chezmoi execute-template 2>/dev/null <<'TMPL'
+{{ "{{" }}- $root := dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict) "packages" (dict "base" (dict "core" (dict "bad-value" (dict "exclude" (dict "arch" "arm64")))) "os" (dict) "profile" (dict)) -}}
+{{ "{{" }} includeTemplate "base/packages/walk" (dict "root" $root) }}
+TMPL
+  assert_failure
+  run chezmoi execute-template 2>/dev/null <<'TMPL'
+{{ "{{" }}- $root := dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict) "packages" (dict "base" (dict "core" (dict "legacy-disabled" (dict "disabled" (list "headless")))) "os" (dict) "profile" (dict)) -}}
+{{ "{{" }} includeTemplate "base/packages/walk" (dict "root" $root) }}
+TMPL
+  assert_failure
+  run chezmoi execute-template 2>/dev/null <<'TMPL'
+{{ "{{" }}- $root := dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "arm64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict) "packages" (dict "base" (dict "core" (dict "false-selector" (dict "include" false))) "os" (dict) "profile" (dict)) -}}
+{{ "{{" }} includeTemplate "base/packages/walk" (dict "root" $root) }}
+TMPL
+  assert_failure
+  run chezmoi execute-template 2>/dev/null <<'TMPL'
+{{ "{{" }}- $root := dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "arm64" "interactive" true "restricted" false "type" "workstation" "profile" "personal") "toolchains" (dict) "packages" (dict "base" (dict) "os" (dict) "profile" (dict)) "brew" (dict "base" (dict) "os" (dict "darwin" (dict "casks" (list "legacy-list-cask"))) "profile" (dict)) -}}
+{{ "{{" }} includeTemplate "os/darwin/brewfile" $root }}
+TMPL
+  assert_failure
+}
+
 {{- /* Synthetic roots so bootstrap/install rendering is asserted without depending on the host architecture or Darwin package data. */ -}}
-{{- $u2Brew := dict "path" "/opt/homebrew/bin/brew" "base" (dict "casks" (list "Example Cask") "mas" (list (dict "id" 123 "name" "Example"))) "os" (dict) "profile" (dict) -}}
+{{- $u2Brew := dict "path" "/opt/homebrew/bin/brew" "base" (dict "casks" (dict "Example Cask" (dict)) "mas" (list (dict "id" 123 "name" "Example"))) "os" (dict) "profile" (dict) -}}
 {{- $u2IntelHost := dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" true "restricted" false "type" "workstation" "profile" "personal" -}}
 {{- $u2ArmHost := dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "arm64" "interactive" true "restricted" false "type" "workstation" "profile" "personal" -}}
-{{- $u2PortPkgs := dict "base" (dict "core" (dict "port-only" (dict "manager" "macports" "exclude_arch" (list "arm64")) "mas" (dict "manager" "brew") "llamacpp" (dict "manager" "brew" "package" "adyranov/tap/llama-cpp"))) "os" (dict) "profile" (dict) -}}
+{{- $u2PortPkgs := dict "base" (dict "core" (dict "port-only" (dict "manager" "macports" "exclude" (dict "arch" (list "arm64"))) "mas" (dict "manager" "brew") "llamacpp" (dict "manager" "brew" "package" "adyranov/tap/llama-cpp"))) "os" (dict) "profile" (dict) -}}
 {{- $u2BrewPkgs := dict "base" (dict "core" (dict "mise-only" (dict "manager" "mise"))) "os" (dict) "profile" (dict) -}}
 {{- $u2ArmBrewPkgs := dict "base" (dict "core" (dict "arm-formula" (dict "manager" "brew"))) "os" (dict) "profile" (dict) -}}
 {{- $u2IntelInstall := includeTemplate "os/darwin/install" (dict "host" $u2IntelHost "toolchains" (dict) "packages" $u2PortPkgs "brew" $u2Brew) -}}
@@ -107,12 +458,17 @@ TMPL
 {{- $u2IntelBrewfile := includeTemplate "os/darwin/brewfile" (dict "host" $u2IntelHost "toolchains" (dict) "packages" $u2PortPkgs "brew" $u2Brew) -}}
 {{- $u2IntelPort := includeTemplate "base/packages/collect-packages" (dict "root" (dict "host" $u2IntelHost "toolchains" (dict) "packages" $u2PortPkgs) "manager" "macports" "format" "install") -}}
 {{- $u2ArmBrewfile := includeTemplate "os/darwin/brewfile" (dict "host" $u2ArmHost "toolchains" (dict) "packages" $u2ArmBrewPkgs "brew" $u2Brew) -}}
-{{- $u2IntelBootstrap := includeTemplate "os/darwin/bootstrap" (dict "host" $u2IntelHost "brew" $u2Brew) -}}
-{{- $u2ArmBootstrap := includeTemplate "os/darwin/bootstrap" (dict "host" $u2ArmHost "brew" $u2Brew) }}
+{{- $u2IntelBootstrap := includeTemplate "os/darwin/bootstrap" (dict "host" $u2IntelHost "brew" $u2Brew "toolchains" (dict) "packages" $u2PortPkgs) -}}
+{{- $u2ArmBootstrap := includeTemplate "os/darwin/bootstrap" (dict "host" $u2ArmHost "brew" $u2Brew "toolchains" (dict) "packages" $u2PortPkgs) -}}
+{{- $u2IntelQuietBootstrap := includeTemplate "os/darwin/bootstrap" (dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" false "restricted" false "type" "workstation" "profile" "personal") "brew" $u2Brew "toolchains" (dict) "packages" $u2PortPkgs) -}}
+{{- $u2IntelEphemeralBootstrap := includeTemplate "os/darwin/bootstrap" (dict "host" (dict "distro" (dict "id" "darwin" "family" "darwin") "arch" "amd64" "interactive" false "restricted" false "type" "ephemeral" "profile" "personal") "brew" $u2Brew "toolchains" (dict) "packages" $u2PortPkgs) -}}
+{{- $u2IntelNoFormulaeBootstrap := includeTemplate "os/darwin/bootstrap" (dict "host" $u2IntelHost "brew" $u2Brew "toolchains" (dict) "packages" $u2BrewPkgs) }}
 
 # bats test_tags=suite:packages,kind:bootstrap
 @test "Intel MacPorts install uses the absolute provider path" {
   assert_equal "{{ contains "sudo /opt/local/bin/port -N install port-only" $u2IntelInstall }}" "true"
+  assert_equal "{{ contains "port -q echo active" $u2IntelInstall }}" "true"
+  assert_equal "{{ contains "in +*) continue;;" $u2IntelInstall }}" "true"
 }
 
 # bats test_tags=suite:packages,kind:bootstrap
@@ -169,6 +525,7 @@ TMPL
 @test "Intel bootstrap selfupdates MacPorts and upgrades outdated ports" {
   assert_equal "{{ contains "/opt/local/bin/port -N selfupdate" $u2IntelBootstrap }}" "true"
   assert_equal "{{ contains "/opt/local/bin/port -N upgrade outdated" $u2IntelBootstrap }}" "true"
+  assert_equal "{{ contains "/opt/local/bin/port -N upgrade outdated ||" $u2IntelBootstrap }}" "true"
   assert_equal "{{ contains "port -N uninstall inactive" $u2IntelBootstrap }}" "true"
   assert_equal "{{ contains "/opt/local/bin/port -N clean installed" $u2IntelBootstrap }}" "true"
   assert_equal "{{ contains "brew autoremove" $u2IntelBootstrap }}" "true"
@@ -188,8 +545,28 @@ TMPL
 }
 
 # bats test_tags=suite:packages,kind:bootstrap
-@test "Intel bootstrap skips Homebrew formula upgrades" {
-  assert_equal "{{ contains "Upgrading formulae" $u2IntelBootstrap }}" "false"
+@test "Intel bootstrap upgrades only installed configured formula exceptions" {
+  assert_equal "{{ contains "for _brew_formula in adyranov/tap/llama-cpp mas" $u2IntelBootstrap }}" "true"
+  assert_equal "{{ contains "brew list --formula \"${_brew_formula}\"" $u2IntelBootstrap }}" "true"
+  assert_equal "{{ contains "brew upgrade --formula ${_brew_upgrades}" $u2IntelBootstrap }}" "true"
+  # Never a bulk formula upgrade (installed filter guarantees absent formulae are skipped).
+  assert_equal "{{ contains (printf "brew upgrade\n") $u2IntelBootstrap }}" "false"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "arm64 bootstrap keeps the bulk formula upgrade" {
+  assert_equal "{{ contains (printf "Upgrading formulae…\"\nbrew upgrade\n") $u2ArmBootstrap }}" "true"
+  assert_equal "{{ contains "_brew_formula" $u2ArmBootstrap }}" "false"
+}
+
+# bats test_tags=suite:packages,kind:bootstrap
+@test "Intel formula upgrades follow the interactive/ephemeral gate and config" {
+  # Non-interactive workstation: no upgrades at all.
+  assert_equal "{{ contains "brew upgrade" $u2IntelQuietBootstrap }}" "false"
+  # Ephemeral: targeted exceptions upgrade runs, same gate as before.
+  assert_equal "{{ contains "_brew_formula" $u2IntelEphemeralBootstrap }}" "true"
+  # No configured Intel formula exceptions: no upgrade loop rendered.
+  assert_equal "{{ contains "_brew_formula" $u2IntelNoFormulaeBootstrap }}" "false"
 }
 
 # bats test_tags=suite:packages,kind:bootstrap

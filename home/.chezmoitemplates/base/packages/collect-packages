@@ -22,15 +22,12 @@
 {{-   $pkgMgr := printf "%s" (index $entry "manager" | default "system") -}}
 {{-   if ne $pkgMgr $manager -}}{{- continue -}}{{- end -}}
 
+{{/*
+    The walker applied the manager-change name reset; an inherited provider
+    name is absent here and the id is used.
+*/ -}}
 {{-   $pkgName := printf "%s" (index $pkg "package" | default $id) -}}
 {{-   $pkgBin := printf "%s" (index $pkg "bin" | default $id) -}}
-
-{{-   $override := $entry.override -}}
-{{-   $baseMgr := index $entry.basePkg "manager" | default "system" -}}
-{{-   $overrideMgr := index $override "manager" -}}
-{{-   if and $overrideMgr (ne (printf "%s" $overrideMgr) (printf "%s" $baseMgr)) -}}
-{{-     if not (hasKey $override "package") -}}{{- $pkgName = $id -}}{{- end -}}
-{{-   end -}}
 
 {{-   if eq $pkgMgr "krew" -}}
 {{-     if not (hasKey $pkg "package") -}}{{- $pkgName = trimPrefix "kubectl-" $id -}}{{- end -}}

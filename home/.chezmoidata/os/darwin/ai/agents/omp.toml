@@ -1,0 +1,7 @@
+[ai.os.darwin.agents.omp.settings]
+# Darwin pins the isolation materialization backend: 18.18.x `auto`
+# silently prefers ovnfs checkouts when an `ovnfs` binary is on PATH, so
+# the base `""` (upstream auto) is overridden to the native APFS clonefile
+# path for determinism. load-section merges os over base (last layer wins,
+# empty strings included).
+isolation_backend = "apfs"

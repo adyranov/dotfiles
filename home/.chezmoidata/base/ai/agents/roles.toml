@@ -1,0 +1,39 @@
+# Shared Slim role roster (roster facts only: tier class, skills, MCPs,
+# permission class). Model routing comes from the active preset's tiers,
+# never from here.
+# Permission classes: research = no edit/write/shell/subagent;
+# askless = no interactive prompting; interactive = all.
+[ai.base.agents.roles.designer]
+mcps = []
+permission = "askless"
+skills = ["ce-polish", "ce-test-browser"]
+tier = "visual"
+
+[ai.base.agents.roles.explorer]
+mcps = ["codegraph"]
+permission = "research"
+skills = []
+tier = "small"
+
+[ai.base.agents.roles.fixer]
+mcps = []
+permission = "askless"
+skills = ["ce-work", "ce-debug", "ce-simplify-code"]
+tier = "medium"
+
+[ai.base.agents.roles.oracle]
+mcps = ["engram"]
+permission = "askless"
+skills = ["ce-pov", "ce-code-review"]
+tier = "oracle"
+
+[ai.base.agents.roles.orchestrator]
+mcps = ["engram"]
+permission = "interactive"
+# Slim semantics: skills GATES which skills the agent may use — "*" keeps the
+# orchestrator's full access (CE skills, karpathy, ...). Claude semantics: the
+# skills: frontmatter PRELOADS, so the Claude renderer reads `preload` instead;
+# the orchestrator preloads only its three work-loop skills.
+skills = ["*"]
+preload = ["deepwork", "verification-planning", "step-back"]
+tier = "big"

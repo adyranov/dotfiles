@@ -1,3 +1,6 @@
+[ai.profile.personal.agents.claude]
+preset = "qwen"
+
 [ai.profile.personal.presets]
 default = "qwen"
 
@@ -65,6 +68,7 @@ oracle = { provider = "infer01", model = "qwen3.8-flash-next", thinking = "xhigh
 visual = { provider = "infer01", model = "qwen3.8-flash-next", thinking = "xhigh" }
 
 [ai.profile.personal.providers]
+anthropic = { enabled = true, models = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"] }
 deepseek = { enabled = true, models = ["deepseek-flash", "deepseek-v4-pro"] }
 openai-codex = { enabled = true, models = ["gpt-6-luna", "gpt-6.1-sol"] }
 opencode-go = { enabled = false }
@@ -85,6 +89,8 @@ openrouter = { enabled = true, models = [
 [ai.profile.personal.serving.infer01]
 base_url = "http://infer01:8080/v1"
 kind = "openai-compatible"
+# Concurrent slots (probed); Claude duer fan-out caps at slots - 1.
+slots = 8
 
 [[ai.profile.personal.serving.infer01.models]]
 id = "qwen3.8-flash-next"

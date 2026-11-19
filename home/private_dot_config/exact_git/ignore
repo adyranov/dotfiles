@@ -6,3 +6,7 @@ Thumbs.db
 .DS_Store?
 ehthumbs.db
 .Spotlight-V100
+
+# In-repo agent worktrees (global so every clone stays clean)
+.claude/worktrees/
+.slim/worktrees/

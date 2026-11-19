@@ -1,0 +1,28 @@
+{{- /*
+  render-claude-modify-settings — Shared modify-template body for ~/.config/claude/settings.json.
+
+  Input (dict):
+    root    — chezmoi data root
+    chezmoi — the .chezmoi context (provides stdin for modify-template)
+
+  Claude also writes this file, so managed keys merge over the current target
+  (pi's modify idiom): user-written keys survive, managed keys win on conflict.
+  The merged file is seatbelt write-denied to the agent; Claude tolerates that.
+*/ -}}
+{{- $current := dict -}}
+{{- if and (hasKey .chezmoi "stdin") (not (empty (trim .chezmoi.stdin))) -}}
+{{-   $current = fromJsonc .chezmoi.stdin -}}
+{{-   if not $current -}}{{- $current = dict -}}{{- end -}}
+{{- end -}}
+{{- $managed := includeTemplate "base/ai/agents/claude/render-claude-settings" (dict "root" .root "chezmoi" .chezmoi) | mustFromJson -}}
+{{- /* mergeOverwrite: managed keys win (recursively), every other user/Claude
+       key survives. CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS is always in managed;
+       its string form is set explicitly below. */ -}}
+{{- $merged := mergeOverwrite $current $managed -}}
+{{- /* Replace the old scalar fallbackModel during migration. Deep merge cannot
+       delete removed plugins, so replace enabledPlugins too. */ -}}
+{{- $_ := set $merged "fallbackModel" (get $managed "fallbackModel") -}}
+{{- /* Explicit cap-key overwrite migrates existing numeric values to the
+       managed string; unrelated user env keys ride the merge above. */ -}}
+{{- $_ = set (get $merged "env") "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS" (get (get $managed "env") "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS") -}}
+{{- set $merged "enabledPlugins" (get $managed "enabledPlugins") | toPrettyJson -}}

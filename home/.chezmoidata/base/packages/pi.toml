@@ -1,2 +1,4 @@
 [packages.base.pi]
 pi = { manager = "mise", package = "npm:@earendil-works/pi-coding-agent" }
+# pi-claude-bridge is loaded from pi's own package list (ai.agents.pi core
+# packages); a global npm install is redundant.

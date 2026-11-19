@@ -91,9 +91,12 @@ runner_stub() { # runner_stub DIR — applied runner copy + real bats bin, no su
   local f
   f="$(dirname "$(readlink -f "$RUNNER")")/test-ai-permissions.bats"
   [ -f "$f" ] || skip "applied test-ai-permissions.bats not present"
+  run grep -c '"\$cb" execute-template' "$f"
+  assert_success
+  local total="$output"
   run grep -c 'runCapped "\$cb" execute-template' "$f"
   assert_success
-  assert_output "8"
+  assert_output "$total"
 }
 {{- else }}
 

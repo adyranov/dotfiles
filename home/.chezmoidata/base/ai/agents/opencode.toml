@@ -1,12 +1,3 @@
-# Slim agent -> tier class (resolved per preset by the factory slim plugin
-# config; the suites read the same key so renderer and tests cannot drift).
-[ai.base.agents.opencode.agent_tiers]
-designer = "visual"
-explorer = "small"
-fixer = "medium"
-oracle = "oracle"
-orchestrator = "big"
-
 [ai.base.agents.opencode.cli]
 theme = "catppuccin"
 theme_mode = "system"
@@ -78,9 +69,9 @@ unsafe_macos_seatbelt_rules = [
 # denying it here kills the runtime's login/refresh, not just tool children.
 # Model-side protection is the other guards: command-sandbox lists never grant
 # opencode paths, proxy credential injection, DCG. Cross-agent theft stays
-# denied (pi_auth_files, omp_auth_files here; opencode_auth_files denied in
-# pi/omp profiles).
-deny = ["omp_auth_files", "pi_auth_files"]
+# denied (claude_auth_files, omp_auth_files, pi_auth_files here;
+# opencode_auth_files denied in pi/omp profiles).
+deny = ["claude_auth_files", "omp_auth_files", "pi_auth_files"]
 read = [
   # DCG plugin file: readable (opencode loads it) but write-denied via the
   # read-tier carve-out — agents must not self-edit hooks.

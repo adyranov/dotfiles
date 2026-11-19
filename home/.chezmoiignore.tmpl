@@ -44,6 +44,7 @@ Library
 .config/zsh/functions.d/skyl
 .runpod
 .local/bin/llm-serve
+.local/bin/seed-keystore
 .local/share/dotfiles/test/test-ai-*.bats
 {{- end }}
 {{- /* Per-agent toolchains: stop managing (and --remove can prune) the whole agent tree. */ -}}
@@ -56,9 +57,16 @@ Library
 {{- if not (get .toolchains "omp" | default false) }}
 .config/omp/**
 {{- end }}
+{{- if not (get .toolchains "claude" | default false) }}
+.config/claude/**
+.claude
+.config/claude-powerline/**
+.local/state/claude/**
+.local/share/claude/**
+{{- end }}
 {{- /* Launcher gate: manage ~/.local/bin/agent while any agent toolchain is
-       enabled; keep this predicate in sync with the launcher's agent set. */ -}}
-{{- if not (or (get .toolchains "pi" | default false) (get .toolchains "opencode" | default false) (get .toolchains "omp" | default false)) }}
+        enabled; the predicate is the shared any-agent-toolchain partial. */ -}}
+{{- if not (includeTemplate "base/helpers/any-agent-toolchain" (dict "root" .) | mustFromJson) }}
 .local/bin/agent
 {{- end }}
 .gitkeep

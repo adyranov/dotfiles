@@ -1,0 +1,29 @@
+{{- /*
+  render-claude-duer-command — The exact nested `claude -p` duer launch.
+
+  Input (dict):
+    root — chezmoi data root
+    role — duer role name (explorer|fixer|designer); its tier drives
+           model/effort and its tools come from duers.role_tools (default
+           duers.tools) via render-claude-runner
+
+  Output (JSON string) embeds into the orchestrator prompt. The launch chains
+  under &&: a mktemp failure stops the command WITHOUT exiting the shell
+  (Claude's Bash session is persistent; `|| exit 1` would kill it). The task
+  rides in a file the orchestrator stages (Write tool) under
+  $CLAUDE_CODE_TMPDIR: {TASK_FILE} names that staged path, consumed through
+  "$(cat "$TASK_FILE")" so task text is passed as data, never re-parsed as
+  shell inside this auto-approved command. The auto-mode classifier is an LLM
+  reading prose allow/environment lists (auto_mode data), NOT a byte-prefix
+  matcher, so nothing here anchors on the allow entries.
+*/ -}}
+{{- $ctx := includeTemplate "base/ai/agents/claude/render-claude-context" (dict "root" .root) | mustFromJson -}}
+{{- if not $ctx.has_serving -}}{{- fail "duer command requires a serving-routed preset" -}}{{- end -}}
+{{- $role := index $ctx.roles .role | default dict -}}
+{{- if not $role -}}{{- fail (printf "unknown duer role %q" .role) -}}{{- end -}}
+{{- $runner := includeTemplate "base/ai/agents/claude/render-claude-runner" (dict "ctx" $ctx "role" .role) | mustFromJson -}}
+{{- if ne $runner.kind "duer" -}}{{- fail (printf "role %s does not route to a duer" .role) -}}{{- end -}}
+{{- /* No rm -rf of the scratch dir: DCG blocks indeterminate-path rm, and
+       /tmp/agents/<agent> is the launcher-managed, boot-cleaned scratch root. */ -}}
+{{- $cmd := printf "d=$(mktemp -d \"$CLAUDE_CODE_TMPDIR/duer.XXXXXX\") && env -u CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CONFIG_DIR=\"$d\" claude -p --setting-sources \"\" --settings ~/.config/claude/duer.json --strict-mcp-config --no-session-persistence --permission-prompts none --model %s --effort %s --tools %s --append-system-prompt-file ~/.config/claude/duer-roles/%s.md --exclude-dynamic-system-prompt-sections --json-schema \"$(cat ~/.config/claude/duer-result.schema.json)\" --output-format json \"$(cat \"$TASK_FILE\")\"" $runner.model $runner.effort $runner.tools .role -}}
+{{- $cmd | toJson -}}

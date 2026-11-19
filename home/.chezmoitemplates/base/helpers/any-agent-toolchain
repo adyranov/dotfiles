@@ -1,0 +1,13 @@
+{{- /*
+  any-agent-toolchain — true when any agent toolchain is enabled (the launcher
+  and its `_agent` completion share this gate). Agent set mirrors the $agents
+  list in home/.chezmoi.yaml.tmpl.
+
+  Input (dict): root — chezmoi data root. Output: JSON bool.
+*/ -}}
+{{- $root := .root -}}
+{{- $any := false -}}
+{{- range $a := list "pi" "opencode" "omp" "claude" -}}
+{{-   if get $root.toolchains $a | default false -}}{{- $any = true -}}{{- end -}}
+{{- end -}}
+{{- $any | toJson -}}

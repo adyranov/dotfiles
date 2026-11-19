@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """sandbox-grant-guard — Render-time validator for the nono command-sandbox path
-GRANTS: render-nono-cmd feeds it the chezmoi command_sandbox_* lists and every
-per-command fs/exec list. A sandbox grant equal to, an ancestor of, or a
-descendant of a protected root would hand an agent its own sandbox, its DCG
+GRANTS: render-nono-cmd feeds it every per-command fs/exec list. A sandbox
+grant equal to, an ancestor of, or a descendant of a protected root would hand
+an agent its own sandbox, its DCG
 gate, an agent runtime config, or a rendered shell file. The descendant
 direction is load-bearing: a literal directory deny covers only the directory
 itself (see the ssh group comment in permissions.toml), so
@@ -26,9 +26,7 @@ callers left).
 CLI: argv[1] = JSON {"grants": [...], "protected": [...], "exempt": [...],
 "allow_globs": true}
 `grants` is the validated entry list.
-`exempt` drops built-in roots from this call's floor: the chezmoi command
-sandbox grants chezmoi's own config/state dir because the command cannot run
-without it.
+`exempt` drops built-in roots from this call's floor; production passes none.
 `allow_globs` (the production grant-list calls) admits native-glob GRANT
 entries — nono renders fs globs verbatim, so a shim-scan grant like
 `installs/**` is a valid grant. Entry comparison anchors on the glob-free

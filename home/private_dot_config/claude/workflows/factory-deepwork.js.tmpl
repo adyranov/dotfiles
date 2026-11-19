@@ -1,0 +1,91 @@
+{{- /* Rendered per preset: the implement step's agent type must exist in this
+       preset's agent registry. Native presets ship agents/fixer.md; serving
+       presets prune the duer roles, so the orchestrator implements by running
+       the fixer duer launch command. */ -}}
+{{- $ctx := includeTemplate "base/ai/agents/claude/render-claude-context" (dict "root" .) | mustFromJson -}}
+// factory-deepwork: saved deep-work workflow — plan, then per-slice implement,
+// with an oracle sign-off gate after every phase; the orchestrator (Opus) runs
+// the phases, the oracle agent reviews, and a reject stops the workflow.
+export const meta = {
+  name: "factory-deepwork",
+  description:
+    "Opus-level multi-phase work: plan -> (implement -> oracle-review)* with sign-off gates.",
+  phases: [
+    { title: "plan", detail: "classify the task; write ordered slices with exact file sets + acceptance checks" },
+    { title: "implement", detail: "per slice: one writer per file, review the diff, run tests, commit" },
+    { title: "review", detail: "run full validation, reconcile all slices, summarize evidence and risks" },
+  ],
+};
+
+// Gate semantics: every phase ends with an oracle verdict; a reject stops the
+// workflow and escalates the findings (original approveWhen contracts kept).
+// agentType names the fleet's own subagents (~/.config/claude/agents/) so no
+// spawn falls back to the default workflow subagent, which permissions.deny
+// blocks as Agent(general-purpose). Probe P20 records the spawn tally.
+const gate = (criteria, payload) =>
+  agent(
+    `Sign-off gate: reply with exactly "approve" or "reject", then findings. Approve only when ${criteria}\n\n${payload}`,
+    { agentType: "oracle" },
+  );
+const approved = (verdict) => /\bapprove\b/i.test(verdict);
+
+async function main() {
+  const task = args ?? "(the task from the session prompt)";
+
+  phase("plan");
+  const plan = await agent(
+    "Classify the task, gather context, and write a plan of ordered slices. " +
+      `Each slice names its exact file set (one writer per file) and its acceptance check.\nTask: ${task}`,
+    { agentType: "orchestrator" },
+  );
+  const planGate = await gate(
+    "the plan covers the request, slices are non-overlapping and independently verifiable, and risks have mitigations.",
+    `Plan:\n${plan}`,
+  );
+  if (!approved(planGate)) {
+    log("plan gate rejected — stopping; escalate the findings");
+    return;
+  }
+
+  phase("implement");
+  for (const slice of plan.split("\n").filter((l) => /^\s*\d+[.)]/.test(l))) {
+{{- if $ctx.has_serving }}
+    const report = await agent(
+      "Implement this slice as the writer, via the fixer duer: write the slice " +
+        "contract to a task file under $CLAUDE_CODE_TMPDIR, run the fixer duer " +
+        "launch command from your agent prompt, read the JSON result, then " +
+        "review the diff yourself, run the slice's tests, and commit. Report " +
+        "the diff, test outcomes, and changed files.\nSlice: " + slice,
+      { agentType: "orchestrator" },
+    );
+{{- else }}
+    const report = await agent(
+      "Delegate one slice (one writer at a time): " +
+        slice +
+        "\nReview the diff yourself, run the slice's tests, and commit. Report the diff, test outcomes, and changed files.",
+      { agentType: "fixer" },
+    );
+{{- end }}
+    const sliceGate = await gate(
+      "the diff matches the slice contract, tests pass, and no unassigned file changed.",
+      `Slice: ${slice}\n\nReport:\n${report}`,
+    );
+    if (!approved(sliceGate)) {
+      log("slice gate rejected — stopping; escalate the findings");
+      return;
+    }
+  }
+
+  phase("review");
+  const summary = await agent(
+    "Run the full relevant validation suite, reconcile all slice results, and summarize changes, evidence, and remaining risks.",
+    { agentType: "oracle" },
+  );
+  const finalGate = await gate(
+    "the assembled result is coherent and the evidence supports completion.",
+    `Summary:\n${summary}`,
+  );
+  log(approved(finalGate) ? "final review approved" : "final review rejected — escalate");
+}
+
+await main();

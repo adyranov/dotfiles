@@ -7,7 +7,7 @@
 {{- $gpg := dict "sign" "" "encrypt" "" -}}
 {{- $secrets := dict "age" stdinIsATTY "bitwarden" false -}}
 {{- $toolchains := list "ai" "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" -}}
-{{- $agents := list "pi" "opencode" "omp" -}}
+{{- $agents := list "pi" "opencode" "omp" "claude" -}}
 
 {{- $data := . -}}
 {{- range $k := list "personal" "gpg" "host" "toolchains" -}}
@@ -200,6 +200,7 @@
     "pi"       "🥧"
     "opencode" "🔗"
     "omp"      "⚡"
+    "claude"   "🟠"
 -}}
 {{- $agentsSelected := list -}}
 {{- if stdinIsATTY -}}

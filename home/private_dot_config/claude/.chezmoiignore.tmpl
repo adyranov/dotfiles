@@ -1,0 +1,17 @@
+{{- /*
+  Duer rendering gate: the active preset's tier routes decide. A serving-routed
+  preset (personal/qwen) gets the duer kit; a fully native preset (work/anthropic)
+  renders no duer files, and the small/medium/visual roles ship as native
+  subagent files instead.
+*/ -}}
+{{- $ctx := includeTemplate "base/ai/agents/claude/render-claude-context" (dict "root" .) | mustFromJson -}}
+{{- if not $ctx.has_serving }}
+duer.json
+duer-result.schema.json
+duer-roles/**
+{{- end }}
+{{- if $ctx.has_serving }}
+{{- range $r := $ctx.claude.duers.roles }}
+agents/{{ $r }}.md
+{{- end }}
+{{- end }}

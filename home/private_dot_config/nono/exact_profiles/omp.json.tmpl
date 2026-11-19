@@ -1,1 +1,7 @@
+{{- /* No anthropic credential route here: omp has no Claude bridge lane (the
+  SDK bridge repo has no installable release, nothing loads it), so the
+  proxy-injected CLAUDE_CODE_OAUTH_TOKEN must stay out of this sandbox —
+  omp's built-in Claude provider is a third-party client and replaying the
+  token is a bannable Anthropic ToS violation. render-credentials' omp
+  branch scrubs the full derived set and emits no routes. */ -}}
 {{ includeTemplate "base/ai/security/render-nono-profile" (dict "root" . "agent" "omp") }}

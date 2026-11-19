@@ -1,4 +1,5 @@
 {{- $brew := includeTemplate "base/helpers/load-section" (dict "root" . "section" "brew") | mustFromJson -}}
+{{- $root := . -}}
 
 {{- $taps := index $brew "taps" | default list -}}
 {{- $brewPkgs := includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "brew" "format" "install") | trim -}}
@@ -19,7 +20,61 @@
 {{-     fail (printf "Intel macOS cannot install Homebrew formulae: %s" (join " " $offending)) -}}
 {{-   end -}}
 {{- end -}}
-{{- $casks := index $brew "casks" | default list -}}
+{{/*
+  Casks are name-keyed tables per layer (base, os.<distro>, profile.<profile>)
+  merged here before selection: entries merge by name, include/exclude merge
+  axis-wise so a later layer keeps the other axes, an explicit empty axis
+  list clears an inherited constraint, and an explicit empty selector map
+  clears it; a profile exclusion on an OS cask cannot be resurrected. The
+  global interactive gate below keeps casks and MAS interactive-only.
+*/ -}}
+{{- $profileKey := "" -}}
+{{- if hasKey $root.host "profile" -}}{{- $profileKey = $root.host.profile -}}{{- end -}}
+{{- $caskLayers := list
+      (index $root.brew "base" | default dict)
+      (index (index $root.brew "os" | default dict) $root.host.distro.id | default dict)
+      (index (index $root.brew "profile" | default dict) $profileKey | default dict)
+-}}
+{{- $caskMap := dict -}}
+{{- range $caskLayer := $caskLayers -}}
+{{-   if hasKey $caskLayer "casks" -}}
+{{-     $layerCasks := index $caskLayer "casks" -}}
+{{-     if not (kindIs "map" $layerCasks) -}}
+{{-       fail "brew casks must be a table keyed by cask name (for example azure-cli = { include = { arch = [\"arm64\"] } })" -}}
+{{-     end -}}
+{{-     range $name := keys $layerCasks -}}
+{{-       $entry := index $layerCasks $name -}}
+{{-       if not (kindIs "map" $entry) -}}
+{{-         fail (printf "brew cask %s must be a table" $name) -}}
+{{-       end -}}
+{{-       $merged := dict -}}
+{{-       if hasKey $caskMap $name -}}
+{{-         $cur := index $caskMap $name -}}
+{{-         range $key := keys $cur -}}{{- $_ := set $merged $key (index $cur $key) -}}{{- end -}}
+{{-       end -}}
+{{-       range $key := keys $entry -}}
+{{-         $value := index $entry $key -}}
+{{-         if has $key (list "include" "exclude") -}}
+{{-           if not (kindIs "map" $value) -}}
+{{-             fail (printf "brew cask %s selector %s must be a table of axis = [values]" $name $key) -}}
+{{-           end -}}
+{{-           $_ := set $merged $key (includeTemplate "base/packages/merge-selector" (dict "current" (index $merged $key | default dict) "spec" $value) | mustFromJson) -}}
+{{-         else -}}
+{{-           $_ := set $merged $key $value -}}
+{{-         end -}}
+{{-       end -}}
+{{-       $_ := set $caskMap $name $merged -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- $casks := list -}}
+{{- range $name := sortAlpha (keys $caskMap) -}}
+{{-   $entry := index $caskMap $name -}}
+{{-   $selArgs := dict "root" $root -}}
+{{-   if hasKey $entry "include" -}}{{- $_ := set $selArgs "include" (index $entry "include") -}}{{- end -}}
+{{-   if hasKey $entry "exclude" -}}{{- $_ := set $selArgs "exclude" (index $entry "exclude") -}}{{- end -}}
+{{-   if eq (includeTemplate "base/packages/select" $selArgs) "true" -}}{{- $casks = append $casks $name -}}{{- end -}}
+{{- end -}}
 {{- $mas := index $brew "mas" | default list -}}
 {{- if eq .host.arch "amd64" -}}
 tap "adyranov/tap"
