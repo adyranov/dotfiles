@@ -22,7 +22,9 @@
     'dependencies',
   ],
   minimumReleaseAge: '3 days',
-  dependencyDashboardAutoclose: true,
+  dependencyDashboard: {
+    autoclose: true,
+  },
   lockFileMaintenance: {
     enabled: true,
     automerge: true,
