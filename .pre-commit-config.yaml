@@ -70,7 +70,7 @@ repos:
         name: Lint YAML
         exclude: modify_.*\.ya?ml$
   - repo: https://github.com/pappasam/toml-sort
-    rev: v0.25.0
+    rev: v0.26.0
     hooks:
       - id: toml-sort-fix
         name: Sort TOML
@@ -101,7 +101,7 @@ repos:
         name: Check EditorConfig
         exclude: plist|tmpl|pub|age
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 44.239.1
+    rev: 44.257.5
     hooks:
       - id: renovate-config-validator
         name: Validate Renovate Config
@@ -111,7 +111,7 @@ repos:
       - id: typos
         name: Check Spelling
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.24.1
+    rev: v0.24.2
     hooks:
       - id: markdownlint-cli2
         name: Lint Markdown
