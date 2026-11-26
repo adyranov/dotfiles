@@ -18,9 +18,7 @@ keywords:
   - mv
   - poweroff
   - reboot
-  - rtk
   - security
-  - sed
   - shred
   - shutdown
   - systemctl
@@ -46,11 +44,6 @@ destructive_patterns:
     severity: medium
     description: crontab -e/-r edits or removes the whole crontab
     explanation: crontab -e/crontab -r. crontab -r wipes all scheduled jobs in one shot.
-  - name: sed-in-place
-    pattern: '\bsed\b[^;&|\n]*?\s--?i(?:n-place)?\b'
-    severity: high
-    description: sed -i rewrites files in place
-    explanation: sed -i / sed * -i. In-place edits have no backup unless -i.bak is given.
   - name: yq-in-place
     pattern: '\byq\b[^;&|\n]*?\s-i\b'
     severity: high
@@ -96,8 +89,3 @@ destructive_patterns:
     severity: critical
     description: macOS keychain mutations (security add-*/delete-*/set-*/dump/unlock)
     explanation: macOS keychain ops; mirrors the nono hard-core security denies (duplication tolerated).
-  - name: rtk-git-force-push
-    pattern: '\brtk\b[^;&|\n]*?\bgit\b[^;&|\n]*?\bpush\b[^;&|\n]*?(?:--force(?:-with-lease)?\b|-f\b)'
-    severity: critical
-    description: rtk-wrapped git push --force rewrites remote history
-    explanation: rtk git push --force. The nono exec core blocks the exec (argv[0]=git); this row restores the DCG prompt for the wrapped argv text.

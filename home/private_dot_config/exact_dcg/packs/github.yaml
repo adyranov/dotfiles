@@ -15,13 +15,13 @@ keywords:
   - https
 destructive_patterns:
   - name: gh-delete
-    pattern: '\bgh\b[^;&|\n]*?\bdelete'
+    pattern: '\bgh\s+(?:(?:-R|--repo)[ =]\S+\s+)?(?:repo|release|issue|pr|project|run|cache|secret|variable|label|gist|codespace|workflow|ssh-key|gpg-key)\s+(?:(?:-R|--repo)[ =]\S+\s+)?delete\b'
     severity: high
     description: gh deletes remote GitHub objects
     explanation: Releases, branches, PRs and workflows are gone server-side.
   # PR edits can change the base and reviewers; other gh edits stay gated.
   - name: gh-edit
-    pattern: '\bgh\b(?! (?:-R[ =]\S+ |--repo[ =]\S+ )?pr edit\b)[^;&|\n]*?\bedit\b'
+    pattern: '\bgh\s+(?:(?:-R|--repo)[ =]\S+\s+)?(?:repo|release|issue|gist|codespace|label|project)\s+(?:(?:-R|--repo)[ =]\S+\s+)?edit\b'
     severity: medium
     description: gh edits GitHub objects in place outside the PR-edit lane
     explanation: Repo/release/issue/gist/codespace edits mutate shared GitHub state; PR edits are routine maintenance.
@@ -92,22 +92,62 @@ destructive_patterns:
     description: git push deletes a remote branch or tag
     explanation: Remote refs are gone for everyone; ordinary pushes never carry --delete/-d or a leading-colon refspec.
   - name: git-rebase
-    pattern: '\bgit\b[^;&|\n]*?\brebase\b'
+    pattern: '\bgit\s+(?:-[Cc]\s+\S+\s+|--git-dir(?:=|\s+)\S+\s+|--work-tree(?:=|\s+)\S+\s+)*rebase\b'
     severity: high
     description: git rebase rewrites commit history
     explanation: Conflicts and rewritten SHAs can strand commits.
   - name: git-stash-drop-pop
-    pattern: '\bgit\b[^;&|\n]*?\bstash\b[^;&|\n]*?\b(?:drop|pop)\b'
+    pattern: '\bgit\s+(?:-[Cc]\s+\S+\s+)*stash\s+(?:drop|pop)\b'
     severity: high
     description: git stash drop/pop consumes the stash entry
     explanation: A conflicted pop drops the entry, losing the stashed work.
   - name: git-tag-delete
-    pattern: '\bgit\b[^;&|\n]*?\btag\b[^;&|\n]*?(?:\s-d\b|--delete\b)'
+    pattern: '\bgit\s+(?:-[Cc]\s+\S+\s+)*tag\b[^;&|\n]*?(?:\s-d\b|--delete\b)'
     severity: medium
     description: git tag -d deletes local tags
     explanation: Release tags lost locally drift from the remote.
   - name: git-worktree-remove
-    pattern: '\bgit\b[^;&|\n]*?\bworktree\b[^;&|\n]*?\bremove\b'
+    pattern: '\bgit\s+(?:-[Cc]\s+\S+\s+)*worktree\s+remove\b[^;&|\n]*?(?:--force\b|\s-f+\b)'
     severity: high
-    description: git worktree remove deletes a worktree directory
-    explanation: --force removes it with uncommitted work inside.
+    description: git worktree remove --force deletes a worktree with uncommitted work
+    explanation: --force removes a worktree even with dirty/uncommitted state inside; non-force remove stays allowed for routine cleanup.
+  # Hook-persistence gate: the nono seatbelt denies .git/hooks writes in
+  # every agent profile (macOS), but .git/config stays writable, so the
+  # exec-pointing config keys ride here (DCG covers all platforms, incl. the
+  # unsandboxed lane). Reads (git config <key>) never match: the pattern needs
+  # a set value. The one-shot `git -c <key>=` form mutates the same exec
+  # points with no config write, so it rides the same row. The key list is
+  # git's program-executing surface: hooks/fsmonitor/ssh/pager/editor/askPass/
+  # gitProxy, diff external/tool/textconv/command, difftool.<t>.cmd,
+  # mergetool.<t>.cmd, filter.<n>.clean/smudge, credential.helper,
+  # gpg.<fmt>.program, pager.<cmd>, remote.<n>.uploadpack/receivepack,
+  # core.alternateRefsCommand, uploadpack.packObjectsHook, sequence.editor;
+  # benign keys (user.*, color.*, mergetool.keepBackup) stay out of the list.
+  - name: git-config-danger
+    pattern: '\bgit\b[^;&|\n]*?\bconfig\b[^;&|\n]*?\s["'']?(?i:core\.hooksPath|core\.fsmonitor|core\.sshCommand|core\.pager|core\.editor|core\.askPass|core\.gitProxy|core\.alternateRefsCommand|include(?:If\.[^ =;"'']+)?\.path|diff\.(?:external|tool)|diff\.[^ =;"'']+\.(?:textconv|command)|difftool\.[^ =;"'']+\.cmd|mergetool\.[^ =;"'']+\.cmd|filter\.[^ =;"'']+\.(?:clean|smudge)|credential\.helper|gpg(?:\.[^ =;"'']+)?\.program|pager\.[^ =;"'']+|remote\.[^ =;"'']+\.(?:uploadpack|receivepack)|sequence\.editor|uploadpack\.packObjectsHook)["'']?(?:=\S|\s+(?!--|[0-9]*[<>])[^\s;&|])|\bgit\b[^;&|\n]*?\s-c\s*["'']?(?i:core\.hooksPath|core\.fsmonitor|core\.sshCommand|core\.pager|core\.editor|core\.askPass|core\.gitProxy|core\.alternateRefsCommand|include(?:If\.[^ =;"'']+)?\.path|diff\.(?:external|tool)|diff\.[^ =;"'']+\.(?:textconv|command)|difftool\.[^ =;"'']+\.cmd|mergetool\.[^ =;"'']+\.cmd|filter\.[^ =;"'']+\.(?:clean|smudge)|credential\.helper|gpg(?:\.[^ =;"'']+)?\.program|pager\.[^ =;"'']+|remote\.[^ =;"'']+\.(?:uploadpack|receivepack)|sequence\.editor|uploadpack\.packObjectsHook)["'']?=|\bgit\b[^;&|\n]*?\s["'']?alias\.[^ =;"'']+["'']?(?:=|\s+)["'']?!'
+    severity: critical
+    description: git config (or one-shot -c) points git at attacker-controlled code (hooks path, fsmonitor, config includes, exec keys, shell aliases)
+    explanation: hooksPath/fsmonitor/sshCommand/pager/editor/askPass/gitProxy, diff external/tool, mergetool cmd, filter clean/smudge, credential.helper, gpg.program, sequence.editor all make git run a given program, include(.If) pulls foreign config in, and a !-prefixed alias runs a shell command — hook-persistence via config; .git/config stays writable and nono denies .git/hooks writes.
+  # Redirection bypass: printf … >> .git/config writes the exec keys above
+  # without any git argv token, so no config-key row can see it; the tool-axis
+  # floors in dcg-guard-core police Claude's file tools, never shell text. Gate
+  # covers >> and > (and tee/tee -a) onto any config leaf git reads — config and
+  # config.worktree — under a git directory at any nesting depth:
+  # .git/modules/<n>/… (incl. nested), .git/worktrees/<id>/… (config.worktree is
+  # the effective per-worktree config once extensions.worktreeConfig is enabled),
+  # and bare repos named foo.git/…. The git/segment/config tokens are
+  # case-insensitive for APFS's case-folded writes (.GIT/config lands in the real
+  # .git/config); best-effort here, because opening this pack rides its keyword
+  # gate, whose case behavior requires host verification.
+  # Layering (dcg 0.16.0, first match wins): core.filesystem's git-internals
+  # patterns cover every `.git/<path>` spelling — incl. quoted targets and
+  # `tee --output=…` — and are reported first, so this row only surfaces on the
+  # bare-repo suffix its path model misses (`foo.git/config`, quoted or not).
+  # Known gaps: neither row sees a copy in (`cp x foo.git/config`), a `..`
+  # alias, or a gitdir redirect (`GIT_DIR=`); the tool axis covers Claude's
+  # file tools only.
+  - name: git-config-redirect
+    pattern: '>>?\s*["'']?[^\s;&|"'']*(?i:\.git/)(?:(?i:modules|worktrees)/[^;&|\n]+/)*(?i:config)|\btee\b[^;&|\n]*?(?:\s-[ai]+\b)*[^;&|\n]*?["'']?[^\s;&|"'']*(?i:\.git/)(?:(?i:modules|worktrees)/[^;&|\n]+/)*(?i:config)'
+    severity: critical
+    description: shell redirection (or tee) writes a git config path directly
+    explanation: Appending exec-pointing keys straight into a config or config.worktree (project, submodule, linked worktree, bare-repo spelling) bypasses the git-config-danger argv match and the .git/hooks write-deny; git reads it on the next command.

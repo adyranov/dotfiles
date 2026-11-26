@@ -1,0 +1,2 @@
+# Read-only canary file managed by chezmoi for live sandbox write-denial tests.
+# Never target guard-core.mjs directly in destructive write probes.
