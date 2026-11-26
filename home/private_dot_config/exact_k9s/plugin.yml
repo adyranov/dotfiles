@@ -22,7 +22,7 @@ plugin:
     background: false
     args:
       - $COL-IMAGE
-  # Get all resources in a namespace using the krew get-all plugin
+  # Get all resources in a namespace using the get-all kubectl plugin (mise-managed)
   get-all-namespace:
     shortCut: g
     confirm: false

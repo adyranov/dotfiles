@@ -1,6 +1,6 @@
 [packages.base.cloud.aws]
+description = "Manage AWS services"
 manager = "mise"
+name = "AWS CLI"
 package = "aws-cli"
-
-[packages.base.cloud.azure-cli]
-bin = "az"
+url = "https://github.com/aws/aws-cli"

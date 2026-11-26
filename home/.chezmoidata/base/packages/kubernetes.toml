@@ -1,32 +1,41 @@
 [packages.base.kubernetes]
-helm-diff = { manager = "helm", package = "https://github.com/databus23/helm-diff", version = "helm diff --help" }
-k3d = { manager = "mise", version = "k3d version", completion = { generate = "k3d completion zsh" } }
-k9s = { completion = true, manager = "mise", version = "k9s version" }
-kubecolor = { manager = "mise", version = "kubecolor help", completion = { generate = "kubectl completion zsh", refresh = "kubectl version --client", sed = "s/kubectl/kubecolor/g" } }
-kubectl-access-matrix = { manager = "krew" }
-kubectl-get-all = { manager = "krew" }
-kubectl-neat = { manager = "krew" }
-kubectl-node-shell = { manager = "krew", version = "kubectl node-shell --version" }
-kubectl-rbac-tool = { manager = "krew" }
-kubectl-tree = { manager = "krew" }
-kubescape = { completion = true, manager = "mise", package = "aqua:kubescape/kubescape", version = "kubescape help" }
-kustomize = { completion = true, manager = "mise", version = "kustomize version" }
-stern = { manager = "mise", completion = { generate = "stern --completion zsh" } }
-yq = { manager = "mise", completion = { generate = "yq shell-completion zsh" } }
+helm-diff = { description = "Helm release diffing", name = "helm-diff", url = "https://github.com/databus23/helm-diff", manager = "helm", package = "https://github.com/databus23/helm-diff", version = "helm diff --help" }
+k3d = { description = "Lightweight K3s clusters", manager = "mise", url = "https://k3d.io", version = "k3d version" }
+k9s = { description = "Terminal UI for Kubernetes", manager = "mise", url = "https://k9scli.io", version = "k9s version" }
+kubecolor = { description = "Colorize kubectl output", manager = "mise", url = "https://github.com/kubecolor/kubecolor", version = "kubecolor help" }
+# kubectl plugins as mise github binaries: kubectl and the k9s plugin resolve
+# them as kubectl-<name> on PATH.
+# The get-all binary is ketall's `get-all-<arch>-<os>`; rename_exe installs it
+# as kubectl-get_all. ketall publishes no linux-arm64 asset, so the variant
+# disables the plugin on linux arm64 (every other supported host enables it).
+kubectl-get-all = { description = "Dump all kubectl resources (ketall)", manager = "mise", url = "https://github.com/corneliusweig/ketall", mise_options = { rename_exe = "kubectl-get_all" }, package = "github:corneliusweig/ketall", platforms = { linux-x64 = { asset_pattern = "get-all-amd64-linux.tar.gz" }, macos-arm64 = { asset_pattern = "get-all-arm64-darwin.tar.gz" }, macos-x64 = { asset_pattern = "get-all-amd64-darwin.tar.gz" } }, variants = [
+  { disabled = true, include = { arch = ["arm64"], os = ["linux"] } }
+], version = "kubectl get-all --help" }
+# kubectl-neat uses Go's flag package: `--version` is an unknown flag (exit 1);
+# the version lives in the `version` subcommand.
+kubectl-neat = { description = "Clean kubectl manifest output", manager = "mise", url = "https://github.com/itaysk/kubectl-neat", package = "github:itaysk/kubectl-neat", version = "kubectl-neat version" }
+kubescape = { description = "Kubernetes security scanner", manager = "mise", name = "Kubescape", url = "https://github.com/kubescape/kubescape", package = "aqua:kubescape/kubescape", version = "kubescape help" }
+stern = { description = "Tail multi-pod logs", manager = "mise", url = "https://github.com/stern/stern" }
+yq = { description = "YAML processor", manager = "mise", url = "https://github.com/mikefarah/yq" }
 
 [packages.base.kubernetes.helm]
-completion = true
+description = "Kubernetes package manager"
 manager = "mise"
+name = "Helm"
+url = "https://helm.sh"
 version = "helm version"
 
 [packages.base.kubernetes.kubectl]
-completion = true
+description = "Kubernetes command-line client"
 manager = "mise"
+url = "https://kubernetes.io/docs/reference/kubectl"
 version = "kubectl version --client"
 
 [packages.base.kubernetes.kubesess]
+description = "Switch kubecontexts quickly"
 manager = "mise"
 package = "github:Ramilito/kubesess"
+url = "https://github.com/Ramilito/kubesess"
 version = "kubesess --help"
 
 [packages.base.kubernetes.kubesess.platforms]
@@ -36,6 +45,7 @@ macos-arm64 = { bin_path = "target/aarch64-apple-darwin/release" }
 macos-x64 = { bin_path = "target/x86_64-apple-darwin/release" }
 
 [packages.base.kubernetes.oc]
-completion = true
+description = "OpenShift CLI"
 manager = "mise"
+url = "https://github.com/openshift/oc"
 version = "oc version --client"

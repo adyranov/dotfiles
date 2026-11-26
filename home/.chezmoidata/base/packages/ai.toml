@@ -1,14 +1,20 @@
 [packages.base.ai]
-# uvx_args pins uv's interpreter to 3.13: pyzmq ships no cp314+ wheels, so the
-# sdist build on newer Python fails (aiperf itself requires <3.14).
-aiperf = { manager = "mise", package = "pipx:aiperf", uvx_args = "--python 3.13", version = "aiperf --help" }
-codegraph = { manager = "mise", package = "github:colbymchenry/codegraph" }
-engram = { bin = "engram", manager = "mise", package = "github:Gentleman-Programming/engram", version = "engram version", platforms = { linux-arm64 = { asset_pattern = "engram_*_linux_arm64.tar.gz" }, linux-x64 = { asset_pattern = "engram_*_linux_amd64.tar.gz" }, macos-arm64 = { asset_pattern = "engram_*_darwin_arm64.tar.gz" }, macos-x64 = { asset_pattern = "engram_*_darwin_amd64.tar.gz" } } }
-hf = { completion = { generate = "env _HF_COMPLETE=zsh_source hf" }, manager = "mise", package = "pipx:huggingface_hub", version = "hf version" }
-llamacpp = { bin = "llama-server", manager = "mise", package = "github:ggml-org/llama.cpp" }
-rtk = { manager = "mise", package = "github:rtk-ai/rtk", version = "rtk --version" }
-runpod = { manager = "mise", package = "pipx:runpod", test = "runpod --help", completion = { generate = "env _RUNPOD_COMPLETE=zsh_source runpod" } }
+# Language servers consumed by each agent's LSP plugin (present whenever the ai
+# umbrella is on). gopls is not here: it lives in the golang overlay and needs
+# the Go toolchain.
+codegraph = { description = "Code knowledge graph MCP server", manager = "mise", package = "github:colbymchenry/codegraph", url = "https://github.com/colbymchenry/codegraph" }
+engram = { bin = "engram", description = "Agent memory and MCP server", name = "Engram", url = "https://github.com/Gentleman-Programming/engram", manager = "mise", package = "github:Gentleman-Programming/engram", version = "engram version", platforms = { linux-arm64 = { asset_pattern = "engram_*_linux_arm64.tar.gz" }, linux-x64 = { asset_pattern = "engram_*_linux_amd64.tar.gz" }, macos-arm64 = { asset_pattern = "engram_*_darwin_arm64.tar.gz" }, macos-x64 = { asset_pattern = "engram_*_darwin_amd64.tar.gz" } } }
+hf = { description = "Model download and repository CLI", manager = "mise", name = "Hugging Face CLI", package = "pipx:huggingface_hub", url = "https://huggingface.co/docs/huggingface_hub", version = "hf version" }
+# Upstream marks every b* build a prerelease and added an asset-less v1.0.0
+# "latest", so mise needs prerelease+version_prefix to keep resolving b* builds;
+# the patterns select the plain (non-GPU) ubuntu tarball among the release assets.
+llamacpp = { bin = "llama-server", description = "Local GGUF inference server", name = "llama.cpp", url = "https://github.com/ggml-org/llama.cpp", manager = "mise", mise_options = { prerelease = true, version_prefix = "b" }, package = "github:ggml-org/llama.cpp", platforms = { linux-arm64 = { asset_pattern = "llama-*-bin-ubuntu-arm64.tar.gz" }, linux-x64 = { asset_pattern = "llama-*-bin-ubuntu-x64.tar.gz" } } }
+# Serves the official pyright-lsp plugin (the marketplace has no basedpyright-lsp).
+pyright = { description = "Python type checker and language server (agent LSP)", manager = "mise", name = "Pyright", package = "npm:pyright", url = "https://github.com/microsoft/pyright" }
+# aqua release build, not the rustup component: mise installs the server binary directly.
+rust-analyzer = { description = "Rust language server (agent LSP)", manager = "mise", name = "rust-analyzer", package = "aqua:rust-lang/rust-analyzer", url = "https://github.com/rust-lang/rust-analyzer" }
 # uvx_args pins uv's interpreter to 3.13: on Python 3.15 sky's adaptors bind
 # yaml through importlib.util.LazyImport (new in 3.15) and `sky --version`
 # dies with `'LazyImport' object is not callable` (skypilot 0.14.2).
-skypilot = { bin = "sky", completion = { generate = "env _SKY_COMPLETE=zsh_source sky" }, manager = "mise", package = "pipx:skypilot", uvx_args = "--python 3.13", extras = "runpod,vast,lambda" }
+skypilot = { bin = "sky", description = "Multi-cloud workload launcher", name = "SkyPilot", url = "https://docs.skypilot.co", manager = "mise", package = "pipx:skypilot", uvx_args = "--python 3.13", extras = "runpod,vast,lambda" }
+typescript-language-server = { description = "TypeScript and JavaScript language server (agent LSP)", manager = "mise", package = "npm:typescript-language-server", url = "https://github.com/typescript-language-server/typescript-language-server" }

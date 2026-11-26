@@ -1,2 +1,2 @@
 [packages.base.pi]
-pi = { manager = "mise", package = "npm:@earendil-works/pi-coding-agent" }
+pi = { description = "Minimal extensible terminal coding agent", manager = "mise", name = "Pi", package = "npm:@earendil-works/pi-coding-agent", url = "https://www.npmjs.com/package/@earendil-works/pi-coding-agent" }

@@ -1,3 +1,14 @@
+[packages.base.golang]
+# aqua-registry moved gopls to its canonical Go path as a go_install asset,
+# which mise's aqua backend rejects; the go backend installs it directly
+# (resolves gopls/v0.24.0).
+# gopls uses Go's flag package: `--version` is an unknown flag (exit 2); the
+# version lives in the `version` subcommand.
+gopls = { description = "Go language server", manager = "mise", name = "gopls", package = "go:golang.org/x/tools/gopls", url = "https://github.com/golang/tools/tree/master/gopls", version = "gopls version" }
+
 [packages.base.golang.go]
+description = "Go language toolchain"
+name = "Go"
+url = "https://go.dev"
 manager = "mise"
 version = "go version"

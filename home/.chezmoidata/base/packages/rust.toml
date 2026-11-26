@@ -1,3 +1,6 @@
 [packages.base.rust.rust]
+description = "Rust toolchain"
 manager = "mise"
+name = "Rust"
+url = "https://www.rust-lang.org"
 bin = "rustc"

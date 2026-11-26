@@ -1,17 +1,12 @@
 [packages.os.ubuntu.core]
-bubblewrap = { disabled = ["ephemeral"], bin = "bwrap" }
-chezmoi = { manager = "mise" }
-fd = { package = "fd-find" }
-"git-delta" = { manager = "mise", package = "delta" }
-pcscd = { package = "pcscd" }
-socat = { disabled = ["ephemeral"], version = "socat -V" }
+libatomic1 = { package = "libatomic1", test = "dpkg -s libatomic1" }
+pcscd = { description = "PC/SC smart card daemon", name = "pcscd", url = "https://pcsclite.apdu.fr", package = "pcscd", test = "dpkg -s pcscd" }
+wslu = { bin = "wslview", description = "WSL integration utilities", name = "wslu", url = "https://wslutiliti.es/wslu", include = { type = ["wsl"] }, version = "wslview --version" }
 
 [packages.os.ubuntu.docker]
-docker = { package = "docker-ce" }
-"docker-buildx" = { package = "docker-buildx-plugin" }
-"docker-compose" = { package = "docker-compose-plugin" }
+docker = { exclude = { type = ["wsl"] }, package = "docker-ce" }
+"docker-buildx" = { exclude = { type = ["wsl"] }, package = "docker-buildx-plugin" }
+"docker-compose" = { exclude = { type = ["wsl"] }, package = "docker-compose-plugin" }
 
 [packages.os.ubuntu.kubernetes]
-"kubectl-access-matrix" = { exclude_arch = ["arm64"] }
-"kubectl-tree" = { exclude_arch = ["arm64"] }
-oc = { exclude_arch = ["arm64"] }
+oc = { exclude = { arch = ["arm64"] } }

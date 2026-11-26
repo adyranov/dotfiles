@@ -1,10 +1,15 @@
 [packages.base.docker]
-dive = { manager = "mise", package = "github:wagoodman/dive" }
-docker-buildx = { version = "docker buildx version" }
-lazydocker = { manager = "mise", package = "aqua:jesseduffield/lazydocker" }
+dive = { description = "Container image layer explorer", manager = "mise", package = "github:wagoodman/dive", url = "https://github.com/wagoodman/dive" }
+docker-buildx = { description = "Extended docker build", name = "Docker Buildx", url = "https://docs.docker.com/build/buildx", version = "docker buildx version" }
+lazydocker = { description = "Terminal UI for Docker", manager = "mise", package = "aqua:jesseduffield/lazydocker", url = "https://github.com/jesseduffield/lazydocker" }
 
 [packages.base.docker.docker]
-completion = true
+description = "Docker CLI (Engine on Linux; Colima on macOS)"
+name = "Docker"
+url = "https://www.docker.com"
 
 [packages.base.docker.docker-compose]
+description = "Multi-container app orchestration"
+name = "Docker Compose"
+url = "https://docs.docker.com/compose"
 version = "docker compose version"

@@ -2,12 +2,12 @@
 
   Walks layered packages via `base/packages/walk` (which resolves the effective
   manager per host), normalizes field defaults (`package`, `bin`, `version`,
-  `test`, krew conventions), keeps only entries matching `manager`, and
-  dispatches to a format subtemplate.
+  `test`), keeps only entries matching `manager`, and dispatches to a format
+  subtemplate.
 
   Args (dict):
     root    — template data root (required)
-    manager — "system" (default) | "brew" | "macports" | "mise" | "helm" | "krew"
+    manager — "system" (default) | "brew" | "macports" | "mise" | "helm"
     format  — format subtemplate name: "install" (default) | "mise" | "test"
 */ -}}
 {{- $root := .root -}}
@@ -22,23 +22,14 @@
 {{-   $pkgMgr := printf "%s" (index $entry "manager" | default "system") -}}
 {{-   if ne $pkgMgr $manager -}}{{- continue -}}{{- end -}}
 
+{{/*
+    The walker applied the manager-change name reset; an inherited provider
+    name is absent here and the id is used.
+*/ -}}
 {{-   $pkgName := printf "%s" (index $pkg "package" | default $id) -}}
 {{-   $pkgBin := printf "%s" (index $pkg "bin" | default $id) -}}
 
-{{-   $override := $entry.override -}}
-{{-   $baseMgr := index $entry.basePkg "manager" | default "system" -}}
-{{-   $overrideMgr := index $override "manager" -}}
-{{-   if and $overrideMgr (ne (printf "%s" $overrideMgr) (printf "%s" $baseMgr)) -}}
-{{-     if not (hasKey $override "package") -}}{{- $pkgName = $id -}}{{- end -}}
-{{-   end -}}
-
-{{-   if eq $pkgMgr "krew" -}}
-{{-     if not (hasKey $pkg "package") -}}{{- $pkgName = trimPrefix "kubectl-" $id -}}{{- end -}}
-{{-     if not (hasKey $pkg "bin") -}}{{- $pkgBin = printf "kubectl %s" (trimPrefix "kubectl-" $id) -}}{{- end -}}
-{{-   end -}}
-
 {{-   $pkgVersion := printf "%s --version" $pkgBin -}}
-{{-   if eq $pkgMgr "krew" -}}{{- $pkgVersion = printf "%s --help" $pkgBin -}}{{- end -}}
 {{-   if hasKey $pkg "version" -}}{{- $pkgVersion = printf "%s" (index $pkg "version") -}}{{- end -}}
 
 {{-   $pkgTest := $pkgVersion -}}
@@ -58,6 +49,7 @@
         "pin" (printf "%s" (index $pkg "pin" | default ""))
         "extras" (printf "%s" (index $pkg "extras" | default ""))
         "uvx_args" (printf "%s" (index $pkg "uvx_args" | default ""))
+        "mise_options" (index $pkg "mise_options" | default dict)
         "version" $pkgVersion
         "test" $pkgTest
         "platforms" (index $pkg "platforms" | default dict)

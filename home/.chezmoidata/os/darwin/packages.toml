@@ -1,35 +1,43 @@
 [packages.os.darwin.ai]
 llamacpp = { bin = "llama-server", manager = "brew", package = "adyranov/tap/llama-cpp" }
-omlx = { exclude_arch = [
-  "amd64"
-], manager = "system", package = "jundot/omlx/omlx" }
+omlx = { description = "Local Apple Silicon inference", name = "oMLX", url = "https://github.com/jundot/omlx", exclude = { arch = ["amd64"] }, manager = "system", package = "jundot/omlx/omlx" }
 
 [packages.os.darwin.cloud]
-aws = { disabled = ["headless"] }
+aws = { exclude = { mode = ["headless"] } }
 
 [packages.os.darwin.core]
-age-plugin-yubikey = {}
-atuin = { manager = "system" }
+age-plugin-yubikey = { description = "YubiKey plugin for age encryption", url = "https://github.com/str4d/age-plugin-yubikey", manager = "mise", package = "github:str4d/age-plugin-yubikey", variants = [
+  # Upstream's x86_64-darwin release asset bundles an arm64 binary (v0.5.1), so
+  # mise cannot serve Intel; MacPorts builds the port natively.
+  { include = { arch = ["amd64"] }, manager = "system", package = "age-plugin-yubikey" }
+] }
 coreutils = { version = "grealpath --version" }
-gnupg = { exclude_arch = ["arm64"], package = "gnupg2" }
-gnupg-arm64 = { bin = "gpg", exclude_arch = [
-  "amd64"
-], manager = "brew", package = "gnupg" }
-mas = { manager = "brew", version = "mas version" }
-openssh-client = { exclude_arch = [
-  "arm64"
-], package = "openssh +fido2", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }
-openssh-client-arm64 = { bin = "ssh", exclude_arch = [
-  "amd64"
-], manager = "brew", package = "openssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }
+gnupg = { variants = [
+  { include = { arch = ["amd64"] }, package = "gnupg2" },
+  { include = { arch = ["arm64"] }, manager = "brew", package = "gnupg" }
+] }
+mas = { description = "Mac App Store CLI", name = "mas", url = "https://github.com/mas-cli/mas", manager = "brew", version = "mas version" }
+openssh-client = { variants = [
+  { include = { arch = ["amd64"] }, package = "openssh +fido2" },
+  { include = { arch = ["arm64"] }, manager = "brew", package = "openssh" }
+] }
+pinentry-mac = { description = "GnuPG passphrase prompt for macOS", url = "https://github.com/GPGTools/pinentry", variants = [
+  { include = { arch = ["amd64"] }, package = "pinentry-mac", test = "test -x /Applications/MacPorts/pinentry-mac.app/Contents/MacOS/pinentry-mac" },
+  { include = { arch = ["arm64"] }, manager = "brew", package = "pinentry-mac", test = "command -v pinentry-mac" }
+] }
 
 [packages.os.darwin.docker]
-docker-buildx = { package = "docker-buildx-plugin" }
-docker-compose = { package = "docker-compose-plugin" }
+colima = { description = "Container runtime VM for macOS", name = "Colima", url = "https://github.com/abiosoft/colima", manager = "mise", package = "aqua:abiosoft/colima" }
+# MacPorts patches docker to find its plugins, so the -plugin port names are Intel-only;
+# ARM keeps the canonical ids and the inherited docker CLI version probes.
+docker-buildx = { variants = [{ include = { arch = ["amd64"] }, package = "docker-buildx-plugin" }] }
+docker-compose = { variants = [{ include = { arch = ["amd64"] }, package = "docker-compose-plugin" }] }
+lima = { description = "Linux virtual machines", name = "Lima", url = "https://lima-vm.io", manager = "mise", package = "aqua:lima-vm/lima", bin = "limactl" }
 
 [packages.os.darwin.extra]
-gocryptfs = { package = "gocryptfs" }
-opensc = { bin = "opensc-tool" }
-pam-u2f = { bin = "pamu2fcfg" }
-ykman = { exclude_arch = ["arm64"], package = "yubikey-manager" }
-ykman-arm64 = { bin = "ykman", exclude_arch = ["amd64"], manager = "brew", package = "ykman" }
+opensc = { bin = "opensc-tool", description = "Smart card middleware", name = "OpenSC", url = "https://github.com/OpenSC/OpenSC" }
+pam-u2f = { bin = "pamu2fcfg", description = "U2F PAM module", url = "https://github.com/Yubico/pam-u2f" }
+ykman = { description = "YubiKey configuration tool", name = "YubiKey Manager", url = "https://github.com/Yubico/yubikey-manager", variants = [
+  { include = { arch = ["amd64"] }, package = "yubikey-manager" },
+  { include = { arch = ["arm64"] }, manager = "brew", package = "ykman" }
+] }

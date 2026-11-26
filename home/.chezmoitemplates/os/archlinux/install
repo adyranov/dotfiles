@@ -1,9 +1,5 @@
 
 echo "🛠️ Updating pacman DB and installing packages…"
-{{- if or (eq .host.type "ephemeral") .host.interactive }}
-sudo pacman -Syu --noconfirm --needed {{ includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "system" "format" "install") }}
-{{- else }}
-sudo pacman -Sy --noconfirm
-sudo pacman -S --noconfirm --needed {{ includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "system" "format" "install") }}
-{{- end }}
+{{- $pkgs := includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "system" "format" "install") }}
+sudo pacman -Syu --noconfirm --needed {{ $pkgs }} || sudo pacman -Syyu --noconfirm --needed {{ $pkgs }}
 echo "✅ pacman packages ensured."

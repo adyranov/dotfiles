@@ -1,0 +1,63 @@
+[brew.darwin]
+taps = [
+  { name = "adyranov/tap", url = "https://github.com/adyranov/homebrew-tap" },
+  { name = "jundot/omlx", url = "https://github.com/jundot/omlx" }
+]
+
+[brew.darwin.casks]
+azure-cli = { description = "Manage Azure resources", name = "Azure CLI", url = "https://github.com/Azure/azure-cli", include = { arch = ["arm64"], toolchains = ["cloud"] } }
+
+[brew.personal]
+mas = [
+  { description = "Keep-awake utility", id = 937984704, name = "Amphetamine", url = "https://apps.apple.com/app/amphetamine/id937984704" },
+  { description = "Printer and scanner utility", id = 1193539993, name = "Brother iPrint&Scan", url = "https://apps.apple.com/app/brother-iprint-scan/id1193539993" },
+  { description = "Plain text editor", id = 1024640650, name = "CotEditor", url = "https://apps.apple.com/app/coteditor/id1024640650" },
+  { description = "Microsoft remote desktop client", id = 1295203466, name = "Windows App", url = "https://www.microsoft.com/windows-app" },
+  { description = "VPN client", id = 1451685025, name = "WireGuard", url = "https://www.wireguard.com" },
+  { description = "Mesh VPN client", id = 1475387142, name = "Tailscale", url = "https://tailscale.com" },
+  { description = "Messenger client", id = 310633997, name = "WhatsApp", url = "https://www.whatsapp.com/download" },
+  { description = "Apple presentations", id = 409183694, name = "Keynote", url = "https://www.apple.com/keynote" },
+  { description = "Apple word processor", id = 409201541, name = "Pages", url = "https://www.apple.com/pages" },
+  { description = "Apple spreadsheets", id = 409203825, name = "Numbers", url = "https://www.apple.com/numbers" },
+  { description = "Apple IDE", id = 497799835, name = "Xcode", url = "https://developer.apple.com/xcode" },
+  { description = "Team messaging", id = 803453959, name = "Slack", url = "https://slack.com" }
+]
+
+[brew.personal.casks]
+anydesk = { description = "Remote desktop access", name = "AnyDesk", url = "https://anydesk.com" }
+brave-browser = { description = "Privacy-focused web browser", name = "Brave Browser", url = "https://brave.com" }
+calibre = { description = "E-book manager", name = "calibre", url = "https://calibre-ebook.com" }
+cryptomator = { description = "Cloud storage encryption", name = "Cryptomator", url = "https://cryptomator.org" }
+cursor = { description = "AI-powered code editor", name = "Cursor", url = "https://www.cursor.com" }
+drawio = { description = "Diagram editor", name = "draw.io Desktop", url = "https://www.drawio.com" }
+ghostty = { description = "GPU-accelerated terminal", name = "Ghostty", url = "https://ghostty.org" }
+google-drive = { description = "Cloud storage desktop client", name = "Google Drive", url = "https://www.google.com/drive/download" }
+handbrake-app = { description = "Video transcoder", name = "HandBrake", url = "https://handbrake.fr" }
+iina = { description = "Modern media player", name = "IINA", url = "https://iina.io" }
+jetbrains-toolbox = { description = "Manage JetBrains IDEs", name = "JetBrains Toolbox", url = "https://www.jetbrains.com/toolbox-app" }
+jordanbaird-ice = { description = "Menu bar manager", name = "Ice", url = "https://icemenubar.app" }
+keepassxc = { description = "Password manager", name = "KeePassXC", url = "https://keepassxc.org" }
+keka = { description = "File archiver", name = "Keka", url = "https://www.keka.io" }
+kindle-previewer = { description = "E-book preview tool", name = "Kindle Previewer", url = "https://kdp.amazon.com/en_US/help/topic/G202131170" }
+localsend = { description = "Local network file transfer", name = "LocalSend", url = "https://localsend.org" }
+lulu = { description = "Outbound firewall", name = "LuLu", url = "https://objective-see.org/products/lulu.html" }
+maccy = { description = "Clipboard manager", name = "Maccy", url = "https://maccy.app" }
+macfuse = { description = "Filesystem in userspace support", name = "macFUSE", url = "https://github.com/macfuse/macfuse" }
+monitorcontrol = { description = "External display controls", name = "MonitorControl", url = "https://github.com/MonitorControl/MonitorControl" }
+onyx = { description = "macOS maintenance utility", name = "OnyX", url = "https://www.titanium-software.fr/en/onyx.html" }
+pearcleaner = { description = "Remove app leftovers", name = "Pearcleaner", url = "https://github.com/alienator88/Pearcleaner" }
+rectangle = { description = "Window manager", name = "Rectangle", url = "https://rectangleapp.com" }
+rustdesk = { description = "Open-source remote desktop", name = "RustDesk", url = "https://rustdesk.com" }
+signal = { description = "Private messenger", name = "Signal", url = "https://signal.org" }
+spotify = { description = "Music streaming client", name = "Spotify", url = "https://www.spotify.com" }
+stats = { description = "Menu bar system monitor", name = "Stats", url = "https://github.com/exelban/stats" }
+syncthing-app = { description = "Peer-to-peer file sync", name = "Syncthing", url = "https://syncthing.net" }
+telegram-desktop = { description = "Telegram client", name = "Telegram Desktop", url = "https://desktop.telegram.org" }
+tinymediamanager = { description = "Media file organizer", name = "tinyMediaManager", url = "https://www.tinymediamanager.org" }
+tor-browser = { description = "Privacy browser", name = "Tor Browser", url = "https://www.torproject.org" }
+transmission = { description = "BitTorrent client", name = "Transmission", url = "https://transmissionbt.com" }
+veracrypt = { description = "Disk encryption", name = "VeraCrypt", url = "https://www.veracrypt.fr" }
+visual-studio-code = { description = "Code editor", name = "Visual Studio Code", url = "https://code.visualstudio.com" }
+xnviewmp = { description = "Image viewer and organizer", name = "XnView MP", url = "https://www.xnview.com/en/xnviewmp" }
+yandex-disk = { description = "Cloud storage desktop client", name = "Yandex Disk", url = "https://disk.yandex.com" }
+zoom = { description = "Video conferencing", name = "Zoom", url = "https://zoom.us/download" }

@@ -1,5 +1,11 @@
 [packages.base.omp.omp]
+description = "oh-my-pi coding agent"
 manager = "mise"
+name = "OMP"
 package = "github:can1357/oh-my-pi"
+url = "https://github.com/can1357/oh-my-pi"
 version = "omp --version"
-completion = { generate = "omp completions zsh" }
+
+# Re-add an omp-agent-sdk-bridge entry only when the bridge is installable
+# (poog26/omp-agent-sdk-bridge has no GitHub releases, so mise github: fails)
+# AND loaded by omp; until then omp has no Claude bridge lane and no anthropic token.

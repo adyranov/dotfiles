@@ -1,2 +1,5 @@
 [packages.base.opencode.opencode]
+description = "Open-source terminal coding agent"
 manager = "mise"
+name = "OpenCode"
+url = "https://opencode.ai"

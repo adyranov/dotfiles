@@ -1,9 +1,12 @@
-{{- $brew := includeTemplate "base/helpers/load-section" (dict "root" . "section" "brew") | mustFromJson -}}
+{{- $root := . -}}
+{{- $profileKey := dig "host" "profile" "" $root -}}
+{{- $darwinBrew := dig "brew" "darwin" dict $root -}}
+{{- $profileBrew := dig "brew" $profileKey dict $root -}}
+{{- $brew := mergeOverwrite (dict) (deepCopy $darwinBrew) (deepCopy $profileBrew) -}}
 
 {{- $taps := index $brew "taps" | default list -}}
 {{- $brewPkgs := includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "brew" "format" "install") | trim -}}
-{{- $rawBrews := index $brew "brews" | default list -}}
-{{- $brews := $rawBrews -}}
+{{- $brews := index $brew "brews" | default list -}}
 {{- if $brewPkgs -}}
 {{-   $brews = concat (splitList " " $brewPkgs) $brews -}}
 {{- end -}}
@@ -19,7 +22,31 @@
 {{-     fail (printf "Intel macOS cannot install Homebrew formulae: %s" (join " " $offending)) -}}
 {{-   end -}}
 {{- end -}}
-{{- $casks := index $brew "casks" | default list -}}
+{{- $caskMap := dict -}}
+{{- range $caskLayer := list $darwinBrew $profileBrew -}}
+{{-   range $name, $entry := (index $caskLayer "casks" | default dict) -}}
+{{-     $merged := dict -}}
+{{-     if hasKey $caskMap $name -}}
+{{-       range $k, $v := index $caskMap $name -}}{{- $_ := set $merged $k $v -}}{{- end -}}
+{{-     end -}}
+{{-     range $k, $v := $entry -}}
+{{-       if has $k (list "include" "exclude") -}}
+{{-         $_ := set $merged $k (includeTemplate "base/packages/merge-selector" (dict "current" (index $merged $k | default dict) "spec" $v) | mustFromJson) -}}
+{{-       else -}}
+{{-         $_ := set $merged $k $v -}}
+{{-       end -}}
+{{-     end -}}
+{{-     $_ := set $caskMap $name $merged -}}
+{{-   end -}}
+{{- end -}}
+{{- $casks := list -}}
+{{- range $name := sortAlpha (keys $caskMap) -}}
+{{-   $entry := index $caskMap $name -}}
+{{-   $selArgs := dict "root" $root -}}
+{{-   if hasKey $entry "include" -}}{{- $_ := set $selArgs "include" (index $entry "include") -}}{{- end -}}
+{{-   if hasKey $entry "exclude" -}}{{- $_ := set $selArgs "exclude" (index $entry "exclude") -}}{{- end -}}
+{{-   if eq (includeTemplate "base/packages/select" $selArgs) "true" -}}{{- $casks = append $casks $name -}}{{- end -}}
+{{- end -}}
 {{- $mas := index $brew "mas" | default list -}}
 {{- if eq .host.arch "amd64" -}}
 tap "adyranov/tap"
@@ -44,6 +71,6 @@ brew "{{ . }}"{{ if eq (sub (len (splitList "/" .)) 1) 2 }}, trusted: true{{ end
 cask "{{ . }}"
 {{- end }}
 {{ range ($mas | uniq) }}
-mas "{{ .name }}", id: {{ printf "%.0f" .id }}
+mas "{{ .name }}", id: {{ .id }}
 {{- end }}
 {{- end }}

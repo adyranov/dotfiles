@@ -1,3 +1,3 @@
 [packages.base.java]
-java = { manager = "mise", version = "java -version", pin = "lts" }
-maven = { manager = "mise", bin = "mvn", version = "mvn -v" }
+java = { description = "Java runtime and compiler", name = "OpenJDK", url = "https://openjdk.org", manager = "mise", version = "java -version", pin = "lts" }
+maven = { description = "Java build and dependency tool", name = "Apache Maven", url = "https://maven.apache.org", manager = "mise", bin = "mvn", version = "mvn -v" }
