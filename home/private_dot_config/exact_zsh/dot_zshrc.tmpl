@@ -1,6 +1,6 @@
 # zsh4humans
 # You can manually run `z4h update` to update everything.
-zstyle ':z4h:' auto-update      'yes'
+zstyle ':z4h:' auto-update      'no'
 zstyle ':z4h:' auto-update-days '7'
 zstyle ':z4h:' prompt-at-bottom 'yes'
 zstyle ':z4h:' propagate-cwd          'yes'
@@ -9,7 +9,6 @@ zstyle ':z4h:' term-shell-integration yes
 
 {{- if (eq .host.distro.family "darwin") }}
 zstyle ':z4h:bindkey' keyboard  'mac'
-zstyle ':z4h:' iterm2-integration yes
 {{- else }}
 zstyle ':z4h:bindkey' keyboard  'pc'
 {{- end }}
@@ -54,7 +53,7 @@ z4h source "$HOME/.config/shell/exports.sh"
 z4h source "$ZDOTDIR/catppuccin-mocha-zsh-syntax-highlighting.zsh"
 
 (( $+commands[atuin] )) && eval "$(atuin init zsh)"
-(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh --cmd cd)"
 
 # Oh My Zsh
 z4h source ohmyzsh/ohmyzsh/lib/clipboard.zsh

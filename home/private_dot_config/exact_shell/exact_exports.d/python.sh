@@ -1,0 +1,4 @@
+# shellcheck shell=sh
+# Passive XDG redirections (python).
+# python
+export PYTHON_HISTORY="${XDG_STATE_HOME}/python/history"

@@ -2,11 +2,16 @@
 
 echo "🐚 Configuring login shell..."
 
-# Bash 3.2-safe defaults: avoid set -u failures when SHELL/USER are unset
-current_shell="${SHELL:-}"
 current_user="${USER:-$(id -un 2>/dev/null)}"
+if command -v dscl >/dev/null 2>&1; then
+  current_shell="$(dscl . -read "/Users/$current_user" UserShell 2>/dev/null | awk '{print $2}' || true)"
+elif command -v getent >/dev/null 2>&1; then
+  current_shell="$(getent passwd "$current_user" 2>/dev/null | cut -d: -f7 || true)"
+else
+  current_shell="${SHELL:-}"
+fi
 
-for cand in "/usr/local/bin/zsh" "/opt/homebrew/bin/zsh" "/usr/bin/zsh" "/bin/zsh"; do
+for cand in "/opt/homebrew/bin/zsh" "/opt/local/bin/zsh" "/usr/local/bin/zsh" "/usr/bin/zsh" "/bin/zsh"; do
   if [ -x "$cand" ]; then
     zsh_path="$cand"
     break

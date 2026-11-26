@@ -5,16 +5,30 @@ install.sh
 !.chezmoiscripts/before/**
 !.chezmoiscripts/common/**
 !.chezmoiscripts/os/{{ .host.distro.id }}/**
-!.chezmoiscripts/profile/{{ .host.profile }}/**
 !.chezmoiscripts/post/**
 {{- if .toolchains.ai }}
 !.chezmoiscripts/toolchains/ai/**
+{{ if get .toolchains "claude" | default false }}!.chezmoiscripts/05_migrate-claude-dir.sh{{ end }}
 {{- end }}
 {{- if .toolchains.java }}
 !.chezmoiscripts/toolchains/java/**
 {{- end }}
 {{- if ne .host.distro.family "darwin" }}
 Library
+.config/brew
+.config/brew/**
+.config/colima
+.config/colima/**
+{{- else }}
+.config/Code
+.config/Code/**
+.config/Cursor
+.config/Cursor/**
+{{- end }}
+{{- if not .toolchains.kubernetes }}
+.config/k9s
+.config/k9s/**
+.config/zsh/functions.d/kubesess
 {{- end }}
 {{- if not .secrets.age }}
 {{- /* With encryption unconfigured, chezmoi's NoEncryption.EncryptedSuffix() is
@@ -30,35 +44,77 @@ Library
 .config/maven/work.settings.xml
 .config/ssh/config.d/personal.conf
 .config/ssh/config.d/work.conf
-.local/share/mkcert/readonly_rootCA-key.pem
+.local/share/mkcert/rootCA-key.pem
 .local/share/mkcert/rootCA.pem
 {{- end }}
 {{- if not .toolchains.ai }}
 .agents
+.config/agents
 .config/agents/**
+.config/dcg
 .config/dcg/**
-.config/llama-swap/**
+.config/llama.cpp
+.config/llama.cpp/**
+.config/local-llm
+.config/local-llm/**
+.config/nono
 .config/nono/**
+.config/skypilot
 .config/skypilot/**
+.config/runpod
 .config/runpod/**
 .config/zsh/functions.d/skyl
+.omlx
 .runpod
+.local/bin/llm-bench
+.local/bin/llm-pull
 .local/bin/llm-serve
-.local/share/dotfiles/test/test-ai-*.bats
 {{- end }}
-{{- /* Per-agent toolchains: stop managing (and --remove can prune) the whole agent tree. */ -}}
+{{- if eq .host.type "ephemeral" }}
+{{- /* Containers run agents without nono: the container is the boundary. */}}
+.config/nono
+.config/nono/**
+{{- end }}
+{{- /* Per-agent toolchains: stop managing the whole agent tree when disabled. */ -}}
 {{- if not (get .toolchains "pi" | default false) }}
+.config/pi
 .config/pi/**
+.pi
+.pi-lens
+.local/share/pi-lens
+.local/share/pi-lens/**
 {{- end }}
 {{- if not (get .toolchains "opencode" | default false) }}
+.config/opencode
 .config/opencode/**
+.local/share/opencode
+.local/share/opencode/**
 {{- end }}
 {{- if not (get .toolchains "omp" | default false) }}
+.config/omp
 .config/omp/**
+.omp
+.cache/omp
+.cache/omp/**
+.local/share/omp
+.local/share/omp/**
+.local/state/omp
+.local/state/omp/**
+{{- end }}
+{{- if not (get .toolchains "claude" | default false) }}
+.config/claude
+.config/claude/**
+.claude
+.config/claude-powerline
+.config/claude-powerline/**
+.local/state/claude
+.local/state/claude/**
+.local/share/claude
+.local/share/claude/**
 {{- end }}
 {{- /* Launcher gate: manage ~/.local/bin/agent while any agent toolchain is
-       enabled; keep this predicate in sync with the launcher's agent set. */ -}}
-{{- if not (or (get .toolchains "pi" | default false) (get .toolchains "opencode" | default false) (get .toolchains "omp" | default false)) }}
+        enabled; the predicate is the shared any-agent-toolchain partial. */ -}}
+{{- if not (includeTemplate "base/helpers/any-agent-toolchain" (dict "root" .) | mustFromJson) }}
 .local/bin/agent
 {{- end }}
 .gitkeep

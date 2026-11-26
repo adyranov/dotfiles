@@ -1,0 +1,5 @@
+# git's init.templateDir target (see base.tmpl): the dir must exist and stay
+# empty, because `git init` copies every template file into each new .git.
+# All-ignored contents make chezmoi create the empty dir, and the dir stays
+# managed, so exact_git pruning keeps it.
+*

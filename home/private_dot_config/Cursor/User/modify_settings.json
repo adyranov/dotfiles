@@ -1,0 +1,2 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- includeTemplate "base/editors/vscode-settings" . -}}

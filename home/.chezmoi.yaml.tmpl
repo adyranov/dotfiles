@@ -5,9 +5,9 @@
 {{- $profile := "personal" -}}
 {{- $restricted := false -}}
 {{- $gpg := dict "sign" "" "encrypt" "" -}}
-{{- $secrets := dict "age" stdinIsATTY "bitwarden" false -}}
+{{- $secrets := dict "age" stdinIsATTY -}}
 {{- $toolchains := list "ai" "cloud" "docker" "golang" "iac" "java" "kubernetes" "node" "python" "rust" "extra" -}}
-{{- $agents := list "pi" "opencode" "omp" -}}
+{{- $agents := list "pi" "opencode" "omp" "claude" -}}
 
 {{- $data := . -}}
 {{- range $k := list "personal" "gpg" "host" "toolchains" -}}
@@ -32,41 +32,47 @@
 {{- end -}}
 
 {{- /* -------------------- Ephemeral Environment -------------------- */ -}}
-{{- $ephemeral := false -}}
-{{- $ephemeralReasons := list -}}
-
-{{- if stat "/.dockerenv" -}}
-  {{- $ephemeral = true -}}
-  {{- $ephemeralReasons = append $ephemeralReasons "Detected /.dockerenv" -}}
-{{- end -}}
-{{- if stat "/run/.containerenv" -}}
-  {{- $ephemeral = true -}}
-  {{- $ephemeralReasons = append $ephemeralReasons "Detected /run/.containerenv" -}}
-{{- end -}}
-
+{{- /* Raw host facts only; base/helpers/detect-host holds the rules and
+       mirrors the launcher's isContainer. */ -}}
+{{- $cgroup := "" -}}
 {{- if stat "/proc/1/cgroup" -}}
-  {{- $cgroup := output "cat" "/proc/1/cgroup" -}}
-  {{- $match := regexFind "(docker|lxc|podman|kubepods|containerd)" $cgroup -}}
-  {{- if $match -}}
-    {{- $ephemeral = true -}}
-    {{- $ephemeralReasons = append $ephemeralReasons (printf "/proc/1/cgroup matched %s" $match) -}}
-  {{- end -}}
+  {{- $cgroup = output "cat" "/proc/1/cgroup" -}}
 {{- end -}}
-
+{{- $mountinfo := "" -}}
 {{- if stat "/proc/1/mountinfo" -}}
-  {{- $mountinfo := output "cat" "/proc/1/mountinfo" -}}
-  {{- $match := regexFind "(overlay|containers)" $mountinfo -}}
-  {{- if $match -}}
-    {{- $ephemeral = true -}}
-    {{- $ephemeralReasons = append $ephemeralReasons (printf "/proc/1/mountinfo matched %s" $match) -}}
+  {{- $mountinfo = output "cat" "/proc/1/mountinfo" -}}
+{{- end -}}
+{{- $isWSL := or (env "WSL_DISTRO_NAME") (env "WSL_INTEROP") (and (eq $distro.family "linux") (contains "microsoft" (lower (output "uname" "-r")))) -}}
+{{- $chassis := "" -}}
+{{- if and (eq $distro.family "linux") (not $isWSL) (lookPath "hostnamectl") -}}
+  {{- /* output aborts on a nonzero exit and old systemd rejects
+         --json=short: a failed or non-JSON probe must leave chassis empty,
+         not abort the whole config. */ -}}
+  {{- $hostnamectl := trim (output "sh" "-c" "hostnamectl --json=short 2>/dev/null || true") -}}
+  {{- if hasPrefix "{" $hostnamectl -}}
+    {{- $chassis = get (fromJson $hostnamectl) "Chassis" | default "" -}}
   {{- end -}}
 {{- end -}}
-
-{{- $isWSL := or (env "WSL_DISTRO_NAME") (env "WSL_INTEROP") (and (eq $distro.family "linux") (contains (lower (output "uname" "-r")) "microsoft")) -}}
-{{- if and $ephemeral $isWSL -}}
-  {{- $ephemeral = false -}}
-  {{- $ephemeralReasons = list -}}
+{{- $hwModel := "" -}}
+{{- $hasBattery := false -}}
+{{- if eq $distro.family "darwin" -}}
+  {{- $hwModel = trim (output "sh" "-c" "sysctl -n hw.model 2>/dev/null || true") -}}
+  {{- $hasBattery = contains "InternalBattery" (output "sh" "-c" "pmset -g batt 2>/dev/null || true") -}}
 {{- end -}}
+{{- $detect := includeTemplate "base/helpers/detect-host" (dict
+      "os" .chezmoi.os
+      "dockerenv" (or (stat "/.dockerenv") false)
+      "containerenv" (or (stat "/run/.containerenv") false)
+      "cgroup" $cgroup
+      "mountinfo" $mountinfo
+      "wsl" $isWSL
+      "chassis" $chassis
+      "hwModel" $hwModel
+      "hasBattery" $hasBattery
+    ) | mustFromJson -}}
+{{- $ephemeral := $detect.ephemeral -}}
+{{- $ephemeralReasons := $detect.reasons -}}
+{{- $chassisType := $detect.type -}}
 
 {{- if $ephemeral -}}
   {{- writeToStdout "🛳️ Running in a containerized (ephemeral) environment.\n" -}}
@@ -84,31 +90,6 @@
   {{- end -}}
 {{- else -}}
   {{- $brewPath = "/home/linuxbrew/.linuxbrew/bin/brew" -}}
-{{- end -}}
-
-{{- /* -------------------- Chassis / Host Type -------------------- */ -}}
-{{- $chassisType := "desktop" -}}
-{{- if $ephemeral -}}
-  {{- $chassisType = "ephemeral" -}}
-{{- else if eq $distro.family "linux" -}}
-  {{- if $isWSL -}}
-    {{- $chassisType = "wsl" -}}
-  {{- else -}}
-    {{- $hostnamectl := output "hostnamectl" "--json=short" -}}
-    {{- $parsed := mustFromJson $hostnamectl -}}
-    {{- $chassis := $parsed.Chassis | default "desktop" -}}
-    {{- $chassisType = $chassis -}}
-  {{- end -}}
-{{- else if eq $distro.family "darwin" -}}
-  {{- $hwModel := output "sysctl" "-n" "hw.model" -}}
-  {{- if contains "MacBook" $hwModel -}}
-    {{- $chassisType = "laptop" -}}
-  {{- else -}}
-    {{- $chassisType = "desktop" -}}
-  {{- end -}}
-{{- else if eq $distro.family "windows" -}}
-  {{- $psCmd := "if (Get-WmiObject -Class win32_battery) { 'laptop' } elseif ((Get-WmiObject -Class Win32_SystemEnclosure).ChassisTypes -contains 8) { 'laptop' } else { 'desktop' }" -}}
-  {{- $chassisType = output "powershell.exe" "-noprofile" "-command" $psCmd -}}
 {{- end -}}
 
 {{- /* -------------------- Toolchain Defaults -------------------- */ -}}
@@ -184,11 +165,6 @@
     {{- end -}}
   {{- end -}}
 
-  {{- if and (get $toolchainsEnabled "kubernetes") (not (get $toolchainsEnabled "docker")) -}}
-    {{- $_ := set $toolchainsEnabled "docker" true -}}
-    {{- writeToStdout "🐳 Enabled Docker for Kubernetes.\n" -}}
-  {{- end -}}
-
 {{- writeToStdout "💡 Tip: You can re-enter your name and email with `chezmoi init --data=false`.\n" -}}
 {{- else -}}
   {{- $interactive = false -}}
@@ -200,6 +176,7 @@
     "pi"       "🥧"
     "opencode" "🔗"
     "omp"      "⚡"
+    "claude"   "🟠"
 -}}
 {{- $agentsSelected := list -}}
 {{- if stdinIsATTY -}}
@@ -247,19 +224,23 @@
   {{- writeToStdout "🤖 Enabled ai umbrella (required by an enabled agent).\n" -}}
 {{- end -}}
 
-{{- if get $toolchainsEnabled "pi" -}}
-  {{- if not (get $toolchainsEnabled "node") -}}
-    {{- $_ := set $toolchainsEnabled "node" true -}}
-    {{- writeToStdout "🟢 Enabled Node.js for pi (npm install).\n" -}}
-  {{- end -}}
+{{- if and (get $toolchainsEnabled "kubernetes") (not (get $toolchainsEnabled "docker")) -}}
+  {{- $_ := set $toolchainsEnabled "docker" true -}}
+  {{- writeToStdout "🐳 Enabled Docker for Kubernetes.\n" -}}
 {{- end -}}
-{{- if get $toolchainsEnabled "opencode" -}}
+
+{{- if get $toolchainsEnabled "ai" -}}
   {{- if not (get $toolchainsEnabled "node") -}}
     {{- $_ := set $toolchainsEnabled "node" true -}}
-    {{- writeToStdout "🟢 Enabled Node.js for opencode (npm install).\n" -}}
+    {{- writeToStdout "🟢 Enabled Node.js for ai (LSPs & guard hooks).\n" -}}
+  {{- end -}}
+  {{- if not (get $toolchainsEnabled "python") -}}
+    {{- $_ := set $toolchainsEnabled "python" true -}}
+    {{- writeToStdout "🐍 Enabled Python for ai (uv/pipx tools).\n" -}}
   {{- end -}}
 {{- end -}}
 
+cacheDir: {{ printf "%s/.local/share/chezmoi-cache" .chezmoi.homeDir | quote }}
 hooks:
   read-source-state:
     pre:

@@ -1,82 +1,63 @@
 {{- /*
-Prune lists for gated content: gate off -> targets are gone.
-Renames self-heal via exact_ dirs + `chezmoi apply --remove '<target>'`
-(chezmoi prunes files no longer present in source). Patterns are TARGET
-names; each gated block below mirrors home/.chezmoiignore.tmpl exactly.
+Prune list for unconditionally retired targets (patterns are TARGET names).
+Never removes logins, sessions, or runtime state.
 */ -}}
-{{- if ne .host.distro.family "darwin" }}
-Library
-{{- end }}
-{{- if not .secrets.age }}
-{{- /* Age targets with no non-age twin; the ssh config.d confs are also
-     listed here in .chezmoiignore.tmpl but pruned by the profile block.
-     Intentional asymmetry: .chezmoiignore.tmpl carries a .age catch-all that is
-     deliberately not mirrored here — targets listed in .chezmoiignore are never
-     removed, so a .age pattern here would be inert, and an age-off host never
-     writes a .age target (apply dies before writing it). */}}
-.config/docker/buildkitd/buildkitd.work.toml
-.config/git/work
-.config/git/work-user
-.config/maven/work.settings.xml
-.local/share/mkcert/readonly_rootCA-key.pem
-.local/share/mkcert/rootCA.pem
-{{- end }}
-{{- if not .toolchains.ai }}
-.agents
-.config/agents
-.config/agents/**
-.config/dcg
-.config/dcg/**
-.config/llama-swap
-.config/llama-swap/**
-.config/nono
-.config/nono/**
-.config/skypilot
-.config/skypilot/**
-.config/runpod
-.config/runpod/**
-.config/zsh/functions.d/skyl
-.runpod
-.local/bin/llm-serve
-.local/share/dotfiles/test/test-ai-*.bats
-{{- end }}
+{{- /* Legacy executed caches moved out of ~/.cache (R8). */}}
+.cache/gitstatus
+.cache/gitstatus/**
+.cache/p10k-instant-prompt-*
+.cache/zsh/eval-cache
+.cache/zsh/eval-cache/**
+.cache/zsh4humans
+.cache/zsh4humans/**
+{{- /* Retired $HOME test harness (moved to repo-only tests/). */}}
+.local/bin/check-dotfiles
+.local/share/dotfiles/test
+.local/share/dotfiles/test/**
 {{- /* Legacy argv0 symlinks (subcommand dispatch replaced them):
        pruned unconditionally on every host. */}}
 .local/bin/pi-agent
 .local/bin/opencode-agent
 .local/bin/omp-agent
-{{- /* Retired greywall-era artifacts: LaunchAgent plist (booted out by the
-       darwin retire script), the Application Support convenience symlinks,
-       and the greywall-open-url bridge pair (the bridge wrote /tmp/
-       greywall-open-url; macOS keeps /usr/bin/open). The bridge's `open` is
-       deliberately NOT listed: .chezmoiremove deletes destination files it
-       did not create and cannot inspect them, and `open` is a common user
-       command. Manual migration on hosts still carrying the bridge (the
-       script is a harmless pass-through to /usr/bin/open, so leaving it is
-       safe too):
-         grep -q greywall-open-url ~/.local/bin/open && rm ~/.local/bin/open */}}
+{{- /* Retired credential-seed command: prune unconditionally. */}}
+.local/bin/seed-keystore
+{{- /* Retired iTerm2 and rpiv-ask-user-question configs: prune unconditionally. */}}
+.config/iterm2
+.config/iterm2/**
+.config/rpiv-ask-user-question
+.config/rpiv-ask-user-question/**
+{{- /* Retired pi-claude-bridge state directory (R22). */}}
+.local/state/pi/claude-bridge
+.local/state/pi/claude-bridge/**
+{{- /* Retired wget config (wget dropped from core packages). */}}
+.config/wget
+.config/wget/**
+{{- /* Retired krew plugin manager (kubectl plugins moved to mise github binaries). */}}
+.local/share/krew
+.local/share/krew/**
+{{- /* Retired greywall-era artifacts: LaunchAgent plist, the Application
+       Support convenience symlinks, and the greywall-open-url bridge pair. */}}
 Library/LaunchAgents/com.user.openurl-bridge.plist
 Library/Application Support/greywall
 Library/Application Support/greyproxy
 .local/bin/openurl-bridge.sh
-{{- if not (get .toolchains "pi" | default false) }}
-.config/pi
-.config/pi/**
-{{- end }}
-{{- if not (get .toolchains "opencode" | default false) }}
-.config/opencode
-.config/opencode/**
-{{- end }}
-{{- if not (get .toolchains "omp" | default false) }}
-.config/omp
-.config/omp/**
-{{- end }}
-{{- /* Launcher gate: mirrors home/.chezmoiignore.tmpl. */ -}}
-{{- if not (or (get .toolchains "pi" | default false) (get .toolchains "opencode" | default false) (get .toolchains "omp" | default false)) }}
-.local/bin/agent
-{{- end }}
-{{ if eq .host.profile "work" -}}
-.config/ssh/config.d/personal.conf
-{{- else -}}
-.config/ssh/config.d/work.conf
-{{- end }}
+{{- /* Retired OpenCode codex-headers plugin symlink & library dir. */}}
+.config/opencode/plugins/codex-headers.ts
+.config/agents/libraries/extensions/opencode-codex-headers
+.config/agents/libraries/extensions/opencode-codex-headers/**
+{{- /* Retired Claude delegation/duer/workflow files and old writable-dir hooks/settings. */}}
+.local/bin/claude-delegate
+.config/claude/delegation.json
+.config/claude/duer.json
+.config/claude/duer-result.schema.json
+.config/claude/duer-roles
+.config/claude/duer-roles/**
+.config/claude/roles
+.config/claude/roles/**
+.config/claude/workflows/factory-deepwork.js
+.config/claude/hooks/dcg-guard.mjs
+.config/claude/worker-settings.json
+.config/dcg/claude-worker-settings.json
+.config/pi/agent/extensions/dcg-guard.ts
+.config/pi/agent/extensions/dcg-robot.ts
+.config/omp/agent/extensions/dcg-guard.ts

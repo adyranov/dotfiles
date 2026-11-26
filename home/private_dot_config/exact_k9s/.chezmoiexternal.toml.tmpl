@@ -1,8 +1,0 @@
-{{- if .toolchains.kubernetes }}
-{{ template "base/github/external" (dict
-    "type"   "archive"
-    "target"          "skins"
-    "repo"            "catppuccin/k9s@main"
-    "stripComponents" 2
-    "include"         (list "k9s-*/dist/catppuccin-mocha*.yaml")) }}
-{{- end }}

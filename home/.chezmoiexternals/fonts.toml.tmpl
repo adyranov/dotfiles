@@ -1,0 +1,14 @@
+{{- /* MesloLGS NF fonts (powerlevel10k-media publishes no tags; tracks master). */ -}}
+{{- if .host.interactive }}
+{{-   $fontDir := ternary "Library/Fonts" ".local/share/fonts" (eq .host.distro.family "darwin") }}
+{{-   range (list
+        "MesloLGS NF Regular.ttf"
+        "MesloLGS NF Bold.ttf"
+        "MesloLGS NF Italic.ttf"
+        "MesloLGS NF Bold Italic.ttf") }}
+["{{ $fontDir }}/{{ . }}"]
+    type = "file"
+    url = "https://github.com/romkatv/powerlevel10k-media/raw/master/{{ . }}"
+    refreshPeriod = "168h"
+{{-   end }}
+{{- end }}

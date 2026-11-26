@@ -1,15 +1,12 @@
-{{- /* base/headers/script — unified shebang + strict mode + next-update marker.
+{{- /* base/headers/script — unified shebang + strict mode.
   Args (dict):
     root    — template data root (required)
     exports — bool (default true): when true, source ~/.config/shell/exports.sh
 */ -}}
-{{- $root := .root -}}
 {{- $exports := true -}}
 {{- if hasKey . "exports" -}}{{- $exports = .exports -}}{{- end -}}
 #!/usr/bin/env bash
 set -euo pipefail
-
-# {{ includeTemplate "base/helpers/next-update" $root | trim }}
 
 {{ if $exports -}}
 if [ -f "$HOME/.config/shell/exports.sh" ]; then

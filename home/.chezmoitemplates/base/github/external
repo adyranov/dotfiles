@@ -40,11 +40,11 @@
 {{-   end }}
 {{- else if eq $type "file" }}
     type = "file"
-    url = "https://raw.githubusercontent.com/{{ $repoName }}/{{ $ref }}/{{ .source }}"
+    url = "https://raw.githubusercontent.com/{{ $repoName }}/{{ $ref }}/{{ .source | replace " " "%20" }}"
 {{- end }}
 {{- if $refreshPeriod }}
     refreshPeriod = "{{ $refreshPeriod }}"
 {{- end }}
-{{- if index . "exact" }}
+{{- if and (eq $type "archive") (index . "exact") }}
     exact = true
 {{- end }}

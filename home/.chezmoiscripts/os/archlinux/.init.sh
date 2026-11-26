@@ -21,6 +21,13 @@ if ! pacman -Qi bash >/dev/null 2>&1 || ! pacman -Qi git >/dev/null 2>&1 || ! pa
   echo "  ✅ Prerequisites installed."
 fi
 
+if ! locale -a 2>/dev/null | grep -qi 'en_US.utf8'; then
+  echo "🌐 Generating en_US.UTF-8 locale..."
+  sudo sed -i 's/^#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
+  sudo locale-gen
+  echo "  ✅ Locale generated."
+fi
+
 export PATH="${HOME}/.local/bin:${PATH}"
 
 if ! command -v mise >/dev/null 2>&1; then

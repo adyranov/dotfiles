@@ -1,12 +1,73 @@
 {{- includeTemplate "base/headers/script" (dict "root" .) -}}
+# inputs hash: {{ .toolchains | toJson | sha256sum }} {{ includeTemplate "base/packages/walk" (dict "root" .) | sha256sum }} {{ output "sh" "-c" "cd ~ && mise ls --current 2>/dev/null || true" | sha256sum }}
 
-{{- $compDir := joinPath .host.home ".config/zsh/completions" -}}
+COMPLETION_DIR="${ZDOTDIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/completions"
 
 echo "🐚 Generating Zsh completions..."
-echo "📂 Ensuring completion directory exists: {{ $compDir }}"
-mkdir -p "{{ $compDir }}"
-{{ includeTemplate "base/packages/collect-completions" (dict "root" . "format" "completion-script" "compDir" $compDir) }}
+mkdir -p "$COMPLETION_DIR"
+
+generateCompletion() {
+  local id="$1" bin="$2" cmd="$3" sed_script="${4:-}"
+  local target="${COMPLETION_DIR}/_${id}"
+  local tmp
+  local -a sed_args=(-e '/./,$!d')
+
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    rm -f -- "$target"
+    return 0
+  fi
+  tmp="$(mktemp "${target}.tmp.XXXXXX")" || return 0
+  [ -z "$sed_script" ] || sed_args=(-e "$sed_script" "${sed_args[@]}")
+  printf '  ↳ %s\n' "$id"
+
+  if bash -c "$cmd" | sed "${sed_args[@]}" >"$tmp" && [ -s "$tmp" ]; then
+    mv -f -- "$tmp" "$target"
+    return 0
+  fi
+
+  printf '  ! %s completion generation failed or empty; skipping\n' "$id" >&2
+  rm -f -- "$tmp" "$target"
+}
+
+# Columns: id ; bin ; command ; optional sed script (delimiter: ';', never '|')
+while IFS=';' read -r id bin cmd sed_script; do
+  [ -n "$id" ] || continue
+  generateCompletion "$id" "$bin" "$cmd" "$sed_script"
+done <<'EOF'
+atuin;atuin;atuin gen-completions --shell zsh;
+bat;bat;bat --completion zsh 2>/dev/null;
+bun;bun;bun completions zsh;
+chezmoi;chezmoi;chezmoi completion zsh;
+docker;docker;docker completion zsh;
+doggo;doggo;doggo completions zsh;
+fd;fd;fd --gen-completions zsh;
+gh;gh;gh completion -s zsh;
+git-delta;delta;delta --generate-completion zsh;
+glow;glow;glow completion zsh;
+helm;helm;helm completion zsh;
+hf;hf;env _HF_COMPLETE=zsh_source hf;
+k3d;k3d;k3d completion zsh;
+k9s;k9s;k9s completion zsh;
+kubecolor;kubecolor;kubectl completion zsh;s/kubectl/kubecolor/g
+kubectl;kubectl;kubectl completion zsh;
+kubescape;kubescape;kubescape completion zsh;
+lazygit;lazygit;lazygit completion zsh;
+mise;mise;mise completion zsh;
+oc;oc;oc completion zsh;
+omp;omp;omp completions zsh;
+rclone;rclone;rclone completion zsh -;
+ripgrep;rg;rg --generate complete-zsh;
+skypilot;sky;env _SKY_COMPLETE=zsh_source sky;
+sops;sops;sops completion zsh;
+stern;stern;stern --completion zsh;
+topgrade;topgrade;topgrade --gen-completion zsh;
+uv;uv;uv generate-shell-completion zsh;
+xh;xh;xh --generate complete-zsh;
+yq;yq;yq shell-completion zsh;
+EOF
+
 echo "🧹 Invalidating Zsh completion cache..."
-Z4H_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/zsh4humans/v5/cache"
-rm -f "$Z4H_CACHE"/zcompdump-* "$Z4H_CACHE"/zcompdump-*.zwc "$HOME"/.config/zsh/.zcompdump "$HOME"/.config/zsh/.zcompdump.zwc
+Z4H_CACHE="${Z4H:-${XDG_DATA_HOME:-$HOME/.local/share}/zsh4humans/v5}/cache"
+ZDOT="${ZDOTDIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}"
+rm -f "$Z4H_CACHE"/zcompdump-* "$Z4H_CACHE"/zcompdump-*.zwc "$ZDOT"/.zcompdump "$ZDOT"/.zcompdump.zwc
 echo "✅ Zsh completions generated."

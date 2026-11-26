@@ -1,4 +1,5 @@
 {{- includeTemplate "base/headers/script" (dict "root" .) -}}
+# fda-probe: {{ if eq .chezmoi.os "darwin" }}{{ output "sh" "-c" "ls \"$HOME/Library/Safari\" >/dev/null 2>&1 && echo granted || echo denied" | trim }}{{ else }}skipped{{ end }}
 echo "🍎 Configuring macOS settings..."
 
 if ls "$HOME"/Library/Safari &>/dev/null; then
@@ -15,10 +16,7 @@ fi
 osascript -e 'tell application "System Settings" to quit'
 
 set -x
-###############################################################################
-# General UI/UX                                                               #
-###############################################################################
-
+# General UI/UX
 # Disable automatic capitalization as it’s annoying when typing code
 defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
 
@@ -34,10 +32,7 @@ defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
 # Disable auto-correct
 defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
 
-###############################################################################
-# Trackpad, mouse, keyboard, Bluetooth accessories, and input                 #
-###############################################################################
-
+# Trackpad, mouse, keyboard, Bluetooth accessories, and input
 # Trackpad: enable tap to click for this user and for the login screen
 defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
 defaults -currentHost write NSGlobalDomain com.apple.mouse.tapBehavior -int 1
@@ -58,10 +53,7 @@ defaults write NSGlobalDomain AppleLocale -string "en_US@currency=USD"
 defaults write NSGlobalDomain AppleMeasurementUnits -string "Inches"
 defaults write NSGlobalDomain AppleMetricUnits -bool false
 
-###############################################################################
-# Screen                                                                      #
-###############################################################################
-
+# Screen
 # Require password immediately after sleep or screen saver begins
 defaults write com.apple.screensaver askForPassword -int 1
 defaults write com.apple.screensaver askForPasswordDelay -int 0
@@ -79,10 +71,7 @@ defaults write com.apple.screencapture disable-shadow -bool true
 # Reference: https://github.com/kevinSuttle/macOS-Defaults/issues/17#issuecomment-266633501
 defaults write NSGlobalDomain AppleFontSmoothing -int 1
 
-###############################################################################
-# Finder                                                                      #
-###############################################################################
-
+# Finder
 # Finder: allow quitting via ⌘ + Q; doing so will also hide desktop icons
 defaults write com.apple.finder QuitMenuItem -bool true
 
@@ -128,10 +117,7 @@ defaults write com.apple.finder FXInfoPanesExpanded -dict \
   OpenWith -bool true \
   Privileges -bool true
 
-###############################################################################
-# Dock, Dashboard, and hot corners                                            #
-###############################################################################
-
+# Dock, Dashboard, and hot corners
 # Enable highlight hover effect for the grid view of a stack (Dock)
 defaults write com.apple.dock mouse-over-hilite-stack -bool true
 
@@ -199,10 +185,7 @@ defaults write com.apple.dock wvous-tr-modifier -int 0
 defaults write com.apple.dock wvous-bl-corner -int 5
 defaults write com.apple.dock wvous-bl-modifier -int 0
 
-###############################################################################
-# Safari & WebKit                                                             #
-###############################################################################
-
+# Safari & WebKit
 # Privacy: don’t send search queries to Apple
 defaults write com.apple.Safari UniversalSearchEnabled -bool false
 defaults write com.apple.Safari SuppressSearchSuggestions -bool true
@@ -276,22 +259,13 @@ defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebK
 defaults write com.apple.Safari WebKitJavaScriptCanOpenWindowsAutomatically -bool false
 defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebKit2JavaScriptCanOpenWindowsAutomatically -bool false
 
-# Disable auto-playing video
-#defaults write com.apple.Safari WebKitMediaPlaybackAllowsInline -bool false
-#defaults write com.apple.SafariTechnologyPreview WebKitMediaPlaybackAllowsInline -bool false
-#defaults write com.apple.Safari com.apple.Safari.ContentPageGroupIdentifier.WebKit2AllowsInlineMediaPlayback -bool false
-#defaults write com.apple.SafariTechnologyPreview com.apple.Safari.ContentPageGroupIdentifier.WebKit2AllowsInlineMediaPlayback -bool false
-
 # Enable “Do Not Track”
 defaults write com.apple.Safari SendDoNotTrackHTTPHeader -bool true
 
 # Update extensions automatically
 defaults write com.apple.Safari InstallExtensionUpdatesAutomatically -bool true
 
-###############################################################################
-# Mail                                                                        #
-###############################################################################
-
+# Mail
 # Disable send and reply animations in Mail.app
 defaults write com.apple.mail DisableReplyAnimations -bool true
 defaults write com.apple.mail DisableSendAnimations -bool true
@@ -313,17 +287,9 @@ defaults write com.apple.mail DisableInlineAttachmentViewing -bool true
 # Disable automatic spell checking
 defaults write com.apple.mail SpellCheckingBehavior -string "NoSpellCheckingEnabled"
 
-###############################################################################
-# Terminal & iTerm 2                                                          #
-###############################################################################
-
+# Terminal
 # Only use UTF-8 in Terminal.app
 defaults write com.apple.terminal StringEncodings -array 4
-
-# Enable “focus follows mouse” for Terminal.app and all X11 apps
-# i.e. hover over a window and start typing in it without clicking first
-#defaults write com.apple.terminal FocusFollowsMouse -bool true
-#defaults write org.x.X11 wm_ffm -bool true
 
 # Enable Secure Keyboard Entry in Terminal.app
 # See: https://security.stackexchange.com/a/47786/8918
@@ -332,25 +298,11 @@ defaults write com.apple.terminal SecureKeyboardEntry -bool true
 # Disable the annoying line marks
 defaults write com.apple.Terminal ShowLineMarks -int 0
 
-# Don’t display the annoying prompt when quitting iTerm2
-defaults write com.googlecode.iterm2 PromptOnQuit -bool false
-
-# Specify the preferences directory
-defaults write com.googlecode.iterm2.plist PrefsCustomFolder -string "~/.config/iterm2"
-# Tell iTerm2 to use the custom preferences in the directory
-defaults write com.googlecode.iterm2.plist LoadPrefsFromCustomFolder -bool true
-
-###############################################################################
-# Time Machine                                                                #
-###############################################################################
-
+# Time Machine
 # Prevent Time Machine from prompting to use new hard drives as backup volume
 defaults write com.apple.TimeMachine DoNotOfferNewDisksForBackup -bool true
 
-###############################################################################
-# Activity Monitor                                                            #
-###############################################################################
-
+# Activity Monitor
 # Show the main window when launching Activity Monitor
 defaults write com.apple.ActivityMonitor OpenMainWindow -bool true
 
@@ -364,10 +316,7 @@ defaults write com.apple.ActivityMonitor ShowCategory -int 0
 defaults write com.apple.ActivityMonitor SortColumn -string "CPUUsage"
 defaults write com.apple.ActivityMonitor SortDirection -int 0
 
-###############################################################################
-# Address Book, Dashboard, iCal, TextEdit, and Disk Utility                   #
-###############################################################################
-
+# Address Book, Dashboard, iCal, TextEdit, and Disk Utility
 # Enable the debug menu in Address Book
 defaults write com.apple.addressbook ABShowDebugMenu -bool true
 
@@ -384,10 +333,7 @@ defaults write com.apple.DiskUtility advanced-image-options -bool true
 # Auto-play videos when opened with QuickTime Player
 defaults write com.apple.QuickTimePlayerX MGPlayMovieOnOpen -bool true
 
-###############################################################################
-# Mac App Store                                                               #
-###############################################################################
-
+# Mac App Store
 # Enable the WebKit Developer Tools in the Mac App Store
 defaults write com.apple.appstore WebKitDeveloperExtras -bool true
 
@@ -415,16 +361,11 @@ defaults write com.apple.commerce AutoUpdate -bool true
 # Allow the App Store to reboot machine on macOS updates
 defaults write com.apple.commerce AutoUpdateRestartRequired -bool true
 
-###############################################################################
-# Photos                                                                      #
-###############################################################################
-
+# Photos
 # Prevent Photos from opening automatically when devices are plugged in
 defaults -currentHost write com.apple.ImageCapture disableHotPlug -bool true
 
-###############################################################################
-# Google Chrome & Google Chrome Canary                                        #
-###############################################################################
+# Google Chrome & Google Chrome Canary
 
 # Disable the all too sensitive backswipe on trackpads
 defaults write com.google.Chrome AppleEnableSwipeNavigateWithScrolls -bool false

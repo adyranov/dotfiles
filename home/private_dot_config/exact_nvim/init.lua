@@ -1,3 +1,13 @@
+-- Baseline editor defaults
+vim.opt.number = true
+vim.opt.relativenumber = true
+vim.opt.clipboard = "unnamedplus"
+vim.opt.ignorecase = true
+vim.opt.smartcase = true
+vim.opt.undofile = true
+vim.opt.mouse = "a"
+vim.opt.termguicolors = true
+
 -- Catppuccin Mocha colorscheme + Mocha-tinted devicons (cafetiere.nvim).
 local config = vim.fn.stdpath("config")
 

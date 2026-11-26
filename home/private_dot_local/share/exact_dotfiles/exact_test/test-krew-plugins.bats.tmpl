@@ -1,9 +1,0 @@
-#!/usr/bin/env bats
-
-load 'common-helper'
-
-setup() {
-  common_setup
-}
-
-{{ includeTemplate "base/packages/collect-packages" (dict "root" . "manager" "krew" "format" "test") }}

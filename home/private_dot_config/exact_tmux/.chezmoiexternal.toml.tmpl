@@ -1,7 +1,0 @@
-{{- /* gpakosz/.tmux publishes no git tags; pin to master. */ -}}
-{{ template "base/github/external" (dict
-    "type"   "file"
-    "target"   "tmux.conf"
-    "repo"     "gpakosz/.tmux@master"
-    "source"   ".tmux.conf"
-    "exact"    true) }}

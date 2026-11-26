@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ARCH="$(dpkg --print-architecture)"
-
 retry() {
   local attempt=0 max=3 delay=2
   while [ $attempt -lt $max ]; do
@@ -41,19 +39,17 @@ if ! command -v mise >/dev/null 2>&1; then
 fi
 
 if ! command -v rage >/dev/null 2>&1; then
-  echo "🔐 Installing rage (encryption tool)..."
-  curl_opts=(-fsSL)
-  if [ -n "${GITHUB_TOKEN:-}" ]; then
-    curl_opts+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-    curl_opts+=(-H "X-GitHub-Api-Version: 2022-11-28")
+  echo "🔐 Installing rage via mise..."
+  retry mise install github:str4d/rage@latest
+  RAGE_BIN="${XDG_DATA_HOME:-${HOME}/.local/share}/mise/installs/github-str4d-rage/latest/rage"
+  if [ ! -x "${RAGE_BIN}" ]; then
+    RAGE_BIN="$(mise where github:str4d/rage)/rage"
   fi
-  # shellcheck disable=SC2016
-  latest=$(retry bash -c 'curl "${@}" https://api.github.com/repos/str4d/rage/releases/latest | grep -Po '\''"tag_name": "\K[^"]+'\''' -- "${curl_opts[@]}")
-  version="${latest#v}"
-  echo "  ↳ Downloading version ${latest}..."
-  url="https://github.com/str4d/rage/releases/download/${latest}/rage-musl_${version}-1_${ARCH}.deb"
-  retry curl -fsSL -o /tmp/rage.deb "${url}"
-  sudo dpkg -i /tmp/rage.deb || sudo apt-get -f install -y
-  rm -f /tmp/rage.deb
+  if [ ! -x "${RAGE_BIN}" ]; then
+    echo "❌ mise installed rage without an executable at ${RAGE_BIN}" >&2
+    exit 1
+  fi
+  mkdir -p "${HOME}/.local/bin"
+  ln -sf "${RAGE_BIN}" "${HOME}/.local/bin/rage"
   echo "  ✅ rage installed."
 fi
