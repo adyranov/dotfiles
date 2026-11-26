@@ -1,0 +1,96 @@
+{{- /*
+  Usage:
+    {{- $detect := includeTemplate "base/helpers/detect-host" (dict
+          "os" .chezmoi.os
+          "dockerenv" (or (stat "/.dockerenv") false)
+          "containerenv" (or (stat "/run/.containerenv") false)
+          "cgroup" $cgroup
+          "mountinfo" $mountinfo
+          "wsl" $isWSL
+          "chassis" $chassis
+          "hwModel" $hwModel
+        ) | mustFromJson -}}
+
+  Pure host detection: no I/O here, every fact arrives as an input. Emits
+  JSON so callers can parse it back with mustFromJson:
+    {"ephemeral": bool, "reasons": [string, ...], "type": string}
+
+  Inputs:
+    os           runtime.GOOS ("darwin", "linux", ...)
+    dockerenv    /.dockerenv marker present (bool)
+    containerenv /run/.containerenv marker present (bool)
+    cgroup       /proc/1/cgroup contents, "" when absent
+    mountinfo    /proc/1/mountinfo contents, "" when absent
+    wsl          WSL userspace detected (bool; cancels ephemeral)
+    chassis      hostnamectl Chassis value, "" when unknown
+    hwModel      sysctl hw.model value, "" when unknown
+
+  Type: "ephemeral" wins; else linux gives "wsl" or the chassis value
+  ("desktop" when empty); else darwin gives "laptop" for MacBooks and
+  "desktop" otherwise. The windows chassis probe stays in the config
+  template because it shells out.
+
+  A mountinfo hit requires the overlay fstype on the ROOT mount line
+  itself: mount point (field 5) "/" and the filesystem type after the
+  " - " separator. Nested overlay mounts under /var/lib/docker or
+  /var/lib/containers are normal on desktops running a container
+  runtime and must not mark the host ephemeral (mirrors the launcher's
+  isContainer rule).
+*/ -}}
+{{- $os := index . "os" | default "" -}}
+{{- $dockerenv := not (not (index . "dockerenv")) -}}
+{{- $containerenv := not (not (index . "containerenv")) -}}
+{{- $cgroup := index . "cgroup" | default "" -}}
+{{- $mountinfo := index . "mountinfo" | default "" -}}
+{{- $wsl := not (not (index . "wsl")) -}}
+{{- $chassis := index . "chassis" | default "" -}}
+{{- $hwModel := index . "hwModel" | default "" -}}
+{{- $hasBattery := not (not (index . "hasBattery")) -}}
+{{- $ephemeral := false -}}
+{{- $reasons := list -}}
+{{- if $dockerenv -}}
+  {{- $ephemeral = true -}}
+  {{- $reasons = append $reasons "Detected /.dockerenv" -}}
+{{- end -}}
+{{- if $containerenv -}}
+  {{- $ephemeral = true -}}
+  {{- $reasons = append $reasons "Detected /run/.containerenv" -}}
+{{- end -}}
+{{- $cgroupMatch := regexFind "(docker|lxc|podman|kubepods|containerd)" $cgroup -}}
+{{- if $cgroupMatch -}}
+  {{- $ephemeral = true -}}
+  {{- $reasons = append $reasons (printf "/proc/1/cgroup matched %s" $cgroupMatch) -}}
+{{- end -}}
+{{- /* Root-mount-only overlay test; see the header for why. The LAST "/"
+      line is the effective root when mounts stack (same as isContainer). */ -}}
+{{- $rootFs := "" -}}
+{{- range $line := splitList "\n" $mountinfo -}}
+{{-   if regexMatch "^\\S+ \\S+ \\S+ \\S+ / .* - \\S+ " $line -}}
+{{-     $rootFs = regexReplaceAll "^.* - (\\S+) .*$" $line "${1}" -}}
+{{-   end -}}
+{{- end -}}
+{{- if eq $rootFs "overlay" -}}
+  {{- $ephemeral = true -}}
+  {{- $reasons = append $reasons "/proc/1/mountinfo matched overlay root mount" -}}
+{{- end -}}
+{{- if and $wsl (not (or $dockerenv $containerenv)) -}}
+  {{- /* WSL ships overlay roots and container-ish cgroups but persists;
+        explicit /.dockerenv or /run/.containerenv still marks a container. */ -}}
+  {{- $ephemeral = false -}}
+  {{- $reasons = list -}}
+{{- end -}}
+{{- $type := "desktop" -}}
+{{- if $ephemeral -}}
+  {{- $type = "ephemeral" -}}
+{{- else if eq $os "linux" -}}
+  {{- if $wsl -}}
+    {{- $type = "wsl" -}}
+  {{- else -}}
+    {{- $type = default "desktop" $chassis -}}
+  {{- end -}}
+{{- else if eq $os "darwin" -}}
+  {{- if or $hasBattery (contains "MacBook" $hwModel) -}}
+    {{- $type = "laptop" -}}
+  {{- end -}}
+{{- end -}}
+{{- dict "ephemeral" $ephemeral "reasons" $reasons "type" $type | toJson -}}

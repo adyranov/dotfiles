@@ -1,0 +1,27 @@
+# Shared config for VS Code-family editors (Code, Cursor).
+[editors.vscode.extensions]
+code = []
+common = [
+  "anthropic.claude-code",
+  "catppuccin.catppuccin-vsc",
+  "catppuccin.catppuccin-vsc-icons",
+  "editorconfig.editorconfig",
+  "esbenp.prettier-vscode",
+  "GitHub.copilot",
+  "GitHub.copilot-chat",
+  "streetsidesoftware.code-spell-checker"
+]
+cursor = []
+
+[editors.vscode.settings]
+claude_code_env_dir = "~/.config/claude"
+fontFamily = "MesloLGS Nerd Font Mono"
+fontSize = 14
+formatOnSave = true
+iconTheme = "catppuccin-mocha"
+tabSize = 2
+theme = "Catppuccin Mocha"
+
+[editors.vscode.variants]
+code = { path = "Code" }
+cursor = { path = "Cursor" }

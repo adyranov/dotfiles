@@ -1,4 +1,5 @@
 {{- includeTemplate "base/headers/script" (dict "root" .) -}}
+# keychain certs hash: {{ output "sh" "-c" "security find-certificate -a -p /Library/Keychains/System.keychain /System/Library/Keychains/SystemRootCertificates.keychain 2>/dev/null | shasum -a 256 || true" | trim }}
 
 {{ $ca_bundle := joinPath .host.home ".config/certificates/ca-bundle.pem" -}}
 

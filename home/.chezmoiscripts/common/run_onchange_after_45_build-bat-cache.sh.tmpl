@@ -1,11 +1,10 @@
 {{- includeTemplate "base/headers/script" (dict "root" .) -}}
-# bat hash: {{ output "cat" (joinPath .chezmoi.sourceDir "private_dot_config/exact_bat/config") | sha256sum }}
+# bat config/theme hash: {{ include "private_dot_config/exact_bat/config" | sha256sum }} {{ include ".chezmoiexternals/themes.toml.tmpl" | sha256sum }}
+# bat version: {{ output "sh" "-c" "bat --version 2>/dev/null || true" | trim }}
 
 bat_bin=""
 if command -v bat >/dev/null 2>&1; then
   bat_bin=bat
-elif command -v batcat >/dev/null 2>&1; then
-  bat_bin=batcat
 fi
 
 if [ -z "$bat_bin" ]; then

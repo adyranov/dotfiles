@@ -50,12 +50,15 @@ fi
 if ! command -v rage >/dev/null 2>&1; then
   echo "🔐 Installing rage (encryption tool)..."
   retry mise install github:str4d/rage@latest
-  RAGE_DIR="$(mise where github:str4d/rage)"
-  if [ ! -x "${RAGE_DIR}/rage" ]; then
-    echo "❌ mise installed rage without an executable at ${RAGE_DIR}/rage" >&2
+  RAGE_BIN="${XDG_DATA_HOME:-${HOME}/.local/share}/mise/installs/github-str4d-rage/latest/rage"
+  if [ ! -x "${RAGE_BIN}" ]; then
+    RAGE_BIN="$(mise where github:str4d/rage)/rage"
+  fi
+  if [ ! -x "${RAGE_BIN}" ]; then
+    echo "❌ mise installed rage without an executable at ${RAGE_BIN}" >&2
     exit 1
   fi
   mkdir -p "${HOME}/.local/bin"
-  ln -sf "${RAGE_DIR}/rage" "${HOME}/.local/bin/rage"
+  ln -sf "${RAGE_BIN}" "${HOME}/.local/bin/rage"
   echo "  ✅ rage installed."
 fi

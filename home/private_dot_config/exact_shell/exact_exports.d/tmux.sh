@@ -1,0 +1,4 @@
+# shellcheck shell=sh
+# tmux socket directory under XDG data home
+# tmux creates its socket at $TMUX_TMPDIR/tmux-UID/default
+export TMUX_TMPDIR="${XDG_DATA_HOME}/tmux"

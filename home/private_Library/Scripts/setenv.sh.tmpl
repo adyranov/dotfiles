@@ -4,12 +4,12 @@ set -e
 EXPORTS_FILE="{{ .chezmoi.homeDir }}/.config/shell/exports.sh"
 [ -f "$EXPORTS_FILE" ] || { echo "Error: $EXPORTS_FILE not found" >&2; exit 1; }
 
-EXTRA_EXCLUDED_VARS=("LS_COLORS" "PATH" "PWD" "SHLVL")
+EXTRA_EXCLUDED_VARS=("LS_COLORS" "MISE_SHELL" "PATH" "PWD" "SHLVL" "XDG_RUNTIME_DIR")
 
 exports_dump=$(env -i HOME="$HOME" EXPORTS_FILE="$EXPORTS_FILE" bash -c 'set -e; source "$EXPORTS_FILE"; env')
 
 printf '%s\n' "$exports_dump" | sort | while IFS='=' read -r key value; do
-    [ -n "$key" ] || continue
+    [ -n "$key" ] && [ -n "$value" ] || continue
 
     if [[ "$key" == _* ]]; then
         printf '# Excluded %s\n' "$key"

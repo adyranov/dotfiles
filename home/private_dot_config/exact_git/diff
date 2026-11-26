@@ -1,5 +1,5 @@
 [core]
-    pager = delta -w ${FZF_PREVIEW_COLUMNS:-$COLUMNS}
+    pager = delta -w ${FZF_PREVIEW_COLUMNS:-${COLUMNS:-variable}}
 [include]
     path = ~/.config/git/catppuccin.gitconfig
 [interactive]

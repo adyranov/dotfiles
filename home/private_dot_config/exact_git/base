@@ -1,0 +1,54 @@
+[core]
+    autocrlf = input
+    untrackedCache = true
+[branch]
+    autosetuprebase = always
+[column]
+    ui = auto
+[diff]
+    algorithm = histogram
+    colorMoved = default
+    colorMovedWS = allow-indentation-change
+    renamelimit = 0
+    mnemonicprefix = true
+    renames = copies
+    submodule = log
+[fetch]
+    prune = true
+[help]
+    autocorrect = prompt
+[init]
+    defaultBranch = main
+    # Empty chezmoi-managed template dir: `git init`/`git clone` write sample
+    # hooks into .git/hooks, which the agent seatbelt floor denies (init dies
+    # in-sandbox). An empty template writes nothing — and git then creates no
+    # .git/hooks dir at all, so install a hook by mkdir'ing it yourself
+    # (core.hooksPath is unaffected). The user's own init loses the
+    # commented-out samples too. templateDir is protected config: honored from
+    # this global file, ignored from repo-local config, so a repo cannot
+    # repoint it.
+    templateDir = ~/.config/git/hooks-template
+[merge]
+    ff = only
+    renamelimit = 0
+    summary = true
+    stat = true
+    conflictstyle = zdiff3
+[pack]
+    threads = 0
+[pull]
+    rebase = true
+[push]
+    autoSetupRemote = true
+    default = simple
+    followTags = true
+[rebase]
+    autosquash = true
+    updateRefs = true
+[rerere]
+    enabled = true
+    autoupdate = true
+[transfer]
+    fsckobjects = true
+[status]
+    showUntrackedFiles = all

@@ -1,0 +1,4 @@
+# shellcheck shell=sh
+# Passive XDG redirections (kubernetes).
+# minikube
+export MINIKUBE_HOME="$XDG_DATA_HOME/minikube"

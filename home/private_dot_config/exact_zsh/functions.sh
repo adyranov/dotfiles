@@ -1,0 +1,11 @@
+# shellcheck shell=sh
+FUNCTIONS_D_DIR="$XDG_CONFIG_HOME/zsh/functions.d"
+if [ -d "$FUNCTIONS_D_DIR" ]; then
+  for FUNCTIONS_FILE in "$FUNCTIONS_D_DIR"/*; do
+    [ -r "$FUNCTIONS_FILE" ] || continue
+    # shellcheck source=/dev/null
+    . "$FUNCTIONS_FILE"
+  done
+  unset FUNCTIONS_FILE
+fi
+unset FUNCTIONS_D_DIR

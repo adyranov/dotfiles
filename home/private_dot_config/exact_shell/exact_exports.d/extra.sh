@@ -1,0 +1,4 @@
+# shellcheck shell=sh
+# Passive XDG redirections (extra).
+# android
+export ANDROID_HOME="$XDG_DATA_HOME/android"

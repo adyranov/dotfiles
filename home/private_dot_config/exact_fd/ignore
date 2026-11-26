@@ -3,4 +3,4 @@
 
 # EXCLUDE LIBRARIES ON MACOS
 /Library/**
-/Users/Library/**
+/Users/*/Library/**

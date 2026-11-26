@@ -1,3 +1,5 @@
 .p10k.zsh.zwc
-.zshrc.zwc
+.zcompdump*
 .zsh_history
+.zshrc.local
+.zshrc.zwc

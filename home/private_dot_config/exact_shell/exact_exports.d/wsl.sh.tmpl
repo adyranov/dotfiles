@@ -1,4 +1,5 @@
 {{- if eq .host.type "wsl" }}
-export LIBGL_ALWAYS_INDIRECT="1"
-export BROWSER="/mnt/c/Program\ Files\ \(x86\)/Microsoft/Edge/Application/msedge.exe"
+if command -v wslview >/dev/null 2>&1; then
+  export BROWSER="wslview"
+fi
 {{- end }}

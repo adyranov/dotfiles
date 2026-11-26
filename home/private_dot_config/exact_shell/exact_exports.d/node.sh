@@ -1,0 +1,17 @@
+# shellcheck shell=sh
+# Passive XDG redirections (node).
+# mise
+# Tell mise to enable Corepack when it manages Node.
+export MISE_NODE_COREPACK="true"
+# npm
+export NPM_CONFIG_USERCONFIG="$XDG_CONFIG_HOME/npm/npmrc"
+# Prefix via env (not npmrc): a `prefix=` line blocks mise's npm backend from
+# installing npm:-managed tools (pi) during `mise install`.
+export NPM_CONFIG_PREFIX="$XDG_DATA_HOME/npm"
+# Host npm cache lives under XDG_DATA_HOME (outside sandbox-writable ~/.cache);
+# nono profiles override NPM_CONFIG_CACHE to a sandbox-only path via set_vars.
+export NPM_CONFIG_CACHE="$XDG_DATA_HOME/npm-cache"
+export NPM_CONFIG_LOGS_DIR="$XDG_STATE_HOME/npm/logs"
+export NODE_REPL_HISTORY="$XDG_CACHE_HOME/node_repl_history"
+# Enable Node's built-in proxy env var support (HTTP_PROXY/HTTPS_PROXY) for nono's proxy.
+export NODE_USE_ENV_PROXY="1"

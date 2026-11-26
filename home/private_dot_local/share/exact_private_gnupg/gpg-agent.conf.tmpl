@@ -5,3 +5,10 @@ max-cache-ttl 86400 # 24 hours
 
 default-cache-ttl-ssh 28800 # 8 hours
 max-cache-ttl-ssh 86400 # 24 hours
+{{- if eq .host.distro.family "darwin" }}
+{{- if eq .host.arch "arm64" }}
+pinentry-program /opt/homebrew/bin/pinentry-mac
+{{- else }}
+pinentry-program /Applications/MacPorts/pinentry-mac.app/Contents/MacOS/pinentry-mac
+{{- end }}
+{{- end }}

@@ -1,0 +1,82 @@
+{{- /* Catppuccin Mocha themes & editor/tmux externals (centralized). */ -}}
+{{ template "base/github/external" (dict
+    "type"   "file"
+    "target" ".config/atuin/themes/catppuccin-mocha-mauve.toml"
+    "repo"   "catppuccin/atuin@main"
+    "source" "themes/mocha/catppuccin-mocha-mauve.toml") }}
+
+{{ template "base/github/external" (dict
+    "type"   "file"
+    "target" ".config/bat/themes/Catppuccin Mocha.tmTheme"
+    "repo"   "catppuccin/bat@main"
+    "source" "themes/Catppuccin Mocha.tmTheme") }}
+
+{{ template "base/github/external" (dict
+    "type"   "file"
+    "target" ".config/btop/themes/catppuccin-mocha.theme"
+    "repo"   "catppuccin/btop@main"
+    "source" "themes/catppuccin_mocha.theme") }}
+
+{{ template "base/github/external" (dict
+    "type"   "file"
+    "target" ".config/git/catppuccin.gitconfig"
+    "repo"   "catppuccin/delta@main"
+    "source" "catppuccin.gitconfig") }}
+{{- if .toolchains.kubernetes }}
+
+{{ template "base/github/external" (dict
+    "type"            "archive"
+    "target"          ".config/k9s/skins"
+    "repo"            "catppuccin/k9s@main"
+    "stripComponents" 2
+    "include"         (list "k9s-*/dist/catppuccin-mocha*.yaml")) }}
+{{- end }}
+
+{{ template "base/github/external" (dict
+    "type"   "file"
+    "target" ".config/lazygit/catppuccin-mocha-blue.yml"
+    "repo"   "catppuccin/lazygit@main"
+    "source" "themes-mergable/mocha/blue.yml") }}
+
+{{ template "base/github/external" (dict
+    "type"   "archive"
+    "target" ".config/nvim/catppuccin.nvim"
+    "repo"   "catppuccin/nvim@main"
+    "exact"  true) }}
+
+{{ template "base/github/external" (dict
+    "type"   "archive"
+    "target" ".config/nvim/nvim-web-devicons"
+    "repo"   "nvim-tree/nvim-web-devicons@master"
+    "exact"  true) }}
+
+{{ template "base/github/external" (dict
+    "type"   "archive"
+    "target" ".config/nvim/cafetiere.nvim"
+    "repo"   "lpnh/cafetiere.nvim@main"
+    "exact"  true) }}
+
+{{ template "base/github/external" (dict
+    "type"   "file"
+    "target" ".config/tmux/tmux.conf"
+    "repo"   "gpakosz/.tmux@master"
+    "source" ".tmux.conf"
+    "exact"  true) }}
+
+{{ template "base/github/external" (dict
+    "type"   "file"
+    "target" ".config/yazi/theme.toml"
+    "repo"   "catppuccin/yazi@main"
+    "source" "themes/mocha/catppuccin-mocha-mauve.toml") }}
+
+{{ template "base/github/external" (dict
+    "type"   "file"
+    "target" ".config/zsh/catppuccin-fzf-mocha.sh"
+    "repo"   "catppuccin/fzf@main"
+    "source" "themes/catppuccin-fzf-mocha.sh") }}
+
+{{ template "base/github/external" (dict
+    "type"   "file"
+    "target" ".config/zsh/catppuccin-mocha-zsh-syntax-highlighting.zsh"
+    "repo"   "catppuccin/zsh-syntax-highlighting@main"
+    "source" "themes/catppuccin_mocha-zsh-syntax-highlighting.zsh") }}
