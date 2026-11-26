@@ -4,72 +4,46 @@
 
 - **CRITICAL**: Follow these repository instructions and verify relevant behavior in source before editing.
 - **CRITICAL**: Update `README.md` only for user-facing behavior, setup, or documented command changes; keep it concise with clear overview and essential commands/paths, not internal details, tuning rationale, or exhaustive examples.
-- **CRITICAL**: Never modify `AGENTS.md` or `home/private_dot_config/exact_agents/AGENTS.md` without first asking the user and getting explicit approval.
-- Do not edit `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md`. Propose changes to `AGENTS.md` instead (and ask before applying them).
-- All paths here are relative to the chezmoi source root. Do NOT prefix commands with `cd` or directory changes.
+- **CRITICAL**: Never modify `AGENTS.md`, `docs/agents/**`, or `home/private_dot_config/exact_agents/AGENTS.md` without first asking the user and getting explicit approval.
+- Do not edit `CLAUDE.md`, `GEMINI.md`, or `.github/copilot-instructions.md` (symlinks to this file). Propose changes to `AGENTS.md` instead (and ask before applying them).
+- All paths here are relative to the repository root. Do NOT prefix commands with `cd` or directory changes.
+- See `ARCHITECTURE.md` for the repository directory map and apply pipeline.
 - Compound Engineering artifacts live under `.compound-engineering/artifacts/` (local, gitignored); consult `solutions/` there for past repo learnings before starting non-trivial work.
 
-## Chezmoi & Project Structure
+## Read before editing
 
-- **Docs**: Consult `https://www.chezmoi.io/`. Assume undocumented features are unsupported.
-- **Data Schema**: Data merges `<domain>.base` -> `<domain>.os.<distro>` -> `<domain>.profile.<profile>`. Package definitions use `packages.base.<toolchain>`. Use `base/helpers/load-section` to read merged sections.
-- **Template Layout**: `base/` contains shared partials; `os/<distro>/` contains distro-specific partials. Shared scripts live under `.chezmoiscripts/common/`.
-- **Toolchains**: `core` is implicitly enabled and always on. Other toolchain labels select their package/data overlays.
-- **Version Pinning**: Packages track the latest release; add `pin` only when absolutely necessary (a security-relevant or load-bearing behavior that must not drift, like `nono`'s seatbelt last-match-wins ordering). A necessary pin carries a comment in the package entry naming the dependency and is bumped with a host-terminal probe pass (run the pinned binary's probe commands outside the sandbox). nono is that named load-bearing exception: its pin, when applied, lives in the nono profile rendering/data, never a launcher flag, and the launcher must not advertise nonexistent flags.
-- **Automatic Updates Everywhere (policy)**: Tools, plugins, integrations, and fetched libraries track upstream latest by default — unpinned packages and plugin entries, `@latest` metadata/schema URLs, default-branch refs, and upstream self-update mechanisms left enabled. This is deliberate: do not add pins, tag-pins, or disable self-updates as a reflex — upstream best-practice advice to pin is overridden here, and the Version Pinning exception above applies only where the user has explicitly deemed a pin necessary.
-- **Home Mapping**: Source attributes such as `dot_`, `private_`, `exact_`, `executable_`, `modify_`, and `symlink_` map to chezmoi target states; prefer source attributes over raw files (for example, `private_` for mode 600 and `executable_` for mode 755). `.tmpl` files render through templates.
-- **OS Support**: Supported distros: `darwin`, `ubuntu`, `fedora`, `archlinux`.
-- **Generated Tests**: Bats specs originate in `home/private_dot_local/share/exact_dotfiles/exact_test/*.bats.tmpl`.
+Topic rules live in `docs/agents/`. Read the matching file before touching these paths; the rules there are as binding as this file.
 
-## AI Packages, Policy & Sandboxing
+| Touching | Read |
+|---|---|
+| anything under `home/` (data, templates, scripts, attributes, packages) | `docs/agents/chezmoi.md` |
+| AI agents, nono, DCG, skills, roles, MCPs, `executable_agent` | `docs/agents/ai-stack.md` |
+| `tests/*.bats` tests, or validating a change | `docs/agents/testing.md` |
 
-- **Toolchain Enablement**: The `ai` toolchain gates the nested `pi`, `opencode`, and `omp` agent toolchains. Controlled in `.chezmoi.yaml.tmpl`.
-- **Two Enforcers**: nono is the hard host sandbox (filesystem, network, process) and DCG (destructive_command_guard) is the destructive-command prompt layer wired into every agent via chezmoi-managed hooks. nono hardens DCG: `DCG_*` environment is scrubbed, DCG's config/session stores are read-only in sandboxes, and agent writes to DCG hook files are denied on macOS seatbelt. Linux cannot enforce those hook write-denials, so the launcher refuses guarded Linux/WSL2 launches. There are no in-agent permission layers.
-- **Permission Data**: `home/.chezmoidata/base/ai/` holds every rule once; `filesystem.write/read/deny` tiers map to nono's `filesystem.allow/read/deny` (write → r+w `allow`; the profile `write` key stays an empty compatibility list), while `command_policies` and `network.allow_domain` are 1:1 with no key translation.
-- **Command Axis**: nono denies a small hard core (git force-push, macOS keychain mutators, secret exports, global/`--remove` `chezmoi apply`); destructive-but-normal commands (`kubectl delete`, `tofu destroy`, package publishes) are gated by DCG packs, not nono. Mediation is PATH-shim based: a deliberate absolute-path exec bypasses the command core, with DCG's command-text analysis as the complement.
-- **Filesystem Axis**: default-deny grants, deny-over-grant within custom rules, over non-excludable nono built-in deny groups (credentials, keychains, shell configs/history, browser data) that form the floor. On Linux, Landlock denies cover only paths existing at sandbox start.
-- **Network Axis**: proxy-routed egress with domain allow-listing (`network.allow_domain`), kept to machine-necessary hosts; agents may edit network data with user approval, but the user must apply it in their terminal (audit-loop). Git is HTTPS-only; raw SSH egress is blocked.
-- **Remediation**: a DCG block is approved by the user in their own terminal (`dcg allow …` for built-in pack rules; custom-pack blocks — the chezmoi packs — use `dcg allowlist add-command …`, since `dcg allow` rejects custom pack IDs); a blocked host requires user approval for a source edit and a user-applied update. A blocked path goes through the user via a source edit plus apply. Sandboxed agents report denials and never self-approve or self-widen. Treat nono and DCG denials as security boundaries: if a path is denied, ask the user — do not bypass and do not retry via alternate write paths (`cp`, `mv`, `sed -i`, Python writes, temp-file swaps).
-- **Launchers & Profiles**: `agent pi|omp|oc` (`opencode` is an alias) uses nono profiles under `~/.config/nono/profiles/`. Pi and OpenCode default to `factory`; omp uses its managed default root. `--profile <name>` works before or after the agent word; Pi and OpenCode also accept positional profile aliases. Arguments after `--` pass through. Omp's named profiles use `OMP_PROFILE` and `<config-root>/profiles/<name>/agent`. Pi and OpenCode's `minimal` removes MCPs and subagents, not guards. The launcher (`home/private_dot_local/exact_bin/executable_agent`) uses explicit agent cases; adding an agent also requires the `_agent` completion and the three toolchain gates (`.chezmoiignore.tmpl`, `.chezmoiremove.tmpl`, `exact_completions/.chezmoiignore.tmpl`). A host `--no-sandbox` launch disables nono and DCG for debugging; nested launches inherit their parent sandbox. Custom DCG packs under `~/.config/dcg/packs/` are gated by toolchain. Sandboxed git worktrees are project-local under `.slim/worktrees/`.
+## Editing and applying
+
 - **CRITICAL**: Agents must edit chezmoi source files only. Do not edit rendered files under `$HOME` to make tests pass.
 - **User-applied changes**: Agents edit chezmoi source and report the destinations to review. The user applies home changes in their own terminal, including positional and global `chezmoi apply`, `mise run apply`, security destinations, agent runtime configs, shell files, and `run_onchange` scripts.
+- **Required change workflow**: change source files and write or update concise tests when behavior changes. Review agent edits to this repo with `git diff` before running `chezmoi diff` or `mise run lint` (both render templates on the host), then apply relevant destinations in your terminal and run `mise run test ...` on the applied state; `tests/render.bats` renders from source and can run before applying, while the other suites check the applied state. Documentation-only changes do not require new tests; do not claim test coverage from source-only changes that were not applied.
 
-## Workflow, Commands & CI
+## Commands
 
-- **Entry Point**: Use **mise tasks** (`mise run ...`).
-- **Required change workflow**: change source files, write or update concise tests when behavior changes, and run `mise run lint`. The user reviews and applies the relevant destinations in their terminal; then run relevant `mise run test ...` on the applied state — tests exercise applied/rendered infrastructure, so run them only after the user applies. Documentation-only changes do not require new tests; do not claim test coverage from source-only changes that were not applied.
-- **Commands**:
-  - `mise run apply --dry-run` — preview a global apply; do not use it as a substitute for targeted review.
-  - `mise run apply` — perform a global apply; requires explicit user approval.
-  - `mise run lint` (uses `pre-commit`)
-  - `mise run test` — run all Bats validation suites
-  - `mise run test kubectl helm` — test specific package keys
-  - `mise run test -- --suite ai` — run a named suite (`ai`, `config`, `packages`)
-  - `mise run test -- --tag toolchain:kubernetes` — filter by tag
-  - `mise run test -- --filter 'git config'` — filter by test name regex
-  - `mise run test -- --list` — list discovered tests
-  - `chezmoi doctor`, `chezmoi apply --dry-run`
-- **Shell**: Use POSIX `#!/usr/bin/env sh` with `set -eu`. If Bash is needed, `#!/usr/bin/env bash` with `set -euo pipefail`.
-- **CI**: GitHub Actions live under `.github/workflows/`. Update the `dorny/paths-filter` configuration in `.github/workflows/ci.yaml` when adding new top-level paths.
-- **Secrets**: Keep out of repo. Use `.chezmoiignore` or `age` encryption (`.secrets.age`).
+Use **mise tasks** (`mise run ...`).
 
-## Testing
-
-Keep created tests concise and behavior-focused. Prefer a few high-value invariants or smoke tests over exhaustive assertions against generated configuration. Do not duplicate source data in tests or snapshot fields owned by upstream schemas unless guarding a specific regression.
-
-- **Corner cases, not combinations:** test invariants and corner cases, never every combination of every parameter. Package install coverage is one aggregate smoke per manager suite that reports all offenders in a single pass; keep standalone per-package tests only for corner cases (architecture/manager routing, overlay selection, Brewfile rejections, render failures). Prefer one test that lists all offenders over N near-identical tests.
-- **Timeouts are mandatory**: the runner hard-caps each suite at 120s wall clock with a 10s kill-after (`CHECK_DOTFILES_SUITE_TIMEOUT` overrides); a suite that overruns is a suite bug — keep aggregate probes bounded.
-- **Single gate:** `mise run test` runs the corner-case and aggregate-smoke suites. On an applicable host, the DCG robot probes (`ai-dcg`) fail if the binary or rendered packs are missing; the suite also checks the expected DCG version. It is unapplied when the `ai` toolchain is off and skips inside a sandbox.
-- Validate locally (user terminal): `chezmoi doctor`, targeted `chezmoi diff <destination...>`, targeted `chezmoi apply --dry-run <destination...>`, `chezmoi verify`. Agents validate rendered output with `chezmoi execute-template -f <source>` / targeted `chezmoi cat <source>` (source-only, no protected-destination walk).
-- Use `chezmoi --remove --dry-run apply` to preview removals enforced by `home/.chezmoiremove.tmpl`.
+- `mise run apply --dry-run` — preview a global apply; do not use it as a substitute for targeted review.
+- `mise run apply` — perform a global apply; requires explicit user approval.
+- `mise run lint` (uses `prek`)
+- `mise run test` — run all Bats validation suites (filters in `docs/agents/testing.md`)
+- `mise run update` — upgrade packages, `mise` tools, and `nono` packs (decoupled from `chezmoi apply`)
+- `chezmoi doctor`, `chezmoi apply --dry-run`
 
 ## Coding Style
 
-- Use `.editorconfig` for formatting. Respect `.gitattributes` line endings.
+- Use `.editorconfig` for formatting. Respect `.gitattributes` line endings. `prek` enforces `toml-sort`, `check-toml`, `yamlfmt`, `yamllint`, `markdownlint-cli2`, `editorconfig-checker`, `typos`.
 - **Comments**: Keep comments concise; explain non-obvious constraints or why, not what the code already says. Preserve required directives and API documentation.
-- **TOML**: Alphabetize keys, use `lower_snake_case` for custom data keys. Entity identifiers (provider/model/package names such as `github-copilot`, `openai.default`) are *values*, not keys, and may be kebab-case or dotted. Package keys follow upstream naming (hyphens allowed). `pre-commit` enforces `toml-sort`, `taplo`, `yamlfmt`, `yamllint`, `markdownlint-cli2`, `editorconfig-checker`, `codespell`.
-- **Shell**: Constants in `UPPER_SNAKE_CASE`, locals in `lower_snake_case`, functions in `lowerCamelCase`. Prefer standard utilities (`awk`, `sed`, `grep`, `curl`).
-- **Chezmoi templates**: Prefer data-driven logic over Go template branching.
+- **Shell**: POSIX `#!/usr/bin/env sh` with `set -eu`; if Bash is needed, `#!/usr/bin/env bash` with `set -euo pipefail`. Constants in `UPPER_SNAKE_CASE`, locals in `lower_snake_case`, functions in `lowerCamelCase`. Prefer standard utilities (`awk`, `sed`, `grep`, `curl`).
+- **CI**: GitHub Actions live under `.github/workflows/`. Update the `dorny/paths-filter` configuration in `.github/workflows/ci.yaml` when adding new top-level paths that affect apply.
+- **Secrets**: Keep out of repo. Use `.chezmoiignore` or `age` encryption (`.secrets.age`).
 
 ## Commits
 
