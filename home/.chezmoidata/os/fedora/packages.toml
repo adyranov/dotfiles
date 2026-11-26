@@ -1,12 +1,13 @@
 [packages.os.fedora.core]
-bubblewrap = { disabled = ["ephemeral"], bin = "bwrap" }
 difftastic = { manager = "system" }
-fd = { package = "fd-find" }
+libatomic = { package = "libatomic", test = "rpm -q libatomic" }
 openssh-client = { package = "openssh-clients" }
 "pcsc-lite" = { package = "pcsc-lite", test = "rpm -q pcsc-lite" }
-socat = { disabled = ["ephemeral"], version = "socat -V" }
 
 [packages.os.fedora.docker]
-docker = { package = "docker-ce" }
-"docker-buildx" = { package = "docker-buildx-plugin" }
-"docker-compose" = { package = "docker-compose-plugin" }
+docker = { exclude = { type = ["wsl"] }, package = "docker-ce" }
+"docker-buildx" = { exclude = { type = ["wsl"] }, package = "docker-buildx-plugin" }
+"docker-compose" = { exclude = { type = ["wsl"] }, package = "docker-compose-plugin" }
+
+[packages.os.fedora.kubernetes]
+oc = { exclude = { arch = ["arm64"] } }

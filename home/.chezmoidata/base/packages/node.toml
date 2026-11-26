@@ -1,8 +1,13 @@
 [packages.base.node.bun]
-completion = { generate = "bun completions zsh" }
+description = "Fast JS runtime and bundler"
 manager = "mise"
+name = "Bun"
+url = "https://bun.com"
 
 [packages.base.node.node]
+description = "JS runtime with npm"
 manager = "mise"
+name = "Node.js"
+url = "https://nodejs.org"
 pin = "lts"
 test = "node --version && npm --version"

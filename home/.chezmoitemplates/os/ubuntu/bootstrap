@@ -9,10 +9,19 @@ app_apt_repo() {
 
   sudo install -d -m 0755 "$(dirname "$key_file")"
 
-  if [ ! -f "$key_file" ]; then
+  if [ ! -s "$key_file" ]; then
     echo "🔑 Importing signing key for ${name}"
-    curl -fsSL "$key_url" | gpg --dearmor | sudo tee "$key_file" >/dev/null
-    sudo chmod 0644 "$key_file"
+    local raw_tmp dearmored_tmp
+    raw_tmp="$(mktemp)"
+    dearmored_tmp="$(mktemp)"
+    curl -fsSL "$key_url" -o "$raw_tmp"
+    if grep -q "BEGIN PGP PUBLIC KEY BLOCK" "$raw_tmp"; then
+      gpg --dearmor <"$raw_tmp" >"$dearmored_tmp"
+      sudo install -m 0644 "$dearmored_tmp" "$key_file"
+    else
+      sudo install -m 0644 "$raw_tmp" "$key_file"
+    fi
+    rm -f "$raw_tmp" "$dearmored_tmp"
   else
     echo "✅ Signing key already present for ${name}, skipping"
   fi
@@ -25,7 +34,7 @@ app_apt_repo() {
   fi
 }
 
-{{- $repos := includeTemplate "base/helpers/load-section" (dict "root" . "section" "repositories") | mustFromJson -}}
+{{- $repos := .repositories.ubuntu -}}
 {{- range $toolchain, $toolchainRepos := $repos }}
 {{- $enabled := or (eq $toolchain "core") (index $.toolchains $toolchain) -}}
 {{- if $enabled }}

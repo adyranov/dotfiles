@@ -1,8 +1,8 @@
-{{- $repos := includeTemplate "base/helpers/load-section" (dict "root" . "section" "repositories") | mustFromJson -}}
+{{- $repos := .repositories.fedora -}}
 
 dnf_repo_configured() {
   local repo_id="$1"
-  dnf repolist --id "$repo_id" 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$repo_id"
+  [ -f "/etc/yum.repos.d/${repo_id}.repo" ]
 }
 
 dnf_repofile_configured() {

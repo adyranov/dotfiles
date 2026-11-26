@@ -1,0 +1,97 @@
+{{- /* base/packages/select — Shared host selector predicate for packages and casks.
+
+  Evaluates an entry's `include` and `exclude` axis maps against the host.
+  Values within one axis are alternatives (OR); every specified inclusion axis
+  must match (AND). An entry is denied when any specified exclusion axis
+  matches; exclusion wins. An absent axis or an explicitly empty axis list
+  imposes no constraint.
+
+  Axes: profile, os (distro family), distro (distro id), arch, mode
+  (interactive|headless from host.interactive), privilege (rootless when
+  host.restricted, root otherwise — configured policies, not sudo capability),
+  type (host.type), toolchains (any enabled toolchain flag; core is always
+  enabled). Host-derived arch and type values are accepted verbatim; mode and
+  privilege values are validated against their enumerations. Malformed axes,
+  types, or enum values fail the render.
+
+  Args (dict):
+    root    — template data root (required)
+    include — axis map (optional key; a supplied non-table, including false, fails)
+    exclude — axis map (optional key; same validation as include)
+
+  Output: the literal string "true" (selected) or "false" (denied).
+*/ -}}
+{{- $root := .root -}}
+{{- $include := dict -}}
+{{- if hasKey . "include" -}}
+{{-   $include = index . "include" -}}
+{{-   if not (kindIs "map" $include) -}}
+{{-     fail "selector include must be a table of axis = [values]" -}}
+{{-   end -}}
+{{- end -}}
+{{- $exclude := dict -}}
+{{- if hasKey . "exclude" -}}
+{{-   $exclude = index . "exclude" -}}
+{{-   if not (kindIs "map" $exclude) -}}
+{{-     fail "selector exclude must be a table of axis = [values]" -}}
+{{-   end -}}
+{{- end -}}
+{{- $axisNames := list "arch" "distro" "mode" "os" "privilege" "profile" "toolchains" "type" -}}
+{{- $enums := dict
+      "mode" (list "interactive" "headless")
+      "privilege" (list "root" "rootless")
+-}}
+{{- $mode := "headless" -}}
+{{- if $root.host.interactive -}}{{- $mode = "interactive" -}}{{- end -}}
+{{- $privilege := "root" -}}
+{{- if $root.host.restricted -}}{{- $privilege = "rootless" -}}{{- end -}}
+{{- $axisValues := dict
+      "profile" (printf "%s" (index $root.host "profile" | default ""))
+      "os" (printf "%s" $root.host.distro.family)
+      "distro" (printf "%s" $root.host.distro.id)
+      "arch" (printf "%s" $root.host.arch)
+      "mode" $mode
+      "privilege" $privilege
+      "type" (printf "%s" $root.host.type)
+-}}
+{{- $enabledToolchains := list "core" -}}
+{{- range $toolName, $enabled := $root.toolchains -}}
+{{-   if $enabled -}}{{- $enabledToolchains = append $enabledToolchains $toolName -}}{{- end -}}
+{{- end -}}
+{{- $selected := true -}}
+{{- $denied := false -}}
+{{- range $specIdx, $spec := (list $include $exclude) -}}
+{{-   $kind := "exclude" -}}
+{{-   if eq $specIdx 0 -}}{{- $kind = "include" -}}{{- end -}}
+{{-   range $axis := sortAlpha (keys $spec) -}}
+{{-     $values := index $spec $axis -}}
+{{-     if not (has $axis $axisNames) -}}
+{{-       fail (printf "selector %s: unknown axis %q (supported: %s)" $kind $axis (join ", " $axisNames)) -}}
+{{-     end -}}
+{{-     if not (kindIs "slice" $values) -}}
+{{-       fail (printf "selector %s.%s must be a list of strings" $kind $axis) -}}
+{{-     end -}}
+{{-     $enum := index $enums $axis | default list -}}
+{{-     $matched := false -}}
+{{-     range $value := $values -}}
+{{-       if not (kindIs "string" $value) -}}
+{{-         fail (printf "selector %s.%s values must be strings" $kind $axis) -}}
+{{-       end -}}
+{{-       if and $enum (not (has $value $enum)) -}}
+{{-         fail (printf "selector %s.%s: unsupported value %q (expected one of: %s)" $kind $axis $value (join ", " $enum)) -}}
+{{-       end -}}
+{{-       if eq $axis "toolchains" -}}
+{{-         if has $value $enabledToolchains -}}{{- $matched = true -}}{{- end -}}
+{{-       else if eq (index $axisValues $axis) $value -}}
+{{-         $matched = true -}}
+{{-       end -}}
+{{-     end -}}
+{{-     if not $values -}}{{- continue -}}{{- end -}}
+{{-     if eq $specIdx 0 -}}
+{{-       if not $matched -}}{{- $selected = false -}}{{- end -}}
+{{-     else if $matched -}}
+{{-       $denied = true -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- if and $selected (not $denied) -}}true{{- else -}}false{{- end -}}

@@ -33,8 +33,9 @@ hostname: colima
 # Kubernetes configuration for the virtual machine.
 kubernetes:
   # Enable kubernetes.
-  # Default: false
-  enabled: false
+  # Built-in k3s on every Mac with the kubernetes toolchain: it shares the
+  # docker runtime, so locally built images run without a registry.
+  enabled: {{ get .toolchains "kubernetes" | default false }}
 
   # Kubernetes version to use.
   # This needs to exactly match a k3s version https://github.com/k3s-io/k3s/releases
@@ -43,8 +44,8 @@ kubernetes:
 
   # Additional args to pass to k3s https://docs.k3s.io/cli/server
   # Default: traefik is disabled
-  k3sArgs:
-    - --disable=traefik
+  # Kept enabled: Traefik plus k3s ServiceLB serve Ingress and LoadBalancer.
+  k3sArgs: []
 
   # Kubernetes port to listen on
   # A common port is 6443, though left unbound to ensure no port conflicts
@@ -203,7 +204,24 @@ cpuType: ""
 #       touch ~/.provision
 #
 # Default: []
-provision: []
+# Trust the host's CA bundle (corporate MITM root) inside the VM so daemon-side
+# pulls work. The host home is mounted at the same path (virtiofs), so the bundle
+# is read directly. Ubuntu's update-ca-certificates expects one certificate per
+# .crt file, so the bundle is split; a stored copy gates re-runs so docker only
+# restarts when the bundle actually changed.
+provision:
+  - mode: system
+    script: |
+      set -eu
+      src="{{ .host.home }}/.config/certificates/ca-bundle.pem"
+      dir=/usr/local/share/ca-certificates
+      [ -f "$src" ] || exit 0
+      [ -f "$dir/.host-ca-bundle.src" ] && cmp -s "$src" "$dir/.host-ca-bundle.src" && exit 0
+      rm -f "$dir"/host-ca-bundle-*.crt
+      awk -v dir="$dir" '/-----BEGIN CERTIFICATE-----/{n++; f=dir "/host-ca-bundle-" n ".crt"; p=1} p{print > f} /-----END CERTIFICATE-----/{p=0; close(f)}' "$src"
+      update-ca-certificates
+      cp "$src" "$dir/.host-ca-bundle.src"
+      systemctl restart docker || true
 
 # Modify ~/.ssh/config automatically to include a SSH config for the virtual machine.
 # SSH config will still be generated in $COLIMA_HOME/ssh_config regardless.

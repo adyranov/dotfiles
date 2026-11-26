@@ -1,53 +1,78 @@
 [packages.base.core]
-atuin = { completion = { generate = "atuin gen-completions --shell zsh" }, manager = "mise" }
-bat = { completion = { generate = "if bat --help 2>&1 | grep -q -- '--completion'; then bat --completion zsh; fi" } }
-btop = { disabled = ["ephemeral"] }
-curl = {}
-dcg = { manager = "mise", package = "github:Dicklesworthstone/destructive_command_guard" }
-direnv = { version = "direnv version" }
-difftastic = { manager = "mise", bin = "difft" }
-doggo = { completion = { generate = "doggo completions zsh" }, manager = "mise", package = "github:mr-karan/doggo" }
-dust = { manager = "mise", package = "github:bootandy/dust" }
-eza = { manager = "mise" }
-fd = {}
-fzf = {}
-git = {}
-git-delta = { bin = "delta", completion = { generate = "delta --generate-completion zsh" } }
-glow = { completion = true, manager = "mise", package = "github:charmbracelet/glow" }
-gnupg = { bin = "gpg" }
-nono = { disabled = [
-  "ephemeral"
-], manager = "mise", package = "github:nolabs-ai/nono" }
-hyperfine = { manager = "mise" }
-jnv = { manager = "mise", package = "github:ynqa/jnv" }
-jq = {}
-lazygit = { completion = { generate = "lazygit completion zsh" }, manager = "mise" }
-mkcert = { manager = "mise" }
-neovim = { bin = "nvim" }
-openssh-client = { bin = "ssh", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }
-ouch = { manager = "mise", package = "github:ouch-org/ouch" }
-rage = { manager = "mise", package = "github:str4d/rage" }
-rclone = {}
-ripgrep = { bin = "rg" }
-sd = { manager = "mise" }
-tealdeer = { bin = "tldr" }
-tmux = { version = "tmux -V" }
-topgrade = { completion = { generate = "topgrade --gen-completion zsh" }, manager = "mise", package = "github:topgrade-rs/topgrade" }
-vivid = { manager = "mise" }
-wget = {}
-xh = { completion = { generate = "xh --generate complete-zsh" }, manager = "mise", package = "github:ducaale/xh" }
-yazi = { manager = "mise", package = "github:sxyazi/yazi" }
-zoxide = {}
+ast-grep = { description = "Structural code search and rewrite", manager = "mise", url = "https://ast-grep.github.io" }
+atuin = { description = "Shell history sync and search", manager = "mise", url = "https://github.com/atuinsh/atuin", variants = [
+  # The aqua registry's supported_ifs excludes darwin/amd64 even though upstream
+  # ships x86_64-apple-darwin assets; Intel keeps the MacPorts build.
+  { include = { os = ["darwin"], arch = ["amd64"] }, manager = "system" }
+] }
+azure-cli = { bin = "az", description = "Manage Azure resources", disabled = true, name = "Azure CLI", url = "https://github.com/Azure/azure-cli", variants = [
+  { include = { os = ["linux"], toolchains = ["cloud"] }, disabled = false, toolchain = "cloud" },
+  { include = { arch = ["amd64"], mode = ["interactive"], os = ["darwin"], toolchains = ["cloud"] }, disabled = false, toolchain = "cloud" }
+] }
+bat = { description = "Syntax-aware pager", manager = "mise", url = "https://github.com/sharkdp/bat" }
+btop = { description = "Resource monitor", exclude = { type = ["ephemeral"] }, manager = "mise", url = "https://github.com/aristocratos/btop", variants = [
+  # btop publishes no darwin assets; keep darwin on the system manager.
+  { include = { os = ["darwin"] }, manager = "system" }
+] }
+curl = { description = "HTTP transfer toolkit", name = "curl", url = "https://curl.se" }
+dcg = { description = "Destructive command guard", manager = "mise", package = "github:Dicklesworthstone/destructive_command_guard", url = "https://github.com/Dicklesworthstone/destructive_command_guard" }
+direnv = { description = "Directory-aware env loader", manager = "mise", url = "https://direnv.net", version = "direnv version" }
+difftastic = { bin = "difft", description = "Structural diff tool", manager = "mise", url = "https://github.com/Wilfred/difftastic" }
+doggo = { description = "Modern DNS client", manager = "mise", package = "github:mr-karan/doggo", url = "https://github.com/mr-karan/doggo" }
+dust = { description = "Disk usage viewer", manager = "mise", package = "github:bootandy/dust", url = "https://github.com/bootandy/dust" }
+eza = { description = "Modern ls replacement", manager = "mise", url = "https://github.com/eza-community/eza" }
+fd = { description = "Fast find alternative", manager = "mise", url = "https://github.com/sharkdp/fd" }
+fzf = { description = "Fuzzy finder", manager = "mise", url = "https://github.com/junegunn/fzf" }
+git = { description = "Distributed version control", name = "Git", url = "https://git-scm.com" }
+# delta publishes no darwin x86_64 release asset; Intel keeps the system
+# manager (MacPorts port name is git-delta, not delta).
+git-delta = { bin = "delta", description = "Git diff pager", manager = "mise", name = "delta", package = "delta", url = "https://github.com/dandavison/delta", variants = [
+  { include = { arch = ["amd64"], os = ["darwin"] }, manager = "system", package = "git-delta" }
+] }
+glow = { description = "Terminal markdown renderer", manager = "mise", package = "github:charmbracelet/glow", url = "https://github.com/charmbracelet/glow" }
+gnupg = { bin = "gpg", description = "OpenPGP encryption toolkit", name = "GnuPG", url = "https://gnupg.org" }
+nono = { description = "Filesystem, network and process sandbox", exclude = { type = ["ephemeral"] }, manager = "mise", package = "github:nolabs-ai/nono", url = "https://github.com/nolabs-ai/nono" }
+hyperfine = { description = "Command benchmarking", manager = "mise", url = "https://github.com/sharkdp/hyperfine" }
+jnv = { description = "Interactive JSON viewer with jq", manager = "mise", package = "github:ynqa/jnv", url = "https://github.com/ynqa/jnv" }
+jq = { description = "JSON processor", manager = "mise", url = "https://jqlang.org" }
+lazygit = { description = "Terminal UI for Git", manager = "mise", url = "https://github.com/jesseduffield/lazygit" }
+mkcert = { description = "Local TLS certificate generator", manager = "mise", url = "https://github.com/FiloSottile/mkcert" }
+neovim = { bin = "nvim", description = "Modal code editor", manager = "mise", name = "Neovim", package = "aqua:neovim/neovim", url = "https://neovim.io" }
+openssh-client = { bin = "ssh", description = "SSH client and agent", name = "OpenSSH", url = "https://www.openssh.com", test = "command -v ssh && command -v ssh-agent && command -v ssh-add" }
+ouch = { description = "Painless compression", manager = "mise", package = "github:ouch-org/ouch", url = "https://github.com/ouch-org/ouch" }
+rage = { description = "Age-compatible encryption", manager = "mise", package = "github:str4d/rage", url = "https://github.com/str4d/rage" }
+rclone = { description = "Cloud storage sync", manager = "mise", url = "https://rclone.org" }
+ripgrep = { bin = "rg", description = "Recursive text search", manager = "mise", name = "ripgrep", url = "https://github.com/BurntSushi/ripgrep" }
+sd = { description = "Intuitive sed alternative", manager = "mise", url = "https://github.com/chmln/sd" }
+# tealdeer ships raw binaries named tealdeer; rename_exe exposes the tldr CLI name.
+tealdeer = { bin = "tldr", description = "Fast tldr client", manager = "mise", mise_options = { rename_exe = "tldr" }, url = "https://github.com/tealdeer-rs/tealdeer" }
+tmux = { description = "Terminal multiplexer", url = "https://github.com/tmux/tmux", version = "tmux -V" }
+topgrade = { description = "System-wide upgrader", manager = "mise", package = "github:topgrade-rs/topgrade", url = "https://github.com/topgrade-rs/topgrade" }
+vivid = { description = "LS_COLORS theme generator", manager = "mise", url = "https://github.com/sharkdp/vivid" }
+xh = { description = "Friendly HTTP client", manager = "mise", package = "github:ducaale/xh", url = "https://github.com/ducaale/xh" }
+yazi = { description = "Terminal file manager", manager = "mise", name = "Yazi", package = "github:sxyazi/yazi", url = "https://github.com/sxyazi/yazi" }
+zoxide = { description = "Smarter cd command", manager = "mise", url = "https://github.com/ajeetdsouza/zoxide" }
 
 [packages.base.core.chezmoi]
-completion = true
+description = "Dotfiles manager"
+manager = "mise"
+name = "chezmoi"
+url = "https://www.chezmoi.io"
 
 [packages.base.core.coreutils]
+description = "GNU userland tools"
+name = "GNU Coreutils"
+url = "https://www.gnu.org/software/coreutils"
 version = "realpath --version"
 
 [packages.base.core.gh]
-completion = { generate = "gh completion -s zsh" }
+description = "GitHub command-line client"
+manager = "mise"
+name = "GitHub CLI"
+url = "https://cli.github.com"
 
 [packages.base.core.mise]
+description = "Runtime and tool version manager"
 manager = "external"
-completion = true
+name = "mise"
+url = "https://mise.jdx.dev"

@@ -1,0 +1,20 @@
+[repositories.fedora.cloud.microsoft-azure-cli]
+baseurl = "https://packages.microsoft.com/yumrepos/azure-cli"
+gpgkey = "https://packages.microsoft.com/keys/microsoft.asc"
+repo_id = "azure-cli"
+
+[repositories.fedora.docker.docker-ce]
+repo_url = "https://download.docker.com/linux/fedora/docker-ce.repo"
+
+[repositories.ubuntu.cloud.microsoft-azure-cli]
+key_url = "https://packages.microsoft.com/keys/microsoft.asc"
+keyring_path = "/etc/apt/keyrings/microsoft.gpg"
+repo_line = "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli $(. /etc/os-release && echo \"$VERSION_CODENAME\") main"
+
+[repositories.ubuntu.core.git-core-ubuntu-ppa]
+key_url = "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xe1dd270288b4e6030699e45fa1715d88e1df1f24"
+repo_line = "deb https://ppa.launchpadcontent.net/git-core/ppa/ubuntu $(. /etc/os-release && echo \"$VERSION_CODENAME\") main"
+
+[repositories.ubuntu.docker.docker-ce]
+key_url = "https://download.docker.com/linux/ubuntu/gpg"
+repo_line = "deb https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo \"$VERSION_CODENAME\") stable"

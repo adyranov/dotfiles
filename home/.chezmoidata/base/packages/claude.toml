@@ -1,0 +1,9 @@
+# Auto-updaters are off via the agent settings env (DISABLE_AUTOUPDATER), not
+# through package data.
+[packages.base.claude]
+claude = { description = "Anthropic coding agent CLI", manager = "mise", name = "Claude Code", package = "aqua:anthropics/claude-code", url = "https://code.claude.com" }
+# The unscoped npm:claude-powerline is a 404 (name squat); the real package is
+# the scoped @owloops/claude-powerline, whose bin is claude-powerline.
+# It is a stdin statusline generator with no --version flag (reads JSON, exits 1
+# on EOF), so the smoke probes --help.
+claude-powerline = { description = "Statusline for Claude Code", manager = "mise", package = "npm:@owloops/claude-powerline", url = "https://github.com/Owloops/claude-powerline", version = "claude-powerline --help" }

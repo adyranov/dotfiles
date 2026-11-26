@@ -1,28 +1,10 @@
 {{- $macportsEnabled := and (eq .host.distro.family "darwin") (eq .host.arch "amd64") -}}
 {{- $macportsPath := "/opt/local" -}}
-# Post-init bootstrap (before-phase): refreshes Homebrew after .init.sh installed it
-# and installs the Intel-only MacPorts package manager before package installation.
-# Package installation is handled by os/darwin/install via brew bundle and port install.
+# Post-init bootstrap (before-phase): ensures Homebrew shellenv and the
+# Intel-only MacPorts package manager before package installation.
+# Upgrades are decoupled into `mise run update`.
 
-eval $({{ .brew.path }} shellenv)
-{{- includeTemplate "base/helpers/sudo-keep-alive" . }}
-{{- /* Homebrew >=5.1 defaults to ask mode (y/n before install/upgrade); the
-  apply pipeline is unattended, so disable it for this script only. */}}
-export HOMEBREW_NO_ASK=1
-echo "🍺 Updating Homebrew…"
-brew update
-{{- if or (eq .host.type "ephemeral") .host.interactive }}
-{{- if ne .host.arch "amd64" }}
-echo "📦 Upgrading formulae…"
-brew upgrade
-{{- end }}
-echo "🧰 Upgrading casks…"
-brew upgrade --cask --greedy
-echo "🧹 Cleaning up…"
-brew cleanup
-brew autoremove
-{{- end }}
-echo "✅ Homebrew updated."
+eval "$({{ .brew.path }} shellenv)"
 {{- if $macportsEnabled }}
 
 # MacPorts release matrix for supported Intel macOS versions. Bump
@@ -32,10 +14,11 @@ echo "✅ Homebrew updated."
 MACPORTS_VERSION="2.12.6"
 MACPORTS_SIGNER="QTA3A3B7F3"
 if [ ! -x {{ $macportsPath }}/bin/port ]; then
-  if [ "{{ .host.interactive }}" != "true" ] || [ "{{ .host.restricted }}" = "true" ]; then
+  if [ "{{ .host.restricted }}" = "true" ] || { [ "{{ .host.interactive }}" != "true" ] && ! sudo -n true 2>/dev/null; }; then
     echo "❌ MacPorts is not installed; this non-interactive/restricted host requires it preinstalled." >&2
     exit 1
   else
+    {{- includeTemplate "base/helpers/sudo-keep-alive" . }}
     _macports_major="$(sw_vers -productVersion | cut -d. -f1)"
     case "${_macports_major}" in
       11) _macports_release="11-BigSur" ;;
@@ -72,31 +55,18 @@ if [ ! -x {{ $macportsPath }}/bin/port ]; then
       echo "❌ MacPorts package is not signed by the expected identity (${MACPORTS_SIGNER})" >&2
       exit 1
     fi
-    sudo installer -pkg "${_macports_tmp}/${_macports_asset}" -target /
+    if ! sudo installer -pkg "${_macports_tmp}/${_macports_asset}" -target /; then
+      echo "⚠️ MacPorts installer failed; retrying once…" >&2
+      sleep 5
+      if ! sudo installer -pkg "${_macports_tmp}/${_macports_asset}" -target /; then
+        echo "❌ MacPorts installer failed twice; last 80 lines of /var/log/install.log:" >&2
+        tail -n 80 /var/log/install.log >&2 || true
+        exit 1
+      fi
+    fi
     rm -rf "${_macports_tmp}"
     trap - EXIT
     echo "  ✅ MacPorts installed."
   fi
 fi
-{{- /* Keep the ports tree and installed ports current, mirroring the Homebrew
-  update/upgrade split above: selfupdate refreshes definitions, upgrades run
-  only on interactive/ephemeral hosts (and never on restricted hosts, which
-  preinstall their packages). port install in os/darwin/install only ensures
-  presence, so upgrades belong here. */ -}}
-{{- if not .host.restricted }}
-if [ -x {{ $macportsPath }}/bin/port ]; then
-  echo "🔄 Updating MacPorts…"
-  sudo {{ $macportsPath }}/bin/port -N selfupdate
-{{- if or (eq .host.type "ephemeral") .host.interactive }}
-  echo "📦 Upgrading outdated ports…"
-  sudo {{ $macportsPath }}/bin/port -N upgrade outdated
-  echo "🧹 Removing inactive port versions…"
-  # rc 1 = nothing matched (no inactive ports); not a failure.
-  sudo {{ $macportsPath }}/bin/port -N uninstall inactive || true
-{{- end }}
-  echo "🧹 Reclaiming MacPorts disk space…"
-  sudo {{ $macportsPath }}/bin/port -N clean installed
-  echo "✅ MacPorts updated."
-fi
-{{- end }}
 {{- end }}

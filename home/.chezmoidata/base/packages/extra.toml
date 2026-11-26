@@ -1,6 +1,2 @@
 [packages.base.extra]
-gocryptfs = { disabled = [
-  "headless",
-  "restricted"
-], version = "gocryptfs -version" }
-qrencode = {}
+qrencode = { description = "QR code generator", name = "qrencode", url = "https://fukuchi.org/works/qrencode" }

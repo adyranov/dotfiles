@@ -1,6 +1,9 @@
 [packages.base.python]
-uv = { completion = { generate = "uv generate-shell-completion zsh" }, manager = "mise" }
+uv = { description = "Fast Python package manager", manager = "mise", url = "https://github.com/astral-sh/uv" }
 
 [packages.base.python.python]
+description = "Python runtime and pip tooling"
 manager = "mise"
+name = "Python"
+url = "https://www.python.org"
 bin = "python3"

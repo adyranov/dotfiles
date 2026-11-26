@@ -1,7 +1,9 @@
 {{- /* format/mise — Outputs TOML tool entries for mise.toml.
   Args (dict): packages — dict of id → package info.
-  Supports `extras` for pipx packages and `uvx_args` for per-tool uv flags
-  (e.g. pinning the interpreter when wheels are missing for mise's Python). */ -}}
+  Supports `extras` for pipx packages, `uvx_args` for per-tool uv flags
+  (e.g. pinning the interpreter when wheels are missing for mise's Python), and
+  `mise_options`, a table of flat mise tool options passed through verbatim
+  (strings and booleans, e.g. version_prefix, prerelease). */ -}}
 {{- $packages := .packages -}}
 {{- range $id := sortAlpha (keys $packages) }}
     {{- $pkg := index $packages $id }}
@@ -9,7 +11,23 @@
     {{- $version := index $pkg "pin" | default "latest" }}
     {{- $extras := index $pkg "extras" | default "" }}
     {{- $uvxArgs := index $pkg "uvx_args" | default "" }}
+    {{- $miseOptions := index $pkg "mise_options" | default dict }}
     {{- $platforms := index $pkg "platforms" }}
+    {{- $flatOpts := list -}}
+    {{- if ne $extras "" -}}
+        {{- $flatOpts = append $flatOpts (printf "extras = '%s'" $extras) -}}
+    {{- end -}}
+    {{- if ne $uvxArgs "" -}}
+        {{- $flatOpts = append $flatOpts (printf "uvx_args = '%s'" $uvxArgs) -}}
+    {{- end -}}
+    {{- range $key := sortAlpha (keys $miseOptions) -}}
+        {{- $value := index $miseOptions $key -}}
+        {{- if kindIs "bool" $value -}}
+            {{- $flatOpts = append $flatOpts (printf "%s = %t" $key $value) -}}
+        {{- else -}}
+            {{- $flatOpts = append $flatOpts (printf "%s = '%s'" $key $value) -}}
+        {{- end -}}
+    {{- end }}
     {{- if gt (len $platforms) 0 }}
     {{- $platformParts := list -}}
     {{- range $platform := sortAlpha (keys $platforms) -}}
@@ -20,19 +38,12 @@
         {{- end -}}
         {{- $platformParts = append $platformParts (printf "%s = {%s}" $platform ($optParts | join ", ")) -}}
     {{- end }}
-"{{ $name }}" = {version = "{{ $version }}", platforms = { {{- $platformParts | join ", " -}} }}
+"{{ $name }}" = {version = "{{ $version }}"{{- if $flatOpts }}, {{ $flatOpts | join ", " }}{{- end }}, platforms = { {{- $platformParts | join ", " -}} }}
     {{- else }}
-    {{- $opts := list (printf "version = '%s'" $version) -}}
-    {{- if ne $extras "" -}}
-        {{- $opts = append $opts (printf "extras = '%s'" $extras) -}}
-    {{- end -}}
-    {{- if ne $uvxArgs "" -}}
-        {{- $opts = append $opts (printf "uvx_args = '%s'" $uvxArgs) -}}
-    {{- end }}
-    {{- if eq (len $opts) 1 }}
+    {{- if eq (len $flatOpts) 0 }}
 '{{ $name }}' = '{{ $version }}'
     {{- else }}
-'{{ $name }}' = { {{- $opts | join ", " -}} }
+'{{ $name }}' = {version = '{{ $version }}', {{ $flatOpts | join ", " -}} }
     {{- end }}
     {{- end }}
 {{- end -}}

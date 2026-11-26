@@ -1,11 +1,17 @@
 [packages.base.iac]
-sops = { completion = true, manager = "mise" }
+sops = { description = "Secrets encryption", manager = "mise", name = "SOPS", url = "https://github.com/getsops/sops" }
 
 [packages.base.iac.opentofu]
+description = "Open source Terraform fork"
+name = "OpenTofu"
+url = "https://opentofu.org"
 manager = "mise"
 package = "aqua:opentofu/opentofu"
 bin = "tofu"
 version = "tofu version"
 
 [packages.base.iac.terragrunt]
+description = "Terraform wrapper"
+name = "Terragrunt"
+url = "https://github.com/gruntwork-io/terragrunt"
 manager = "mise"
