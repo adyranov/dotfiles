@@ -1,0 +1,32 @@
+[ai.agents.pi]
+settings = { bash_mode = { toggle_shortcut = "ctrl+shift+b", transcript_max_bytes = 524288, transcript_max_lines = 2000 }, powerline = { fixed_editor = true, mouse_scroll = true, preset = "full" }, theme = "catppuccin-mocha" }
+# Single config root (~/.config/pi/agent): the retired factory profile's
+# effective config (factory extended core extended minimal), minus the
+# retired juicesharp question/args/todo trio. pi reads skills from the one
+# shared directory, resolved relative to the agent dir by the renderer.
+compaction = { keep_recent_tokens = 20000, reserve_tokens = 16384 }
+packages = [
+  "@sherif-fanous/pi-catppuccin",
+  "@ff-labs/pi-fff",
+  "pi-lens",
+  "pi-powerline-footer",
+  "pi-hashline-readmap",
+  "@narumitw/pi-plan-mode",
+  "@juicesharp/rpiv-todo",
+  "pi-mcp-adapter",
+  # The ponytail skill comes from the shared skills dir; load only the extension.
+  { name = "@dietrichgebert/ponytail", skills = [] },
+  "pi-advisor-flow",
+  "pi-btw",
+  "pi-web-access",
+  "pi-context",
+  "gentle-engram",
+  # One question surface: pi-ask-user is the tool Compound Engineering names
+  # (it replaces the retired ask-user-question plugin).
+  "pi-ask-user",
+  "pi-goal-x",
+  "pi-subagents"
+]
+# Selected from the shared MCP catalog (ai.mcp.servers). No engram
+# server here: engram arrives through the gentle-engram pi package.
+mcp_servers = ["codegraph"]

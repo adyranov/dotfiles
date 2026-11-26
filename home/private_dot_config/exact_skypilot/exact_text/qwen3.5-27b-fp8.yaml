@@ -1,0 +1,28 @@
+# Qwen/Qwen3.5-27B-FP8 | L40S/RTXA6000/A100-80GB/RTX5090 | 32K | Dense FP8 via Marlin on SM80, Apache 2.0
+name: qwen3.5-27b-fp8
+resources:
+  image_id: docker:lmsysorg/sglang:latest-cu129
+  accelerators: {"A100-80GB": 1, "L40S": 1, "RTX5090": 2, "RTXA6000": 1}
+  use_spot: true
+  job_recovery:
+    strategy: FAILOVER
+  disk_size: 60
+run: |
+  set -euxo pipefail
+  TP_SIZE="$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l | tr -d ' ')"
+  sglang serve \
+    --model-path Qwen/Qwen3.5-27B-FP8 \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --context-length 32768 \
+    --mem-fraction-static 0.92 \
+    --tp-size "$TP_SIZE" \
+    --cuda-graph-backend-prefill=disabled \
+    --reasoning-parser \
+    qwen3 \
+    --tool-call-parser \
+    qwen3_coder \
+    --trust-remote-code \
+    2>&1 | tee ~/server.log
+secrets:
+  HF_TOKEN: null

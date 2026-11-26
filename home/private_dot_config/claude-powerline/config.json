@@ -1,0 +1,19 @@
+{
+  "colors": {
+    "custom": {
+      "directory": {
+        "bg": "#89dceb",
+        "fg": "#1e1e2e"
+      },
+      "git": {
+        "bg": "#a6e3a1",
+        "fg": "#1e1e2e"
+      },
+      "model": {
+        "bg": "#cba6f7",
+        "fg": "#1e1e2e"
+      }
+    }
+  },
+  "theme": "custom"
+}

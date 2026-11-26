@@ -1,0 +1,25 @@
+{{- /* Shared-roster task agent in OMP's native format. Args: root, role. */ -}}
+{{- $root := .root -}}
+{{- $role := .role -}}
+{{- $rd := index $root.ai.roles $role -}}
+{{- $tools := index (index $root.ai.tool_sets $rd.tools) "omp" -}}
+{{- $shared := list -}}
+{{- range $_, $lib := $root.ai.libraries.skills -}}{{- $shared = concat $shared ($lib.include | default list) -}}{{- end -}}
+{{- $skills := list -}}
+{{- range $s := get $rd "skills" | default list -}}{{- if has $s $shared -}}{{- $skills = append $skills $s -}}{{- end -}}{{- end -}}
+---
+name: {{ $role }}
+description: {{ $rd.description | toYaml | trim }}
+{{- if $skills }}
+autoloadSkills:
+{{- range $skills }}
+  - {{ . }}
+{{- end }}
+{{- end }}
+tools:
+{{- range $tools }}
+  - {{ . }}
+{{- end }}
+---
+
+{{ includeTemplate (printf "base/ai/roles/%s" $role) $root | trim }}

@@ -1,0 +1,24 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* Claude Code $CLAUDE_CONFIG_DIR/.claude.json: resets user mcpServers to the
+      catalog selection and clears per-project MCP/allowedTools while keeping OAuth & trust. */ -}}
+{{- $current := dict -}}
+{{- if and (hasKey .chezmoi "stdin") (not (empty (trim .chezmoi.stdin))) -}}
+{{-   $parsed := mustFromJson .chezmoi.stdin -}}
+{{-   if not (kindIs "map" $parsed) -}}{{- fail ".claude.json must contain a JSON object" -}}{{- end -}}
+{{-   $current = $parsed -}}
+{{- end -}}
+{{- $mcpServers := dict -}}
+{{- range $name := (.ai.agents.claude.mcp_servers | default list) -}}
+{{-   $srv := index $.ai.mcp.servers $name -}}
+{{-   $_ := set $mcpServers $name (dict "args" (get $srv "args" | default list) "command" $srv.command "type" "stdio") -}}
+{{- end -}}
+{{- if and (hasKey $current "projects") (kindIs "map" (get $current "projects")) -}}
+{{-   range $_, $proj := get $current "projects" -}}
+{{-     if kindIs "map" $proj -}}
+{{-       $_ := set $proj "mcpServers" (dict) -}}
+{{-       $_ := set $proj "enabledMcpjsonServers" (list) -}}
+{{-       $_ := set $proj "allowedTools" (list) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- set $current "mcpServers" $mcpServers | toPrettyJson -}}

@@ -1,20 +1,39 @@
 # agent-writable root (nono pi profile): pi writes runtime files here; the
 # exact_ deletion law would remove them — data-loss risk.
 *.lock
-agents/sdd-*
+# pi-subagents fleet runtime state (created/ejected role files, run trees)
+# lands here. The four roster role files are managed (rendered from
+# roles.toml by render-pi-role-agent), so re-include them by name. The
+# agents dir itself must stay unmatched (an ignored dir prunes child
+# re-inclusions), hence content patterns instead of agents/**.
+agents/*
+agents/**/*
+!agents/designer.md
+!agents/explorer.md
+!agents/fixer.md
+!agents/oracle.md
 chains/
+context-mode/
 extensions/*
+fff/
 !extensions/dcg-guard.ts
+!extensions/dcg-robot.ts
+!extensions/powerline-footer
+!extensions/subagent
 gentle-ai/
 git/**
 intercom/
 keybindings.json
-logs/
 lastChangelogVersion
 mcp-cache.json
+mcp-last-seen-version.json
+mcp-onboarding.json
 models-store.json
 npm/
+pi-subagents/
+pi-web-access/
 run-history.jsonl
 sessions/**
 state.json
+tmp/**
 trust.json

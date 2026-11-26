@@ -1,0 +1,37 @@
+{{- /* Shared-roster worker agent in pi-subagents native format. Args: root, role. */ -}}
+{{- $root := .root -}}
+{{- $role := .role -}}
+{{- $rd := index $root.ai.roles $role -}}
+{{- $tools := index (index $root.ai.tool_sets $rd.tools) "pi" -}}
+{{- $mcpTools := list -}}
+{{- range $m := get $rd "mcps" | default list -}}
+{{-   if eq $m "codegraph" -}}
+{{-     $mcpTools = append $mcpTools "mcp" -}}
+{{-   else if eq $m "engram" -}}
+{{-     $mcpTools = concat $mcpTools (list "mem_search" "mem_context" "mem_get_observation" "mem_timeline") -}}
+{{-   end -}}
+{{- end -}}
+{{- $allTools := concat $tools $mcpTools | uniq -}}
+{{- $prof := index $root.ai.profiles $root.host.profile -}}
+{{- $tiers := (index $prof.presets $prof.default_preset).tiers -}}
+{{- $route := includeTemplate "base/ai/parse-route" (dict "spec" (first (index $tiers $rd.tier)) "providers" $root.ai.providers) | mustFromJson -}}
+{{- $shared := list -}}
+{{- range $_, $lib := $root.ai.libraries.skills -}}{{- $shared = concat $shared ($lib.include | default list) -}}{{- end -}}
+{{- $skills := list -}}
+{{- range $s := get $rd "skills" | default list -}}{{- if and (has $s $shared) (ne $s "*") -}}{{- $skills = append $skills $s -}}{{- end -}}{{- end -}}
+---
+name: {{ $role }}
+description: {{ $rd.description | toJson }}
+advertise: true
+inheritProjectContext: true
+acceptanceRole: {{ ternary "writer" "read-only" (eq $rd.tools "write") }}
+subagentOnlyExtensions: {{ $root.chezmoi.homeDir }}/.config/dcg/pi-guard.ts
+tools: {{ join ", " $allTools }}
+model: {{ $route.pi_provider }}/{{ $route.model }}
+thinking: {{ $route.thinking | printf "%q" }}
+{{- if $skills }}
+skills: {{ join ", " $skills }}
+{{- end }}
+---
+
+{{ includeTemplate (printf "base/ai/roles/%s" $role) $root | trim }}

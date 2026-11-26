@@ -1,0 +1,39 @@
+{{- /* Native Claude Code subagent frontmatter + shared role body. Args: root, role. */ -}}
+{{- $root := .root -}}
+{{- $role := .role -}}
+{{- $claude := $root.ai.agents.claude -}}
+{{- $rd := index $root.ai.roles $role -}}
+{{- $prof := index $root.ai.profiles $root.host.profile -}}
+{{- $presetName := dig "claude_preset" $claude.preset $prof -}}
+{{- $preset := dig "presets" $presetName dict $prof -}}
+{{- if not $preset -}}{{- $preset = dig "presets" $presetName dict $root.ai -}}{{- end -}}
+{{- $route := includeTemplate "base/ai/parse-route" (dict "spec" (first (index $preset.tiers $rd.tier)) "providers" $root.ai.providers) | mustFromJson -}}
+{{- $effort := ternary $claude.tier_routing.thinking_off_effort $route.thinking (eq $route.thinking "off") -}}
+{{- $tools := index (index $root.ai.tool_sets $rd.tools) "claude" -}}
+{{- $mcpTools := list -}}
+{{- range $m := $rd.mcps | default list -}}
+{{-   if hasKey ($claude.mcp_tools | default dict) $m -}}
+{{-     range $t := index $claude.mcp_tools $m -}}
+{{-       $mcpTools = append $mcpTools (printf "mcp__%s__%s" $m $t) -}}
+{{-     end -}}
+{{-     if and (eq $m "engram") (eq $rd.tools "write") -}}{{- $mcpTools = append $mcpTools "mcp__engram__mem_save" -}}{{- end -}}
+{{-   else if has $m ($claude.mcp_servers | default list) -}}
+{{-     $mcpTools = append $mcpTools (printf "mcp__%s__*" $m) -}}
+{{-   end -}}
+{{- end -}}
+{{- $shared := list -}}
+{{- range $_, $lib := $root.ai.libraries.skills -}}{{- $shared = concat $shared ($lib.include | default list) -}}{{- end -}}
+{{- $skills := list -}}
+{{- range $s := $rd.skills | default list -}}{{- if has $s $shared -}}{{- $skills = append $skills $s -}}{{- end -}}{{- end -}}
+---
+name: {{ $role }}
+description: {{ $rd.description | toYaml | trim }}
+model: {{ $route.model }}
+effort: {{ $effort }}
+tools: {{ join ", " (concat $tools $mcpTools) }}
+{{- with $skills }}
+skills: {{ join ", " . }}
+{{- end }}
+---
+
+{{ includeTemplate (printf "base/ai/roles/%s" $role) $root | trim }}

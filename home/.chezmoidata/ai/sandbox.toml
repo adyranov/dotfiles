@@ -1,0 +1,427 @@
+# Agent sandbox data (nono). Each agent profile extends its upstream signed
+# pack (`nono pull <pack>`) plus the built-in profiles in `extends`; this file
+# holds only the overlay: egress allowlist, credential routes, env deny
+# globs, and the per-agent paths this repo relocates. Plain TOML only.
+
+[ai.sandbox]
+# Env deny globs removed from every agent environment (nono environment.deny_vars,
+# matched case-insensitively). Route phantoms survive: nono injects credentials
+# after env filtering, so these globs never strip them.
+case_insensitive_vars = true
+deny_vars = [
+  "*CREDENTIAL*",
+  "*PASSWD*",
+  "*PASSWORD*",
+  "*SECRET*",
+  "*_KEY",
+  "*_TOKEN",
+  "AWS_*",
+  "AZURE_*",
+  "BW_*",
+  "BWS_*",
+  "CLAUDE_CODE_SAFE_MODE",
+  "CLAUDE_CODE_SIMPLE",
+  "DCG_*",
+  "OP_*",
+  "PROTON_PASS_*",
+  "SSH_AUTH_SOCK",
+  "VAULT_*"
+]
+# Password-manager CLI state nono's deny_credentials group does not cover
+# (macOS only: Landlock cannot deny; these dirs are never granted on Linux).
+deny = [
+  "~/.config/Bitwarden CLI",
+  "~/.config/bws",
+  "~/.config/proton-pass-cli",
+  "~/.local/share/proton-pass-cli",
+  "~/Library/Application Support/Bitwarden CLI",
+  "~/Library/Application Support/proton-pass-cli"
+]
+# Built-in nono profiles every agent profile extends after its pack.
+extends = ["mise-dev"]
+# Shared directories every agent may read: git's empty init.templateDir.
+read = ["~/.config/git/hooks-template"]
+# Files every agent may read (nono filesystem.read_file). Git's global-config
+# include chain: an unreadable include is fatal for git, not a skip. Listed per
+# file so ~/.config/git/credentials stays hidden; missing files are harmless.
+# gh refuses to start without config.yml and hosts.yml; neither holds the
+# token (Keychain on the host, the GH_TOKEN phantom in the sandbox).
+read_file = [
+  "~/.config/certificates/ca-bundle.pem",
+  "~/.config/gh/config.yml",
+  "~/.config/gh/hosts.yml",
+  "~/.config/git/base",
+  "~/.config/git/catppuccin.gitconfig",
+  "~/.config/git/color",
+  "~/.config/git/config",
+  "~/.config/git/diff",
+  "~/.config/git/ignore",
+  "~/.config/git/local",
+  "~/.config/git/tools",
+  "~/.config/git/user",
+  "~/.config/git/work",
+  "~/.config/git/work-user",
+  "~/.gitconfig",
+  "~/.local/share/java/truststore.jks"
+]
+# Localhost TCP ports reachable past the proxy: the engram daemon. The local
+# model gateway port is added from ai.serving.local.port at render.
+open_port = [7437]
+
+# Per-agent overlay: the upstream pack plus read/write paths for the dirs this
+# repo relocates (XDG config dirs, engram, codegraph). A
+# leading `~/` expands to the home directory at render.
+# The dcg read grants keep the guard hook on custom packs and user approvals
+# instead of falling back to the 3 default packs; both upstream config homes
+# are granted (the macOS Application Support one is a no-op rule where it does
+# not exist).
+[ai.sandbox.agents.claude]
+allow = [
+  "~/.codegraph",
+  "~/.config/ponytail/band",
+  "~/.local/share/claude/plugins/data",
+  "~/.local/share/engram",
+  "~/.local/state/claude"
+]
+# Claude locks its config dir via a sibling file; the pack only grants the
+# default ~/.claude.lock, not the relocated ~/.config/claude.lock.
+allow_file = ["~/.config/claude.lock"]
+pack = "nolabs-ai/claude"
+read = ["~/.config/agents", "~/.config/claude-powerline", "~/.config/dcg", "~/.config/ponytail", "~/.local/share/claude", "~/Library/Application Support/dcg"]
+
+[ai.sandbox.agents.omp]
+allow = [
+  "~/.cache/omp",
+  "~/.codegraph",
+  "~/.local/share/engram",
+  "~/.local/share/omp",
+  "~/.local/state/omp"
+]
+deny = ["~/.claude", "~/.claude.json", "~/.config/claude", "~/.config/claude/.claude.json"]
+pack = "nolabs-ai/omp"
+read = ["~/.config/agents", "~/.config/dcg", "~/Library/Application Support/dcg"]
+
+[ai.sandbox.agents.opencode]
+allow = [
+  "~/.cache/opencode",
+  "~/.codegraph",
+  "~/.config/ponytail/band",
+  "~/.local/share/engram",
+  "~/.local/share/opencode",
+  "~/.local/state/opencode"
+]
+deny = ["~/.claude", "~/.claude.json", "~/.config/claude", "~/.config/claude/.claude.json"]
+pack = "nolabs-ai/opencode"
+read = ["~/.config/agents", "~/.config/dcg", "~/.config/ponytail", "~/Library/Application Support/dcg"]
+
+[ai.sandbox.agents.pi]
+allow = [
+  "~/.cache/pi",
+  "~/.codegraph",
+  "~/.config/ponytail/band",
+  "~/.config/rpiv-todo",
+  "~/.local/share/engram",
+  "~/.pi-lens"
+]
+deny = ["~/.claude", "~/.claude.json", "~/.config/claude", "~/.config/claude/.claude.json"]
+pack = "nolabs-ai/pi"
+read = ["~/.config/agents", "~/.config/dcg", "~/.config/ponytail", "~/Library/Application Support/dcg"]
+
+# Egress allowlist, grouped for review; the render flattens every group. A
+# non-empty allowlist turns on proxy filtering: unlisted hosts are refused.
+[ai.sandbox.allow_domain]
+agent_search_providers = [
+  "*.exa.ai",
+  "*.parallel.ai",
+  "api.firecrawl.dev",
+  "api.linkup.so",
+  "api.tavily.com",
+  "google.serper.dev",
+  "mcp.context7.com",
+  "mcp.grep.app",
+  "mcp.kagi.com",
+  "serpapi.com"
+]
+ai_providers = [
+  "*.aiplatform.googleapis.com",
+  "*.githubcopilot.com",
+  "*.maas.aliyuncs.com",
+  "*.openai.azure.com",
+  "*.openai.com",
+  "*.opencode.ai",
+  "*.services.ai.azure.com",
+  "aiplatform.googleapis.com",
+  "api.anthropic.com",
+  "api.baseten.co",
+  "api.cerebras.ai",
+  "api.cloudflare.com",
+  "api.cohere.com",
+  "api.deepinfra.com",
+  "api.deepseek.com",
+  "api.fireworks.ai",
+  "api.groq.com",
+  "api-inference.huggingface.co",
+  "api.jina.ai",
+  "api.minimax.io",
+  "api.mistral.ai",
+  "api.moonshot.ai",
+  "api.perplexity.ai",
+  "api.replicate.com",
+  "api.stepfun.ai",
+  "api.together.xyz",
+  "api.voyageai.com",
+  "api.x.ai",
+  "api.xiaomimimo.com",
+  "api.z.ai",
+  "chatgpt.com",
+  # Claude Code OAuth/setup-token hosts.
+  "claude.ai",
+  "cloudcode-pa.googleapis.com",
+  "coding-intl.dashscope.aliyuncs.com",
+  "dashscope-intl.aliyuncs.com",
+  "dashscope-us.aliyuncs.com",
+  "gateway.ai.cloudflare.com",
+  "generativelanguage.googleapis.com",
+  "integrate.api.nvidia.com",
+  "models.github.ai",
+  "opencode.ai",
+  "openrouter.ai",
+  "platform.claude.com",
+  "routify-file-proxy-sg.oss-ap-southeast-1.aliyuncs.com"
+]
+ai_skypilot = ["*.skypilot.co", "skypilot.co"]
+containers = [
+  "*.data.mcr.microsoft.com",
+  "*.docker.com",
+  "*.docker.io",
+  "*.gcr.io",
+  "gcr.io",
+  "ghcr.io",
+  "mcr.microsoft.com",
+  "production.cloudflare.docker.com",
+  "public.ecr.aws",
+  "quay.io",
+  "us-docker.pkg.dev"
+]
+docs_reference = [
+  "*.stackoverflow.com",
+  "code.claude.com",
+  "developer.mozilla.org",
+  "doc.rust-lang.org",
+  "docs.github.com",
+  "docs.python.org",
+  "docs.rs",
+  "hexdocs.pm",
+  "man7.org",
+  "nono.sh",
+  "pkg.go.dev",
+  "stackoverflow.com",
+  "www.chezmoi.io"
+]
+github = ["*.githubusercontent.com", "api.github.com", "codeload.github.com", "github.com"]
+iac_tools = [
+  "artifacthub.io",
+  "get.helm.sh",
+  "hub.helm.sh",
+  "registry.terraform.io",
+  "releases.hashicorp.com"
+]
+infra_schema = [
+  "*.schemastore.org",
+  "marketplace.visualstudio.com",
+  "mcp.supabase.com",
+  "netlify.com",
+  "open-vsx.org",
+  "pre-commit.com",
+  "releases.astral.sh",
+  "schemastore.org",
+  "semgrep.dev",
+  "supabase.com"
+]
+java_maven = [
+  "*.gradle.org",
+  "*.maven.org",
+  "download.jetbrains.com",
+  "maven.google.com",
+  "repo.maven.apache.org",
+  "repo.spring.io"
+]
+js_cdns = [
+  "cdn.jsdelivr.net",
+  "cdnjs.cloudflare.com",
+  "deno.com",
+  "esm.run",
+  "esm.sh",
+  "jspm.dev",
+  "ui.shadcn.com",
+  "unpkg.com"
+]
+kubernetes_release = ["*.k3s.io"]
+# catalog.stencil.so: omp's model catalog (stale bundled copy without it).
+models_catalog = ["catalog.stencil.so", "models.dev", "pi.dev"]
+registries = [
+  "*.crates.io",
+  "*.golang.org",
+  "*.jdx.dev",
+  "*.npmjs.org",
+  "*.packagist.org",
+  "*.pub.dev",
+  "*.pythonhosted.org",
+  "*.rubygems.org",
+  "api.nuget.org",
+  "crates.io",
+  "getcomposer.org",
+  "go.dev",
+  "hackage.haskell.org",
+  "hex.pm",
+  "huggingface.co",
+  "jsr.io",
+  "packagist.org",
+  "pub.dev",
+  "pypi.org",
+  "registry.nono.sh",
+  "registry.yarnpkg.com",
+  "rubygems.org",
+  "rustup.rs",
+  "test.pypi.org"
+]
+runtime_binaries = [
+  "*.deno.land",
+  "*.nodejs.org",
+  "cache.ruby-lang.org",
+  "cdn.playwright.dev",
+  "deno.land",
+  "download-r2.pytorch.org",
+  "download.pytorch.org",
+  "googlechromelabs.github.io",
+  "nodejs.org",
+  "playwright.download.prss.microsoft.com",
+  "www.python.org"
+]
+search = [
+  "api.search.brave.com",
+  "api.stackexchange.com",
+  "hacker-news.firebaseio.com"
+]
+vuln_advisories = ["api.osv.dev", "vuln.go.dev"]
+
+[ai.sandbox.claude_builtin]
+# Read-deny paths for Claude Code's built-in sandbox on macOS (Desktop/IDE).
+deny_read = [
+  "~/.aws",
+  "~/.azure",
+  "~/.bash_history",
+  "~/.config/1Password",
+  "~/.config/Bitwarden CLI",
+  "~/.config/age",
+  "~/.config/bws",
+  "~/.config/chezmoi/key.txt",
+  "~/.config/docker/config.json",
+  "~/.config/git/credentials",
+  "~/.config/npm/npmrc",
+  "~/.config/omp",
+  "~/.config/pi/agent/auth.json",
+  "~/.config/proton-pass-cli",
+  "~/.config/runpod",
+  "~/.config/ssh",
+  "~/.gnupg",
+  "~/.kube/config",
+  "~/.local/share/atuin",
+  "~/.local/share/azure",
+  "~/.local/share/gnupg",
+  "~/.local/share/mkcert/rootCA-key.pem",
+  "~/.local/share/opencode/auth.json",
+  "~/.local/share/pass",
+  "~/.local/share/proton-pass-cli",
+  "~/.local/share/ssh",
+  "~/.local/share/zsh",
+  "~/.netrc",
+  "~/.npmrc",
+  "~/.ssh",
+  "~/.zsh_history",
+  "~/Library/Application Support/Bitwarden CLI",
+  "~/Library/Application Support/BraveSoftware",
+  "~/Library/Application Support/Firefox",
+  "~/Library/Application Support/Google/Chrome",
+  "~/Library/Application Support/proton-pass-cli",
+  "~/Library/Keychains",
+  "~/Library/Safari"
+]
+
+# Credential routes (nono network.custom_credentials, keys 1:1). The proxy
+# reads the real value from the launching environment (credential_key) and the
+# agent sees only a phantom in env_var. `agents` scopes each route. Only
+# providers a profile uses get a route: Claude logs in via the keychain and
+# openai-codex via the agent's ChatGPT OAuth file, so neither has one
+# (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, OPENAI_API_KEY stay denied).
+[ai.sandbox.credentials.brave]
+# pi-web-access and omp read BRAVE_API_KEY, so the phantom lands there.
+agents = ["omp", "opencode", "pi"]
+credential_format = "{}"
+credential_key = "env://BRAVE_SEARCH_API_KEY"
+env_var = "BRAVE_API_KEY"
+inject_header = "X-Subscription-Token"
+upstream = "https://api.search.brave.com"
+
+[ai.sandbox.credentials.deepseek]
+agents = ["omp", "opencode", "pi"]
+credential_format = "Bearer {}"
+credential_key = "env://DEEPSEEK_API_KEY"
+env_var = "DEEPSEEK_API_KEY"
+inject_header = "authorization"
+upstream = "https://api.deepseek.com"
+
+[ai.sandbox.credentials.github]
+# gh reads GH_TOKEN before GITHUB_TOKEN, so the phantom lands in GH_TOKEN.
+agents = ["claude", "omp", "opencode", "pi"]
+credential_format = "Bearer {}"
+credential_key = "env://GITHUB_TOKEN"
+env_var = "GH_TOKEN"
+inject_header = "authorization"
+upstream = "https://api.github.com"
+
+[ai.sandbox.credentials.github_git]
+# nono basic_auth injects one fixed user:password (nolabs-ai/nono#2090) but GitHub
+# git wants x-access-token:<token>, so the launcher derives GITHUB_GIT_CREDENTIAL.
+# In the sandbox git gets the phantom GH_TOKEN via the `!gh auth git-credential`
+# helper. Branch protection comes from GitHub rulesets, not this proxy.
+agents = ["claude", "omp", "opencode", "pi"]
+credential_key = "env://GITHUB_GIT_CREDENTIAL"
+inject_mode = "basic_auth"
+upstream = "https://github.com"
+
+[[ai.sandbox.credentials.github_git.endpoint_rules]]
+method = "GET"
+path = "/**"
+
+[[ai.sandbox.credentials.github_git.endpoint_rules]]
+method = "POST"
+path = "/*/*/git-upload-pack"
+
+[[ai.sandbox.credentials.github_git.endpoint_rules]]
+method = "POST"
+path = "/*/*/git-receive-pack"
+
+[ai.sandbox.credentials.opencode]
+# Zen and Go serve these models OpenAI-style: clients send Authorization: Bearer.
+agents = ["omp", "opencode", "pi"]
+credential_format = "Bearer {}"
+credential_key = "env://OPENCODE_API_KEY"
+env_var = "OPENCODE_API_KEY"
+inject_header = "authorization"
+upstream = "https://opencode.ai"
+
+[ai.sandbox.credentials.openrouter]
+agents = ["omp", "opencode", "pi"]
+credential_format = "Bearer {}"
+credential_key = "env://OPENROUTER_API_KEY"
+env_var = "OPENROUTER_API_KEY"
+inject_header = "authorization"
+upstream = "https://openrouter.ai"
+
+[ai.sandbox.set_vars]
+# Skip /etc/gitconfig (unreadable under Linux Landlock) and isolate caches under ~/.cache.
+GIT_CONFIG_NOSYSTEM = "1"
+NPM_CONFIG_CACHE = "~/.cache/sandbox-npm"
+PREK_HOME = "~/.cache/sandbox-prek"
+UV_CACHE_DIR = "~/.cache/sandbox-uv"

@@ -1,0 +1,46 @@
+[ai.libraries.extensions]
+opencode-engram = { repository = "engram", source = "plugin/opencode/engram.ts", target = "libraries/extensions/opencode-engram/engram.ts" }
+
+[ai.libraries.repositories]
+compound-engineering = { ref = "main", repo = "EveryInc/compound-engineering-plugin" }
+engram = { ref = "main", repo = "Gentleman-Programming/engram" }
+karpathy = { ref = "main", repo = "multica-ai/andrej-karpathy-skills" }
+oh-my-opencode-slim = { ref = "master", repo = "alvinunreal/oh-my-opencode-slim" }
+ponytail = { ref = "main", repo = "DietrichGebert/ponytail" }
+
+[ai.libraries.skills.compound-engineering]
+include = [
+  "ce-babysit-pr",
+  "ce-brainstorm",
+  "ce-code-review",
+  "ce-commit",
+  "ce-commit-push-pr",
+  "ce-compound",
+  "ce-debug",
+  "ce-doc-review",
+  "ce-explain",
+  "ce-plan",
+  "ce-polish",
+  "ce-pov",
+  "ce-resolve-pr-feedback",
+  "ce-simplify-code",
+  "ce-test-browser",
+  "ce-work",
+  "ce-worktree"
+]
+prefix = "skills"
+repository = "compound-engineering"
+
+[ai.libraries.skills.karpathy]
+include = ["karpathy-guidelines"]
+repository = "karpathy"
+
+[ai.libraries.skills.oh-my-opencode-slim]
+include = ["deanchor", "deepwork", "reflect", "step-back", "verification-planning"]
+prefix = "src/skills"
+repository = "oh-my-opencode-slim"
+
+[ai.libraries.skills.ponytail]
+include = ["ponytail"]
+prefix = "skills"
+repository = "ponytail"

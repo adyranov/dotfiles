@@ -1,0 +1,70 @@
+{{- /* base/ai/sandbox/render-profile — nono profile JSON for one agent.
+
+  The profile extends the agent's upstream pack (ai.sandbox.agents.<agent>.pack)
+  and ai.sandbox.extends, and adds only the overlay from sandbox.toml:
+  filesystem allow/read paths and per-file grants, the flattened egress
+  allowlist, the agent's credential routes, and the env deny globs.
+
+  Args (dict): root — template data root; agent — agent name.
+*/ -}}
+{{- $root := .root -}}
+{{- $agent := .agent -}}
+{{- $s := $root.ai.sandbox -}}
+{{- $a := index (index $s "agents" | default dict) $agent | default dict -}}
+{{- if not (index $a "pack") -}}
+{{-   fail (printf "render-profile: ai.sandbox.agents.%s.pack is required" $agent) -}}
+{{- end -}}
+{{- $home := trimSuffix "/" $root.chezmoi.homeDir -}}
+
+{{- $fs := dict -}}
+{{- range $k := list "allow" "read" "allow_file" "read_file" "deny" -}}
+{{-   if and (eq $k "deny") (ne $root.host.distro.family "darwin") -}}{{- continue -}}{{- end -}}
+{{-   $paths := list -}}
+{{-   range $p := concat (index $s $k | default list) (index $a $k | default list) -}}
+{{-     $paths = append $paths (ternary (printf "%s/%s" $home (trimPrefix "~/" $p)) $p (hasPrefix "~/" $p)) -}}
+{{-   end -}}
+{{-   if and (eq $k "read") (eq $root.host.distro.family "darwin") (eq $root.host.arch "amd64") -}}
+{{-     $paths = append $paths "/opt/local" -}}
+{{-   end -}}
+{{-   if $paths -}}{{- $_ := set $fs $k ($paths | uniq | sortAlpha) -}}{{- end -}}
+{{- end -}}
+
+{{- $hosts := includeTemplate "base/ai/sandbox/allow-domains" (dict "root" $root "agent" $agent) | mustFromJson -}}
+
+{{- /* Localhost ports reachable past the proxy: data ports (engram) plus the
+  local model gateway's port from ai.serving.local. */ -}}
+{{- $ports := index $s "open_port" | default list -}}
+{{- $localPort := dig "ai" "profiles" $root.host.profile "serving" "local" "port" 0 $root -}}
+{{- if $localPort -}}{{- $ports = append $ports $localPort -}}{{- end -}}
+
+{{- $names := list -}}
+{{- $routes := dict -}}
+{{- range $name, $route := (index $s "credentials" | default dict) -}}
+{{-   if has $agent (index $route "agents" | default list) -}}
+{{-     $names = append $names $name -}}
+{{-     $_ := set $routes $name (omit $route "agents") -}}
+{{-   end -}}
+{{- end -}}
+
+{{- $network := dict "allow_domain" $hosts -}}
+{{- if $ports -}}{{- $_ := set $network "open_port" ($ports | uniq) -}}{{- end -}}
+{{- if $names -}}
+{{-   $_ := set $network "credentials" ($names | sortAlpha) -}}
+{{-   $_ := set $network "custom_credentials" $routes -}}
+{{- end -}}
+
+{{- $setVars := dict -}}
+{{- range $k, $v := (index $s "set_vars" | default dict) -}}
+{{-   $_ := set $setVars $k (ternary (printf "%s/%s" $home (trimPrefix "~/" $v)) $v (hasPrefix "~/" $v)) -}}
+{{- end -}}
+{{- $envCfg := dict "deny_vars" (concat (index $s "deny_vars" | default list) (index $a "deny_vars" | default list) | uniq | sortAlpha) -}}
+{{- if $setVars -}}{{- $_ := set $envCfg "set_vars" $setVars -}}{{- end -}}
+{{- if index $s "case_insensitive_vars" -}}{{- $_ := set $envCfg "case_insensitive_vars" true -}}{{- end -}}
+{{- $profile := dict
+      "meta" (dict "name" $agent)
+      "extends" (concat (list $a.pack) (index $s "extends" | default list))
+      "filesystem" $fs
+      "network" $network
+      "environment" $envCfg
+-}}
+{{- $profile | toPrettyJson -}}

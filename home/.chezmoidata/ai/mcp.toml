@@ -1,0 +1,8 @@
+# One MCP server catalog for every agent: {command, args}.
+[ai.mcp.servers.codegraph]
+args = ["serve", "--mcp"]
+command = "codegraph"
+
+[ai.mcp.servers.engram]
+args = ["mcp", "--tools=agent"]
+command = "engram"

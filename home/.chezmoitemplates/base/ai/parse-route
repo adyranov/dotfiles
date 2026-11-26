@@ -1,0 +1,25 @@
+{{- /* Parse "provider/model:thinking" into JSON {provider, model, thinking, ref, opencode_id}.
+  Handles model IDs containing "/" (e.g. "openrouter/z-ai/glm-5.3:medium").
+  Args (dict): spec — route string; providers — .ai.providers map (optional). */ -}}
+{{- $spec := .spec -}}
+{{- $providers := index . "providers" | default dict -}}
+{{- $slash := splitn "/" 2 $spec -}}
+{{- $provider := $slash._0 -}}
+{{- $rest := $slash._1 -}}
+{{- $model := $rest -}}
+{{- $thinking := "off" -}}
+{{- if contains ":" $rest -}}
+{{-   $parts := splitList ":" $rest -}}
+{{-   $thinking = last $parts -}}
+{{-   $model = join ":" (initial $parts) -}}
+{{- end -}}
+{{- $ocProvider := dig $provider "opencode_alias" $provider $providers -}}
+{{- $piProvider := dig $provider "pi_alias" $provider $providers -}}
+{{- dict
+  "provider" $provider
+  "pi_provider" $piProvider
+  "model" $model
+  "thinking" $thinking
+  "ref" (printf "%s/%s" $provider $model)
+  "opencode_id" (printf "%s/%s" $ocProvider $model)
+  | toJson -}}

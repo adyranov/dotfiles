@@ -1,0 +1,60 @@
+# Shared role roster rendered into every agent's native subagent format.
+# Prompt bodies live in .chezmoitemplates/base/ai/roles/<role>.
+[ai]
+subagent_limit = 8
+
+[ai.roles.designer]
+description = "UI/UX design and polished visual implementation with a coherent design vision."
+mcps = []
+permission = "askless"
+skills = ["ce-polish", "ce-test-browser"]
+tier = "visual"
+tools = "write"
+
+[ai.roles.explorer]
+description = "Read-only codebase research: locate code, trace flows, answer questions with file:line evidence."
+mcps = ["codegraph"]
+permission = "research"
+skills = []
+tier = "small"
+tools = "read"
+
+[ai.roles.fixer]
+description = "Bounded implementation: bugs, features, refactors within an explicitly assigned file set."
+mcps = []
+permission = "askless"
+skills = ["ce-work", "ce-debug", "ce-simplify-code"]
+tier = "medium"
+tools = "write"
+
+[ai.roles.oracle]
+description = "Deep analysis, code review, and architectural judgment. Does not edit files; reports findings with evidence."
+mcps = ["engram"]
+permission = "askless"
+skills = ["ce-pov", "ce-code-review"]
+tier = "oracle"
+tools = "review"
+
+[ai.roles.orchestrator]
+description = "Coordinates the session; delegates research, implementation, design, and review to the roster and reconciles results."
+mcps = ["engram"]
+permission = "interactive"
+preload = ["deepwork", "verification-planning", "step-back"]
+skills = ["*"]
+tier = "big"
+tools = "write"
+
+[ai.tool_sets.read]
+claude = ["Read", "Grep", "Glob"]
+omp = ["read", "find", "grep", "glob", "ast_grep"]
+pi = ["read", "grep", "find", "ls"]
+
+[ai.tool_sets.review]
+claude = ["Read", "Grep", "Glob", "Bash"]
+omp = ["read", "find", "grep", "glob", "ast_grep", "bash"]
+pi = ["read", "grep", "find", "ls", "bash"]
+
+[ai.tool_sets.write]
+claude = ["Read", "Edit", "Write", "Bash", "Grep", "Glob"]
+omp = ["read", "find", "grep", "glob", "ast_grep", "lsp", "bash", "edit", "write"]
+pi = ["read", "grep", "find", "ls", "bash", "edit", "write"]

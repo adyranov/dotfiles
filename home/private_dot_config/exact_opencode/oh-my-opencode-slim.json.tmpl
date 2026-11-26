@@ -1,0 +1,45 @@
+{{- /* oh-my-opencode-slim config rendered from flat .ai data (ordered tier lists). */ -}}
+{{- $prof := index .ai.profiles .host.profile -}}
+{{- $oc := .ai.agents.opencode -}}
+{{- $providersMeta := .ai.providers -}}
+{{- $serving := index $prof "serving" | default dict -}}
+{{- $askless := dict "question" "deny" "subagent" "deny" -}}
+{{- $review := dict "edit" "deny" "question" "deny" "subagent" "deny" -}}
+{{- $research := dict "edit" "deny" "question" "deny" "shell" "deny" "subagent" "deny" -}}
+
+{{- $allPresets := dict -}}
+{{- range $presetName, $presetData := $prof.presets -}}
+{{-   if get $presetData "claude_only" | default false -}}{{- continue -}}{{- end -}}
+{{-   $presetAgents := dict -}}
+{{-   range $role, $rd := $.ai.roles -}}
+{{-     $models := list -}}
+{{-     range $spec := index $presetData.tiers $rd.tier -}}
+{{-       $r := includeTemplate "base/ai/parse-route" (dict "spec" $spec "providers" $providersMeta) | mustFromJson -}}
+{{-       $entry := dict "id" $r.opencode_id -}}
+{{-       if ne $r.thinking "off" -}}
+{{-         $_ := set $entry "variant" $r.thinking -}}
+{{-       else if hasKey $serving $r.provider -}}
+{{-         $_ := set $entry "variant" "none" -}}
+{{-       end -}}
+{{-       $models = append $models $entry -}}
+{{-     end -}}
+{{-     $cfg := dict "mcps" (get $rd "mcps" | default list) "model" $models "skills" (get $rd "skills" | default list) -}}
+{{-     if eq $rd.permission "research" -}}{{- $_ := set $cfg "permission" $research -}}
+{{-     else if eq $rd.tools "review" -}}{{- $_ := set $cfg "permission" $review -}}
+{{-     else if eq $rd.permission "askless" -}}{{- $_ := set $cfg "permission" $askless -}}{{- end -}}
+{{-     $_ := set $presetAgents $role $cfg -}}
+{{-   end -}}
+{{-   $_ := set $allPresets $presetName $presetAgents -}}
+{{- end -}}
+
+{{- $limit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" .) | int -}}
+{{- dict
+  "$schema" "https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json"
+  "autoUpdate" false
+  "backgroundJobs" (dict "concurrency" (dict "defaultConcurrency" $limit) "wallClockTimeoutMs" 3600000)
+  "disabled_agents" $oc.slim_disabled_agents
+  "fallback" (dict "enabled" true "maxRetries" 3)
+  "preset" $prof.default_preset
+  "presets" $allPresets
+  "setDefaultAgent" true
+  | toPrettyJson -}}

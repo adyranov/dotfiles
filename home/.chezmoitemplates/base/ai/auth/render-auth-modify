@@ -1,0 +1,67 @@
+{{- /* base/ai/auth/render-auth-modify — pure JSON modify-template body for Pi & OpenCode auth.json.
+  Args (dict): root — template data root; mode — "env_ref" (default, Pi) or "remove" (OpenCode). */ -}}
+{{- $root := .root -}}
+{{- $mode := get . "mode" | default "env_ref" -}}
+{{- $orig := dict -}}
+{{- if and (hasKey $root.chezmoi "stdin") (not (empty (trim $root.chezmoi.stdin))) -}}
+{{-   $parsed := mustFromJson $root.chezmoi.stdin -}}
+{{-   if not (kindIs "map" $parsed) -}}
+{{-     fail "auth.json must contain a JSON object" -}}
+{{-   end -}}
+{{-   $orig = $parsed -}}
+{{- end -}}
+{{- $providers := $root.ai.providers -}}
+{{- $profProviders := dig "ai" "profiles" $root.host.profile "providers" dict $root -}}
+{{- $apiKeyMap := dict -}}
+{{- $removeKeys := list -}}
+{{- $authEntries := dict -}}
+{{- $disabledAuthKeys := list -}}
+{{- range $id, $p := $providers -}}
+{{-   $envVar := get $p "api_key_env" | default "" -}}
+{{-   $authKeys := get $p "auth_keys" | default list -}}
+{{-   $ocAlias := get $p "opencode_alias" | default "" -}}
+{{-   if get $p "claude_only" | default false -}}
+{{-     $removeKeys = append $removeKeys $id -}}
+{{-     $disabledAuthKeys = append $disabledAuthKeys $id -}}
+{{-     range $ak := $authKeys -}}
+{{-       $removeKeys = append $removeKeys $ak -}}
+{{-       $disabledAuthKeys = append $disabledAuthKeys $ak -}}
+{{-     end -}}
+{{-   else if $envVar -}}
+{{-     if $ocAlias -}}{{- $removeKeys = append $removeKeys $ocAlias -}}{{- end -}}
+{{-     range $ak := $authKeys -}}
+{{-       $_ := set $apiKeyMap $ak $envVar -}}
+{{-       $removeKeys = append $removeKeys $ak -}}
+{{-       if hasKey $profProviders $id -}}
+{{-         $_ := set $authEntries $ak (dict "type" "api_key" "key" (printf "$%s" $envVar)) -}}
+{{-       else -}}
+{{-         $disabledAuthKeys = append $disabledAuthKeys $ak -}}
+{{-       end -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- $out := dict -}}
+{{- if eq $mode "remove" -}}
+{{-   $removeSet := $removeKeys | uniq -}}
+{{-   range $k, $v := $orig -}}
+{{-     if not (has $k $removeSet) -}}
+{{-       $_ := set $out $k $v -}}
+{{-     end -}}
+{{-   end -}}
+{{- else -}}
+{{-   $disabledSet := $disabledAuthKeys | uniq -}}
+{{-   range $k, $v := $orig -}}
+{{-     if has $k $disabledSet -}}{{- continue -}}{{- end -}}
+{{-     if and (kindIs "map" $v) (eq (get $v "type" | default "") "api_key") (not (hasPrefix "$" (toString (get $v "key" | default "")))) (hasKey $apiKeyMap $k) -}}
+{{-       $_ := set $out $k (dict "type" "api_key" "key" (printf "$%s" (index $apiKeyMap $k))) -}}
+{{-     else -}}
+{{-       $_ := set $out $k $v -}}
+{{-     end -}}
+{{-   end -}}
+{{-   range $k, $v := $authEntries -}}
+{{-     if not (hasKey $out $k) -}}
+{{-       $_ := set $out $k $v -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- $out | toPrettyJson -}}

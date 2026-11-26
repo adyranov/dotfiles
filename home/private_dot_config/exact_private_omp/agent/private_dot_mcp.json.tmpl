@@ -1,5 +1,7 @@
-{{- /* Managed user-level MCP config for OMP — rendered from layered data.
-  Project-level MCP is not locked by an overlay; OMP's default applies. */ -}}
-{{- $omp := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.agents.omp" "required" true) | mustFromJson -}}
-{{- $mcpServers := get $omp "mcp_servers" | default dict -}}
+{{- /* Managed user-level MCP config for OMP from shared .ai.mcp.servers. */ -}}
+{{- $mcpServers := dict -}}
+{{- range $name := .ai.agents.omp.mcp_servers -}}
+{{-   $srv := index $.ai.mcp.servers $name -}}
+{{-   $_ := set $mcpServers $name (dict "args" (get $srv "args" | default list) "command" $srv.command "instructions" false) -}}
+{{- end -}}
 {{- dict "mcpServers" $mcpServers | toPrettyJson -}}

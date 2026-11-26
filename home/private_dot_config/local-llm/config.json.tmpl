@@ -1,0 +1,30 @@
+{{- $local := dig "ai" "profiles" .host.profile "serving" "local" dict . -}}
+{{- $defaultEngine := ternary "omlx" "llamacpp" (and (eq .host.distro.family "darwin") (eq .host.arch "arm64")) -}}
+{{- $engine := get $local "engine" | default $defaultEngine -}}
+{{- if not (has $engine (list "omlx" "llamacpp")) -}}
+{{-   fail (printf "ai.profiles.%s.serving.local.engine = %q, expected \"omlx\" or \"llamacpp\"" .host.profile $engine) -}}
+{{- end -}}
+{{- $models := list -}}
+{{- range $m := get $local "models" | default list -}}
+{{-   $entry := dict
+        "id" $m.id
+        "name" (get $m "name" | default $m.id)
+        "context_window" (get $m "context_window" | default 128000)
+        "max_output" (get $m "max_output" | default 8192)
+        "reasoning" (get $m "reasoning" | default false)
+        "sampling" (get $m "sampling" | default dict)
+      -}}
+{{-   if hasKey $m "gguf" -}}{{- $_ := set $entry "gguf" $m.gguf -}}{{- end -}}
+{{-   if hasKey $m "mlx" -}}{{- $_ := set $entry "mlx" $m.mlx -}}{{- end -}}
+{{-   $models = append $models $entry -}}
+{{- end -}}
+{{- dict
+  "engine" $engine
+  "port" (get $local "port" | default 8321 | int)
+  "default_model" (get $local "default_model" | default "")
+  "omlx_max_concurrent_requests" (get $local "omlx_max_concurrent_requests" | default 1 | int)
+  "omlx_memory_guard_gb" (get $local "omlx_memory_guard_gb" | default 0 | int)
+  "omlx_bench_warmup_runs" (ternary (index $local "omlx_bench_warmup_runs") 1 (hasKey $local "omlx_bench_warmup_runs") | int)
+  "omlx_bench_extra_args" (get $local "omlx_bench_extra_args" | default "")
+  "models" $models
+| toPrettyJson }}

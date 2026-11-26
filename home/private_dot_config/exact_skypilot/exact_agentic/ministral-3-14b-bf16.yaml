@@ -1,0 +1,25 @@
+# mistralai/Ministral-3-14B-Instruct-2512 | L40S/RTXA6000/RTX5090 | 32K | Agent tier, Mistral 3 architecture, native tool calling
+name: ministral-3-14b-bf16
+resources:
+  image_id: docker:lmsysorg/sglang:latest-cu129
+  accelerators: {"A100-80GB": 1, "L40S": 1, "RTX5090": 1, "RTXA6000": 1}
+  use_spot: true
+  job_recovery:
+    strategy: FAILOVER
+  disk_size: 60
+run: |
+  set -euxo pipefail
+  TP_SIZE="$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l | tr -d ' ')"
+  sglang serve \
+    --model-path mistralai/Ministral-3-14B-Instruct-2512 \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --context-length 32768 \
+    --mem-fraction-static 0.92 \
+    --tp-size "$TP_SIZE" \
+    --cuda-graph-backend-prefill=disabled \
+    --tool-call-parser mistral \
+    --trust-remote-code \
+    2>&1 | tee ~/server.log
+secrets:
+  HF_TOKEN: null

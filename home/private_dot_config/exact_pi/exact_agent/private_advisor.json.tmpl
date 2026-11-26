@@ -1,0 +1,9 @@
+{{- /* pi-advisor-flow global config: rides the active preset's oracle tier. */ -}}
+{{- $prof := index .ai.profiles .host.profile -}}
+{{- $tiers := (index $prof.presets $prof.default_preset).tiers -}}
+{{- $adv := includeTemplate "base/ai/parse-route" (dict "spec" (first $tiers.oracle) "providers" .ai.providers) | mustFromJson -}}
+{{- dict
+  "advisor" (printf "%s/%s" $adv.pi_provider $adv.model)
+  "advisorDisableSameModel" true
+  "advisorEffort" $adv.thinking
+  | toPrettyJson -}}

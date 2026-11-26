@@ -1,0 +1,27 @@
+{{- /* Claude Code orchestrator agent: pure native Anthropic @agents roster. */ -}}
+{{- $claude := .ai.agents.claude -}}
+{{- $rd := .ai.roles.orchestrator -}}
+{{- $prof := index .ai.profiles .host.profile -}}
+{{- $presetName := dig "claude_preset" $claude.preset $prof -}}
+{{- $preset := dig "presets" $presetName dict $prof -}}
+{{- if not $preset -}}{{- $preset = dig "presets" $presetName dict .ai -}}{{- end -}}
+{{- $bigRoute := includeTemplate "base/ai/parse-route" (dict "spec" (first $preset.tiers.big) "providers" .ai.providers) | mustFromJson -}}
+{{- $effort := ternary $claude.tier_routing.thinking_off_effort $bigRoute.thinking (eq $bigRoute.thinking "off") -}}
+---
+name: orchestrator
+description: {{ $rd.description | toYaml | trim }}
+model: {{ $bigRoute.model }}
+effort: {{ $effort }}
+{{- with $rd.preload }}
+skills: {{ join ", " . }}
+{{- end }}
+---
+
+{{ includeTemplate "base/ai/roles/orchestrator" . | trim }}
+
+## Worker roster (preset: {{ $presetName }})
+
+{{- range $role := list "oracle" "explorer" "fixer" "designer" }}
+{{-   $r := index $.ai.roles $role }}
+- **{{ $role }}** — native subagent `@{{ $role }}` (Agent tool): {{ $r.description }}
+{{- end }}

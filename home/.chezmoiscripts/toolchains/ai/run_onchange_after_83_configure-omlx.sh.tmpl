@@ -1,7 +1,6 @@
 {{- if and .toolchains.ai (eq .host.distro.family "darwin") (eq .host.arch "arm64") -}}
 {{- /* Install wiring: always sync mlx backends, independent of runtime engine. */ -}}
-{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" . "section" "ai.serving" "required" true) | mustFromJson -}}
-{{- $localModels := index (index $serving "local" | default dict) "models" | default list -}}
+{{- $localModels := dig "ai" "profiles" .host.profile "serving" "local" "models" list . -}}
 {{- $omlxModels := dict -}}
 {{- $hf_dirs := list -}}
 {{- range $m := $localModels -}}
@@ -13,7 +12,7 @@
 {{- end -}}
 {{- includeTemplate "base/headers/script" (dict "root" .) -}}
 
-# omlx cache hash: {{ output "sh" "-c" (printf "HF_CACHE=\"${HF_HUB_CACHE:-${XDG_DATA_HOME:-$HOME/.local/share}/huggingface/hub}\"; for d in %s; do ls \"$HF_CACHE/$d/snapshots\" 2>/dev/null; done | sort | shasum | cut -c1-16" (join " " $hf_dirs)) | trim }}
+# omlx cache & version hash: {{ output "sh" "-c" (printf "PATH=\"/opt/homebrew/bin:$PATH\"; HF_CACHE=\"${HF_HUB_CACHE:-${XDG_DATA_HOME:-$HOME/.local/share}/huggingface/hub}\"; { brew list --versions omlx 2>/dev/null || true; %s } | sort | shasum | cut -c1-16" (ternary (printf "for d in %s; do ls \"$HF_CACHE/$d/snapshots\" 2>/dev/null; done;" (join " " $hf_dirs)) "" (gt (len $hf_dirs) 0))) | trim }}
 
 HF_CACHE="${HF_HUB_CACHE:-${XDG_DATA_HOME:-$HOME/.local/share}/huggingface/hub}"
 MODEL_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omlx/models"
@@ -25,6 +24,8 @@ latest_snapshot() {
   if [ ! -d "$snaps" ]; then
     return 1
   fi
+  found="$(find "$snaps" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1 || true)"
+  [ -n "$found" ] || return 1
   find "$snaps" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null \
     | xargs -0 ls -td 2>/dev/null \
     | head -n 1
@@ -52,7 +53,7 @@ EXPECTED="${EXPECTED} {{ $id }}"
 {{- end }}
 
 for entry in "$MODEL_DIR"/*; do
-  [ -e "$entry" ] || continue
+  [ -L "$entry" ] || continue
   name="$(basename "$entry")"
   case " ${EXPECTED} " in
     *" ${name} "*) ;;
@@ -71,7 +72,16 @@ fi
 
 OMLX_PY="$OMLX_PREFIX/libexec/bin/python3"
 if [ ! -x "$OMLX_PY" ]; then
-  OMLX_PY="$(/usr/bin/find "$OMLX_PREFIX/libexec/bin" -maxdepth 1 -name 'python3*' -type f 2>/dev/null | head -n 1)"
+  OMLX_PY=""
+  for candidate in "$OMLX_PREFIX/libexec/bin"/python3*; do
+    case "$candidate" in
+      *-config) continue ;;
+    esac
+    if [ -x "$candidate" ]; then
+      OMLX_PY="$candidate"
+      break
+    fi
+  done
 fi
 if [ -z "$OMLX_PY" ] || [ ! -x "$OMLX_PY" ]; then
   echo "omlx libexec python not found under $OMLX_PREFIX; skipping xgrammar setup." >&2

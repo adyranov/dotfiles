@@ -1,2 +1,68 @@
 {{- /* chezmoi:modify-template */ -}}
-{{- includeTemplate "base/ai/agents/pi/render-pi-modify-settings" (dict "root" . "profile" "minimal" "chezmoi" .chezmoi) -}}
+{{- /* Pi settings.json: managed keys merge over runtime-written keys. */ -}}
+{{- $current := dict -}}
+{{- if and (hasKey .chezmoi "stdin") (not (empty (trim .chezmoi.stdin))) -}}
+{{-   $current = fromJsonc .chezmoi.stdin | default dict -}}
+{{- end -}}
+
+{{- $pi := .ai.agents.pi -}}
+{{- $prof := index .ai.profiles .host.profile -}}
+{{- $tiers := (index $prof.presets $prof.default_preset).tiers -}}
+{{- $def := includeTemplate "base/ai/parse-route" (dict "spec" (first $tiers.big) "providers" .ai.providers) | mustFromJson -}}
+
+{{- /* enabledModels = non-claude_only profile providers + enabled serving models */ -}}
+{{- $enabledModels := list -}}
+{{- range $provId, $models := (index $prof "providers" | default dict) -}}
+{{-   if not (dig $provId "claude_only" false $.ai.providers) -}}
+{{-     $piProv := dig $provId "pi_alias" $provId $.ai.providers -}}
+{{-     range $m := $models -}}
+{{-       $enabledModels = append $enabledModels (printf "%s/%s" $piProv $m) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- range $spId, $sp := (index $prof "serving" | default dict) -}}
+{{-   if and (kindIs "map" $sp) (dig "enabled" true $sp) -}}
+{{-     range $m := get $sp "models" | default list -}}
+{{-       $enabledModels = append $enabledModels (printf "%s/%s" $spId $m.id) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+
+{{- $packages := list -}}
+{{- range $p := $pi.packages -}}
+{{-   $entry := dict "name" $p -}}
+{{-   if kindIs "map" $p -}}{{- $entry = $p -}}{{- end -}}
+{{-   $source := ternary $entry.name (printf "npm:%s" $entry.name) (contains ":" $entry.name) -}}
+{{-   if kindIs "map" $p -}}
+{{-     $packages = append $packages (merge (dict "source" $source) (omit $p "name")) -}}
+{{-   else -}}
+{{-     $packages = append $packages $source -}}
+{{-   end -}}
+{{- end -}}
+
+{{- $s := $pi.settings -}}
+{{- $managed := dict
+  "bashMode" (dict "toggleShortcut" $s.bash_mode.toggle_shortcut "transcriptMaxBytes" $s.bash_mode.transcript_max_bytes "transcriptMaxLines" $s.bash_mode.transcript_max_lines)
+  "compaction" (dict "enabled" true "keepRecentTokens" $pi.compaction.keep_recent_tokens "reserveTokens" $pi.compaction.reserve_tokens)
+  "defaultModel" $def.model
+  "defaultProvider" $def.pi_provider
+  "defaultThinkingLevel" $def.thinking
+  "enableInstallTelemetry" false
+  "enabledModels" ($enabledModels | uniq)
+  "extensions" (list "-builtin:mcp")
+  "followUpMode" "all"
+  "npmCommand" (list "mise" "exec" "node@lts" "--" "npm")
+  "packages" $packages
+  "powerline" (dict "fixedEditor" $s.powerline.fixed_editor "mouseScroll" $s.powerline.mouse_scroll "preset" $s.powerline.preset)
+  "quietStartup" true
+  "retry" (dict "baseDelayMs" 2000 "enabled" true "maxRetries" 3)
+  "skills" (list "../../agents/skills")
+  "steeringMode" "all"
+  "subagents" (dict "disableBuiltins" true)
+  "theme" $s.theme
+  "treeFilterMode" "no-tools"
+  "warnings" (dict "anthropicExtraUsage" true)
+-}}
+{{- $final := mergeOverwrite $current $managed -}}
+{{- if hasKey $final.subagents "agentOverrides" -}}{{- $_ := unset $final.subagents "agentOverrides" -}}{{- end -}}
+{{- $final | toPrettyJson -}}

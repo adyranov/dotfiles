@@ -1,0 +1,8 @@
+{{- /* Pi orchestrator append prompt (cleared automatically for child agents by pi-subagents). */ -}}
+{{ includeTemplate "base/ai/roles/orchestrator" . | trim }}
+
+## Worker roster (`subagent` tool)
+{{- range $role := list "oracle" "explorer" "fixer" "designer" }}
+{{-   $r := index $.ai.roles $role }}
+- **{{ $role }}** — {{ $r.description }}
+{{- end }}

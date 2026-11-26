@@ -1,0 +1,81 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* Claude Code settings.json: managed policy keys merge over user writes. */ -}}
+{{- $current := dict -}}
+{{- if and (hasKey .chezmoi "stdin") (not (empty (trim .chezmoi.stdin))) -}}
+{{-   $current = fromJsonc .chezmoi.stdin | default dict -}}
+{{- end -}}
+
+{{- $claude := .ai.agents.claude -}}
+{{- $s := $claude.settings -}}
+{{- $prof := index .ai.profiles .host.profile -}}
+{{- $presetName := dig "claude_preset" $claude.preset $prof -}}
+{{- $preset := dig "presets" $presetName dict $prof -}}
+{{- if not $preset -}}{{- $preset = dig "presets" $presetName dict .ai -}}{{- end -}}
+{{- $bigRoute := includeTemplate "base/ai/parse-route" (dict "spec" (first $preset.tiers.big) "providers" .ai.providers) | mustFromJson -}}
+{{- $limit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" . "preset" $presetName) | int -}}
+
+{{- $marketplaces := dict -}}
+{{- range $name, $mkt := $claude.plugins.marketplaces -}}
+{{-   $_ := set $marketplaces $name (dict "source" (dict "repo" $mkt.repo "source" $mkt.source)) -}}
+{{- end -}}
+{{- $enabled := dict -}}
+{{- range $p := $claude.plugins.enabled -}}{{- $tc := get $p "toolchain" | default "" -}}{{- if or (not $tc) (get $.toolchains $tc) -}}{{- $_ := set $enabled (printf "%s@%s" $p.id $p.marketplace) true -}}{{- end -}}{{- end -}}
+{{- $env := merge (dict) $claude.env -}}
+{{- $_ := set $env "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS" (toString $limit) -}}
+{{- $plans := ternary (printf "%s/%s" (trimSuffix "/" .chezmoi.homeDir) (trimPrefix "~/" $claude.plans_directory)) $claude.plans_directory (hasPrefix "~/" $claude.plans_directory) -}}
+{{- $hookCmd := printf "sh -c 'd=\"%s/.local/share/mise/installs/node\"; n=\"$d/lts/bin/node\"; [ -x \"$n\" ] || n=\"$d/latest/bin/node\"; [ -x \"$n\" ] || n=\"$(command -v node || true)\"; [ -x \"$n\" ] || { echo \"Blocked by DCG: node missing\" >&2; exit 2; }; env -u NODE_OPTIONS \"$n\" \"%s/.config/dcg/claude-guard.mjs\" || exit 2'" .chezmoi.homeDir .chezmoi.homeDir -}}
+{{- $hooks := dict "PreToolUse" (list (dict "hooks" (list (dict "command" $hookCmd "type" "command")) "matcher" "Bash|Monitor|Write|Edit|MultiEdit|NotebookEdit")) -}}
+{{- $permissions := dict "defaultMode" $s.default_mode "deny" ($s.permissions_deny | sortAlpha) -}}
+{{- $statusLine := dict "command" $s.statusline_command "type" "command" -}}
+{{- $sandbox := dict "enabled" false -}}
+{{- if eq .host.distro.family "darwin" -}}
+{{-   $home := trimSuffix "/" .chezmoi.homeDir -}}
+{{-   $denyRead := list -}}
+{{-   range $p := dig "claude_builtin" "deny_read" list .ai.sandbox -}}
+{{-     $denyRead = append $denyRead (ternary (printf "%s/%s" $home (trimPrefix "~/" $p)) $p (hasPrefix "~/" $p)) -}}
+{{-   end -}}
+{{-   $domains := includeTemplate "base/ai/sandbox/allow-domains" (dict "root" . "agent" "claude") | mustFromJson -}}
+{{-   $sandbox = dict "allowUnsandboxedCommands" true "autoAllowBashIfSandboxed" true "enabled" true "failIfUnavailable" true "filesystem" (dict "denyRead" ($denyRead | uniq | sortAlpha)) "network" (dict "allowedDomains" $domains) -}}
+{{- end -}}
+
+{{- $autoMode := dict "allow" $claude.auto_mode.allow "environment" (ternary $claude.auto_mode.environment (list "$defaults") (eq .host.distro.family "darwin")) -}}
+{{- $managed := dict
+  "agent" "orchestrator"
+  "attribution" $s.attribution
+  "autoMemoryEnabled" $s.auto_memory
+  "autoMode" $autoMode
+  "bashOutputMaxChars" $s.bash_output_max_chars
+  "crossSessionInbound" $s.cross_session_inbound
+  "disableAllHooks" false
+  "enabledPlugins" $enabled
+  "env" $env
+  "extraKnownMarketplaces" $marketplaces
+  "fallbackModel" $s.fallback_model
+  "hooks" $hooks
+  "isolatePeerMachines" $s.isolate_peer_machines
+  "model" $bigRoute.model
+  "permissions" $permissions
+  "plansDirectory" $plans
+  "preferredNotifChannel" $s.notif_channel
+  "sandbox" $sandbox
+  "spinnerTipsEnabled" $s.spinner_tips
+  "statusLine" $statusLine
+  "subagentPromptCacheTtl" $s.subagent_prompt_cache_ttl
+  "syncClaudeAiPlugins" $s.sync_claude_ai_plugins
+  "syncClaudeAiSkills" $s.sync_claude_ai_skills
+  "theme" $s.theme
+  "ultracode" $s.ultracode
+-}}
+{{- $merged := mergeOverwrite $current $managed -}}
+{{- range $k := list "apiKeyHelper" "awsAuthRefresh" "awsCredentialExport" "disabledMcpjsonServers" "enableAllProjectMcpServers" "enabledMcpjsonServers" "fileSuggestion" "gcpAuthRefresh" "mcpServers" "otelHeadersHelper" "proxyAuthHelper" "subagentStatusLine" -}}
+{{-   $_ := unset $merged $k -}}
+{{- end -}}
+{{- $_ := set $merged "autoMode" $autoMode -}}
+{{- $_ := set $merged "hooks" $hooks -}}
+{{- $_ := set $merged "permissions" $permissions -}}
+{{- $_ := set $merged "env" $env -}}
+{{- $_ := set $merged "sandbox" $sandbox -}}
+{{- $_ := set $merged "statusLine" $statusLine -}}
+{{- $_ := set $merged "extraKnownMarketplaces" $marketplaces -}}
+{{- $_ := set $merged "fallbackModel" $s.fallback_model -}}
+{{- set $merged "enabledPlugins" $enabled | toPrettyJson -}}

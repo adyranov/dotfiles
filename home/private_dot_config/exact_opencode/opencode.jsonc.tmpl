@@ -1,2 +1,87 @@
-{{- /* Fully declarative opencode config generated from managed data */ -}}
-{{ includeTemplate "base/ai/agents/opencode/render-opencode-config" (dict "root" . "profile" "minimal") }}
+{{- /* OpenCode v2 config rendered from flat .ai data. */ -}}
+{{- $oc := .ai.agents.opencode -}}
+{{- $prof := index .ai.profiles .host.profile -}}
+{{- $tiers := (index $prof.presets $prof.default_preset).tiers -}}
+{{- $serving := index $prof "serving" | default dict -}}
+{{- $providersMeta := .ai.providers -}}
+
+{{- $defRoute := includeTemplate "base/ai/parse-route" (dict "spec" (first $tiers.big) "providers" $providersMeta) | mustFromJson -}}
+{{- $defModel := ternary $defRoute.opencode_id (printf "%s#%s" $defRoute.opencode_id $defRoute.thinking) (eq $defRoute.thinking "off") -}}
+{{- $smallRoute := includeTemplate "base/ai/parse-route" (dict "spec" (first $tiers.small) "providers" $providersMeta) | mustFromJson -}}
+
+{{- /* Local & remote OpenAI-compatible serving providers */ -}}
+{{- $providers := dict -}}
+{{- $localServing := get $serving "local" | default dict -}}
+{{- $localModels := dict -}}
+{{- range $m := get $localServing "models" | default list -}}
+{{-   $caps := dict "tools" true "input" (list "text") "output" (list "text") -}}
+{{-   if get $m "reasoning" -}}{{- $_ := set $caps "reasoning" (dict "supported" true) -}}{{- end -}}
+{{-   $_ := set $localModels $m.id (dict "name" (get $m "name" | default $m.id) "capabilities" $caps "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "max_output" | default 8192))) -}}
+{{- end -}}
+{{- if and (dig "enabled" true $localServing) $localModels -}}
+{{-   $_ := set $providers "local" (dict
+        "package" "@opencode/ai/providers/openai-compatible"
+        "name" "Local LLM Gateway"
+        "settings" (dict "baseURL" (printf "http://127.0.0.1:%v/v1" (get $localServing "port" | default 8321)) "apiKey" "local")
+        "models" $localModels) -}}
+{{- end -}}
+{{- range $spId, $sp := $serving -}}
+{{-   if and (kindIs "map" $sp) (dig "enabled" true $sp) (eq (get $sp "kind" | default "") "openai-compatible") -}}
+{{-     $rm := dict -}}
+{{-     range $m := get $sp "models" | default list -}}
+{{-       $inputs := ternary (list "text" "image") (list "text") (has "image" (get $m "inputs" | default list)) -}}
+{{-       $caps := dict "tools" true "input" $inputs "output" (list "text") -}}
+{{-       if get $m "reasoning" -}}
+{{-         $r := dict "supported" true -}}
+{{-         if get $m "efforts" -}}{{- $_ := set $r "effort" $m.efforts -}}{{- end -}}
+{{-         $_ := set $caps "reasoning" $r -}}
+{{-       end -}}
+{{-       $_ := set $rm $m.id (dict "name" (get $m "name" | default $m.id) "capabilities" $caps "limit" (dict "context" (get $m "context_window" | default 128000) "output" (get $m "max_output" | default 8192))) -}}
+{{-     end -}}
+{{-     if $rm -}}
+{{-       $_ := set $providers $spId (dict "package" "@opencode/ai/providers/openai-compatible" "name" $spId "settings" (dict "baseURL" $sp.base_url) "headers" (dict "Connection" "close") "models" $rm) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+
+{{- /* Built-in agent overrides */ -}}
+{{- $agents := dict "title" (dict "model" $smallRoute.opencode_id) "summary" (dict "model" $smallRoute.opencode_id) -}}
+{{- $builtins := dict "build" (list "medium" "primary") "plan" (list "big" "primary") "general" (list "medium" "subagent") "explore" (list "small" "subagent") -}}
+{{- range $name, $pair := $builtins -}}
+{{-   $r := includeTemplate "base/ai/parse-route" (dict "spec" (first (index $tiers (index $pair 0))) "providers" $providersMeta) | mustFromJson -}}
+{{-   $mid := ternary $r.opencode_id (printf "%s#%s" $r.opencode_id $r.thinking) (eq $r.thinking "off") -}}
+{{-   $cfg := dict "model" $mid "mode" (index $pair 1) -}}
+{{-   if has $name $oc.disabled_agents -}}{{- $_ := set $cfg "disabled" true -}}{{- end -}}
+{{-   $_ := set $agents $name $cfg -}}
+{{- end -}}
+
+{{- /* Shared MCP servers wrapped in OpenCode local shape */ -}}
+{{- $mcpServers := dict -}}
+{{- range $name := $oc.mcp_servers -}}
+{{-   $srv := index $.ai.mcp.servers $name -}}
+{{-   $_ := set $mcpServers $name (dict "command" (prepend (get $srv "args" | default list) $srv.command) "type" "local") -}}
+{{- end -}}
+
+{{- $s := $oc.settings -}}
+{{- $result := dict
+  "$schema" "https://opencode.ai/config.json"
+  "agents" $agents
+  "compaction" (dict "auto" $s.compaction.auto "buffer" $s.compaction.reserved "keep" (dict "tokens" (dig "keep" 15000 $s.compaction)))
+  "default_agent" $oc.default_agent
+  "formatter" true
+  "instructions" $oc.instructions.files
+  "mcp" (dict "servers" $mcpServers)
+  "media" (dict "image" (dict "auto_resize" true "max_base64_bytes" 5242880 "max_height" 2000 "max_width" 2000))
+  "model" $defModel
+  "permissions" $oc.permissions
+  "plugins" $oc.plugins
+  "policies" (list (dict "action" "provider.use" "effect" "deny" "resource" "anthropic"))
+  "providers" $providers
+  "skills" $oc.skills.paths
+  "snapshots" $s.snapshots
+  "tool_output" (dict "max_bytes" $s.tool_output.max_bytes "max_lines" $s.tool_output.max_lines)
+  "update" $s.update
+  "watcher" (dict "ignore" $s.watcher.ignore)
+-}}
+// Generated by chezmoi from flat .chezmoidata/ai/ files.
+{{ $result | toPrettyJson }}
