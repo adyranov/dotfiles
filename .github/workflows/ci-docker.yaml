@@ -1,4 +1,5 @@
 name: CI Docker
+permissions: {}
 on:
   workflow_call:
     inputs:
@@ -8,6 +9,11 @@ on:
       publish:
         type: boolean
         default: false
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
   schedule:
     - cron: 0 23 * * 6
   workflow_dispatch:
@@ -18,10 +24,32 @@ on:
         default: false
         type: boolean
 concurrency:
-  group: ci-docker-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-ci-docker-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
+  docker-test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        os: ${{ fromJSON(inputs.matrix || '["archlinux","fedora","ubuntu"]') }}
+      fail-fast: false
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run container Bats suite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker buildx build \
+            --target test \
+            --secret id=GIT_AUTH_TOKEN,env=GITHUB_TOKEN \
+            -f containers/${{ matrix.os }}/Dockerfile \
+            .
   docker-build:
+    needs: [docker-test]
     strategy:
       matrix:
         os: ${{ fromJSON(inputs.matrix || '["archlinux","fedora","ubuntu"]') }}

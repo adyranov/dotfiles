@@ -1,4 +1,5 @@
 name: Lint
+permissions: {}
 on:
   push:
     branches:
@@ -21,14 +22,59 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup mise
         uses: jdx/mise-action@90f833d396d0cc3674b631d2d225e306476c303a # v5.2.10
-      - name: Cache pre-commit environments
+      - name: Cache prek environments
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml', '.mise.toml') }}
+          path: ~/.local/share/prek
+          key: prek-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml', '.mise.toml') }}
           restore-keys: |
-            pre-commit-${{ runner.os }}-
+            prek-${{ runner.os }}-
+      - name: Install zsh for syntax check
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends zsh
+      - name: Render mock chezmoi config
+        run: |
+          mkdir -p ~/.config/chezmoi
+          cat <<'EOF' > ~/.config/chezmoi/chezmoi.yaml
+          data:
+            brew:
+              path: "/home/linuxbrew/.linuxbrew/bin/brew"
+            personal:
+              email: "change.me@example.com"
+              name: "Change Me"
+              username: "change_me"
+            gpg:
+              sign: ""
+              encrypt: ""
+            host:
+              arch: "amd64"
+              distro:
+                family: "linux"
+                id: "ubuntu"
+              home: "${HOME}"
+              source: "${GITHUB_WORKSPACE}/home"
+              type: "desktop"
+              profile: "personal"
+              interactive: false
+              restricted: false
+            secrets:
+              age: false
+            toolchains:
+              ai: true
+              claude: true
+              cloud: true
+              docker: true
+              extra: true
+              golang: true
+              iac: true
+              java: true
+              kubernetes: true
+              node: true
+              omp: true
+              opencode: true
+              pi: true
+              python: true
+              rust: true
+          EOF
+          sed -i "s|\${HOME}|${HOME}|g; s|\${GITHUB_WORKSPACE}|${GITHUB_WORKSPACE}|g" ~/.config/chezmoi/chezmoi.yaml
       - name: Run lint
-        env:
-          SKIP: chezmoi-execute-template
         run: mise run lint

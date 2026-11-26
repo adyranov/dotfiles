@@ -1,14 +1,17 @@
 name: CI WSL
+permissions: {}
 on:
   workflow_call: {}
   workflow_dispatch:
 concurrency:
-  group: ci-wsl-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-ci-wsl-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
   wsl:
     runs-on: windows-2025-vs2026
     timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -21,32 +24,45 @@ jobs:
         id: restore-wsl-mise
         with:
           path: \\wsl$\Ubuntu-24.04\root\.local\share\mise\downloads
-          key: wsl-mise-${{ hashFiles('.mise.toml', 'home/.chezmoidata/base/packages/**', 'home/.chezmoidata/os/ubuntu/packages.toml', 'home/.chezmoidata/profile/**', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoiscripts/common/run_onchange_after_01_update-mise.sh.tmpl', 'home/.chezmoiscripts/common/run_onchange_after_10_install-mise-packages.sh.tmpl') }}
+          key: wsl-mise-${{ hashFiles('.mise.toml', 'home/.chezmoidata/*.toml', 'home/.chezmoidata/base/packages/**', 'home/.chezmoidata/os/ubuntu/packages.toml', 'home/.chezmoitemplates/base/packages/**', 'home/.chezmoiscripts/common/run_onchange_after_10_install-mise-packages.sh.tmpl') }}
           restore-keys: wsl-mise-
       - name: Restore WSL APT Cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: restore-wsl-apt
         with:
           path: \\wsl$\Ubuntu-24.04\var\cache\apt\archives
-          key: wsl-apt-${{ hashFiles('home/.chezmoidata/base/packages/*.toml', 'home/.chezmoidata/os/ubuntu/**', 'home/.chezmoitemplates/os/ubuntu/**', 'home/.chezmoiscripts/os/ubuntu/**', 'home/.chezmoiscripts/before/run_onchange_before_20_install.sh.tmpl') }}
+          key: wsl-apt-${{ hashFiles('home/.chezmoidata/repositories.toml', 'home/.chezmoidata/base/packages/*.toml', 'home/.chezmoidata/os/ubuntu/**', 'home/.chezmoitemplates/os/ubuntu/**', 'home/.chezmoiscripts/os/ubuntu/**', 'home/.chezmoiscripts/before/run_onchange_before_20_install.sh.tmpl') }}
           restore-keys: wsl-apt-
       - name: Run install.sh
         shell: wsl-bash {0}
         run: |
           set -eux
           workspace="$(wslpath '${{ github.workspace }}')"
-          cd "$workspace"
+          repo="$HOME/.local/share/chezmoi"
+          rm -rf "$repo"
+          mkdir -p "$(dirname "$repo")"
+          cp -a "$workspace" "$repo"
+          cd "$repo"
+          export CI="true"
           export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           export MISE_ALWAYS_KEEP_DOWNLOAD="true"
           export MISE_FETCH_REMOTE_VERSIONS_TIMEOUT="60"
           export MISE_HTTP_TIMEOUT="60"
           export WITHOUT_TOOLCHAINS="true"
-          ./install.sh
-      - name: Run check-dotfiles
+          ./install.sh --data=false </dev/null
+      - name: Run test suite
         shell: wsl-bash {0}
         run: |
           set -eux
-          zsh -lic 'check-dotfiles'
+          cd "$HOME/.local/share/chezmoi"
+          export CI="true"
+          set +x
+          export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          set -x
+          export MISE_ALWAYS_KEEP_DOWNLOAD="true"
+          export MISE_FETCH_REMOTE_VERSIONS_TIMEOUT="60"
+          export MISE_HTTP_TIMEOUT="60"
+          zsh -lic 'mise trust && CHECK_DOTFILES_SUITE_TIMEOUT=240 mise run test'
       - name: Save WSL mise Cache
         if: success() && github.event_name != 'pull_request' && steps.restore-wsl-mise.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

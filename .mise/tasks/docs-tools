@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+#MISE description="Generate the README tools tables from package data"
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+readonly ROOT_DIR
+readonly START_MARKER="<!-- tools:start -->"
+readonly END_MARKER="<!-- tools:end -->"
+readonly TARGETS="darwin/darwin/arm64 darwin/darwin/amd64 linux/ubuntu/amd64 linux/ubuntu/arm64 linux/fedora/amd64 linux/fedora/arm64 linux/archlinux/amd64 linux/archlinux/arm64"
+# Every toolchain with a base package file, so new toolchains show up automatically.
+TOOLCHAINS="$(find "${ROOT_DIR}/home/.chezmoidata/base/packages" -name '*.toml' ! -name core.toml -exec basename {} .toml \; | sort | tr '\n' ' ')"
+readonly TOOLCHAINS
+
+README="${ROOT_DIR}/README.md"
+CHECK=0
+TMP_DIR="$(mktemp -d)"
+readonly TMP_DIR
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# Fixed fake host so output never depends on the caller's chezmoi config.
+writeConfig() {
+  local cfg="$1" tc
+  {
+    printf 'destDir: "%s/home"\nsourceDir: "%s/home"\ndata:\n' "${TMP_DIR}" "${ROOT_DIR}"
+    printf '  brew:\n    path: "/nonexistent/brew"\n  gpg:\n    encrypt: ""\n    sign: ""\n'
+    printf '  host:\n    arch: "amd64"\n    distro:\n      family: "linux"\n      id: "ubuntu"\n'
+    printf '    home: "%s/home"\n    interactive: true\n    profile: "personal"\n    restricted: false\n' "${TMP_DIR}"
+    printf '    source: "%s/home"\n    type: "desktop"\n' "${ROOT_DIR}"
+    printf '  personal:\n    email: "docs@example.com"\n    name: "Docs"\n    username: "docs"\n'
+    printf '  secrets:\n    age: false\n  toolchains:\n'
+    for tc in ${TOOLCHAINS}; do printf '    %s: true\n' "${tc}"; done
+  } >"${cfg}"
+}
+
+renderTemplate() {
+  local override="$1" tmpl="$2"
+  chezmoi --config "${TMP_DIR}/chezmoi.yaml" --source "${ROOT_DIR}" --override-data "${override}" \
+    execute-template "${tmpl}"
+}
+
+walkTarget() {
+  local family="$1" id="$2" arch="$3" override
+  override="$(jq -cn --arg f "${family}" --arg i "${id}" --arg a "${arch}" \
+    '{host:{arch:$a,distro:{family:$f,id:$i}}}')"
+  renderTemplate "${override}" '{{ includeTemplate "base/packages/walk" (dict "root" .) }}' |
+    jq -c --arg os "${id}" --arg arch "${arch}" '{os:$os, arch:$arch, list:.}'
+}
+
+# Brewfile for darwin arm64 under one profile (prints cask/mas lines).
+brewfileFor() {
+  local override
+  override="$(jq -cn --arg p "$1" \
+    '{host:{arch:"arm64",profile:$p,distro:{family:"darwin",id:"darwin"}}}')"
+  renderTemplate "${override}" '{{ includeTemplate "os/darwin/brewfile" . }}'
+}
+
+# Probe entries (libraries/services) are not user-facing tools.
+# shellcheck disable=SC2016 # jq program: $vars are jq's, not the shell's.
+readonly JQ_TOOLS='
+def osName: {darwin: "macOS", ubuntu: "Ubuntu", fedora: "Fedora", archlinux: "Arch"}[.];
+def archLabel($os): if $os == "darwin" then {arm64: "ARM", amd64: "Intel"}[.] else . end;
+def col($g; $os):
+  ([$g[] | select(.os == $os) | .arch]) as $a
+  | if ($a | length) == 2 then "✅"
+    elif ($a | length) == 0 then "❌"
+    elif $a[0] == "amd64" then "❌ (arm64)"
+    else "❌ (amd64)" end;
+# Native managers (brew/macports/apt/dnf/pacman) group as `system`.
+def install($g):
+  ($g | group_by(.c) | map({c: .[0].c, n: length})
+    | sort_by([-.n, (if .c == "mise" then 0 else 1 end), .c]) | .[0].c) as $p
+  | [("darwin", "ubuntu", "fedora", "archlinux") as $os
+    | [$g[] | select(.os == $os and .c != $p and .m != $p)] as $e
+    | if ($e | length) == 2 and $e[0].m == $e[1].m then
+      "\($os | osName): `\($e[0].m)`"
+    elif ($e | length) == 2 and $e[0].c == $e[1].c then
+      "\($os | osName): `\($e[0].c)`"
+    else
+      ($e | sort_by(.arch) | reverse[] | "\($os | osName) \(.arch | archLabel($os)): `\(.m)`")
+    end] as $x
+  | (if $p == "mise" then "`mise ✅`" else "`\($p)`" end)
+    + (if ($x | length) > 0 then " (\($x | join("; ")))" else "" end);
+[ .[] | .os as $os | .arch as $arch | .list[]
+  | select(((.pkg.test // "") | test("^(dpkg -s|rpm -q|pacman -Q)")) | not)
+  | {id, toolchain, pkg, os: $os, arch: $arch,
+    m: (if .manager == "system"
+      then ({ubuntu: "apt", fedora: "dnf", archlinux: "pacman"}[$os] // "system")
+      else .manager end)}
+  | .c = (if .m == ({ubuntu: "apt", fedora: "dnf", archlinux: "pacman"}[.os]
+      // (if .arch == "arm64" then "brew" else "macports" end)) then "system" else .m end) ]
+| . as $all
+# A personal-brewfile cask named like a tool is the darwin/arm64 install of that tool.
+| ([$all | group_by(.id)[]
+    | select(.[0].id as $i | ($cask_ids | index($i)) != null
+      and (any(.[]; .os == "darwin" and .arch == "arm64") | not))
+    | .[0] + {os: "darwin", arch: "arm64", m: "cask", c: "cask"}]) as $syn
+| ($all + $syn)
+| group_by(.id) | map(. as $g | {
+    id: .[0].id, toolchain: .[0].toolchain,
+    display: ([$g[].pkg | .display_name // .name | select(. != null)] | first // $g[0].id),
+    url: ([$g[].pkg.url | select(. != null)] | first),
+    description: ([$g[].pkg.description | select(. != null)] | first),
+    install: install($g),
+    macos: col($g; "darwin"), ubuntu: col($g; "ubuntu"),
+    fedora: col($g; "fedora"), arch: col($g; "archlinux")})
+'
+
+# Toolchain icon/title table; unknown toolchains fall back to a title-cased id.
+# shellcheck disable=SC2016 # jq program: $vars are jq's, not the shell's.
+readonly JQ_TITLES='
+def heading:
+  ({core: "🛠 Common CLI", ai: "🤖 AI and Inference", claude: "🟠 Claude Code",
+    cloud: "☁️ Cloud", docker: "🐳 Containers", extra: "✨ Extras", golang: "🐹 Go",
+    iac: "🏗️ Infrastructure as Code", java: "☕ Java", kubernetes: "☸️ Kubernetes",
+    node: "🟢 Node.js", omp: "⚡ OMP", opencode: "🔗 OpenCode", pi: "🥧 Pi",
+    python: "🐍 Python", rust: "🦀 Rust"}[.]) // ((.[0:1] | ascii_upcase) + .[1:]);
+def esc: gsub("[|]"; "\\|");
+def link: if (.url // "") != "" then "[\(.display)](\(.url))" else .id end;
+def desc: (.description // "") | esc;
+'
+
+# shellcheck disable=SC2016 # jq program: $vars are jq's, not the shell's.
+readonly JQ_RENDER_TOOLS="${JQ_TITLES}"'
+group_by(.toolchain) | sort_by(.[0].toolchain | [(if . == "core" then 0 else 1 end), (heading | sub("^\\S+ "; "") | ascii_downcase)])
+| .[] | "### \(.[0].toolchain | heading)\n",
+  "| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |",
+  "| --- | --- | --- | --- | --- | --- | --- |",
+  (sort_by(.display | ascii_downcase)[]
+    | "| \(link) | \(desc) | \(.install) | \(.macos) | \(.ubuntu) | \(.fedora) | \(.arch) |"),
+  ""
+'
+
+# Args: cask id and "id name" mas lists, tool ids to drop from casks; brew data as input.
+# shellcheck disable=SC2016 # jq program: $vars are jq's, not the shell's.
+readonly JQ_BREW="${JQ_TITLES}"'
+def lines($s): $s | split("\n") | map(select(. != ""));
+[.[] | objects] as $layers
+| ([$layers[] | (.casks // {}) | to_entries[]] | group_by(.key)
+  | map({key: .[0].key, value: (map(.value) | add)}) | from_entries) as $caskMeta
+| ([$layers[] | (.mas // [])[]] | map({key: (.id | tostring), value: .}) | from_entries) as $masMeta
+| {casks: (lines($pc) | unique | map(select(. as $i | ($tool_ids | index($i)) == null)) | map(. as $id | ($caskMeta[$id] // {}) as $m | {
+      id: $id, display: ($m.display_name // $m.name // $id), url: $m.url,
+      description: $m.description})),
+    mas: (lines($pm) | unique | map(capture("^(?<id>[0-9]+) (?<name>.*)$") as $f
+      | ($masMeta[$f.id] // {}) as $m | {
+      id: $f.id, display: ($m.display_name // $m.name // $f.name),
+      url: ($m.url // "https://apps.apple.com/app/id\($f.id)"),
+      description: $m.description}))}
+'
+
+# shellcheck disable=SC2016 # jq program: $vars are jq's, not the shell's.
+readonly JQ_RENDER_APPS="${JQ_TITLES}"'
+sort_by(.display | ascii_downcase)
+| "| App | Description |",
+  "| --- | --- |",
+  (.[] | "| \(link) | \(desc) |")
+'
+
+# Emits "<id> <name>" per mas line.
+masLines() {
+  sed -n 's/^mas "\(.*\)", id: \([0-9]*\)$/\2 \1/p'
+}
+
+caskLines() {
+  sed -n 's/^cask "\(.*\)"$/\1/p'
+}
+
+# Personal profile only: the work profile is not documented.
+collectBrew() {
+  local personal="$1" tool_ids="$2"
+  renderTemplate '{}' '{{ .brew | toJson }}' |
+    jq --arg pc "$(caskLines <<<"${personal}")" --arg pm "$(masLines <<<"${personal}")" \
+      --argjson tool_ids "${tool_ids}" "${JQ_BREW}"
+}
+
+renderBlock() {
+  writeConfig "${TMP_DIR}/chezmoi.yaml"
+  local t family id arch personal cask_ids
+  personal="$(brewfileFor personal)"
+  cask_ids="$(caskLines <<<"${personal}" | jq -Rnc '[inputs]')"
+  for t in ${TARGETS}; do
+    IFS=/ read -r family id arch <<<"${t}"
+    walkTarget "${family}" "${id}" "${arch}"
+  done | jq -s --argjson cask_ids "${cask_ids}" "${JQ_TOOLS}" >"${TMP_DIR}/tools.json"
+  collectBrew "${personal}" "$(jq -c 'map(.id)' "${TMP_DIR}/tools.json")" >"${TMP_DIR}/brew.json"
+  jq '.casks' "${TMP_DIR}/brew.json" >"${TMP_DIR}/casks.json"
+  jq '.mas' "${TMP_DIR}/brew.json" >"${TMP_DIR}/mas.json"
+
+  local missing
+  missing="$(jq -rs 'map(.[] | select((.url // "") == "" or (.description // "") == "") | .id) | unique | join(" ")' \
+    "${TMP_DIR}/tools.json" "${TMP_DIR}/casks.json" "${TMP_DIR}/mas.json")"
+  if [ -n "${missing}" ]; then
+    echo "missing url/description: ${missing}" >&2
+    if [ "${CHECK}" -eq 1 ]; then touch "${TMP_DIR}/missing"; fi
+  fi
+
+  cat <<'EOF'
+
+Install Manager Legend:
+
+- `system`: the native manager — `brew` on Apple Silicon macOS, `macports` on Intel macOS, `apt`/`dnf`/`pacman` on Ubuntu/Fedora/Arch.
+- `cask`: Homebrew cask.
+- `mise ✅`: installed by mise. Parentheses list platforms whose manager differs from the primary.
+- `helm`: Helm plugin; `external`: installed by bootstrap outside a package manager.
+- `✅` = installed on all architectures; `❌` = not installed on that OS; `❌ (arch)` = missing on that architecture. Library and service probes are omitted.
+
+EOF
+  jq -r "${JQ_RENDER_TOOLS}" "${TMP_DIR}/tools.json"
+  printf '### 🍺 Homebrew Casks\n\nApple Silicon Mac, personal profile.\n\n'
+  jq -r "${JQ_RENDER_APPS}" "${TMP_DIR}/casks.json"
+  printf '\n### 🍎 App Store (mas)\n\nApple Silicon Mac, personal profile.\n\n'
+  jq -r "${JQ_RENDER_APPS}" "${TMP_DIR}/mas.json"
+  echo
+}
+
+replaceBlock() {
+  local block="$1" out="$2"
+  if ! grep -qxF "${START_MARKER}" "${README}" || ! grep -qxF "${END_MARKER}" "${README}"; then
+    echo "markers ${START_MARKER} / ${END_MARKER} not found in ${README}" >&2
+    return 1
+  fi
+  awk -v s="${START_MARKER}" -v e="${END_MARKER}" -v f="${block}" '
+    $0 == s { print; while ((getline l < f) > 0) print l; skip = 1; next }
+    $0 == e { skip = 0 }
+    !skip { print }
+  ' "${README}" >"${out}"
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --check) CHECK=1 ;;
+  --readme)
+    README="$2"
+    shift
+    ;;
+  *)
+    echo "usage: docs-tools [--check] [--readme <path>]" >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
+renderBlock >"${TMP_DIR}/block.md"
+replaceBlock "${TMP_DIR}/block.md" "${TMP_DIR}/readme.md"
+
+if [ "${CHECK}" -eq 1 ]; then
+  if [ -e "${TMP_DIR}/missing" ]; then
+    exit 1
+  fi
+  if ! diff -q "${README}" "${TMP_DIR}/readme.md" >/dev/null; then
+    echo "README tools tables are stale; run: mise run docs-tools" >&2
+    exit 1
+  fi
+else
+  cat "${TMP_DIR}/readme.md" >"${README}"
+fi
