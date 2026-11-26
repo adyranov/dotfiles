@@ -1,626 +1,341 @@
-# ✨ Dotfiles Toolkit
+# Dotfiles Toolkit
 
-Opinionated macOS, Ubuntu, Fedora, Arch Linux, and WSL dotfiles powered by [chezmoi](https://www.chezmoi.io/).
+Opinionated macOS, Ubuntu, Fedora, Arch Linux, and WSL dotfiles managed by [chezmoi](https://www.chezmoi.io/).
 
-They orchestrate shells, editors, runtimes, and developer tooling so every machine feels the same.
+## Quick Start
 
-## ⚙️ Installation Methods
-
-- Quick bootstrap: `curl -fsLS https://raw.githubusercontent.com/adyranov/dotfiles/main/install.sh | sh`
-- Existing chezmoi: `chezmoi init --apply https://github.com/adyranov/dotfiles` (requires chezmoi 2.74.0+; upgrade an older install first)
-- Change review: `mise run apply --dry-run` or `chezmoi diff`
-- Validate: `mise run test`
+- **Bootstrap**: `curl -fsLS https://raw.githubusercontent.com/adyranov/dotfiles/main/install.sh | sh`
+- **Existing chezmoi**: `chezmoi init --apply https://github.com/adyranov/dotfiles`
+- **Preview changes**: `mise run apply --dry-run` or `chezmoi diff`
+- **Apply**: `mise run apply` (also prunes retired targets)
+- **Upgrade packages & tools**: `mise run update`
+- **Lint & test**: `mise run lint` and `mise run test`
 
 ### Try in Docker
 
-Prebuilt images are also published to GHCR and Docker Hub:
+Prebuilt multi-arch images are published to GHCR and Docker Hub:
 
-- GHCR (recommended):
-  - Ubuntu: `docker pull ghcr.io/adyranov/dotfiles:ubuntu && docker run --rm -it -e TERM -e COLORTERM ghcr.io/adyranov/dotfiles:ubuntu`
-  - Fedora: `docker pull ghcr.io/adyranov/dotfiles:fedora && docker run --rm -it -e TERM -e COLORTERM ghcr.io/adyranov/dotfiles:fedora`
-  - Arch: `docker pull ghcr.io/adyranov/dotfiles:archlinux && docker run --rm -it -e TERM -e COLORTERM ghcr.io/adyranov/dotfiles:archlinux`
-
-- Docker Hub:
-  - Ubuntu: `docker pull adyranov/dotfiles:ubuntu && docker run --rm -it -e TERM -e COLORTERM adyranov/dotfiles:ubuntu`
-  - Fedora: `docker pull adyranov/dotfiles:fedora && docker run --rm -it -e TERM -e COLORTERM adyranov/dotfiles:fedora`
-  - Arch: `docker pull adyranov/dotfiles:archlinux && docker run --rm -it -e TERM -e COLORTERM adyranov/dotfiles:archlinux`
+- **GHCR**: `docker run --rm -it -e TERM -e COLORTERM ghcr.io/adyranov/dotfiles:<ubuntu|fedora|archlinux>`
+- **Docker Hub**: `docker run --rm -it -e TERM -e COLORTERM adyranov/dotfiles:<ubuntu|fedora|archlinux>`
 
 ### Windows / WSL
 
-- Install WSL Ubuntu 24.04 (PowerShell as Administrator): `wsl --install -d Ubuntu-24.04`
-- After reboot, open Ubuntu (WSL) and install prerequisites: `sudo apt update && sudo apt install -y curl git zsh`
-- Clone and apply the dotfiles inside WSL: `git clone https://github.com/adyranov/dotfiles && cd dotfiles && ./install.sh`
-- Validate with `~/.local/bin/check-dotfiles` and rerun `./install.sh` whenever you need to converge.
+1. Install Ubuntu 24.04 (PowerShell as Admin): `wsl --install -d Ubuntu-24.04`
+2. Inside WSL: `sudo apt update && sudo apt install -y curl git zsh`
+3. Clone and apply: `git clone https://github.com/adyranov/dotfiles && cd dotfiles && ./install.sh`
+4. Validate: `mise run test`
 
-## 🧩 How It Works
+## Configuration & Toolchains
 
-- **Layered data**: base defaults merge with OS and profile overrides under
-  `home/.chezmoidata/`.
-- **Packages and toolchains**: package TOML renders native packages, `mise`
-  tools, Helm/Krew plugins, tests, completions, and agent command policy.
-- **Profiles**: personal/work data controls model routing, brew extras, and host
-  sizing without duplicating base definitions.
-- **Generated tests**: Bats specs render from the same data so package and config
-  checks stay aligned with what chezmoi applies.
+`chezmoi init` auto-detects the host OS/arch/type (`laptop`/`desktop` on macOS; `wsl`, `ephemeral`, or the `hostnamectl` chassis such as `vm` or `server` on Linux) and prompts for profile (`personal` / `work`), identity, and optional toolchains:
 
-### AI tooling
+| Toolchain | Scope |
+| --- | --- |
+| `ai` | Shared AI routing, skills, nono/DCG guardrails, local LLM tools, SkyPilot (Lambda, RunPod, Vast) |
+| `claude`, `omp`, `opencode`, `pi` | Individual AI coding harnesses (nested under `ai`) |
+| `cloud`, `docker`, `iac`, `kubernetes` | Cloud CLIs, Docker/Colima, OpenTofu/Terragrunt/sops, kubectl/helm/k9s (macOS Colima runs built-in k3s with Traefik) |
+| `golang`, `java`, `node`, `python`, `rust` | Language runtimes and tooling via `mise` |
+| `extra` | Optional desktop/media/utility packages |
 
-The `ai` toolchain gates shared model routing, skills, sandbox configuration,
-cloud inference tools, and the nested `pi`, `opencode`, and `omp` agent
-toolchains. Run an agent with `agent pi`, `agent oc`, or `agent omp`.
+Setup notes:
 
-Guarded launches use **nono** for filesystem, process, and network restrictions,
-and **DCG** (`dcg`) to prompt for destructive commands. The sandbox protects
-DCG's stores and, on macOS, its hooks. It denies the configured host tmux socket
-directory; the launcher does not provision a separate tmux socket. Blocking tmux
-on other socket paths has not been verified.
+- Requires chezmoi 2.73.0 or newer (`.chezmoiversion`).
+- Non-interactive runs enable all toolchains and agents. Control them with `WITH_<NAME>=1`, `WITHOUT_<NAME>=1`, or `WITHOUT_TOOLCHAINS=1` (for example `WITHOUT_RUST=1`).
+- Some toolchains pull in others: `kubernetes` enables `docker`, `ai` enables `node` and `python`, and any agent enables `ai`.
+- The "Restricted Environment" prompt marks hosts without sudo or installer access.
+- Intel macOS uses MacPorts; install it first on non-interactive or restricted hosts.
+- An existing Colima VM must be recreated (`colima delete && colima start`) to pick up Colima template changes.
 
-Guarded launches are refused on Linux/WSL2 because hook write-protection cannot
-be enforced there. A host `--no-sandbox` launch bypasses both nono and DCG and
-can expose real credentials; use it only for debugging. Nested launches inherit
-their parent sandbox.
+Declarative data lives in flat TOML files under `home/.chezmoidata/`:
 
-Agents edit the chezmoi source; you review and apply home changes in your own
-terminal. Run the relevant tests after applying, since they check the rendered
-home configuration. Rules live in `home/.chezmoidata/base/ai/`, and rendered
-nono profiles live in `~/.config/nono/profiles/`.
+- `ai/models.toml` — providers, serving endpoints (`local`, `infer01`), and ordered `"provider/model:thinking"` presets
+- `ai/roles.toml` — shared orchestrator + worker roster (`explorer`, `oracle`, `fixer`, `designer`)
+- `ai/mcp.toml`, `ai/libraries.toml`, `ai/sandbox.toml`, `ai/agents/*.toml` — MCP servers, skills, nono overlays, per-harness settings
+- `brew.toml`, `editors.toml`, `repositories.toml`, `base/packages/*.toml` — packages, editor extensions, and Linux APT/DNF repos
 
-When an agent is blocked:
+## AI Coding Stack
 
-- DCG-blocked command: approve a built-in rule with `dcg allow …` or a custom
-  pack rule with `dcg allowlist add-command …` in your terminal, then retry.
-- Blocked network host: approve the data change and apply it in your terminal.
+Launch any enabled harness through the unified sandboxed wrapper:
 
-nono's command mediation uses PATH shims, so an absolute-path exec can bypass
-its command core; DCG's command-text analysis complements it. The core blocks
-standalone Git force flags on every subcommand, including fetch and branch.
-Sandboxed worktrees live under `.slim/worktrees/`.
-
-Select a profile with `--profile NAME` before or after the agent word
-(`agent --profile core pi "Hi there"`). Pi and OpenCode also accept positional
-profile aliases; arguments after `--` reach the agent verbatim. Zsh completion
-is available as `_agent`.
-
-#### SSH reuse
-
-The sandbox policy blocks raw SSH egress. On macOS, an agent can reuse a
-user-approved VM connection when you grant its exact socket:
-
-1. Open the master in your terminal: `ssh -M -o ControlPersist=yes <host> true`.
-2. Find its socket with `ssh -G <host> | awk '/^controlpath/ {print $2}'`. Add
-    that path to `sandbox.filesystem.unix_socket` and `bypass_protection` in
-    the agent's data under `home/.chezmoidata/base/ai/agents/`.
-3. Apply the profile in your terminal and relaunch the agent. It can connect
-    with `ssh -S <socket> <host> <command>`.
-
-The master must exist before the agent launches. It delegates the VM account's
-authority, so approve only connections you intend to share. Revoke it with
-`ssh -O exit <host>`; `-O stop` only stops new multiplexed connections.
-
-#### Credentials
-
-Supply credentials in the launching environment, for example with `direnv`.
-On macOS, Pi and OpenCode configure proxy-injected routes for some credentials;
-others, including Gemini and Brave keys, can enter the agent environment as real
-values. OMP scrubs the derived credential set without configuring routes.
-Traffic through the proxy crosses loopback in plaintext before upstream TLS.
-
-The GitHub API route is configured on macOS, but combined API and Git transport
-has not been verified. Use your terminal for GitHub operations until it is.
-Token permissions are controlled by GitHub, not by the launcher.
-
-#### Engram daemon
-
-Sandboxed launches supervise a shared Engram daemon, starting it on demand and
-restarting it after a failed health check or binary change. Host `--no-sandbox`
-launches do not supervise it. `ENGRAM_PORT` / `ENGRAM_URL` override the default
-port `7437`.
-
-#### Pi
-
-- `agent pi` runs the default `factory` profile with Catppuccin. Bare args are
-  messages: `agent pi "Hi there"` starts a session with that prompt.
-- `agent --profile minimal pi` (or `agent pi minimal`) removes MCP servers and subagents.
-- `agent pi factory` carries the Compound Engineering stack: CE skills, the
-  `pi-subagents` fleet, `pi-ask-user` questions, and `pi-goal-x` goals.
-  Sessions are isolated per profile.
-- Ponytail discipline spans pi and OpenCode (core and factory) and OMP's default root.
-
-#### OpenCode
-
-- `agent oc` (alias `agent opencode`) defaults to `factory`; `--no-sandbox`
-  skips nono and the DCG guards (debug only).
-- OpenCode's bare positional is a **project path**, not a prompt: send prompts
-  as `agent oc --prompt "Hi there"` (TUI) or `agent oc run "Hi there"`
-  (headless); bare `agent oc hi` makes opencode try to `cd` into `hi`.
-- `minimal` uses `~/.config/opencode/opencode.jsonc` with base plugins and
-  built-in agents. `core` uses
-  `~/.config/opencode/profiles/core/opencode.jsonc` and adds daily-driver
-  integrations. `factory` uses
-  `~/.config/opencode/profiles/factory/opencode.jsonc` and adds
-  oh-my-opencode-slim multi-agent orchestration.
-- Every profile exposes the local LLM gateway as `local/<id>`. Catalog and
-  engine data live under `[ai.profile.<profile>.serving.local]`.
-- Factory supports worktree-based execution and sets background concurrency
-  from the configured preset. Subagents use OpenCode's native session UI without
-  external panes; use `/preset` to switch Slim presets.
-- The personal profile defaults to the Qwen preset on `infer01`; the work
-  profile uses GitHub Copilot. Other presets select their own routes.
-
-Prerequisites: Node >=20 and OpenCode >=2.0.7.
-
-#### OMP
-
-OMP (oh-my-pi) is installed through the mise GitHub backend
-(`github:can1357/oh-my-pi`, unpinned to track upstream). `agent omp` is a thin
-wrapper around the shared launcher: it runs omp under the nono sandbox
-(`--no-sandbox` is debug-only) and forwards the remaining arguments.
-`agent omp --profile NAME` selects a named omp profile through `OMP_PROFILE`.
-Sandboxed named profiles require `config.yml`, `models.yml`, and the managed
-`extensions/dcg-guard.ts` under `~/.config/omp/profiles/NAME/agent`; missing files
-are refused before launch, including nested `--no-sandbox` launches.
-Plain `agent omp` uses the managed default root. Managed routing uses Luna as
-the primary/orchestrator model, Terra as the oracle/advisor, and DeepSeek v4
-flash for task workers, with OMP subagents surfaced through OMP's native
-task/session UI rather than automatic tmux or Herdr panes. Its config root is
-`~/.config/omp` and the agent root (config, auth, extensions) is
-`~/.config/omp/agent`; the legacy `~/.omp` path is a managed symlink.
-The managed skills tree loads the Compound Engineering skills and the ponytail
-discipline skill via `skills.customDirectories`. Authenticate
-separately with `omp /login`.
-
-#### Cloud inference
-
-SkyPilot task YAMLs and RunPod settings are managed under
-`~/.config/skypilot/` and `~/.config/runpod/` when the `ai` toolchain is enabled.
-Run `runpod config` before using RunPod, then launch catalog tasks with
-`skyl <category/task> [sky launch flags]`. Persistent RunPod volumes are opt-in
-under `[skypilot.base.runpod]` in
-`home/.chezmoidata/base/skypilot/tasks.toml`; the volume and GPU pod must use the
-same RunPod zone.
-
-### Local and remote model serving
-
-**`llm-serve`** is the local OpenAI-compatible gateway on
-`http://127.0.0.1:8321/v1`. Model data lives in
-`home/.chezmoidata/base/ai/models.toml`; profile overrides live in
-`home/.chezmoidata/profile/<profile>/models.toml`.
-
-- `llm-serve` — start in the foreground (Ctrl-C to stop)
-- `llm-serve start` — start in the background
-- `llm-serve stop` / `restart` / `status` / `list` / `logs`
-- `llm-pull` — download missing local model weights and report stale GGUF caches
-- `llm-bench [model ...]` — warm and benchmark local models with AIPerf
-
-Serving providers live under `ai.serving.<id>`. The `local`
-provider (`kind = "local"`) drives `llm-serve`; a remote endpoint is a
-`kind = "openai-compatible"` provider with a `base_url` and explicit nested
-models, for example:
-
-```toml
-[ai.profile.personal.serving.infer01]
-kind = "openai-compatible"
-base_url = "http://infer01:8080/v1"
-
-[[ai.profile.personal.serving.infer01.models]]
-id = "qwen3.8-flash-next"
+```sh
+agent claude   # alias: agent cc  (Claude Code; ~/.config/claude)
+agent oc       # alias: agent opencode (OpenCode + Slim; ~/.config/opencode)
+agent omp      # oh-my-pi; ~/.config/omp/agent
+agent pi       # Pi; ~/.config/pi/agent
 ```
 
-OpenCode, Pi, and OMP read the same provider/models and selected preset. The
-selected preset is `ai.presets.default` (default `balanced`); set
-`ai.profile.<profile>.presets.default = "qwen"` to route roles to Qwen.
-Apply the managed OpenCode, Pi, and OMP configuration files and restart those
-clients; set the value back to `balanced` to revert. OpenCode's runtime
-`/preset` is a client-local override and does not update the shared TOML, Pi, or
-OMP. Remote endpoints are keyless and assumed to be on a trusted private
-network.
+- **Sandboxing**: `agent <harness>` runs interactive sessions under **nono**. On macOS, every Claude Code session not launched via `agent` (including terminal `claude`) uses Claude's built-in sandbox, which still allows unsandboxed commands, so it is weaker containment than nono. Linux containers (`host.type == "ephemeral"`) rely on the container itself.
+- **Launcher limits**: `agent` refuses `$HOME`, `/`, and paths outside a git worktree. `--no-sandbox` keeps DCG but passes real credentials. `agent claude -w [name]` opens a native worktree.
+- **Agent keys**: DeepSeek, OpenRouter, OpenCode (Zen/Go), Brave Search, and GitHub keys are plain env vars inherited by `agent` (the wrapper never loads secrets). Suggested layout: `~/src/.envrc` for LLM/Brave keys (agent-only, spend-capped) and `~/src/<org>/.envrc` with `source_up` plus a fine-grained per-org `GITHUB_TOKEN` (90-day expiry, no admin/secrets/gists); keep secrets out of repo-level `.envrc`. Orca/T3 must pass these vars from their own config or start from a direnv-loaded shell. nono strips them and agents see phantoms.
+- **Destructive-command guard**: **DCG** (`dcg`) guards commands and file writes in all 4 harnesses. Approve exceptions with `dcg allow <rule> --reason …`.
+- **Shared contract**: `~/.config/agents/AGENTS.md`, `~/.config/agents/skills/`, `roles.toml`, and `mcp.toml` stay uniform across all 4 harnesses (see [docs/pi-parity.md](docs/pi-parity.md)). Subscription Opus runs only in Claude Code.
+- **Claude migration**: with the `claude` toolchain on, apply moves `~/.claude` into `~/.config/claude` (state to `~/.local/state/claude`, plugins to `~/.local/share/claude/plugins`) and leaves `~/.claude` as a symlink. It aborts if `~/.claude/skills` or `~/.claude/CLAUDE.md` (or the `~/.config/claude` equivalents) are real files.
+- **Engram memory daemon**: supervised automatically on agent launches (`ENGRAM_PORT`, default `7437`).
 
-If the server changes the model served under an existing ID, refresh its static
-metadata before applying. When removing an endpoint, also remove its
-`infer01:8080` network allow from the per-agent configuration, re-apply, and
-restart the affected agents so the rendered nono profiles under
-`~/.config/nono/profiles/` are refreshed; there is no separate rules API or
-dashboard to clean.
+## Local & Cloud Inference
 
-| Host           | Default engine                             | Notes                                                                                     |
-| -------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| darwin / arm64 | profile (`serving.providers.local.engine`) | Installs oMLX and tap-backed `adyranov/tap/llama-cpp`; runtime picks `omlx` or `llamacpp` |
-| darwin / amd64 | `llamacpp`                                 | `adyranov/tap/llama-cpp`; native llama.cpp router mode                                    |
-| Linux / WSL2   | `llamacpp`                                 | mise `llama.cpp` native router mode                                                       |
+- **`llm-serve [start|stop|restart|status|list|logs]`** — local OpenAI-compatible gateway on `127.0.0.1:8321` (`llamacpp` or `omlx`), reading `~/.config/local-llm/config.json`.
+- **`llm-pull`** — downloads configured HuggingFace weights and reports stale GGUF caches.
+- **`llm-bench [model ...]`** — native `llama-bench` / `mlx_lm` throughput benchmarks.
+- **`skyl [--job] <category/task> [flags]`** — launches static SkyPilot task YAMLs from `~/.config/skypilot/` (`--job` runs a managed job). Clouds: Lambda, RunPod, Vast; credentials via `uvx runpod config`, `VAST_AI_ACCOUNT_KEY`/`VAST_AI_API_KEY`, `LAMBDA_CLOUD_API_KEY`.
 
-Set `engine = "omlx"` or `engine = "llamacpp"` under
-`[ai.profile.<profile>.serving.local]`. Each local model must
-declare the matching backend (`mlx` or `gguf`). Qwen 3.5+ GGUF models
-auto-attach the froggeric chat template. Use `llm-pull` to download weights, then
-`chezmoi apply` to sync model symlinks and llama.cpp router presets.
+## Development & Architecture
 
-Local model defaults are profile-specific and sized for each host class with
-practical context windows rather than maximum possible limits. Use `llm-bench` to
-evaluate alternatives for the current machine.
-
-### Editor extensions
-
-- VS Code and Cursor share settings/keybindings defined in
-  `home/.chezmoidata/base/editors.toml` and rendered through editor templates.
-- Extensions are installed by
-  `home/.chezmoiscripts/common/run_onchange_after_36_install-editor-extensions.sh.tmpl`
-  when the extension or settings list changes.
-
-### XDG-first layout
-
-- Exports file: shell environment is centralized in `~/.config/shell/exports.sh` (assembled from modular `exports.d/` fragments) to enforce XDG base directories across tools.
-- An XDG migration planner
-  (`home/.chezmoiscripts/before/run_onchange_before_05_xdg-migration-plan.sh.tmpl`)
-  prints suggested `mv` commands when legacy dotfile paths are detected; it
-  never modifies files itself.
-- Smart completions: Zsh completions for kubectl, mise, tofu, etc., are automatically generated and synced with tool versions via `run_onchange` hashing.
-- Moved dotfiles: bash/zsh history and sessions, npm cache/prefix, cargo/rustup, gradle, krew, pass, wget, readline, less, svn, git excludes, asdf files, and more are redirected under the XDG tree.
-- Atuin is the default Zsh history backend. Legacy zsh history can be imported manually with `HISTFILE=... atuin import zsh`.
-- Mac and Linux behave the same; `$XDG_RUNTIME_DIR` is set per host type (macOS uses `$TMPDIR`).
-- Preview removals after migrating: `chezmoi --remove --dry-run apply` shows legacy dotfiles ready to prune.
-
-### Catppuccin Mocha theming
-
-A unified **Catppuccin Mocha** color scheme is applied across all terminal
-tools. Per-tool `.chezmoiexternal.toml.tmpl` files track upstream default
-branches and refresh them weekly without GitHub API tag lookups. Themed
-tools include: bat, btop, delta (git), fzf, ghostty, k9s, lazygit, LS_COLORS
-(vivid), tmux, yazi, zsh-syntax-highlighting, and atuin.
-
-### macOS Launch Agents
-
-- Managed agents live under `home/private_Library/LaunchAgents` (rendered to `~/Library/LaunchAgents`).
-- Launch agents are reloaded by
-  `home/.chezmoiscripts/os/darwin/run_onchange_after_20_bootstrap-launch-agents.tmpl`
-  after macOS defaults in
-  `home/.chezmoiscripts/os/darwin/run_onchange_after_10_configure-darwin.tmpl`.
-- Non-macOS hosts ignore `home/private_Library/**` via template guards so Linux/WSL environments stay clean.
-
-See examples in `home/.chezmoidata/base/`, `home/.chezmoidata/os/<distro>/`, and `home/.chezmoidata/profile/<profile>/`.
-
-## 🧪 Validate Locally
-
-- After applying dotfiles, run `mise run test` for package, AI-agent, and shell/Git checks. On applicable hosts, the DCG probes fail if the expected binary or rendered packs are missing; they skip inside a sandbox and are unapplied when the `ai` toolchain is off.
-- Each package/manager suite runs one aggregate install smoke that checks all
-  applicable package keys in a single pass; failures report every offending
-  package (name + exit status) at once. Presence and runnability only — no
-  version-value assertions.
-- Run package-key checks with `check-dotfiles kubectl helm` (or
-  `mise run test kubectl helm`): the aggregate smoke runs filtered to exactly
-  those keys. Tag-scoped runs (e.g. `--tag toolchain:kubernetes`) execute the
-  whole manager aggregate unfiltered — only bare keys filter keys.
-- The test runner lives at `~/.local/share/dotfiles/test/check-dotfiles.sh` and is symlinked to `~/.local/bin/check-dotfiles`. `check-dotfiles` requires `gtimeout`/`timeout` (GNU coreutils; macOS: `brew install coreutils`).
-- All suites run in parallel by default (auto-detects CPU count). Use `-j1` for sequential/debug mode.
-- Run specific suites: `check-dotfiles --suite config` or `check-dotfiles --suite config,ai`.
-- Filter by tag: `check-dotfiles --tag toolchain:kubernetes`.
-- Filter by test name regex: `check-dotfiles --filter 'git config'`.
-- List all discovered tests: `check-dotfiles --list`.
-- Bats and its plugins (`bats-assert`, `bats-support`, `bats-file`) track their
-  upstream default branches via `.chezmoiexternal.toml.tmpl`.
-
-## 🧑‍💻 Development
-
-- Unified entry point: this project uses **mise tasks** for orchestration.
-- Bootstrap development environment: `mise run bootstrap` (installs `pre-commit` and `commit-msg` Git hooks).
-- Run linting/validations: `mise run lint` (runs the `pre-commit` stage with `PRE_COMMIT_COLOR=never` for readable status labels; commit messages are checked by the installed `commit-msg` hook).
-- Build test containers: `mise run build-containers`.
-- Project layout follows chezmoi conventions. See `home/` for source state,
-  `home/.chezmoidata/**` for layered data, and
-  `home/.chezmoitemplates/{base,os}/**` for reusable templates.
-- Line endings are enforced via `.gitattributes` (LF for Unix tooling, CRLF for Windows scripts). Keep new files consistent with these defaults.
-- Maintainers: see `AGENTS.md` for contributor guidelines and CI expectations.
-
-## 🛠 Init & Customization
-
-- First run is interactive: you’ll be prompted for Git identity, environment profile, restricted-mode behavior, and which toolchains to enable.
-- Non-interactive/headless: control toolchains via env vars before running `chezmoi init`/`apply`:
-  - Enable specific: `WITH_DOCKER=true WITH_KUBERNETES=true`
-  - Disable specific: `WITHOUT_JAVA=true WITHOUT_NODE=true`
-  - Disable all then opt-in: `WITHOUT_TOOLCHAINS=true WITH_PYTHON=true`
-  - AI agents (nested under `ai`): `WITH_PI=true`, `WITH_OPENCODE=true`, or
-    `WITH_OMP=true`; each also supports the corresponding `WITHOUT_*` variable.
-- Environment detection:
-  - Ephemeral/container environments are auto-detected and tagged as `ephemeral`.
-  - Non-interactive sessions set `.host.interactive = false` (treated as `headless` in package rules).
-  - macOS Intel/Apple Silicon and Linuxbrew brew paths are auto-detected and exported for templates.
-- macOS applies a generated CA bundle at `~/.config/certificates/ca-bundle.pem` from trusted system keychain certificates.
-
-## 🧪 Containers
-
-Use the helper to build and test local validation containers:
-
-- List available images: `mise run build-containers --list`
-- Build all: `mise run build-containers`
-- Build one: `mise run build-containers archlinux|fedora|ubuntu`
-- Use custom BuildKit config: `mise run build-containers --config ~/.config/docker/buildkitd/buildkitd.toml`
-- Inject custom CA bundle: `mise run build-containers --ca-certs /path/to/ca-bundle.pem`
-- Build full test stage (installs all tools): `mise run build-containers --full-test [archlinux|fedora|ubuntu]`
-
-Notes:
-
-- Supports parallel builds when `parallel` is installed; otherwise runs sequentially (the script hints how to install it).
-- `GITHUB_TOKEN` is optional for authenticated fetches during container builds;
-  ordinary `chezmoi diff` and `chezmoi apply` do not require it.
-
-## 🤖 CI
-
-- PR/main CI (`.github/workflows/ci.yaml`) is the fast gate: it runs path-filtered Docker validation, plus smoke host installs on Ubuntu amd64 and Apple Silicon macOS (`WITHOUT_TOOLCHAINS=true ./install.sh --data=false` followed by `check-dotfiles`).
-- Full regression (`.github/workflows/ci-regression.yaml`) runs weekly and on demand. It covers the full host matrix, including Ubuntu ARM, Intel macOS, WSL, Docker, and the full toolchain install path.
-- Host workflow (`.github/workflows/ci-host.yaml`) supports `smoke` and `full` modes. Full mode runs the two-phase core install/check and full toolchain install/check.
-- Docker workflow (`.github/workflows/ci-docker.yaml`) builds Arch Linux, Fedora, and Ubuntu images for `amd64` and `arm64`, runs the same checks, and can optionally publish images.
-  - To publish images manually, trigger the workflow with `workflow_dispatch` and set `publish` to `true`.
-
-- WSL workflow (`.github/workflows/ci-wsl.yaml`) provisions Ubuntu 24.04 inside Windows runners, restores cached APT and mise downloads, runs `./install.sh`, then `~/.local/bin/check-dotfiles`.
-- Security scan (`.github/workflows/security-scan.yaml`) runs Trivy after each Docker CI build and uploads SARIF results to the GitHub Security tab.
-- Container cleanup (`.github/workflows/cleanup-containers.yaml`) prunes old untagged container versions from GHCR on a weekly schedule.
-- Lint (`.github/workflows/lint.yaml`) runs `pre-commit` hooks on push and pull requests to `main`.
-- License year update (`.github/workflows/update-license-year.yaml`) automatically bumps the copyright year in `LICENSE` on January 1st.
-- When adding new top-level paths, update the `dorny/paths-filter`
-  configuration in `.github/workflows/ci.yaml` so triggers remain accurate.
-
-## 🖥 Supported Platforms
-
-- 🍎 macOS (arm64 via Homebrew; x86_64 via MacPorts and mise, with Homebrew for `mas` and casks).
-- 🐧 Ubuntu (amd64 primary, arm64 best-effort with per-tool exclusions).
-- 🦬 Fedora (amd64 focus, arm64 best-effort) via dnf.
-- 🎯 Arch Linux (amd64 & arm64) via pacman.
-- 💻 WSL inherits the Linux profiles; tailor overrides through `.chezmoidata`.
-
-## 🧭 Install Manager Legend
-
-- `system` → Default native manager (Homebrew on arm64 Darwin, MacPorts on Intel; apt, dnf, pacman on Linux).
-- `brew` → Homebrew formulae and casks on arm64 Darwin; on Intel only the `mas` formula and casks are available.
-- `macports` → Verified MacPorts ports on Intel macOS.
-- `mise` → [mise](https://github.com/jdx/mise) runtime manager and UBI packages.
-- `krew` → [Krew](https://krew.sigs.k8s.io/) kubectl plugin manager.
-- `helm` → [Helm](https://helm.sh/) plugin manager.
+- See [ARCHITECTURE.md](ARCHITECTURE.md) for the repository layout, apply pipeline, and test suite structure.
+- Common tasks (`.mise.toml`): `mise run bootstrap`, `mise run lint`, `mise run test`, `mise run apply`, `mise run update`.
+- Run targeted tests: `mise run test -- tests/render.bats` or `mise run test -- --filter-tags suite:ai`.
 
 ## 🧰 Toolchains & Tools
 
-This inventory covers user-facing tools; service and support packages are
-omitted. Columns show macOS, Ubuntu, Fedora, and Arch Linux coverage. `✅` means
-the tool is provisioned on all architectures for that OS; `❌ (arch)` flags a
-missing architecture. The Install column highlights when `mise` is responsible
-(`mise ✅`); otherwise the selected native manager or plugin manager is used.
-Portable tools use `mise` where a base definition exists; tap-backed formulae
-remain arm64-only Homebrew integrations, while GUI applications remain
-Homebrew casks. App Store applications use `mas`.
-Legacy table annotations that say `system` refer to the native provider; on
-Darwin that provider is now resolved as `macports` on Intel and `brew` on arm64
-unless the package explicitly selects another manager.
+Inventory of user-facing tools per toolchain, casks, and App Store apps. Generated from `home/.chezmoidata` by `mise run docs-tools`; do not edit by hand. Assumes an interactive, unrestricted desktop host on the personal profile with all toolchains enabled.
 
-Current Darwin exceptions are explicit in `.chezmoidata`: portable CLI tools
-use `mise`, Intel macOS uses MacPorts for system packages but Homebrew for
-`mas` and casks, tap-backed AI and hardware tools use Homebrew only on arm64,
-and `rage` remains a mise tool bootstrapped before source decryption.
-Installomator and direct DMG/PKG installers are deferred.
+<!-- tools:start -->
 
-### ☁️ Cloud
+Install Manager Legend:
 
-| Tool                                            | Description            | Install                     | macOS | Ubuntu | Fedora | Arch |
-| ----------------------------------------------- | ---------------------- | --------------------------- | ----- | ------ | ------ | ---- |
-| [AWS CLI](https://github.com/aws/aws-cli)       | Manage AWS services    | `mise ✅` (macOS: `system`) | ✅    | ✅     | ✅     | ✅   |
-| [Azure CLI](https://github.com/Azure/azure-cli) | Manage Azure resources | `system`                    | ✅    | ✅     | ✅     | ✅   |
+- `system`: the native manager — `brew` on Apple Silicon macOS, `macports` on Intel macOS, `apt`/`dnf`/`pacman` on Ubuntu/Fedora/Arch.
+- `cask`: Homebrew cask.
+- `mise ✅`: installed by mise. Parentheses list platforms whose manager differs from the primary.
+- `helm`: Helm plugin; `external`: installed by bootstrap outside a package manager.
+- `✅` = installed on all architectures; `❌` = not installed on that OS; `❌ (arch)` = missing on that architecture. Library and service probes are omitted.
 
 ### 🛠 Common CLI
 
-| Tool                                                                  | Description                             | Install                                 | macOS | Ubuntu | Fedora | Arch |
-| --------------------------------------------------------------------- | --------------------------------------- | --------------------------------------- | ----- | ------ | ------ | ---- |
-| [Atuin](https://github.com/atuinsh/atuin)                             | Shell history sync and search           | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [Bash](https://www.gnu.org/software/bash/)                            | POSIX shell for scripting               | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [bat](https://github.com/sharkdp/bat)                                 | Syntax-aware pager                      | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [btop](https://github.com/aristocratos/btop)                          | Modern resource monitor                 | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [chezmoi](https://www.chezmoi.io/)                                    | Manage dotfiles across machines         | `system` (Ubuntu via `mise ✅`)         | ✅    | ✅     | ✅     | ✅   |
-| [curl](https://curl.se/)                                              | HTTP toolkit                            | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [dcg](https://github.com/Dicklesworthstone/destructive_command_guard) | Destructive command guard               | `mise ✅`                               | ✅    | ✅     | ✅     | ✅   |
-| [delta](https://github.com/dandavison/delta)                          | Git diff pager                          | `system` (Ubuntu via `mise ✅`)         | ✅    | ✅     | ✅     | ✅   |
-| [difftastic](https://github.com/Wilfred/difftastic)                   | Structural diff tool                    | `mise ✅` (macOS/Fedora/Arch: `system`) | ✅    | ✅     | ✅     | ✅   |
-| [direnv](https://github.com/direnv/direnv)                            | Directory-aware env loader              | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [doggo](https://github.com/mr-karan/doggo)                            | Modern DNS client                       | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [dust](https://github.com/bootandy/dust)                              | du alternative in Rust                  | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [eza](https://github.com/eza-community/eza)                           | Modern ls replacement                   | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [fd](https://github.com/sharkdp/fd)                                   | Fast find utility                       | `system` (`fd-find` on Ubuntu/Fedora)   | ✅    | ✅     | ✅     | ✅   |
-| [fzf](https://github.com/junegunn/fzf)                                | Fuzzy finder                            | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [Git](https://git-scm.com/)                                           | Distributed VCS                         | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [GitHub CLI](https://github.com/cli/cli)                              | GitHub command-line client              | `system` (`github-cli` on Arch)         | ✅    | ✅     | ✅     | ✅   |
-| [Glow](https://github.com/charmbracelet/glow)                         | Markdown renderer in terminal           | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [GNU Coreutils](https://www.gnu.org/software/coreutils/)              | GNU userland tools                      | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [GnuPG](https://gnupg.org/)                                           | OpenPGP encryption toolkit              | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [hyperfine](https://github.com/sharkdp/hyperfine)                     | Command benchmarking                    | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [jnv](https://github.com/ynqa/jnv)                                    | Interactive JSON viewer with jq         | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [jq](https://stedolan.github.io/jq/)                                  | JSON processor                          | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [lazygit](https://github.com/jesseduffield/lazygit)                   | Terminal UI for Git                     | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [mise](https://github.com/jdx/mise)                                   | Runtime/version manager                 | `system` (Fedora via bootstrap script)  | ✅    | ✅     | ✅     | ✅   |
-| [mkcert](https://github.com/FiloSottile/mkcert)                       | Local TLS certificate generator         | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [Neovim](https://github.com/neovim/neovim)                            | Modal code editor                       | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [nono](https://github.com/nolabs-ai/nono)                             | Host filesystem/network/process sandbox | `mise ✅`                               | ✅    | ✅     | ✅     | ✅   |
-| [OpenSSH](https://www.openssh.com/)                                   | SSH client and agent                    | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [ouch](https://github.com/ouch-org/ouch)                              | Painless compression                    | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [rage](https://github.com/str4d/rage)                                 | Age-compatible encryption               | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [rclone](https://rclone.org/)                                         | Cloud storage sync                      | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [ripgrep](https://github.com/BurntSushi/ripgrep)                      | Recursive text search                   | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [sd](https://github.com/chmln/sd)                                     | Intuitive sed alternative               | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [tealdeer](https://github.com/dbrgn/tealdeer)                         | Fast tldr client                        | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [tmux](https://github.com/tmux/tmux)                                  | Terminal multiplexer                    | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [topgrade](https://github.com/topgrade-rs/topgrade)                   | System-wide upgrader                    | `mise ✅` (macOS: `system`)             | ✅    | ✅     | ✅     | ✅   |
-| [vivid](https://github.com/sharkdp/vivid)                             | LS_COLORS theme generator               | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [wget](https://www.gnu.org/software/wget/)                            | Network downloader                      | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [xh](https://github.com/ducaale/xh)                                   | Friendly HTTP client in Rust            | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [Yazi](https://github.com/sxyazi/yazi)                                | Fast terminal file manager              | `mise ✅` (macOS/Arch: `system`)        | ✅    | ✅     | ✅     | ✅   |
-| [zoxide](https://github.com/ajeetdsouza/zoxide)                       | Smarter cd command                      | `system`                                | ✅    | ✅     | ✅     | ✅   |
-| [Zsh](https://www.zsh.org/)                                           | Advanced shell                          | `system`                                | ✅    | ✅     | ✅     | ✅   |
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [age-plugin-yubikey](https://github.com/str4d/age-plugin-yubikey) | YubiKey plugin for age encryption | `mise ✅` (macOS Intel: `macports`) | ✅ | ❌ | ❌ | ❌ |
+| [ast-grep](https://ast-grep.github.io) | Structural code search and rewrite | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [atuin](https://github.com/atuinsh/atuin) | Shell history sync and search | `mise ✅` (macOS Intel: `macports`; Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [bat](https://github.com/sharkdp/bat) | Syntax-aware pager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [btop](https://github.com/aristocratos/btop) | Resource monitor | `mise ✅` (macOS: `system`) | ✅ | ✅ | ✅ | ✅ |
+| [chezmoi](https://www.chezmoi.io) | Dotfiles manager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [curl](https://curl.se) | HTTP transfer toolkit | `system` | ✅ | ✅ | ✅ | ✅ |
+| [dcg](https://github.com/Dicklesworthstone/destructive_command_guard) | Destructive command guard | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [delta](https://github.com/dandavison/delta) | Git diff pager | `mise ✅` (macOS Intel: `macports`) | ✅ | ✅ | ✅ | ✅ |
+| [difftastic](https://github.com/Wilfred/difftastic) | Structural diff tool | `mise ✅` (Fedora: `dnf`; Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [direnv](https://direnv.net) | Directory-aware env loader | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [doggo](https://github.com/mr-karan/doggo) | Modern DNS client | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [dust](https://github.com/bootandy/dust) | Disk usage viewer | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [eza](https://github.com/eza-community/eza) | Modern ls replacement | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [fd](https://github.com/sharkdp/fd) | Fast find alternative | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [fzf](https://github.com/junegunn/fzf) | Fuzzy finder | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [Git](https://git-scm.com) | Distributed version control | `system` | ✅ | ✅ | ✅ | ✅ |
+| [GitHub CLI](https://cli.github.com) | GitHub command-line client | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [glow](https://github.com/charmbracelet/glow) | Terminal markdown renderer | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [GNU Coreutils](https://www.gnu.org/software/coreutils) | GNU userland tools | `system` | ✅ | ✅ | ✅ | ✅ |
+| [GnuPG](https://gnupg.org) | OpenPGP encryption toolkit | `system` | ✅ | ✅ | ✅ | ✅ |
+| [hyperfine](https://github.com/sharkdp/hyperfine) | Command benchmarking | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [jnv](https://github.com/ynqa/jnv) | Interactive JSON viewer with jq | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [jq](https://jqlang.org) | JSON processor | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [lazygit](https://github.com/jesseduffield/lazygit) | Terminal UI for Git | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [mas](https://github.com/mas-cli/mas) | Mac App Store CLI | `brew` | ✅ | ❌ | ❌ | ❌ |
+| [mise](https://mise.jdx.dev) | Runtime and tool version manager | `external` | ✅ | ✅ | ✅ | ✅ |
+| [mkcert](https://github.com/FiloSottile/mkcert) | Local TLS certificate generator | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [Neovim](https://neovim.io) | Modal code editor | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [nono](https://github.com/nolabs-ai/nono) | Filesystem, network and process sandbox | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [OpenSSH](https://www.openssh.com) | SSH client and agent | `system` | ✅ | ✅ | ✅ | ✅ |
+| [ouch](https://github.com/ouch-org/ouch) | Painless compression | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [pinentry-mac](https://github.com/GPGTools/pinentry) | GnuPG passphrase prompt for macOS | `system` | ✅ | ❌ | ❌ | ❌ |
+| [rage](https://github.com/str4d/rage) | Age-compatible encryption | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [rclone](https://rclone.org) | Cloud storage sync | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) | Recursive text search | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [sd](https://github.com/chmln/sd) | Intuitive sed alternative | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [tealdeer](https://github.com/tealdeer-rs/tealdeer) | Fast tldr client | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [tmux](https://github.com/tmux/tmux) | Terminal multiplexer | `system` | ✅ | ✅ | ✅ | ✅ |
+| [topgrade](https://github.com/topgrade-rs/topgrade) | System-wide upgrader | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [vivid](https://github.com/sharkdp/vivid) | LS_COLORS theme generator | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [xh](https://github.com/ducaale/xh) | Friendly HTTP client | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [Yazi](https://github.com/sxyazi/yazi) | Terminal file manager | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [zoxide](https://github.com/ajeetdsouza/zoxide) | Smarter cd command | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+
+### 🤖 AI and Inference
+
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [codegraph](https://github.com/colbymchenry/codegraph) | Code knowledge graph MCP server | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [Engram](https://github.com/Gentleman-Programming/engram) | Agent memory and MCP server | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [Hugging Face CLI](https://huggingface.co/docs/huggingface_hub) | Model download and repository CLI | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [llama.cpp](https://github.com/ggml-org/llama.cpp) | Local GGUF inference server | `mise ✅` (macOS: `brew`) | ✅ | ✅ | ✅ | ✅ |
+| [oMLX](https://github.com/jundot/omlx) | Local Apple Silicon inference | `system` | ❌ (amd64) | ❌ | ❌ | ❌ |
+| [Pyright](https://github.com/microsoft/pyright) | Python type checker and language server (agent LSP) | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [rust-analyzer](https://github.com/rust-lang/rust-analyzer) | Rust language server (agent LSP) | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [SkyPilot](https://docs.skypilot.co) | Multi-cloud workload launcher | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [typescript-language-server](https://github.com/typescript-language-server/typescript-language-server) | TypeScript and JavaScript language server (agent LSP) | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+
+### 🟠 Claude Code
+
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Claude Code](https://code.claude.com) | Anthropic coding agent CLI | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [claude-powerline](https://github.com/Owloops/claude-powerline) | Statusline for Claude Code | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+
+### ☁️ Cloud
+
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [AWS CLI](https://github.com/aws/aws-cli) | Manage AWS services | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [Azure CLI](https://github.com/Azure/azure-cli) | Manage Azure resources | `system` (macOS ARM: `cask`) | ✅ | ✅ | ✅ | ✅ |
 
 ### 🐳 Containers
 
-| Tool                                                      | Description              | Install                                 | macOS | Ubuntu | Fedora | Arch |
-| --------------------------------------------------------- | ------------------------ | --------------------------------------- | ----- | ------ | ------ | ---- |
-| [Docker Engine](https://www.docker.com/)                  | Container runtime        | `system` (`docker-ce` on Ubuntu/Fedora) | ✅    | ✅     | ✅     | ✅   |
-| [Docker Compose](https://docs.docker.com/compose/)        | Compose v2 plugin        | `system` (`docker-compose-plugin`)      | ✅    | ✅     | ✅     | ✅   |
-| [Docker Buildx](https://docs.docker.com/build/buildx/)    | Extended docker build    | `system` (`docker-buildx-plugin`)       | ✅    | ✅     | ✅     | ✅   |
-| [Dive](https://github.com/wagoodman/dive)                 | Analyze container layers | `mise ✅` (macOS: `system`)             | ✅    | ✅     | ✅     | ✅   |
-| [LazyDocker](https://github.com/jesseduffield/lazydocker) | TUI for Docker           | `mise ✅`                               | ✅    | ✅     | ✅     | ✅   |
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Colima](https://github.com/abiosoft/colima) | Container runtime VM for macOS | `mise ✅` | ✅ | ❌ | ❌ | ❌ |
+| [dive](https://github.com/wagoodman/dive) | Container image layer explorer | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [Docker](https://www.docker.com) | Docker CLI (Engine on Linux; Colima on macOS) | `system` | ✅ | ✅ | ✅ | ✅ |
+| [Docker Buildx](https://docs.docker.com/build/buildx) | Extended docker build | `system` | ✅ | ✅ | ✅ | ✅ |
+| [Docker Compose](https://docs.docker.com/compose) | Multi-container app orchestration | `system` | ✅ | ✅ | ✅ | ✅ |
+| [lazydocker](https://github.com/jesseduffield/lazydocker) | Terminal UI for Docker | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [Lima](https://lima-vm.io) | Linux virtual machines | `mise ✅` | ✅ | ❌ | ❌ | ❌ |
 
-### ➕ Extras
+### ✨ Extras
 
-| Tool                                                              | Description                       | Install                    | macOS | Ubuntu | Fedora | Arch |
-| ----------------------------------------------------------------- | --------------------------------- | -------------------------- | ----- | ------ | ------ | ---- |
-| [age-plugin-yubikey](https://github.com/str4d/age-plugin-yubikey) | YubiKey plugin for age encryption | `system`                   | ✅    | ❌     | ❌     | ❌   |
-| [bubblewrap](https://github.com/containers/bubblewrap)            | Unprivileged sandboxing           | `system`                   | ❌    | ✅     | ✅     | ✅   |
-| [gocryptfs](https://github.com/rfjakob/gocryptfs)                 | Encrypted overlay filesystem      | `system` (`gocryptfs-mac`) | ✅    | ✅     | ✅     | ✅   |
-| [mas](https://github.com/mas-cli/mas)                             | Mac App Store CLI                 | `brew`                     | ✅    | ❌     | ❌     | ❌   |
-| [OpenSC](https://github.com/OpenSC/OpenSC)                        | Smart card middleware             | `system`                   | ✅    | ❌     | ❌     | ❌   |
-| [pam-u2f](https://github.com/Yubico/pam-u2f)                      | U2F PAM module                    | `system`                   | ✅    | ❌     | ❌     | ❌   |
-| [qrencode](https://fukuchi.org/works/qrencode/)                   | QR code generator                 | `system`                   | ✅    | ✅     | ✅     | ✅   |
-| [socat](http://www.dest-unreach.org/socat/)                       | Multipurpose socket relay         | `system`                   | ❌    | ✅     | ✅     | ✅   |
-| [YubiKey Manager](https://github.com/Yubico/yubikey-manager)      | YubiKey configuration tool        | `system`                   | ✅    | ❌     | ❌     | ❌   |
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [OpenSC](https://github.com/OpenSC/OpenSC) | Smart card middleware | `system` | ✅ | ❌ | ❌ | ❌ |
+| [pam-u2f](https://github.com/Yubico/pam-u2f) | U2F PAM module | `system` | ✅ | ❌ | ❌ | ❌ |
+| [qrencode](https://fukuchi.org/works/qrencode) | QR code generator | `system` | ✅ | ✅ | ✅ | ✅ |
+| [YubiKey Manager](https://github.com/Yubico/yubikey-manager) | YubiKey configuration tool | `system` | ✅ | ❌ | ❌ | ❌ |
 
-### 🦫 Go Runtime
+### 🐹 Go
 
-| Tool                  | Description           | Install   | macOS | Ubuntu | Fedora | Arch |
-| --------------------- | --------------------- | --------- | ----- | ------ | ------ | ---- |
-| [Go](https://go.dev/) | Go language toolchain | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Go](https://go.dev) | Go language toolchain | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [gopls](https://github.com/golang/tools/tree/master/gopls) | Go language server | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 
-### 🏗 Infrastructure as Code
+### 🏗️ Infrastructure as Code
 
-| Tool                                                     | Description                | Install                     | macOS | Ubuntu | Fedora | Arch |
-| -------------------------------------------------------- | -------------------------- | --------------------------- | ----- | ------ | ------ | ---- |
-| [OpenTofu](https://opentofu.org/)                        | Open source Terraform fork | `mise ✅`                   | ✅    | ✅     | ✅     | ✅   |
-| [Terragrunt](https://github.com/gruntwork-io/terragrunt) | Terraform wrapper          | `mise ✅` (macOS: `system`) | ✅    | ✅     | ✅     | ✅   |
-| [sops](https://github.com/getsops/sops)                  | Secrets encryption         | `mise ✅` (macOS: `system`) | ✅    | ✅     | ✅     | ✅   |
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [OpenTofu](https://opentofu.org) | Open source Terraform fork | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [SOPS](https://github.com/getsops/sops) | Secrets encryption | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [Terragrunt](https://github.com/gruntwork-io/terragrunt) | Terraform wrapper | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 
-### ☕️ Java Stack
+### ☕ Java
 
-| Tool                                      | Description             | Install   | macOS | Ubuntu | Fedora | Arch |
-| ----------------------------------------- | ----------------------- | --------- | ----- | ------ | ------ | ---- |
-| [Apache Maven](https://maven.apache.org/) | Java dependency manager | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
-| [OpenJDK (LTS)](https://openjdk.org/)     | Java runtime + compiler | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Apache Maven](https://maven.apache.org) | Java build and dependency tool | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [OpenJDK](https://openjdk.org) | Java runtime and compiler | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 
-### ☸️ Kubernetes Core
+### ☸️ Kubernetes
 
-| Tool                                                                                                            | Description                  | Install                     | macOS | Ubuntu          | Fedora | Arch |
-| --------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------- | ----- | --------------- | ------ | ---- |
-| [kubesess](https://github.com/Ramilito/kubesess)                                                                | Switch kubecontexts quickly  | `mise ✅`                   | ✅    | ✅              | ✅     | ✅   |
-| [Helm](https://helm.sh/)                                                                                        | Kubernetes package manager   | `mise ✅` (macOS: `system`) | ✅    | ✅              | ✅     | ✅   |
-| [k3d](https://k3d.io/)                                                                                          | Lightweight K3s clusters     | `mise ✅` (macOS: `system`) | ✅    | ✅              | ✅     | ✅   |
-| [k9s](https://k9scli.io/)                                                                                       | TUI for Kubernetes           | `mise ✅` (macOS: `system`) | ✅    | ✅              | ✅     | ✅   |
-| [kubectl](https://kubernetes.io/docs/reference/kubectl/)                                                        | Kubernetes control plane CLI | `mise ✅` (macOS: `system`) | ✅    | ✅              | ✅     | ✅   |
-| [kustomize](https://github.com/kubernetes-sigs/kustomize)                                                       | YAML customization           | `mise ✅` (macOS: `system`) | ✅    | ✅              | ✅     | ✅   |
-| [kubecolor](https://github.com/dty1er/kubecolor)                                                                | Colorize kubectl output      | `mise ✅` (macOS: `system`) | ✅    | ✅              | ✅     | ✅   |
-| [Kubescape](https://github.com/kubescape/kubescape)                                                             | CIS and risk scanner         | `mise ✅`                   | ✅    | ✅              | ✅     | ✅   |
-| [yq](https://github.com/mikefarah/yq)                                                                           | YAML processor               | `mise ✅` (macOS: `system`) | ✅    | ✅              | ✅     | ✅   |
-| [Stern](https://github.com/stern/stern)                                                                         | Tail multi-pod logs          | `mise ✅` (macOS: `system`) | ✅    | ✅              | ✅     | ✅   |
-| [helm-diff](https://github.com/databus23/helm-diff)                                                             | Helm release diffing         | `helm`                      | ✅    | ✅              | ✅     | ✅   |
-| [oc](https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html) | OpenShift CLI                | `mise ✅` (macOS: `system`) | ✅    | ✅ / ❌ (arm64) | ✅     | ✅   |
-
-### 🔌 kubectl Plugins
-
-| Plugin                                                                                                | Description           | Install | macOS | Ubuntu          | Fedora | Arch |
-| ----------------------------------------------------------------------------------------------------- | --------------------- | ------- | ----- | --------------- | ------ | ---- |
-| [access-matrix](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/access-matrix.yaml) | RBAC visibility       | `krew`  | ✅    | ✅ / ❌ (arm64) | ✅     | ✅   |
-| [get-all](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/get-all.yaml)             | Dump all resources    | `krew`  | ✅    | ✅              | ✅     | ✅   |
-| [neat](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/neat.yaml)                   | Clean manifest output | `krew`  | ✅    | ✅              | ✅     | ✅   |
-| [node-shell](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/node-shell.yaml)       | SSH into nodes        | `krew`  | ✅    | ✅              | ✅     | ✅   |
-| [rbac-tool](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/rbac-tool.yaml)         | RBAC visualization    | `krew`  | ✅    | ✅              | ✅     | ✅   |
-| [tree](https://github.com/kubernetes-sigs/krew-index/blob/master/plugins/tree.yaml)                   | Resource hierarchy    | `krew`  | ✅    | ✅ / ❌ (arm64) | ✅     | ✅   |
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Helm](https://helm.sh) | Kubernetes package manager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [helm-diff](https://github.com/databus23/helm-diff) | Helm release diffing | `helm` | ✅ | ✅ | ✅ | ✅ |
+| [k3d](https://k3d.io) | Lightweight K3s clusters | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [k9s](https://k9scli.io) | Terminal UI for Kubernetes | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [kubecolor](https://github.com/kubecolor/kubecolor) | Colorize kubectl output | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [kubectl](https://kubernetes.io/docs/reference/kubectl) | Kubernetes command-line client | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [kubectl-get-all](https://github.com/corneliusweig/ketall) | Dump all kubectl resources (ketall) | `mise ✅` | ✅ | ❌ (arm64) | ❌ (arm64) | ❌ (arm64) |
+| [kubectl-neat](https://github.com/itaysk/kubectl-neat) | Clean kubectl manifest output | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [Kubescape](https://github.com/kubescape/kubescape) | Kubernetes security scanner | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [kubesess](https://github.com/Ramilito/kubesess) | Switch kubecontexts quickly | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [oc](https://github.com/openshift/oc) | OpenShift CLI | `mise ✅` | ✅ | ❌ (arm64) | ❌ (arm64) | ❌ (arm64) |
+| [stern](https://github.com/stern/stern) | Tail multi-pod logs | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [yq](https://github.com/mikefarah/yq) | YAML processor | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 
 ### 🟢 Node.js
 
-| Tool                                 | Description                   | Install   | macOS | Ubuntu | Fedora | Arch |
-| ------------------------------------ | ----------------------------- | --------- | ----- | ------ | ------ | ---- |
-| [Bun](https://bun.sh/)               | Fast JS runtime and bundler   | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
-| [Node.js (LTS)](https://nodejs.org/) | JS runtime + package managers | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Bun](https://bun.com) | Fast JS runtime and bundler | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [Node.js](https://nodejs.org) | JS runtime with npm | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+
+### ⚡ OMP
+
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [OMP](https://github.com/can1357/oh-my-pi) | oh-my-pi coding agent | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+
+### 🔗 OpenCode
+
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [OpenCode](https://opencode.ai) | Open-source terminal coding agent | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+
+### 🥧 Pi
+
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) | Minimal extensible terminal coding agent | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 
 ### 🐍 Python
 
-| Tool                                  | Description                  | Install   | macOS | Ubuntu | Fedora | Arch |
-| ------------------------------------- | ---------------------------- | --------- | ----- | ------ | ------ | ---- |
-| [Python](https://www.python.org/)     | Python runtime & pip tooling | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
-| [uv](https://github.com/astral-sh/uv) | Fast Python package manager  | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Python](https://www.python.org) | Python runtime and pip tooling | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
+| [uv](https://github.com/astral-sh/uv) | Fast Python package manager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 
 ### 🦀 Rust
 
-| Tool                               | Description             | Install   | macOS | Ubuntu | Fedora | Arch |
-| ---------------------------------- | ----------------------- | --------- | ----- | ------ | ------ | ---- |
-| [Rust](https://www.rust-lang.org/) | Rust toolchain (rustup) | `mise ✅` | ✅    | ✅     | ✅     | ✅   |
-
-### 🤖 AI and inference
-
-| Tool                                                                | Description                       | Install                     | macOS            | Ubuntu | Fedora | Arch |
-| ------------------------------------------------------------------- | --------------------------------- | --------------------------- | ---------------- | ------ | ------ | ---- |
-| [AIPerf](https://github.com/ai-dynamo/aiperf)                       | LLM endpoint benchmarking         | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
-| [codegraph](https://github.com/colbymchenry/codegraph)              | MCP code intelligence             | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
-| [Engram](https://github.com/Gentleman-Programming/engram)           | Agent memory and MCP server       | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
-| [Hugging Face CLI](https://huggingface.co/docs/huggingface_hub/)    | Model download and repository CLI | `mise ✅` (macOS: `system`) | ✅               | ✅     | ✅     | ✅   |
-| [llama.cpp](https://github.com/ggml-org/llama.cpp)                  | Local GGUF inference server       | `mise ✅` (macOS: `system`) | ✅               | ✅     | ✅     | ✅   |
-| [oMLX](https://github.com/jundot/omlx)                              | Local Apple Silicon inference     | `system`                    | ✅ / ❌ (x86_64) | ❌     | ❌     | ❌   |
-| [OMP](https://omp.sh)                                               | oh-my-pi coding agent             | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
-| [OpenCode](https://opencode.ai)                                     | Terminal coding agent             | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
-| [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) | Terminal coding agent             | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
-| [RunPod](https://www.runpod.io/)                                    | Cloud GPU provider CLI            | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
-| [SkyPilot](https://docs.skypilot.co/)                               | Multi-cloud workload launcher     | `mise ✅`                   | ✅               | ✅     | ✅     | ✅   |
-
-## 🧰 GUI Apps (macOS)
-
-These desktop apps are installed on macOS via Homebrew casks or the App Store
-(`mas`). Installomator and direct vendor installers are intentionally deferred.
+| Tool | Description | Install | macOS | Ubuntu | Fedora | Arch |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Rust](https://www.rust-lang.org) | Rust toolchain | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 
 ### 🍺 Homebrew Casks
 
-| App                                                                    | Description                         |
-| ---------------------------------------------------------------------- | ----------------------------------- |
-| [AnyDesk](https://anydesk.com/)                                        | Remote desktop access               |
-| [Brave Browser](https://brave.com/)                                    | Privacy-focused web browser         |
-| [Calibre](https://calibre-ebook.com/)                                  | E-book manager                      |
-| [Claude Code](https://code.claude.com/)                                | Anthropic coding agent CLI          |
-| [Cryptomator](https://cryptomator.org/)                                | Cloud storage encryption            |
-| [Cursor](https://www.cursor.com/)                                      | AI-powered code editor              |
-| [draw.io Desktop](https://www.diagrams.net/)                           | Diagram editor                      |
-| [Ghostty](https://ghostty.org/)                                        | GPU-accelerated terminal            |
-| [Google Drive](https://www.google.com/drive/download/)                 | Cloud storage desktop client        |
-| [HandBrake](https://handbrake.fr/)                                     | Video transcoder                    |
-| [IINA](https://iina.io/)                                               | Modern media player                 |
-| [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app/)            | Manage JetBrains IDEs               |
-| [Ice](https://icemenubar.app/)                                         | Menu bar manager                    |
-| [KeePassXC](https://keepassxc.org/)                                    | Password manager                    |
-| [Keka](https://www.keka.io/)                                           | File archiver                       |
-| [Kindle Previewer](https://kdp.amazon.com/en_US/help/topic/G202131170) | E-book preview tool                 |
-| [LocalSend](https://localsend.org/)                                    | Local network file transfer         |
-| [LuLu](https://objective-see.org/products/lulu.html)                   | Outbound firewall                   |
-| [Maccy](https://maccy.app/)                                            | Clipboard manager                   |
-| [macFUSE](https://github.com/macfuse/macfuse)                          | Filesystem in userspace support     |
-| [MonitorControl](https://github.com/MonitorControl/MonitorControl)     | External display controls           |
-| [OnyX](https://www.titanium-software.fr/en/onyx.html)                  | macOS maintenance utility           |
-| [Pearcleaner](https://github.com/alienator88/Pearcleaner)              | Remove app leftovers                |
-| [Rancher Desktop](https://rancherdesktop.io/)                          | Container management and Kubernetes |
-| [Rectangle](https://rectangleapp.com/)                                 | Window manager                      |
-| [RustDesk](https://rustdesk.com/)                                      | Open-source remote desktop          |
-| [Signal](https://signal.org/)                                          | Private messenger                   |
-| [Spotify](https://www.spotify.com/)                                    | Music streaming client              |
-| [Stats](https://github.com/exelban/stats)                              | Menu bar system monitor             |
-| [Syncthing](https://syncthing.net/)                                    | Peer-to-peer file sync              |
-| [Telegram Desktop](https://desktop.telegram.org/)                      | Telegram client                     |
-| [tinyMediaManager](https://www.tinymediamanager.org/)                  | Media file organizer                |
-| [Tor Browser](https://www.torproject.org/)                             | Privacy browser                     |
-| [Transmission](https://transmissionbt.com/)                            | BitTorrent client                   |
-| [VeraCrypt](https://www.veracrypt.fr/)                                 | Disk encryption                     |
-| [Visual Studio Code](https://code.visualstudio.com/)                   | Code editor                         |
-| [XnView MP](https://www.xnview.com/en/xnviewmp/)                       | Image viewer and organizer          |
-| [Yandex Disk](https://disk.yandex.com/)                                | Cloud storage desktop client        |
-| [Zoom](https://zoom.us/download)                                       | Video conferencing                  |
+Apple Silicon Mac, personal profile.
+
+| App | Description |
+| --- | --- |
+| [AnyDesk](https://anydesk.com) | Remote desktop access |
+| [Brave Browser](https://brave.com) | Privacy-focused web browser |
+| [calibre](https://calibre-ebook.com) | E-book manager |
+| [Cryptomator](https://cryptomator.org) | Cloud storage encryption |
+| [Cursor](https://www.cursor.com) | AI-powered code editor |
+| [draw.io Desktop](https://www.drawio.com) | Diagram editor |
+| [Ghostty](https://ghostty.org) | GPU-accelerated terminal |
+| [Google Drive](https://www.google.com/drive/download) | Cloud storage desktop client |
+| [HandBrake](https://handbrake.fr) | Video transcoder |
+| [Ice](https://icemenubar.app) | Menu bar manager |
+| [IINA](https://iina.io) | Modern media player |
+| [JetBrains Toolbox](https://www.jetbrains.com/toolbox-app) | Manage JetBrains IDEs |
+| [KeePassXC](https://keepassxc.org) | Password manager |
+| [Keka](https://www.keka.io) | File archiver |
+| [Kindle Previewer](https://kdp.amazon.com/en_US/help/topic/G202131170) | E-book preview tool |
+| [LocalSend](https://localsend.org) | Local network file transfer |
+| [LuLu](https://objective-see.org/products/lulu.html) | Outbound firewall |
+| [Maccy](https://maccy.app) | Clipboard manager |
+| [macFUSE](https://github.com/macfuse/macfuse) | Filesystem in userspace support |
+| [MonitorControl](https://github.com/MonitorControl/MonitorControl) | External display controls |
+| [OnyX](https://www.titanium-software.fr/en/onyx.html) | macOS maintenance utility |
+| [Pearcleaner](https://github.com/alienator88/Pearcleaner) | Remove app leftovers |
+| [Rectangle](https://rectangleapp.com) | Window manager |
+| [RustDesk](https://rustdesk.com) | Open-source remote desktop |
+| [Signal](https://signal.org) | Private messenger |
+| [Spotify](https://www.spotify.com) | Music streaming client |
+| [Stats](https://github.com/exelban/stats) | Menu bar system monitor |
+| [Syncthing](https://syncthing.net) | Peer-to-peer file sync |
+| [Telegram Desktop](https://desktop.telegram.org) | Telegram client |
+| [tinyMediaManager](https://www.tinymediamanager.org) | Media file organizer |
+| [Tor Browser](https://www.torproject.org) | Privacy browser |
+| [Transmission](https://transmissionbt.com) | BitTorrent client |
+| [VeraCrypt](https://www.veracrypt.fr) | Disk encryption |
+| [Visual Studio Code](https://code.visualstudio.com) | Code editor |
+| [XnView MP](https://www.xnview.com/en/xnviewmp) | Image viewer and organizer |
+| [Yandex Disk](https://disk.yandex.com) | Cloud storage desktop client |
+| [Zoom](https://zoom.us/download) | Video conferencing |
 
 ### 🍎 App Store (mas)
 
-| App                                                                                | Description              |
-| ---------------------------------------------------------------------------------- | ------------------------ |
-| [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704)                  | Keep-awake utility       |
-| [Brother iPrint&Scan](https://apps.apple.com/app/brother-iprint-scan/id1193539993) | Printer/scanner utility  |
-| [CotEditor](https://apps.apple.com/app/coteditor/id1024640650)                     | Plain text editor        |
-| [Keynote](https://www.apple.com/keynote/)                                          | Apple presentations      |
-| [Numbers](https://www.apple.com/numbers/)                                          | Apple spreadsheets       |
-| [Pages](https://www.apple.com/pages/)                                              | Apple word processor     |
-| [Slack](https://slack.com/)                                                        | Team messaging           |
-| [Tailscale](https://tailscale.com/)                                                | Mesh VPN client          |
-| [WhatsApp](https://www.whatsapp.com/download)                                      | Messenger client         |
-| [Windows App](https://www.microsoft.com/windows-app)                               | Microsoft remote desktop |
-| [WireGuard](https://www.wireguard.com/)                                            | VPN client               |
-| [Xcode](https://developer.apple.com/xcode/)                                        | Apple IDE                |
+Apple Silicon Mac, personal profile.
+
+| App | Description |
+| --- | --- |
+| [Amphetamine](https://apps.apple.com/app/amphetamine/id937984704) | Keep-awake utility |
+| [Brother iPrint&Scan](https://apps.apple.com/app/brother-iprint-scan/id1193539993) | Printer and scanner utility |
+| [CotEditor](https://apps.apple.com/app/coteditor/id1024640650) | Plain text editor |
+| [Keynote](https://www.apple.com/keynote) | Apple presentations |
+| [Numbers](https://www.apple.com/numbers) | Apple spreadsheets |
+| [Pages](https://www.apple.com/pages) | Apple word processor |
+| [Slack](https://slack.com) | Team messaging |
+| [Tailscale](https://tailscale.com) | Mesh VPN client |
+| [WhatsApp](https://www.whatsapp.com/download) | Messenger client |
+| [Windows App](https://www.microsoft.com/windows-app) | Microsoft remote desktop client |
+| [WireGuard](https://www.wireguard.com) | VPN client |
+| [Xcode](https://developer.apple.com/xcode) | Apple IDE |
+
+<!-- tools:end -->
