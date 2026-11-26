@@ -1,0 +1,43 @@
+# LTX 2.3 22B FP8 | Lightricks/LTX-2.3-fp8 + Comfy-Org/ltx-2 | A100-80GB/RTXPRO6000 | $0.50/hr
+name: ltx-2.3-22b-dev-comfyui
+resources:
+  image_id: docker:runpod/comfyui:cuda12.8
+  accelerators: {"A100-80GB": 1, "RTXPRO6000": 1}
+  use_spot: true
+  job_recovery:
+    strategy: FAILOVER
+  disk_size: 60
+setup: |
+  set -euxo pipefail
+
+  mkdir -p /workspace/ComfyUI/models/checkpoints
+  if [ ! -f "/workspace/ComfyUI/models/checkpoints/ltx-2.3-22b-dev-fp8.safetensors" ]; then
+    hf download Lightricks/LTX-2.3-fp8 ltx-2.3-22b-dev-fp8.safetensors \
+      --local-dir /workspace/ComfyUI/models/checkpoints
+    src="/workspace/ComfyUI/models/checkpoints/ltx-2.3-22b-dev-fp8.safetensors"
+    dst="/workspace/ComfyUI/models/checkpoints/ltx-2.3-22b-dev-fp8.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+
+  mkdir -p /workspace/ComfyUI/models/text_encoders
+  if [ ! -f "/workspace/ComfyUI/models/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors" ]; then
+    hf download Comfy-Org/ltx-2 split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors \
+      --local-dir /workspace/ComfyUI/models/text_encoders
+    src="/workspace/ComfyUI/models/text_encoders/split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors"
+    dst="/workspace/ComfyUI/models/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+run: |
+  set -euxo pipefail
+  cd /workspace/ComfyUI
+  python main.py \
+    --listen 127.0.0.1 \
+    --port 8188 \
+    --highvram \
+    2>&1 | tee ~/server.log
+secrets:
+  HF_TOKEN: null

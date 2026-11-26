@@ -1,0 +1,13 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- /* pi-subagents concurrency budget: managed keys merge over user keys;
+      empty or non-object stdin restores managed defaults. */ -}}
+{{- $orig := dict -}}
+{{- if and (hasKey .chezmoi "stdin") (not (empty (trim .chezmoi.stdin))) -}}
+{{-   $parsed := fromJson .chezmoi.stdin -}}
+{{-   if kindIs "map" $parsed -}}
+{{-     $orig = $parsed -}}
+{{-   end -}}
+{{- end -}}
+{{- $limit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" .) | int -}}
+{{- $managed := dict "forceTopLevelAsync" true "globalConcurrencyLimit" $limit "maxActiveAsyncRunsPerSession" (max 1 (sub $limit 1)) -}}
+{{- mergeOverwrite $orig $managed | toPrettyJson -}}

@@ -1,0 +1,61 @@
+# One opencode config (~/.config/opencode): Slim orchestration, shared MCP
+# servers, unattended permissions. Skills come only from the shared dir.
+[ai.agents.opencode]
+default_agent = "orchestrator"
+# Selected from the shared MCP catalog (ai.base.mcp.servers); the renderer
+# wraps each entry in opencode's local shape (type + command array).
+mcp_servers = ["codegraph", "engram"]
+# v2 skips file paths in plugin arrays; the plugins/ dir is auto-discovered.
+plugins = ["@dietrichgebert/ponytail", "oh-my-opencode-slim"]
+# v2 TUI plugins (cli.json): slim's TUI half owns /preset switching.
+tui_plugins = ["oh-my-opencode-slim"]
+disabled_agents = ["build", "explore", "general", "plan"]
+# Slim built-ins that are NOT roster members (ai.agents.roles is the roster;
+# slim's own explorer/oracle/fixer/designer are overridden by name per preset).
+# Slim's disabled_agents REPLACES its built-in default (["observer"]), so
+# observer must be named explicitly; council is the keyword-triggered
+# council/councillor-* fleet (councillor is protected but follows council off).
+slim_disabled_agents = ["observer", "council"]
+
+[ai.agents.opencode.cli]
+theme = "catppuccin"
+theme_mode = "system"
+
+[ai.agents.opencode.instructions]
+files = ["AGENTS.md"]
+
+# Unattended policy: the external_directory axis is fully open — the sandbox
+# (nono + DCG) is the boundary, opencode does not gate paths. Slim's
+# subagents carry no external_directory key, so this allow covers them too
+# (agent rules append after global) — same posture as pi/omp, which have no
+# native path axis to gate.
+[[ai.agents.opencode.permissions]]
+action = "external_directory"
+effect = "allow"
+resource = "*"
+
+[ai.agents.opencode.settings]
+snapshots = true
+update = "disable"
+
+[ai.agents.opencode.settings.compaction]
+auto = true
+reserved = 10000
+
+[ai.agents.opencode.settings.tool_output]
+max_bytes = 51200
+max_lines = 2000
+
+[ai.agents.opencode.settings.watcher]
+ignore = [
+  ".cache/**",
+  ".direnv/**",
+  ".git/**",
+  ".terraform/**",
+  "build/**",
+  "dist/**",
+  "node_modules/**"
+]
+
+[ai.agents.opencode.skills]
+paths = ["~/.config/agents/skills"]

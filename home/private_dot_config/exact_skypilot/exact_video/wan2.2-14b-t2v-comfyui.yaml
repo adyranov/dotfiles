@@ -1,0 +1,65 @@
+# Wan 2.2 14B FP8 T2V | Comfy-Org/Wan_2.2_ComfyUI_Repackaged | A100-80GB/RTXPRO6000 | $0.50/hr
+name: wan2.2-14b-t2v-comfyui
+resources:
+  image_id: docker:runpod/comfyui:cuda12.8
+  accelerators: {"A100-80GB": 1, "RTXPRO6000": 1}
+  use_spot: true
+  job_recovery:
+    strategy: FAILOVER
+  disk_size: 60
+setup: |
+  set -euxo pipefail
+
+  mkdir -p /workspace/ComfyUI/models/diffusion_models
+  if [ ! -f "/workspace/ComfyUI/models/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors" ]; then
+    hf download Comfy-Org/Wan_2.2_ComfyUI_Repackaged split_files/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors \
+      --local-dir /workspace/ComfyUI/models/diffusion_models
+    src="/workspace/ComfyUI/models/diffusion_models/split_files/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors"
+    dst="/workspace/ComfyUI/models/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+
+  mkdir -p /workspace/ComfyUI/models/diffusion_models
+  if [ ! -f "/workspace/ComfyUI/models/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors" ]; then
+    hf download Comfy-Org/Wan_2.2_ComfyUI_Repackaged split_files/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors \
+      --local-dir /workspace/ComfyUI/models/diffusion_models
+    src="/workspace/ComfyUI/models/diffusion_models/split_files/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"
+    dst="/workspace/ComfyUI/models/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+
+  mkdir -p /workspace/ComfyUI/models/text_encoders
+  if [ ! -f "/workspace/ComfyUI/models/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors" ]; then
+    hf download Comfy-Org/Wan_2.2_ComfyUI_Repackaged split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors \
+      --local-dir /workspace/ComfyUI/models/text_encoders
+    src="/workspace/ComfyUI/models/text_encoders/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+    dst="/workspace/ComfyUI/models/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+
+  mkdir -p /workspace/ComfyUI/models/vae
+  if [ ! -f "/workspace/ComfyUI/models/vae/wan_2.1_vae.safetensors" ]; then
+    hf download Comfy-Org/Wan_2.2_ComfyUI_Repackaged split_files/vae/wan_2.1_vae.safetensors \
+      --local-dir /workspace/ComfyUI/models/vae
+    src="/workspace/ComfyUI/models/vae/split_files/vae/wan_2.1_vae.safetensors"
+    dst="/workspace/ComfyUI/models/vae/wan_2.1_vae.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+run: |
+  set -euxo pipefail
+  cd /workspace/ComfyUI
+  python main.py \
+    --listen 127.0.0.1 \
+    --port 8188 \
+    --highvram \
+    2>&1 | tee ~/server.log
+secrets:
+  HF_TOKEN: null

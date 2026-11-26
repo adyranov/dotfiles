@@ -1,0 +1,1 @@
+../../dcg/opencode-guard.js

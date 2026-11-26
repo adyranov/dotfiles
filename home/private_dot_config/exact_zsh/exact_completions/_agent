@@ -1,31 +1,22 @@
 #compdef agent
 # zsh completion for the agent launcher (~/.local/bin/agent).
-# Level 1: agent names and aliases plus the launcher flags; level 2: per-agent
-# profile words and flags (omp: flags only, single-root) — --profile selects
-# the profile in both positions; positional profile words stay compat aliases.
+# Level 1: agent names and aliases; level 2: the launcher flags. The launcher
+# has no named profiles: any other word or flag is forwarded to the agent
+# binary and is not completed here. claude's -w is the native-worktree
+# opt-in.
 
 if (( CURRENT == 2 )); then
-  _values 'agent' 'pi' 'oc' 'opencode' 'omp' '--profile'
+  _values 'agent' 'pi' 'oc' 'opencode' 'omp' 'claude' 'cc'
   return
 fi
 
 case "${words[2]}" in
-  pi)
-    _values 'pi profiles + flags' \
-      'core' 'default' 'factory' 'minimal' \
-      '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
-    ;;
-  opencode|oc)
-    _values 'opencode profiles + flags' \
-      'core' 'default' 'factory' 'minimal' \
-      '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
-    ;;
-  omp)
+  claude|cc)
     _values 'agent flags' \
-      '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
+      '-h' '--help' '--print-env' '--no-sandbox' '-w'
     ;;
   *)
     _values 'agent flags' \
-      '-h' '--help' '--list' '--print-env' '--no-sandbox' '--profile'
+      '-h' '--help' '--print-env' '--no-sandbox'
     ;;
 esac

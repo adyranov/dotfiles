@@ -1,0 +1,34 @@
+{{- /* Shared AI skills, extensions, and local-LLM chat template. */ -}}
+{{- if .toolchains.ai }}
+{{- $libraries := .ai.libraries }}
+{{- $repos := get $libraries "repositories" | default dict }}
+{{- range $alias, $skill := get $libraries "skills" | default dict }}
+{{-   $r := index $repos $skill.repository }}
+{{-   $repoRef := printf "%s@%s" $r.repo $r.ref }}
+{{-   $prefix := get $skill "prefix" | default "skills" }}
+{{-   range $sub := get $skill "include" | default list }}
+{{ includeTemplate "base/github/external" (dict
+    "type" "archive"
+    "target" (printf ".config/agents/skills/%s" $sub)
+    "repo" $repoRef
+    "stripComponents" (add (len (splitList "/" $prefix)) 2)
+    "include" (list (printf "*/%s/%s/**" $prefix $sub))
+    "exact" true) }}
+{{-   end }}
+{{- end }}
+{{- range $alias, $ext := get $libraries "extensions" | default dict }}
+{{-   $r := index $repos $ext.repository }}
+{{-   $repoRef := printf "%s@%s" $r.repo $r.ref }}
+{{ includeTemplate "base/github/external" (dict
+    "type" "file"
+    "target" (printf ".config/agents/%s" $ext.target)
+    "repo" $repoRef
+    "source" $ext.source
+    "exact" true) }}
+{{- end }}
+
+[".config/llama.cpp/qwen-froggeric.jinja"]
+    type = "file"
+    url = "https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates/resolve/main/chat_template.jinja"
+    refreshPeriod = "168h"
+{{- end }}

@@ -1,2 +1,0 @@
-{{- /* chezmoi:modify-template */ -}}
-{{- includeTemplate "base/ai/agents/pi/render-pi-modify-settings" (dict "root" . "profile" "factory" "chezmoi" .chezmoi) -}}

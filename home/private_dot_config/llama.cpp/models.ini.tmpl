@@ -1,81 +1,66 @@
-{{- $local := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson -}}
-{{- if eq $local.engine "llamacpp" -}}
-{{- $modelIds := keys $local.models | sortAlpha -}}
-{{- if and $local.default_model (hasKey $local.models $local.default_model) -}}
-{{-   $defaultModel := $local.default_model -}}
-{{-   $orderedIds := list $defaultModel -}}
-{{-   range $id := $modelIds -}}
-{{-     if ne $id $defaultModel -}}{{- $orderedIds = append $orderedIds $id -}}{{- end -}}
-{{-   end -}}
-{{-   $modelIds = $orderedIds -}}
-{{- end -}}
+{{- $local := dig "ai" "profiles" .host.profile "serving" "local" dict . -}}
+{{- $defaultEngine := ternary "omlx" "llamacpp" (and (eq .host.distro.family "darwin") (eq .host.arch "arm64")) -}}
+{{- $engine := get $local "engine" | default $defaultEngine -}}
+{{- if and .toolchains.ai (eq $engine "llamacpp") -}}
+{{- $intelMac := and (eq .host.distro.family "darwin") (eq .host.arch "amd64") -}}
+{{- $defaultModel := get $local "default_model" | default "" -}}
+{{- $models := get $local "models" | default list -}}
+{{- $qwenTemplate := printf "%s/.config/llama.cpp/qwen-froggeric.jinja" .host.home -}}
 version = 1
 
 [*]
-gpu-layers = {{ $local.gpu_layers }}
+gpu-layers = auto
 jinja = true
-reasoning-format = {{ $local.reasoning_format }}
-slot-save-path = {{ $local.slot_dir }}
-{{- if $local.gpu_flags }}
-flash-attn = true
+reasoning-format = deepseek
+slot-save-path = {{ .host.home }}/.cache/llama.cpp/slots
+flash-attn = auto
+{{- if $intelMac }}
+fit-target = 2048
 {{- end }}
-{{- if gt ($local.fit_target | int) 0 }}
-fit-target = {{ $local.fit_target }}
-{{- end }}
-{{- if gt ($local.parallel | int) 0 }}
-parallel = {{ $local.parallel }}
-{{- end }}
-{{- if gt ($local.batch_size | int) 0 }}
-batch-size = {{ $local.batch_size }}
-{{- end }}
-{{- if gt ($local.ubatch_size | int) 0 }}
-ubatch-size = {{ $local.ubatch_size }}
-{{- end }}
-{{- if gt ($local.threads | int) 0 }}
-threads = {{ $local.threads }}
-{{- end }}
-{{- if gt ($local.threads_batch | int) 0 }}
-threads-batch = {{ $local.threads_batch }}
-{{- end }}
-{{- if $local.cache_type_k }}
-cache-type-k = {{ $local.cache_type_k }}
-{{- end }}
-{{- if $local.cache_type_v }}
-cache-type-v = {{ $local.cache_type_v }}
-{{- end }}
+parallel = 1
+batch-size = {{ ternary 1024 2048 $intelMac }}
+ubatch-size = {{ ternary 256 512 $intelMac }}
+cache-type-k = q8_0
+cache-type-v = q8_0
 
-{{ range $id := $modelIds -}}
-{{-   $m := index $local.models $id -}}
-{{-   $backend := $m.backend -}}
-{{-   $sampling := index $m "sampling" | default dict -}}
-[{{ $id }}]
-hf-repo = {{ $backend.repo }}
-hf-file = {{ $backend.file }}
-ctx-size = {{ $m.context_window }}
-reasoning = {{ ternary "true" "false" $m.reasoning }}
-{{-   $chatTemplateFile := index $m "chat_template_file" | default "" }}
-{{-   if $chatTemplateFile }}
-chat-template-file = {{ $chatTemplateFile }}
-{{-   end }}
-{{-   if hasKey $sampling "temperature" }}
+{{ range $m := $models -}}
+{{-   $gguf := get $m "gguf" | default dict -}}
+{{-   if get $gguf "repo" -}}
+{{-     $sampling := get $m "sampling" | default dict -}}
+{{-     $chatTemplate := get $m "chat_template_file" | default "" -}}
+{{-     if and (not $chatTemplate) (regexMatch "^qwen(3\\.[5-9]|3\\.[1-9][0-9]+|[4-9])" $m.id) -}}
+{{-       $chatTemplate = $qwenTemplate -}}
+{{-     end -}}
+[{{ $m.id }}]
+hf-repo = {{ $gguf.repo }}
+{{-     if get $gguf "file" }}
+hf-file = {{ $gguf.file }}
+{{-     end }}
+ctx-size = {{ get $m "context_window" | default 128000 }}
+reasoning = {{ ternary "true" "false" (get $m "reasoning" | default false) }}
+{{-     if $chatTemplate }}
+chat-template-file = {{ $chatTemplate }}
+{{-     end }}
+{{-     if hasKey $sampling "temperature" }}
 temp = {{ index $sampling "temperature" }}
-{{-   end }}
-{{-   if hasKey $sampling "top_p" }}
+{{-     end }}
+{{-     if hasKey $sampling "top_p" }}
 top-p = {{ index $sampling "top_p" }}
-{{-   end }}
-{{-   if hasKey $sampling "top_k" }}
+{{-     end }}
+{{-     if hasKey $sampling "top_k" }}
 top-k = {{ index $sampling "top_k" }}
-{{-   end }}
-{{-   if hasKey $sampling "min_p" }}
+{{-     end }}
+{{-     if hasKey $sampling "min_p" }}
 min-p = {{ index $sampling "min_p" }}
-{{-   end }}
-{{-   if hasKey $sampling "presence_penalty" }}
+{{-     end }}
+{{-     if hasKey $sampling "presence_penalty" }}
 presence-penalty = {{ index $sampling "presence_penalty" }}
-{{-   end }}
-{{-   if hasKey $sampling "repetition_penalty" }}
+{{-     end }}
+{{-     if hasKey $sampling "repetition_penalty" }}
 repeat-penalty = {{ index $sampling "repetition_penalty" }}
-{{-   end }}
-load-on-startup = {{ eq $id $local.default_model }}
+{{-     end }}
+load-on-startup = {{ eq $m.id $defaultModel }}
 
+{{   end -}}
 {{ end -}}
 {{- end -}}

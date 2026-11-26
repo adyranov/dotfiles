@@ -1,20 +1,42 @@
 # ~/.config/zsh/functions.d/skyl
 # Launch SkyPilot tasks from the YAML library (~/.config/skypilot/).
-# Usage: skyl text/qwen3.5-27b [--dry-run] [other sky launch flags]
-# Tab completion completes .yaml files under ~/.config/skypilot/.
+# Usage: skyl [--job] <category/task> [sky launch flags]
+#   Default runs `sky launch`; pass --job to run `sky jobs launch` (enables job_recovery FAILOVER).
 
 skyl() {
-  if (( $# == 0 )); then
-    print -u2 'usage: skyl <category/task> [sky launch flags]'
+  local mode="launch"
+  if [ "${1:-}" = "--job" ]; then
+    mode="jobs"
+    shift
+  fi
+  if [ "$#" -eq 0 ]; then
+    printf 'usage: skyl [--job] <category/task> [sky launch flags]\n' >&2
     return 1
   fi
   local yaml="$1"
   shift
-  [[ "$yaml" != *.yaml ]] && yaml="${yaml}.yaml"
-  sky launch "$HOME/.config/skypilot/$yaml" "$@"
+  case "$yaml" in
+  *.yaml) ;;
+  *) yaml="${yaml}.yaml" ;;
+  esac
+  local target="${XDG_CONFIG_HOME:-$HOME/.config}/skypilot/$yaml"
+  if [ ! -f "$target" ]; then
+    printf 'skyl: task not found: %s\n' "$target" >&2
+    return 1
+  fi
+  if [ "$mode" = "jobs" ]; then
+    sky jobs launch "$target" "$@"
+  else
+    sky launch "$target" "$@"
+  fi
 }
 
-_skyl() {
-  _arguments '1:yaml:_files -W ~/.config/skypilot -g "**/*.yaml"'
-}
-compdef _skyl skyl
+if [ -n "${ZSH_VERSION:-}" ]; then
+  _skyl() {
+    local sky_dir="${XDG_CONFIG_HOME:-$HOME/.config}/skypilot"
+    _arguments \
+      '--job[Launch as managed job (enables FAILOVER recovery)]' \
+      "1:yaml:_files -W $sky_dir -g '*/*.yaml'"
+  }
+  (( $+functions[compdef] )) && compdef _skyl skyl
+fi

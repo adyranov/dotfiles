@@ -1,22 +1,23 @@
-{{- $resolved := includeTemplate "base/ai/models/load-local-models" (dict "root" .) | mustFromJson -}}
+{{- $local := dig "ai" "profiles" .host.profile "serving" "local" dict . -}}
+{{- $defaultEngine := ternary "omlx" "llamacpp" (and (eq .host.distro.family "darwin") (eq .host.arch "arm64")) -}}
+{{- $engine := get $local "engine" | default $defaultEngine -}}
 # AI coding agents (passive XDG redirections; no-ops when the tool is absent).
-# Default/core profile: ~/.config/pi/agent/
-export PI_CODING_AGENT_DIR="$XDG_CONFIG_HOME/pi/agent"
-export PI_CODING_AGENT_SESSION_DIR="$XDG_CONFIG_HOME/pi/agent/sessions"
+# PI_CODING_AGENT_DIR is intentionally NOT exported globally: it overrides OMP's
+# PI_CONFIG_DIR scheme when running bare `omp`. `~/.pi -> .config/pi` handles
+# bare `pi`, and `agent pi` exports PI_CODING_AGENT_DIR explicitly.
+# Claude Code: plain `claude`, the VS Code/Cursor extension, and Desktop run
+# unsandboxed and share ~/.config/claude with `agent claude` (accepted risk).
+export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$XDG_CONFIG_HOME/claude}"
 export ENGRAM_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/engram"
 export ENGRAM_PORT="${ENGRAM_PORT:-7437}"
 export ENGRAM_URL="http://127.0.0.1:${ENGRAM_PORT}"
 export CODEGRAPH_TELEMETRY="${CODEGRAPH_TELEMETRY:-0}"
-# pi-fff opens its LMDB envs under $PI_CODING_AGENT_DIR/fff/* by default, and
-# the profile config dir is sandbox-write-denied; redirect the dbs to
-# ~/.cache/pi (granted r+w by the agent sandboxes; fff creates the leaf dirs).
+# pi-fff opens its LMDB envs under $PI_CODING_AGENT_DIR/fff/* by default;
+# redirect the dbs to ~/.cache/pi (granted r+w by the agent sandboxes).
 export FFF_FRECENCY_DB="$HOME/.cache/pi/fff/frecency"
 export FFF_HISTORY_DB="$HOME/.cache/pi/fff/history"
 export RTK_TELEMETRY_DISABLED=1
-# Telemetry opt-outs: DO_NOT_TRACK (huggingface_hub),
-# SKYPILOT_DISABLE_USAGE_COLLECTION (skypilot), OTEL_SDK_DISABLED (OMP OTel
-# initialization). nono/DCG/opencode/pi ship no analytics client; mise 2026.x
-# has no telemetry at all.
+# Telemetry opt-outs
 export DO_NOT_TRACK=1
 export SKYPILOT_DISABLE_USAGE_COLLECTION=1
 export OTEL_SDK_DISABLED=true
@@ -24,11 +25,11 @@ export OTEL_SDK_DISABLED=true
 export HF_HOME="$XDG_DATA_HOME/huggingface"
 export HF_HUB_CACHE="$HF_HOME/hub"
 export SKYPILOT_GLOBAL_CONFIG="$XDG_CONFIG_HOME/skypilot/config.yaml"
-export LLM_SERVE_PORT="{{ index $resolved "port" | default 8321 }}"
-{{- if eq $resolved.engine "llamacpp" }}
+export LLM_SERVE_PORT="{{ get $local "port" | default 8321 }}"
+{{- if eq $engine "llamacpp" }}
 export LLAMA_CPP_MODELS_PRESET="$XDG_CONFIG_HOME/llama.cpp/models.ini"
 {{- end }}
-{{- if eq $resolved.engine "omlx" }}
+{{- if eq $engine "omlx" }}
 export OMLX_CACHE_DIR="$XDG_CACHE_HOME/omlx"
 export OMLX_MODEL_DIR="$XDG_STATE_HOME/omlx/models"
 {{- end }}

@@ -1,0 +1,157 @@
+# Flat AI providers, serving endpoints, and profile presets.
+# Tier lists are ordered: index 0 is primary, remaining entries are fallbacks.
+# Format: "provider/model:thinking" (e.g. "openrouter/z-ai/glm-5.3:medium").
+
+[ai.presets.anthropic]
+claude_only = true
+
+[ai.presets.anthropic.tiers]
+big = ["anthropic/claude-opus-5-5:high"]
+medium = ["anthropic/claude-sonnet-5-5:medium"]
+oracle = ["anthropic/claude-opus-5-5:xhigh"]
+small = ["anthropic/claude-haiku-5-5:off"]
+visual = ["anthropic/claude-sonnet-5-5:medium"]
+
+# ── Personal profile ──────────────────────────────────────────────────────────
+[ai.profiles.personal]
+claude_preset = "anthropic"
+default_preset = "qwen"
+
+# Paused preset (comments sit on this header so toml-sort keeps them);
+# uncomment together with the openai-codex provider line. Needs ChatGPT.
+# [ai.profiles.personal.presets.openai.tiers]
+# big = ["openai-codex/gpt-6-luna:high"]
+# medium = ["openai-codex/gpt-6-luna:medium"]
+# oracle = ["openai-codex/gpt-6.1-sol:high"]
+# small = ["openai-codex/gpt-6-luna:off"]
+# visual = ["openai-codex/gpt-6.1-sol:medium"]
+#
+# Paid presets (pay-per-use APIs): switch in OpenCode (/preset) or make one
+# default_preset when infer01 is down. balanced mixes providers so visual
+# reads images; deepseek keeps everything on one DeepSeek balance (text only).
+[ai.profiles.personal.presets.balanced.tiers]
+big = ["deepseek/deepseek-v4-pro:high"]
+medium = ["opencode-zen/deepseek-v4.1-flash:high"]
+oracle = ["opencode-zen/kimi-k3.1-pro:high"]
+small = ["opencode-zen/deepseek-v4.1-flash:off"]
+visual = ["openrouter/google/gemini-3.8-flash:medium"]
+
+[ai.profiles.personal.presets.deepseek.tiers]
+big = ["deepseek/deepseek-v4-pro:high"]
+medium = ["deepseek/deepseek-flash:high"]
+oracle = ["deepseek/deepseek-v4-pro:max"]
+small = ["deepseek/deepseek-flash:off"]
+visual = ["deepseek/deepseek-v4-pro:medium"]
+
+[ai.profiles.personal.presets.qwen]
+subagent_limit = 8
+
+[ai.profiles.personal.presets.qwen.tiers]
+big = ["infer01/qwen3.8-flash-next:xhigh"]
+medium = ["infer01/qwen3.8-flash-next:xhigh"]
+oracle = ["infer01/qwen3.8-flash-next:xhigh"]
+small = ["infer01/qwen3.8-flash-next:off"]
+visual = ["infer01/qwen3.8-flash-next:xhigh"]
+
+[ai.profiles.personal.providers]
+anthropic = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"]
+deepseek = ["deepseek-flash", "deepseek-v4-pro"]
+# Paused until the subscriptions return (ChatGPT; OpenCode Go returns 403 without one).
+# openai-codex = ["gpt-6-luna", "gpt-6.1-sol"]
+# opencode-go = ["deepseek-v4.1-flash", "glm-5.3", "kimi-k3.1-pro"]
+opencode-zen = ["deepseek-v4.1-flash", "glm-5.3", "kimi-k3.1-pro"]
+openrouter = ["deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3", "google/gemini-3.8-flash"]
+
+[ai.profiles.personal.serving.infer01]
+base_url = "http://infer01:8080/v1"
+kind = "openai-compatible"
+slots = 8
+
+[[ai.profiles.personal.serving.infer01.models]]
+chat_format = "qwen-chat-template"
+context_window = 262144
+cost = { input = 0.0, output = 0.0 }
+efforts = ["low", "medium", "xhigh"]
+id = "qwen3.8-flash-next"
+inputs = ["text", "image"]
+max_output = 32768
+name = "qwen3.8-flash-next"
+reasoning = true
+
+[ai.profiles.personal.serving.local]
+default_model = "qwen3-coder-30b-a3b"
+kind = "local"
+omlx_memory_guard_gb = 21
+port = 8321
+
+[[ai.profiles.personal.serving.local.models]]
+context_window = 32768
+gguf = { file = "Qwen3-Coder-30B-A3B-Instruct-UD-IQ3_XXS.gguf", repo = "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF" }
+id = "qwen3-coder-30b-a3b"
+max_output = 8192
+mlx = { repo = "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit" }
+name = "Qwen3 Coder 30B-A3B"
+reasoning = false
+sampling = { min_p = 0.0, repetition_penalty = 1.05, temperature = 0.7, top_k = 20, top_p = 0.8 }
+
+[[ai.profiles.personal.serving.local.models]]
+context_window = 65536
+gguf = { file = "Qwen3.5-9B-UD-Q6_K_XL.gguf", repo = "unsloth/Qwen3.5-9B-GGUF" }
+id = "qwen3.5-9b"
+max_output = 8192
+mlx = { repo = "mlx-community/Qwen3.5-9B-OptiQ-4bit" }
+name = "Qwen3.5 9B"
+reasoning = true
+sampling = { min_p = 0.0, presence_penalty = 1.5, repetition_penalty = 1.0, temperature = 1.0, top_k = 20, top_p = 0.95 }
+
+# ── Work profile ──────────────────────────────────────────────────────────────
+[ai.profiles.work]
+claude_preset = "anthropic"
+default_preset = "balanced"
+
+[ai.profiles.work.presets.balanced.tiers]
+big = ["github-copilot/claude-sonnet-5.5:high"]
+medium = ["github-copilot/claude-sonnet-5.5:medium"]
+oracle = ["github-copilot/gpt-6.1-sol:high"]
+small = ["github-copilot/gpt-6-luna:low"]
+visual = ["github-copilot/gemini-3.8-flash:low"]
+
+[ai.profiles.work.providers]
+anthropic = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"]
+github-copilot = ["claude-sonnet-5.5", "gemini-3.8-flash", "gpt-6.1-sol", "gpt-6-luna"]
+
+[ai.profiles.work.serving.local]
+default_model = "qwen3.5-9b"
+kind = "local"
+omlx_memory_guard_gb = 21
+port = 8321
+
+[[ai.profiles.work.serving.local.models]]
+context_window = 32768
+gguf = { file = "Qwen3-Coder-30B-A3B-Instruct-UD-IQ3_XXS.gguf", repo = "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF" }
+id = "qwen3-coder-30b-a3b"
+max_output = 4096
+mlx = { repo = "mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit" }
+name = "Qwen 3 Coder 30B-A3B"
+reasoning = false
+sampling = { min_p = 0.0, repetition_penalty = 1.05, temperature = 0.4, top_k = 20, top_p = 0.9 }
+
+[[ai.profiles.work.serving.local.models]]
+context_window = 65536
+gguf = { file = "Qwen3.5-9B-UD-Q6_K_XL.gguf", repo = "unsloth/Qwen3.5-9B-GGUF" }
+id = "qwen3.5-9b"
+max_output = 4096
+mlx = { repo = "mlx-community/Qwen3.5-9B-OptiQ-4bit" }
+name = "Qwen3.5 9B"
+reasoning = true
+sampling = { min_p = 0.0, presence_penalty = 0.0, repetition_penalty = 1.0, temperature = 0.6, top_k = 20, top_p = 0.95 }
+
+[ai.providers]
+# claude_only: OAuth lane — third-party clients (pi/opencode) must never replay it.
+anthropic = { claude_only = true }
+deepseek = { api_key_env = "DEEPSEEK_API_KEY", auth_keys = ["deepseek"] }
+github-copilot = {}
+openai-codex = { opencode_alias = "openai" }
+opencode-go = { api_key_env = "OPENCODE_API_KEY", auth_keys = ["opencode-go"] }
+opencode-zen = { api_key_env = "OPENCODE_API_KEY", auth_keys = ["opencode", "opencode-zen"], opencode_alias = "opencode", pi_alias = "opencode" }
+openrouter = { api_key_env = "OPENROUTER_API_KEY", auth_keys = ["openrouter"] }

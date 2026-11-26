@@ -1,0 +1,7 @@
+{{- /* Pi MCP config from shared .ai.mcp.servers. */ -}}
+{{- $mcpServers := dict -}}
+{{- range $name := .ai.agents.pi.mcp_servers -}}
+{{-   $srv := index $.ai.mcp.servers $name -}}
+{{-   $_ := set $mcpServers $name (dict "args" (get $srv "args" | default list) "command" $srv.command) -}}
+{{- end -}}
+{{- dict "mcpServers" $mcpServers | toPrettyJson -}}

@@ -1,0 +1,24 @@
+{{- /* Pull the upstream nono pack each enabled agent profile extends: nono does
+  not fetch packs named in `extends`. Upgrade packs via `mise run update`.
+  Containers run agents without nono (the container is the boundary), so
+  ephemeral hosts skip it. A failed pull warns instead of aborting apply;
+  the launcher names the fix. */ -}}
+{{- if and .toolchains.ai (ne .host.type "ephemeral") -}}
+{{- $s := .ai.sandbox -}}
+{{- $packs := list -}}
+{{- range $agent, $a := (index $s "agents" | default dict) -}}
+{{-   if index $.toolchains $agent -}}{{- $packs = append $packs $a.pack -}}{{- end -}}
+{{- end -}}
+{{- if $packs -}}
+{{- includeTemplate "base/headers/script" (dict "root" .) -}}
+
+if ! command -v nono >/dev/null 2>&1; then
+  echo "nono not installed; skipping pack pull" >&2
+  exit 0
+fi
+
+for pack in {{ $packs | uniq | sortAlpha | join " " }}; do
+  nono pull --silent "$pack" || echo "warning: nono pull $pack failed; rerun it before launching that agent" >&2
+done
+{{ end -}}
+{{- end -}}

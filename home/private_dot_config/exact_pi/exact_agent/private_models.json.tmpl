@@ -1,30 +1,27 @@
-{{- /* Render Pi models.json: local provider via load-local-models plus each
-   declared OpenAI-compatible serving provider. Remote entries use the literal
-   `no-auth` apiKey sentinel required by Pi's model picker; never an env
-   var or real credential. */ -}}
+{{- /* Render Pi models.json: local provider plus each declared OpenAI-compatible
+   serving provider. Remote entries use the literal `no-auth` apiKey sentinel
+   required by Pi's model picker; never an env var or real credential. */ -}}
 {{- $root := . -}}
 {{- $providers := dict -}}
 
 {{- /* Serving providers with enabled=false are opted out (default enabled). */ -}}
-{{- $serving := includeTemplate "base/helpers/load-section" (dict "root" $root "section" "ai.serving" "required" false) | mustFromJson -}}
+{{- $serving := dig "ai" "profiles" $root.host.profile "serving" dict $root -}}
 {{- $localServing := index $serving "local" | default dict -}}
 {{- $localEnabled := dig "enabled" true $localServing -}}
 
-{{- $resolved := includeTemplate "base/ai/models/load-local-models" (dict "root" $root) | mustFromJson -}}
-{{- $localModels := get $resolved "models" | default dict -}}
 {{- $localModelList := list -}}
-{{- range $id, $m := $localModels -}}
+{{- range $m := get $localServing "models" | default list -}}
 {{-   $localModelList = append $localModelList (dict
-        "id" $id
-        "name" (get $m "name" | default $id)
+        "id" $m.id
+        "name" (get $m "name" | default $m.id)
         "reasoning" (get $m "reasoning" | default false)
         "input" (list "text")
         "contextWindow" (get $m "context_window" | default 128000)
-        "maxTokens" (get $m "context_output" | default 8192)
+        "maxTokens" (get $m "max_output" | default 8192)
         "cost" (dict "input" 0 "output" 0 "cacheRead" 0 "cacheWrite" 0)
       ) -}}
 {{- end -}}
-{{- $port := get $resolved "port" | default 8321 -}}
+{{- $port := get $localServing "port" | default 8321 -}}
 {{- if and $localEnabled $localModelList -}}
 {{-   $_ := set $providers "local" (dict
         "baseUrl" (printf "http://127.0.0.1:%v/v1" $port)
@@ -66,11 +63,14 @@
             "cacheWrite" (get $cost "cacheWrite" | default 0)
           )
         -}}
+{{-     if hasKey $m "max_output" -}}
+{{-       $_ := set $entry "maxTokens" ($m.max_output | int) -}}
+{{-     end -}}
 {{- /* qwen chat templates take effort as a chat_template_kwarg; Pi's default
            openai compat sends a top-level reasoning_effort and the template
            rejects 'high' (Pi clamps undeclared xhigh down to it). Route the
            effort through chatTemplateKwargs with the template's level catalog
-           (mirrors the OMP thinking catalog: low|medium|xhigh, none/minimal off). */ -}}
+           (mirrors the OMP thinking catalog: low|medium|xhigh, none off). */ -}}
 {{-     if and (get $m "reasoning" | default false) (eq (get $m "chat_format" | default "") "qwen-chat-template") -}}
 {{-       $_ := set $entry "compat" (dict
               "thinkingFormat" "chat-template"
@@ -78,11 +78,12 @@
             ) -}}
 {{-       $_ := set $entry "thinkingLevelMap" (dict
               "off" "none"
-              "minimal" "minimal"
+              "minimal" "low"
               "low" "low"
               "medium" "medium"
               "high" "medium"
               "xhigh" "xhigh"
+              "max" "xhigh"
             ) -}}
 {{-     end -}}
 {{-     $remoteModels = append $remoteModels $entry -}}
@@ -94,5 +95,8 @@
         "models" $remoteModels
       ) -}}
 {{- end -}}
+
+{{- /* Disable native Anthropic lane in Pi (subscription Opus stays Claude-only; R21). */ -}}
+{{- $_ := set $providers "anthropic" (dict "baseUrl" "http://127.0.0.1:1" "api" "anthropic-messages" "apiKey" "disabled" "models" list) -}}
 
 {{- dict "providers" $providers | toPrettyJson -}}

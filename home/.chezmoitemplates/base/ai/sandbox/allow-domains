@@ -1,0 +1,16 @@
+{{- /* Flatten ai.sandbox.allow_domain + optional agent allow_domain + active profile serving hosts. */ -}}
+{{- $root := .root -}}
+{{- $s := $root.ai.sandbox -}}
+{{- $hosts := list -}}
+{{- range $_, $list := (index $s "allow_domain" | default dict) -}}{{- $hosts = concat $hosts $list -}}{{- end -}}
+{{- with (get . "agent") -}}
+{{-   $a := dig "agents" . dict $s -}}
+{{-   $hosts = concat $hosts (index $a "allow_domain" | default list) -}}
+{{- end -}}
+{{- range $_, $sp := (dig "ai" "profiles" $root.host.profile "serving" dict $root) -}}
+{{-   if and (kindIs "map" $sp) (dig "enabled" true $sp) (get $sp "base_url") -}}
+{{-     $h := get (urlParse $sp.base_url) "hostname" | default "" -}}
+{{-     if and $h (ne $h "127.0.0.1") (ne $h "localhost") -}}{{- $hosts = append $hosts $h -}}{{- end -}}
+{{-   end -}}
+{{- end -}}
+{{- $hosts | uniq | sortAlpha | toJson -}}

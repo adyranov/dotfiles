@@ -1,0 +1,290 @@
+#!/usr/bin/env sh
+# llm-pull — Download local LLM weights configured in ~/.config/local-llm/config.json.
+set -eu
+
+CONFIG_FILE="${LOCAL_LLM_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/local-llm/config.json}"
+command -v jq >/dev/null 2>&1 || {
+  echo "llm-pull: jq not found on PATH" >&2
+  exit 1
+}
+command -v hf >/dev/null 2>&1 || {
+  echo "llm-pull: hf CLI not found (run: mise install)" >&2
+  exit 1
+}
+[ -f "$CONFIG_FILE" ] || {
+  echo "llm-pull: config not found: $CONFIG_FILE (run chezmoi apply)" >&2
+  exit 1
+}
+
+ENGINE="$(jq -r '.engine // "llamacpp"' "$CONFIG_FILE")"
+PULL_ALL=false
+case "${1:-}" in
+--all) PULL_ALL=true ;;
+-h | --help)
+  printf 'Usage: llm-pull [--all]\n  Downloads weights for the active engine (%s). Pass --all for both mlx and gguf.\n' "$ENGINE"
+  exit 0
+  ;;
+esac
+
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  B=$(printf '\033[1m')
+  D=$(printf '\033[2m')
+  R=$(printf '\033[0m')
+  G=$(printf '\033[32m')
+  Y=$(printf '\033[33m')
+  C=$(printf '\033[36m')
+else
+  B=''
+  D=''
+  R=''
+  G=''
+  Y=''
+  C=''
+fi
+
+HF_CACHE="${HF_HUB_CACHE:-${HF_HOME:+$HF_HOME/hub}}"
+HF_CACHE="${HF_CACHE:-${XDG_DATA_HOME:-$HOME/.local/share}/huggingface/hub}"
+export HF_HUB_CACHE="$HF_CACHE"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/llm-pull.XXXXXX")"
+CONFIGURED_FILE="$WORK_DIR/configured.tsv"
+ALL_CONFIGURED_FILE="$WORK_DIR/all_configured.tsv"
+MISSING_FILE="$WORK_DIR/missing.tsv"
+STALE_FILE="$WORK_DIR/stale.tsv"
+CLEANUP_FILE="$WORK_DIR/cleanup.tsv"
+
+cleanup() { rm -rf "$WORK_DIR"; }
+trap cleanup EXIT
+trap 'cleanup; exit 130' HUP INT TERM
+
+ask() {
+  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    printf '%s?%s %s %s[Y/n]%s ' "$B" "$R" "$1" "$D" "$R" >/dev/tty
+    read -r reply </dev/tty || reply=''
+  else
+    printf '%s?%s %s %s[Y/n]%s ' "$B" "$R" "$1" "$D" "$R"
+    read -r reply || reply=''
+  fi
+  case "$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')" in
+  '' | y | yes) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+ask_no() {
+  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    printf '%s?%s %s %s[y/N]%s ' "$B" "$R" "$1" "$D" "$R" >/dev/tty
+    read -r reply </dev/tty || reply=''
+  else
+    printf '%s?%s %s %s[y/N]%s ' "$B" "$R" "$1" "$D" "$R"
+    read -r reply || reply=''
+  fi
+  case "$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')" in
+  y | yes) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+all_configured_models() {
+  jq -r '.models[] |
+    (if .mlx.repo? then "\(.id)\tmlx\t\(.mlx.repo)\t" else empty end),
+    (if .gguf.repo? then "\(.id)\tgguf\t\(.gguf.repo)\t\(.gguf.file // "")" else empty end)
+  ' "$CONFIG_FILE"
+}
+
+configured_models() {
+  if [ "$PULL_ALL" = true ]; then
+    all_configured_models
+  elif [ "$ENGINE" = "omlx" ]; then
+    jq -r '.models[] | if .mlx.repo? then "\(.id)\tmlx\t\(.mlx.repo)\t" else empty end' "$CONFIG_FILE"
+  else
+    jq -r '.models[] | if .gguf.repo? then "\(.id)\tgguf\t\(.gguf.repo)\t\(.gguf.file // "")" else empty end' "$CONFIG_FILE"
+  fi
+}
+
+repo_slug() { printf '%s' "$1" | sed 's|/|--|'; }
+repo_from_slug() { printf '%s' "$1" | sed 's/^models--//; s|--|/|'; }
+repo_dir() { printf '%s/models--%s' "$HF_CACHE" "$(repo_slug "$1")"; }
+
+hf_download_cmd() {
+  if [ -n "$2" ]; then
+    printf 'hf download %s %s' "$1" "$2"
+  else
+    printf 'hf download %s' "$1"
+  fi
+}
+
+cached() {
+  snaps="$(repo_dir "$1")/snapshots"
+  [ -d "$snaps" ] || return 1
+  if [ -n "${2:-}" ]; then
+    find "$snaps" -name "$2" \( -type f -o -type l \) 2>/dev/null | grep -q .
+  else
+    find "$snaps" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q .
+  fi
+}
+
+cache_state() {
+  repo="$1"
+  file="${2:-}"
+  rd="$(repo_dir "$repo")"
+  if [ ! -d "$rd" ]; then
+    printf 'missing'
+    return 0
+  fi
+  if find "$rd" -name '*.incomplete' 2>/dev/null | grep -q .; then
+    printf 'partial'
+    return 0
+  fi
+  if cached "$repo" "$file"; then
+    printf 'cached'
+    return 0
+  fi
+  if [ -d "$rd/snapshots" ] && find "$rd/snapshots" -mindepth 1 2>/dev/null | grep -q .; then
+    printf 'partial'
+    return 0
+  fi
+  if [ -d "$rd/blobs" ] && find "$rd/blobs" -mindepth 1 2>/dev/null | grep -q .; then
+    printf 'partial'
+    return 0
+  fi
+  printf 'missing'
+}
+
+is_configured() {
+  awk -F '\t' -v repo="$1" -v file="$2" \
+    '$3 == repo && ($4 == file || $4 == "") { found = 1 } END { exit !found }' \
+    "$ALL_CONFIGURED_FILE"
+}
+
+repo_configured() {
+  awk -F '\t' -v repo="$1" '$3 == repo { found = 1 } END { exit !found }' "$ALL_CONFIGURED_FILE"
+}
+
+download_model() {
+  if [ -n "$2" ]; then
+    hf download "$1" "$2"
+  else
+    hf download "$1"
+  fi
+}
+
+scan_models() {
+  : >"$MISSING_FILE"
+  while IFS="$(printf '\t')" read -r id kind repo file; do
+    [ -n "$id" ] || continue
+    state="$(cache_state "$repo" "$file")"
+    printf '%s%s%s (%s)  %s%s%s%s ... ' \
+      "$B" "$id" "$R" "$kind" "$D" "$repo" "${file:+ ($file)}" "$R"
+    case "$state" in
+    cached) printf '%scached%s\n' "$G" "$R" ;;
+    partial)
+      printf '%spartial%s\n' "$Y" "$R"
+      printf '    %s%s (resume)%s\n' "$D" "$(hf_download_cmd "$repo" "$file")" "$R"
+      printf '%s\t%s\t%s\t%s\n' "$id" "$kind" "$repo" "$file" >>"$MISSING_FILE"
+      ;;
+    missing)
+      printf '%smissing%s\n' "$Y" "$R"
+      printf '    %s%s%s\n' "$D" "$(hf_download_cmd "$repo" "$file")" "$R"
+      printf '%s\t%s\t%s\t%s\n' "$id" "$kind" "$repo" "$file" >>"$MISSING_FILE"
+      ;;
+    esac
+  done <"$CONFIGURED_FILE"
+}
+
+pull_missing() {
+  if [ ! -s "$MISSING_FILE" ]; then
+    printf '\n%sAll configured models are cached.%s\n' "$G" "$R"
+    return 0
+  fi
+  count="$(wc -l <"$MISSING_FILE" | tr -d ' ')"
+  printf '\n%sMissing or partial downloads:%s\n' "$B" "$R"
+  while IFS="$(printf '\t')" read -r id kind repo file; do
+    printf '  %s (%s)  %s\n' "$id" "$kind" "$(hf_download_cmd "$repo" "$file")"
+  done <"$MISSING_FILE"
+
+  if ask "Download or resume ${count} model(s)?"; then
+    while IFS="$(printf '\t')" read -r id kind repo file; do
+      printf '\n%s%s%s (%s)  %s%s%s%s\n' \
+        "$B" "$id" "$R" "$kind" "$D" "$repo" "${file:+ ($file)}" "$R"
+      printf '  %s%s%s\n' "$D" "$(hf_download_cmd "$repo" "$file")" "$R"
+      download_model "$repo" "$file" </dev/null
+      printf '%s✓ done%s\n' "$G" "$R"
+    done <"$MISSING_FILE"
+    if [ "$ENGINE" = "omlx" ]; then
+      printf '\n%sHint:%s run "chezmoi apply" to refresh ~/.local/state/omlx/models symlinks.\n' "$B$C" "$R"
+    fi
+  else
+    printf '%s↷ skipped downloads%s\n' "$Y" "$R"
+  fi
+}
+
+scan_stale() {
+  : >"$STALE_FILE"
+  [ -d "$HF_CACHE" ] || return 0
+  for model_dir in "$HF_CACHE"/models--*; do
+    [ -d "$model_dir" ] || continue
+    snaps="$model_dir/snapshots"
+    [ -d "$snaps" ] || continue
+    repo="$(repo_from_slug "$(basename "$model_dir")")"
+    find "$snaps" -name '*.gguf' \( -type f -o -type l \) 2>/dev/null |
+      while IFS= read -r path; do
+        file="$(basename "$path")"
+        if ! is_configured "$repo" "$file"; then
+          printf '%s\t%s\t%s\n' "$repo" "$file" "$path" >>"$STALE_FILE"
+        fi
+      done
+  done
+}
+
+cleanup_stale() {
+  [ -s "$STALE_FILE" ] || return 0
+  : >"$CLEANUP_FILE"
+  sort -u "$STALE_FILE" |
+    while IFS="$(printf '\t')" read -r repo file path; do
+      if repo_configured "$repo"; then
+        printf 'file\t%s\t%s\t%s\n' "$repo" "$file" "$path"
+      else
+        printf 'repo\t%s\t%s\t%s\n' "$repo" "$repo" "$(repo_dir "$repo")"
+      fi
+    done | sort -u >"$CLEANUP_FILE"
+
+  printf '\n%sCached model files not configured here:%s\n' "$B" "$R"
+  while IFS="$(printf '\t')" read -r kind repo label target <&3; do
+    if [ "$kind" = "file" ]; then
+      printf '  %s  %s%s%s\n' "$repo" "$D" "$label" "$R"
+      if ask_no "Delete this cached GGUF file"; then
+        blob="$(readlink -f "$target" 2>/dev/null || true)"
+        rm -f "$target"
+        [ -n "$blob" ] && [ "$blob" != "$target" ] && rm -f "$blob"
+        printf '    %sremoved%s %s\n' "$G" "$R" "$target"
+      else
+        printf '    %skept%s\n' "$D" "$R"
+      fi
+    else
+      printf '  %s  %s%s%s\n' "$repo" "$D" "$target" "$R"
+      if [ ! -d "$target" ]; then
+        printf '    %salready removed%s\n' "$D" "$R"
+      elif ask_no "Delete this unconfigured model cache"; then
+        rm -rf "$target"
+        printf '    %sremoved%s %s\n' "$G" "$R" "$target"
+      else
+        printf '    %skept%s\n' "$D" "$R"
+      fi
+    fi
+  done 3<"$CLEANUP_FILE"
+}
+
+if [ "$PULL_ALL" = true ]; then
+  printf '%sLocal models (runtime engine: %s%s%s; all mlx/gguf backends):%s\n\n' \
+    "$B$C" "$R" "$ENGINE" "$B$C" "$R"
+else
+  printf '%sLocal models (runtime engine: %s%s%s; pass --all for both backends):%s\n\n' \
+    "$B$C" "$R" "$ENGINE" "$B$C" "$R"
+fi
+
+all_configured_models >"$ALL_CONFIGURED_FILE"
+configured_models >"$CONFIGURED_FILE"
+scan_models
+pull_missing
+scan_stale
+cleanup_stale

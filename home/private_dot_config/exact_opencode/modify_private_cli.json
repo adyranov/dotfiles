@@ -1,0 +1,12 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- $current := dict -}}
+{{- if and (hasKey .chezmoi "stdin") (not (empty (trim .chezmoi.stdin))) -}}
+{{-   $current = fromJsonc .chezmoi.stdin | default dict -}}
+{{- end -}}
+{{- $oc := .ai.agents.opencode -}}
+{{- $result := dict
+  "$schema" "https://opencode.ai/v2/cli.json"
+  "plugins" $oc.tui_plugins
+  "theme" (dict "name" $oc.cli.theme "mode" ($oc.cli.theme_mode | default "system"))
+-}}
+{{- mergeOverwrite $current $result | toPrettyJson -}}

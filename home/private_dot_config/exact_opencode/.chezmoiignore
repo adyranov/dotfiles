@@ -4,11 +4,15 @@ logs/
 npm/
 node_modules/
 package*.json
+bun.lock
+bun.lockb
 sessions/**
 state.json
 mcp-cache.json
 auth.json
-cli.json
 service.json
+# Runtime dirs written under the managed root; kept out of exact pruning.
+skills/
+.oh-my-opencode-slim/
 oh-my-opencode-slim/*.json
 oh-my-opencode-slim/*.jsonc

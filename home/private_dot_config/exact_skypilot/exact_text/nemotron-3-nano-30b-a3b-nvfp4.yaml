@@ -1,0 +1,26 @@
+# nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4 | Blackwell (RTX5090/B200) | 32K | SGLang MoE, 30B total / 3B active, NVFP4
+name: nemotron-3-nano-30b-a3b-nvfp4
+resources:
+  image_id: docker:lmsysorg/sglang:latest-cu129
+  accelerators: {"B200": 1, "RTX5090": 1}
+  use_spot: true
+  job_recovery:
+    strategy: FAILOVER
+  disk_size: 60
+run: |
+  set -euxo pipefail
+  TP_SIZE="$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l | tr -d ' ')"
+  sglang serve \
+    --model-path nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4 \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --context-length 32768 \
+    --mem-fraction-static 0.92 \
+    --tp-size "$TP_SIZE" \
+    --cuda-graph-backend-prefill=disabled \
+    --reasoning-parser nano_v3 \
+    --tool-call-parser qwen3_coder \
+    --trust-remote-code \
+    2>&1 | tee ~/server.log
+secrets:
+  HF_TOKEN: null

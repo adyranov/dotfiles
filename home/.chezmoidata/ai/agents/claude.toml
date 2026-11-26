@@ -1,0 +1,68 @@
+# Claude Code config source of truth (~/.config/claude): pure native Anthropic
+# Pareto tiers (Opus big/oracle, Sonnet fixer/designer, Haiku explorer).
+[ai.agents.claude]
+# Selected from the shared MCP catalog (ai.mcp.servers).
+mcp_servers = ["codegraph", "engram"]
+# Tilde expanded at render (modify_settings.json): plansDirectory is verbatim.
+plans_directory = "~/.local/state/claude/plans"
+preset = "anthropic"
+
+[ai.agents.claude.auto_mode]
+# autoMode is prose for the auto-mode classifier. Opening with "$defaults"
+# retains Claude Code's built-in rules.
+allow = ["$defaults"]
+environment = [
+  "$defaults",
+  "Host containment: shell commands run under Claude Code's built-in sandbox on macOS"
+]
+
+# settings.json env block. DO_NOT_TRACK=1 stays a global export (exports.d).
+# CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS is rendered from resolve-subagent-limit.
+[ai.agents.claude.env]
+CLAUDE_CODE_DISABLE_EXPLORE_PLAN_AGENTS = "1"
+DISABLE_AUTOUPDATER = "1"
+DISABLE_ERROR_REPORTING = "1"
+
+# Per-MCP read-only tools added to Claude agent frontmatter from ai/roles.toml mcps
+# (write roles also receive mem_save for engram).
+[ai.agents.claude.mcp_tools]
+engram = ["mem_context", "mem_search", "mem_get_observation", "mem_timeline"]
+
+[ai.agents.claude.plugins]
+enabled = [
+  { id = "engram", marketplace = "engram" },
+  { id = "gopls-lsp", marketplace = "claude-plugins-official", toolchain = "golang" },
+  { id = "ponytail", marketplace = "ponytail" },
+  { id = "pyright-lsp", marketplace = "claude-plugins-official" },
+  { id = "rust-analyzer-lsp", marketplace = "claude-plugins-official" },
+  { id = "typescript-lsp", marketplace = "claude-plugins-official" }
+]
+
+[ai.agents.claude.plugins.marketplaces]
+claude-plugins-official = { repo = "anthropics/claude-plugins-official", source = "github" }
+engram = { repo = "Gentleman-Programming/engram", source = "github" }
+ponytail = { repo = "dietrichgebert/ponytail", source = "github" }
+
+# settings.json managed keys (values only; key names live in modify_settings.json).
+[ai.agents.claude.settings]
+attribution = { commit = "", pr = "" }
+auto_memory = false
+bash_output_max_chars = 51200
+cross_session_inbound = "refuse"
+default_mode = "auto"
+# A scalar fallbackModel invalidates the entire Claude settings file.
+fallback_model = ["claude-sonnet-5-5"]
+isolate_peer_machines = true
+notif_channel = "ghostty"
+# Built-in general-purpose and fork subagents must never spawn from this fleet.
+permissions_deny = ["Agent(general-purpose)", "Agent(fork)"]
+spinner_tips = false
+statusline_command = "claude-powerline"
+subagent_prompt_cache_ttl = "1h"
+sync_claude_ai_plugins = false
+sync_claude_ai_skills = false
+theme = "dark-ansi"
+ultracode = false
+
+[ai.agents.claude.tier_routing]
+thinking_off_effort = "low"

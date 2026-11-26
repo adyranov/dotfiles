@@ -1,0 +1,65 @@
+# FLUX.1-dev FP8 | Comfy-Org/flux1-dev + black-forest-labs/FLUX.1-dev + comfyanonymous/flux_text_encoders | L40S/RTXA6000/RTX5090 | 50 GB | --highvram | HF gated, FLUX license
+name: flux1-dev-comfyui
+resources:
+  image_id: docker:runpod/comfyui:cuda12.8
+  accelerators: {"L40S": 1, "RTX5090": 1, "RTXA6000": 1}
+  use_spot: true
+  job_recovery:
+    strategy: FAILOVER
+  disk_size: 60
+setup: |
+  set -euxo pipefail
+
+  mkdir -p /workspace/ComfyUI/models/checkpoints
+  if [ ! -f "/workspace/ComfyUI/models/checkpoints/flux1-dev-fp8.safetensors" ]; then
+    hf download Comfy-Org/flux1-dev flux1-dev-fp8.safetensors \
+      --local-dir /workspace/ComfyUI/models/checkpoints
+    src="/workspace/ComfyUI/models/checkpoints/flux1-dev-fp8.safetensors"
+    dst="/workspace/ComfyUI/models/checkpoints/flux1-dev-fp8.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+
+  mkdir -p /workspace/ComfyUI/models/vae
+  if [ ! -f "/workspace/ComfyUI/models/vae/ae.safetensors" ]; then
+    hf download black-forest-labs/FLUX.1-dev ae.safetensors \
+      --local-dir /workspace/ComfyUI/models/vae
+    src="/workspace/ComfyUI/models/vae/ae.safetensors"
+    dst="/workspace/ComfyUI/models/vae/ae.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+
+  mkdir -p /workspace/ComfyUI/models/text_encoders
+  if [ ! -f "/workspace/ComfyUI/models/text_encoders/clip_l.safetensors" ]; then
+    hf download comfyanonymous/flux_text_encoders clip_l.safetensors \
+      --local-dir /workspace/ComfyUI/models/text_encoders
+    src="/workspace/ComfyUI/models/text_encoders/clip_l.safetensors"
+    dst="/workspace/ComfyUI/models/text_encoders/clip_l.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+
+  mkdir -p /workspace/ComfyUI/models/text_encoders
+  if [ ! -f "/workspace/ComfyUI/models/text_encoders/t5xxl_fp8_e4m3fn.safetensors" ]; then
+    hf download comfyanonymous/flux_text_encoders t5xxl_fp8_e4m3fn.safetensors \
+      --local-dir /workspace/ComfyUI/models/text_encoders
+    src="/workspace/ComfyUI/models/text_encoders/t5xxl_fp8_e4m3fn.safetensors"
+    dst="/workspace/ComfyUI/models/text_encoders/t5xxl_fp8_e4m3fn.safetensors"
+    if [ "$src" != "$dst" ]; then
+      mv "$src" "$dst"
+    fi
+  fi
+run: |
+  set -euxo pipefail
+  cd /workspace/ComfyUI
+  python main.py \
+    --listen 127.0.0.1 \
+    --port 8188 \
+    --highvram \
+    2>&1 | tee ~/server.log
+secrets:
+  HF_TOKEN: null

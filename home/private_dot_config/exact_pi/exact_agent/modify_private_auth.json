@@ -1,0 +1,2 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- includeTemplate "base/ai/auth/render-auth-modify" (dict "root" . "mode" "env_ref") -}}
