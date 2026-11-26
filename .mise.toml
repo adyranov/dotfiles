@@ -8,23 +8,69 @@ run = "chezmoi apply ${usage_flags:-}"
 
 [tasks.bootstrap]
 description = "Bootstrap development environment (Git hooks, etc.)"
-run = "pre-commit install --install-hooks --hook-type pre-commit --hook-type commit-msg"
+run = "prek install --prepare-hooks --hook-type pre-commit --hook-type commit-msg"
 
 [tasks.lint]
-description = "Run pre-commit hooks on all files"
-usage = 'arg "[FLAGS]..." var=#true help="Flags to pass to pre-commit"'
-run = "PRE_COMMIT_COLOR=never pre-commit run --all-files --hook-stage pre-commit ${usage_flags:-}"
+description = "Run pre-commit hooks on all files via prek"
+usage = 'arg "[FLAGS]..." var=#true help="Flags to pass to prek"'
+run = 'PREK_COLOR=never PREK_HOME="${PREK_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/prek}" prek run --all-files --no-progress --stage pre-commit ${usage_flags:-}'
 
 [tasks.test]
-description = "Run dotfiles validation tests"
-usage = 'arg "[TOOLS]..." var=#true help="Package keys, --suite NAME, --tag TAG, --filter REGEX, --list"'
-run = '~/.local/bin/check-dotfiles ${usage_tools:-}'
+description = "Run repo-only dotfiles Bats validation tests (120s timeout)"
+usage = 'arg "[ARGS]..." var=#true help="Arguments passed to bats (e.g. --filter, --filter-tags, tests/ai.bats)"'
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+tout="$(command -v gtimeout || command -v timeout || true)"
+args=()
+if [ -n "${usage_args:-}" ]; then
+  eval "args=(${usage_args})"
+fi
+has_path=0
+for a in ${args[@]+"${args[@]}"}; do
+  if [[ "$a" == *.bats ]] || [[ "$a" == tests ]] || [[ "$a" == tests/* ]]; then
+    has_path=1
+    break
+  fi
+done
+if [ "$has_path" -eq 0 ]; then
+  args+=("tests")
+fi
+if [ -n "$tout" ]; then
+  exec "$tout" -k 10 "${CHECK_DOTFILES_SUITE_TIMEOUT:-120}" bats "${args[@]}"
+else
+  exec bats "${args[@]}"
+fi
+'''
+
+[tasks.update]
+description = "Upgrade installed tools, packages, and sandbox packs"
+run = """
+if command -v topgrade >/dev/null 2>&1; then
+  topgrade --yes --disable chezmoi
+else
+  if command -v mise >/dev/null 2>&1; then
+    mise self-update -y && mise upgrade -y && mise prune -q -y
+  fi
+  if command -v brew >/dev/null 2>&1; then
+    HOMEBREW_NO_ASK=1 brew update && HOMEBREW_NO_ASK=1 brew upgrade
+  fi
+fi
+if command -v nono >/dev/null 2>&1; then
+  for pack in nolabs-ai/claude nolabs-ai/omp nolabs-ai/opencode nolabs-ai/pi; do
+    nono pull --silent "$pack" || echo "warning: nono pull $pack failed" >&2
+  done
+fi
+"""
 
 [tools]
+bats = "latest"
 chezmoi = "latest"
 hadolint = "latest"
-pre-commit = "latest"
+jq = "latest"
+node = "latest"
+prek = "latest"
 python = "3.15"
 shellcheck = "latest"
-taplo = "latest"
 uv = "latest"
+yq = "latest"

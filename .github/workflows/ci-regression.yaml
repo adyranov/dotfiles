@@ -1,10 +1,11 @@
 name: CI Regression
+permissions: {}
 on:
   schedule:
     - cron: 0 4 * * 0
   workflow_dispatch:
 concurrency:
-  group: ci-regression-${{ github.head_ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
   host:
@@ -14,7 +15,6 @@ jobs:
     with:
       matrix: '["ubuntu-24.04","ubuntu-24.04-arm","macos-26","macos-26-intel"]'
       mode: full
-    secrets: inherit
   docker:
     permissions:
       contents: read
@@ -24,12 +24,13 @@ jobs:
     with:
       matrix: '["archlinux","fedora","ubuntu"]'
       publish: false
-    secrets: inherit
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   wsl:
     permissions:
       contents: read
     uses: ./.github/workflows/ci-wsl.yaml
-    secrets: inherit
   ci-regression-result:
     name: CI Regression Result
     needs: [host, docker, wsl]

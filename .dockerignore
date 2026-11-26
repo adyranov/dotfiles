@@ -1,10 +1,12 @@
 # Ignore everything by default
 **
 
-# Allow core chezmoi sources
+# Allow core chezmoi sources, mise config, and Bats tests
 !install.sh
 !.chezmoi*
+!.mise.toml
 !home/
+!tests/
 
 # IDE & editor
 **/.idea/

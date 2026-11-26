@@ -24,11 +24,11 @@ RUN --mount=type=secret,id=CUSTOM_CA,dst=/run/secrets/custom_ca.pem,required=fal
         dnf-plugins-core \
         git \
         glibc-langpack-en \
+        libatomic \
         sudo \
         tar \
         unzip \
         util-linux \
-        wget \
         which \
         zsh \
     && groupadd --gid "$UID" "$USER" \
@@ -59,6 +59,7 @@ FROM setup AS test
 ARG CACHE_BUST
 ARG USER
 ARG UID
+ARG WITHOUT_TOOLCHAINS=true
 
 RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID,required=false \
     --mount=type=cache,id=dnf-cache,target=/var/cache/dnf,sharing=locked \
@@ -66,14 +67,15 @@ RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID
     --mount=type=cache,id=mise,target="${HOME}/.local/share/mise",uid=${UID},gid=${UID},sharing=locked \
     --mount=type=cache,id=rustup,target="${HOME}/.local/share/rustup",uid=${UID},gid=${UID},sharing=locked \
     --mount=type=cache,id=cargo,target="${HOME}/.local/share/cargo",uid=${UID},gid=${UID},sharing=locked \
-    --mount=type=cache,id=krew,target="${HOME}/.local/share/krew",uid=${UID},gid=${UID},sharing=locked \
     --mount=type=cache,id=helm,target="${HOME}/.local/share/helm",uid=${UID},gid=${UID},sharing=locked \
     --mount=type=tmpfs,target=/var/log \
     --mount=type=tmpfs,target=/tmp \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
-    MISE_ALWAYS_KEEP_DOWNLOAD=true \
-    .local/share/chezmoi/install.sh --data=false \
-    && .local/bin/check-dotfiles \
+    GITHUB_TOKEN="$( [ -f /run/secrets/github_token ] && cat /run/secrets/github_token || true )" \
+    && CI=true \
+    && MISE_ALWAYS_KEEP_DOWNLOAD=true \
+    && export CI GITHUB_TOKEN MISE_ALWAYS_KEEP_DOWNLOAD \
+    && WITHOUT_TOOLCHAINS="$WITHOUT_TOOLCHAINS" .local/share/chezmoi/install.sh --data=false \
+    && zsh -lic 'mise trust ~/.local/share/chezmoi && mise -C ~/.local/share/chezmoi run test' \
     && echo "Cache bust: $CACHE_BUST"
 
 FROM setup
@@ -86,8 +88,7 @@ RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID
     --mount=type=cache,id=dnf-lib,target=/var/lib/dnf,sharing=locked \
     --mount=type=tmpfs,target=/var/log \
     --mount=type=tmpfs,target=/tmp \
-    GITHUB_TOKEN=$(cat /run/secrets/github_token) \
+    GITHUB_TOKEN=$([ -f /run/secrets/github_token ] && cat /run/secrets/github_token || true) \
     WITHOUT_TOOLCHAINS=true \
     .local/share/chezmoi/install.sh --data=false \
-    && .local/bin/check-dotfiles \
     && echo "Cache bust: $CACHE_BUST"

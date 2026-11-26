@@ -59,7 +59,6 @@
       ],
       automerge: true,
       automergeType: 'branch',
-      ignoreTests: true,
       extends: [
         'schedule:weekly',
       ],

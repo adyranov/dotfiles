@@ -1,11 +1,12 @@
 name: Cleanup Containers
+permissions: {}
 on:
   schedule:
     - cron: 30 2 * * 6
   workflow_dispatch:
     inputs:
       keep-versions:
-        description: Minimum number of recent tags to keep per registry
+        description: Minimum number of recent untagged versions to keep on GHCR
         default: "5"
         required: true
 concurrency:
@@ -17,6 +18,7 @@ jobs:
   cleanup-ghcr:
     name: Clean up GHCR images
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write

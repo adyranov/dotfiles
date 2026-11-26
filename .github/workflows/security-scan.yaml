@@ -1,7 +1,9 @@
 name: Security Scan
+permissions: {}
 on:
   workflow_run:
-    workflows: [CI Docker]
+    workflows: [CI, CI Docker]
+    branches: [main]
     types: [completed]
   workflow_dispatch:
 concurrency:
@@ -10,7 +12,11 @@ concurrency:
 jobs:
   trivy:
     if: >-
-      github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+      github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, fedora, archlinux]
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
@@ -29,7 +35,7 @@ jobs:
         env:
           TRIVY_PLATFORM: linux/amd64
         with:
-          image-ref: ghcr.io/${{ github.repository }}:ubuntu
+          image-ref: ghcr.io/${{ github.repository }}:${{ matrix.os }}
           scanners: vuln,secret,misconfig
           ignore-unfixed: true
           vuln-type: os,library
@@ -42,4 +48,4 @@ jobs:
         if: always() && steps.trivy.outcome == 'success'
         with:
           sarif_file: trivy-results.sarif
-          category: trivy-ubuntu
+          category: trivy-${{ matrix.os }}

@@ -29,25 +29,16 @@ repos:
         exclude: modify_.*\.toml$
       - id: check-xml
         name: Check XML
-      - id: check-yaml
-        name: Check YAML
-        exclude: modify_.*\.ya?ml$
-      - id: detect-private-key
-        name: Detect Private Key
       - id: end-of-file-fixer
         name: Fix End of Files
         exclude: ^\.vscode/
       - id: fix-byte-order-marker
         name: Fix UTF-8 BOM
-      - id: mixed-line-ending
-        name: Check Mixed Line Endings
       - id: pretty-format-json
         name: Format JSON
         args: [--autofix, --no-sort-keys]
         # chezmoi templates: modify_* scripts and .chezmoitemplates are not valid JSON
         exclude: (modify_.*\.json(\.tmpl)?|\.chezmoitemplates/.*)$
-      - id: sort-simple-yaml
-        name: Sort Simple YAML
       - id: trailing-whitespace
         name: Trim Trailing Whitespace
         exclude: .*\.md.tmpl$
@@ -99,7 +90,7 @@ repos:
     hooks:
       - id: editorconfig-checker
         name: Check EditorConfig
-        exclude: plist|tmpl|pub|age
+        exclude: \.(plist|tmpl|pub|age)$
   - repo: https://github.com/renovatebot/pre-commit-hooks
     rev: 44.257.5
     hooks:
@@ -128,18 +119,41 @@ repos:
         pass_filenames: true
   - repo: local
     hooks:
-      - id: taplo-lint
-        name: Validate TOML (taplo)
-        entry: mise x taplo -- taplo lint
-        language: system
-        types: [toml]
-        exclude: modify_.*\.toml$
       - id: chezmoi-execute-template
         name: Validate Chezmoi Templates
-        entry: sh -c 'for f in "$@"; do chezmoi execute-template < "$f" > /dev/null; done' --
+        entry: sh -c 'rc=0; for f in "$@"; do if ! chezmoi --source . execute-template < "$f" > /dev/null; then printf "failed template %s\n" "$f" >&2; rc=1; fi; done; exit "$rc"' --
         language: system
-        files: (\.tmpl$|modify_.*\.(json|toml)(\.tmpl)?$)
+        files: (\.tmpl$|modify_.*\.(json|toml|ya?ml)(\.tmpl)?$|modify_private_config$)
         exclude: \.chezmoi\.yaml\.tmpl$
+        stages: [pre-commit]
+      - id: node-syntax-check
+        name: Check JS/MJS Syntax
+        entry: sh -c 'rc=0; for f in "$@"; do if ! node --check "$f"; then printf "failed JS syntax %s\n" "$f" >&2; rc=1; fi; done; exit "$rc"' --
+        language: system
+        files: ^home/private_dot_config/exact_dcg/.*\.(mjs|js)$
+        stages: [pre-commit]
+      - id: zsh-syntax-check
+        name: Check Zsh Functions Syntax
+        entry: sh -c 'rc=0; for f in "$@"; do if ! zsh -n "$f"; then printf "failed zsh syntax %s\n" "$f" >&2; rc=1; fi; done; exit "$rc"' --
+        language: system
+        files: ^home/private_dot_config/exact_zsh/exact_functions\.d/
+        stages: [pre-commit]
+      # The config template only renders under --init; stdin is not a TTY,
+      # so the prompts take their defaults.
+      - id: chezmoi-init-template
+        name: Validate Chezmoi Config Template
+        # --source: CI has no chezmoi config, and a worktree must validate itself.
+        entry: sh -c 'chezmoi --source . execute-template --init --file home/.chezmoi.yaml.tmpl </dev/null >/dev/null'
+        language: system
+        files: ^home/(\.chezmoi\.yaml\.tmpl|\.chezmoitemplates/base/helpers/)
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: docs-tools
+        name: Check README tools table
+        entry: .mise/tasks/docs-tools --check
+        language: system
+        files: ^(home/\.chezmoidata/|home/\.chezmoitemplates/base/packages/|home/\.chezmoitemplates/os/darwin/brewfile$|README\.md$|\.mise/tasks/docs-tools$)
+        pass_filenames: false
         stages: [pre-commit]
 default_language_version:
   node: system

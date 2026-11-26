@@ -1,4 +1,5 @@
 name: CI
+permissions: {}
 on:
   push:
     branches:
@@ -6,6 +7,7 @@ on:
     paths:
       - "**"
       - "!**.md"
+      - "home/**.md"
       - "!LICENSE"
       - "!.editorconfig"
       - "!.gitattributes"
@@ -14,13 +16,15 @@ on:
       - "!.github/renovate.json5"
       - "!.github/workflows/**"
       - ".github/workflows/ci.yaml"
-      - ".github/workflows/ci-*.yaml"
+      - ".github/workflows/ci-host.yaml"
+      - ".github/workflows/ci-docker.yaml"
   pull_request:
     branches:
       - main
     paths:
       - "**"
       - "!**.md"
+      - "home/**.md"
       - "!LICENSE"
       - "!.editorconfig"
       - "!.gitattributes"
@@ -29,7 +33,8 @@ on:
       - "!.github/renovate.json5"
       - "!.github/workflows/**"
       - ".github/workflows/ci.yaml"
-      - ".github/workflows/ci-*.yaml"
+      - ".github/workflows/ci-host.yaml"
+      - ".github/workflows/ci-docker.yaml"
   workflow_dispatch:
 concurrency:
   group: ci-${{ github.head_ref || github.ref }}
@@ -38,6 +43,9 @@ jobs:
   changes:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       host-matrix: ${{ steps.set-outputs.outputs.host-matrix }}
       docker-matrix: ${{ steps.set-outputs.outputs.docker-matrix }}
@@ -50,11 +58,18 @@ jobs:
         id: filter
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          base: ${{ github.event.pull_request.base.ref || github.base_ref || github.ref }}
+          base: ${{ github.event.pull_request.base.ref }}
           filters: |
             shared: &shared
+              - '.chezmoiroot'
+              - '.chezmoiversion'
+              - '.dockerignore'
               - 'home/.chezmoi*'
+              - 'home/.chezmoidata/*.toml'
+              - 'home/.chezmoidata/ai/**'
               - 'home/.chezmoidata/base/**'
+              - 'home/.chezmoiexternals/**'
+              - 'home/.chezmoiscripts/*'
               - 'home/.chezmoiscripts/before/**'
               - 'home/.chezmoiscripts/common/**'
               - 'home/.chezmoiscripts/post/**'
@@ -62,6 +77,8 @@ jobs:
               - 'home/.chezmoitemplates/base/**'
               - 'home/*dot_*'
               - 'home/*dot_*/**'
+              - 'tests/**'
+              - '.mise.toml'
               - 'install.sh'
               - '.github/workflows/ci.yaml'
             host-ubuntu:
@@ -146,7 +163,6 @@ jobs:
     with:
       matrix: ${{ needs.changes.outputs.host-matrix }}
       mode: smoke
-    secrets: inherit
   docker:
     needs: [changes]
     if: needs.changes.outputs.docker-matrix != '[]'
@@ -157,7 +173,9 @@ jobs:
     uses: ./.github/workflows/ci-docker.yaml
     with:
       matrix: ${{ needs.changes.outputs.docker-matrix }}
-    secrets: inherit
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   ci-result:
     name: CI Result
     needs: [changes, host, docker]
