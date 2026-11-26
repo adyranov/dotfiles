@@ -5,7 +5,7 @@
 id: user.kubernetes
 name: User Kubernetes rules
 version: "1.0.0"
-description: Custom denies closing kubectl/oc delete verbs, kubectl node-shell, k3d deletes, and helm destructive ops.
+description: Custom denies closing kubectl/oc delete verbs, k3d deletes, and helm destructive ops.
 keywords:
   - helm
   - k3d
@@ -17,11 +17,6 @@ destructive_patterns:
     severity: critical
     description: kubectl delete removes cluster resources
     explanation: kubernetes.kubectl only blocks mass-delete shapes (delete pod x is allowed by default); this closes every delete verb.
-  - name: kubectl-node-shell
-    pattern: '\bkubectl\b[^;&|\n]*?\bnode-shell\b'
-    severity: high
-    description: kubectl node-shell opens a root shell on a cluster node
-    explanation: No built-in pack gates node-shell; it runs arbitrary commands on the node host, outside the pod sandbox.
   - name: openshift-delete
     pattern: '\boc\b[^;&|\n]*?\bdelete\b'
     severity: critical

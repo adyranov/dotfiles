@@ -1,0 +1,7 @@
+{{- $cmd := printf "sh -c 'd=\"%s/.local/share/mise/installs/node\"; n=\"$d/lts/bin/node\"; [ -x \"$n\" ] || n=\"$d/latest/bin/node\"; [ -x \"$n\" ] || n=\"$(command -v node || true)\"; [ -x \"$n\" ] || { echo \"Blocked by DCG: node missing\" >&2; exit 2; }; env -u NODE_OPTIONS \"$n\" \"%s/.config/dcg/claude-guard.mjs\" || exit 2'" .chezmoi.homeDir .chezmoi.homeDir -}}
+{{- dict
+  "autoMode" (dict "allow" .ai.agents.claude.auto_mode.allow "environment" (list "$defaults" "Host containment: runs inside a nono sandbox with an egress allowlist"))
+  "disableAllHooks" false
+  "hooks" (dict "PreToolUse" (list (dict "hooks" (list (dict "command" $cmd "type" "command")) "matcher" "Bash|Monitor|Write|Edit|MultiEdit|NotebookEdit")))
+  "sandbox" (dict "enabled" false)
+  | toPrettyJson }}

@@ -1,0 +1,38 @@
+{{- $c := .ai.agents.claude -}}
+{{- $s := $c.settings -}}
+{{- $prof := index .ai.profiles .host.profile -}}
+{{- $presetName := dig "claude_preset" $c.preset $prof -}}
+{{- $limit := includeTemplate "base/ai/agents/resolve-subagent-limit" (dict "root" . "preset" $presetName) | int -}}
+{{- $env := merge (dict) $c.env -}}
+{{- $_ := set $env "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS" (toString $limit) -}}
+{{- $enabled := dict -}}
+{{- range $p := $c.plugins.enabled -}}{{- $tc := get $p "toolchain" | default "" -}}{{- if or (not $tc) (get $.toolchains $tc) -}}{{- $_ := set $enabled (printf "%s@%s" $p.id $p.marketplace) true -}}{{- end -}}{{- end -}}
+{{- $mcp := dict -}}
+{{- range $name := ($c.mcp_servers | default list) -}}
+{{-   $srv := index $.ai.mcp.servers $name -}}
+{{-   $_ := set $mcp $name (dict "args" (get $srv "args" | default list) "command" $srv.command "type" "stdio") -}}
+{{- end -}}
+{{- $cmd := printf "sh -c 'd=\"%s/.local/share/mise/installs/node\"; n=\"$d/lts/bin/node\"; [ -x \"$n\" ] || n=\"$d/latest/bin/node\"; [ -x \"$n\" ] || n=\"$(command -v node || true)\"; [ -x \"$n\" ] || { echo \"Blocked by DCG: node missing\" >&2; exit 2; }; env -u NODE_OPTIONS \"$n\" \"%s/.config/dcg/claude-guard.mjs\" || exit 2'" .chezmoi.homeDir .chezmoi.homeDir -}}
+{{- $permissions := dict "defaultMode" $s.default_mode "deny" ($s.permissions_deny | sortAlpha) -}}
+{{- $sandbox := dict "enabled" false -}}
+{{- if eq .host.distro.family "darwin" -}}
+{{-   $home := trimSuffix "/" .chezmoi.homeDir -}}
+{{-   $denyRead := list -}}
+{{-   range $p := dig "claude_builtin" "deny_read" list .ai.sandbox -}}
+{{-     $denyRead = append $denyRead (ternary (printf "%s/%s" $home (trimPrefix "~/" $p)) $p (hasPrefix "~/" $p)) -}}
+{{-   end -}}
+{{-   $domains := includeTemplate "base/ai/sandbox/allow-domains" (dict "root" . "agent" "claude") | mustFromJson -}}
+{{-   $sandbox = dict "allowUnsandboxedCommands" true "autoAllowBashIfSandboxed" true "enabled" true "failIfUnavailable" true "filesystem" (dict "denyRead" ($denyRead | uniq | sortAlpha)) "network" (dict "allowedDomains" $domains) -}}
+{{- end -}}
+{{- dict
+  "autoMode" (dict "allow" $c.auto_mode.allow "environment" (ternary $c.auto_mode.environment (list "$defaults") (eq .host.distro.family "darwin")))
+  "enabledPlugins" $enabled
+  "env" $env
+  "forbiddenKeys" (list "apiKeyHelper" "awsAuthRefresh" "awsCredentialExport" "disabledMcpjsonServers" "enableAllProjectMcpServers" "enabledMcpjsonServers" "fileSuggestion" "gcpAuthRefresh" "otelHeadersHelper" "proxyAuthHelper" "subagentStatusLine")
+  "hooks" (dict "PreToolUse" (list (dict "hooks" (list (dict "command" $cmd "type" "command")) "matcher" "Bash|Monitor|Write|Edit|MultiEdit|NotebookEdit")))
+  "marketplaces" (keys $c.plugins.marketplaces | sortAlpha)
+  "mcpServers" $mcp
+  "permissions" $permissions
+  "sandbox" $sandbox
+  "statusLineCommand" $s.statusline_command
+  | toPrettyJson }}
