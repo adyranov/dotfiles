@@ -195,6 +195,12 @@ ai_providers = [
   "routify-file-proxy-sg.oss-ap-southeast-1.aliyuncs.com"
 ]
 ai_skypilot = ["*.skypilot.co", "skypilot.co"]
+# gh Actions log downloads 302 to signed URLs on rotating Azure Blob storage
+# accounts (productionresultssaNN...); nono wildcards must occupy a whole
+# label, so the prefix can't be tightened — only *.blob.core.windows.net
+# matches the rotating accounts. Lets agents read CI logs without an
+# operator relay.
+ci_logs = ["*.blob.core.windows.net"]
 containers = [
   "*.data.mcr.microsoft.com",
   "*.docker.com",
