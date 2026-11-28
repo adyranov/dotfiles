@@ -277,6 +277,23 @@ export ZDOTDIR="$ssh_home/.config/zsh"
 export FAKE_ZSHENV_SHIM=1
 path=("$fake_bin" \$path)
 hash -r
+# Functions, not just PATH shims: interactive init may reorder PATH (brew
+# shellenv), but a defined function always wins over the external.
+ssh-add() {
+  printf '%s\n' "\$*" >>"\$FAKE_SSH_ADD_LOG"
+  if [ "\${1:-}" = "-l" ]; then
+    if [ -n "\${FAKE_SSH_AGENT_UP:-}" ] && [ -f "\${FAKE_SSH_AGENT_UP}" ]; then
+      return 1
+    fi
+    return "\${FAKE_SSH_ADD_RC:-1}"
+  fi
+  return 0
+}
+ssh-agent() {
+  echo called >>"\$FAKE_SSH_AGENT_LOG"
+  [ -z "\${FAKE_SSH_AGENT_UP:-}" ] || : >"\${FAKE_SSH_AGENT_UP}"
+  printf 'SSH_AUTH_SOCK=/tmp/fake-agent.sock; export SSH_AUTH_SOCK;\n'
+}
 SH
   [ ! -f "$HOME/.local/share/shell/zcompdump" ] || cp "$HOME/.local/share/shell/zcompdump" "$ssh_home/.local/share/shell/zcompdump"
   : >"$ssh_home/.ssh/id_yk_blue"
@@ -307,10 +324,10 @@ SH
     MISE_DATA_DIR="$HOME/.local/share/mise" MISE_STATE_DIR="$HOME/.local/state/mise" \
     PATH="$test_path" SSH_AUTH_SOCK=/tmp/existing.sock \
     FAKE_SSH_ADD_RC=1 FAKE_SSH_ADD_LOG="$add_log" FAKE_SSH_AGENT_LOG="$agent_log" \
-    zsh -ic 'print -r -- "$(whence -p ssh-add)" "$(whence -p ssh-agent)" "shim=${FAKE_ZSHENV_SHIM:-absent}" "zdotdir=$ZDOTDIR" "path=${(j.:.)path}"' </dev/null 2>/dev/null)"
+    zsh -ic 'print -r -- "$(whence -w ssh-add)" "$(whence -w ssh-agent)" "shim=${FAKE_ZSHENV_SHIM:-absent}" "zdotdir=$ZDOTDIR" "path=${(j.:.)path}"' </dev/null 2>/dev/null)"
   case "$resolve" in
-    "$fake_bin/ssh-add $fake_bin/ssh-agent "*) ;;
-    *) fail "fake ssh binaries not resolved after zsh init: $resolve" ;;
+    "ssh-add: function ssh-agent: function "*) ;;
+    *) fail "fake ssh functions not defined after zsh init: $resolve" ;;
   esac
   rm -f "$ssh_home/.local/share/shell/ssh-agent.env"
 
