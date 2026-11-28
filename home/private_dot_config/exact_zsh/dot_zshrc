@@ -17,16 +17,17 @@ setopt glob_dots no_auto_menu complete_aliases no_bg_nice
 typeset -U PATH path fpath
 fpath=("$ZDOTDIR/completions" $fpath)
 
-# Completion initialization (dump outside ~/.cache).
+# Completion initialization (dump outside ~/.cache). -u: shared runner images
+# ship group-writable site dirs; without it compinit aborts on non-tty shells.
 _shell_data="${_xdg_data}/shell"
 [[ -d "$_shell_data" ]] || { mkdir -p "$_shell_data" && chmod 700 "$_shell_data"; }
 _zdump="${_shell_data}/zcompdump"
 autoload -Uz compinit
 _zfresh=(${_zdump}(Nmh-24))
 if (( $#_zfresh )); then
-  compinit -C -d "$_zdump"
+  compinit -u -C -d "$_zdump"
 else
-  compinit -d "$_zdump"
+  compinit -u -d "$_zdump"
 fi
 unset _zfresh _zdump
 
