@@ -186,6 +186,13 @@ PY
   jq -e '(.network.credentials // []) | sort == ["github","github_git"]' "$BATS_TEST_TMPDIR/intel-claude.json" >/dev/null
   jq -e '.network.custom_credentials | (.deepseek.credential_key == "env://DEEPSEEK_API_KEY") and (.opencode.credential_key == "env://OPENCODE_API_KEY") and (.openrouter.credential_key == "env://OPENROUTER_API_KEY") and (.github.credential_key == "env://GITHUB_TOKEN") and (.brave.credential_key == "env://BRAVE_SEARCH_API_KEY") and (.brave.env_var == "BRAVE_API_KEY") and (.brave.inject_header == "X-Subscription-Token") and (.brave.upstream == "https://api.search.brave.com") and (.deepseek | has("keychain") | not)' "$BATS_TEST_TMPDIR/intel-pi.json" >/dev/null
   jq -e '(.network.allow_domain // []) | index("infer01") != null' "$BATS_TEST_TMPDIR/intel-pi.json" >/dev/null
+  # CI log storage is GitHub's named Blob accounts only; a blob wildcard admits anyone's storage.
+  for agent in claude omp opencode pi; do
+    jq -e '(.network.allow_domain // []) as $d
+      | ($d | index("productionresultssa0.blob.core.windows.net") != null)
+      and ($d | map(select(endswith(".blob.core.windows.net"))) | all(test("^productionresultssa[0-9]+\\.blob\\.core\\.windows\\.net$")))' \
+      "$BATS_TEST_TMPDIR/intel-${agent}.json" >/dev/null || fail "$agent: blob hosts must be named productionresultssaN accounts only"
+  done
   jq -e '(.environment.set_vars.GIT_CONFIG_NOSYSTEM == "1") and (.environment.set_vars.NPM_CONFIG_CACHE | contains("/.cache/sandbox-npm")) and (.environment.set_vars.UV_CACHE_DIR | contains("/.cache/sandbox-uv"))' "$BATS_TEST_TMPDIR/intel-pi.json" >/dev/null
   jq -e '(.filesystem.deny | length) > 0' "$BATS_TEST_TMPDIR/intel-opencode.json" >/dev/null
 
