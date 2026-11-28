@@ -275,6 +275,18 @@ printf 'SSH_AUTH_SOCK=/tmp/fake-agent.sock; export SSH_AUTH_SOCK;\n'
 SH
   chmod +x "$fake_bin/ssh-add" "$fake_bin/ssh-agent"
   local test_path="$fake_bin:$PATH:/opt/local/bin:/opt/local/sbin:/opt/local/libexec/gnubin"
+  # Resolution guard: the ssh block in .zshrc resolves ssh-add/ssh-agent via
+  # $path; prove the fakes win before trusting any case below.
+  local resolve
+  resolve="$(env -u AGENT_SANDBOX -u __MISE_DIFF -u __MISE_ORIG_PATH -u __MISE_SESSION \
+    HOME="$ssh_home" XDG_CONFIG_HOME="$ssh_home/.config" XDG_DATA_HOME="$ssh_home/.local/share" ZDOTDIR="$ssh_home/.config/zsh" \
+    MISE_DATA_DIR="$HOME/.local/share/mise" MISE_STATE_DIR="$HOME/.local/state/mise" \
+    PATH="$test_path" SSH_AUTH_SOCK=/tmp/existing.sock \
+    FAKE_SSH_ADD_RC=1 FAKE_SSH_ADD_LOG="$add_log" FAKE_SSH_AGENT_LOG="$agent_log" \
+    zsh -ic 'hash -r; print -r -- "$(whence -p ssh-add)" "$(whence -p ssh-agent)"' </dev/null 2>/dev/null)"
+  [ "$resolve" = "$fake_bin/ssh-add $fake_bin/ssh-agent" ] \
+    || fail "fake ssh binaries not resolved after zsh init (got: $resolve)"
+  rm -f "$ssh_home/.local/share/shell/ssh-agent.env"
 
   # Case 1: ssh-add -l exits 1 (agent up, no keys) -> 0 ssh-agent calls, key added
   : >"$add_log"
@@ -284,7 +296,7 @@ SH
     MISE_DATA_DIR="$HOME/.local/share/mise" MISE_STATE_DIR="$HOME/.local/state/mise" \
     PATH="$test_path" SSH_AUTH_SOCK=/tmp/existing.sock \
     FAKE_SSH_ADD_RC=1 FAKE_SSH_ADD_LOG="$add_log" FAKE_SSH_AGENT_LOG="$agent_log" \
-    zsh -ic exit </dev/null
+    zsh -ic 'hash -r; exit' </dev/null
   [ ! -s "$agent_log" ] || fail "ssh-agent spawned when ssh-add exited 1"
   # TEMP DIAGNOSTIC (drop after macos runner case-1 is understood): rerun the
   # exact case-1 shell with xtrace and surface ssh-relevant lines on failure.
