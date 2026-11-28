@@ -274,6 +274,7 @@ PY
   cat >"$ssh_home/.config/zsh/.zshenv" <<SH
 . "$HOME/.zshenv"
 export ZDOTDIR="$ssh_home/.config/zsh"
+export FAKE_ZSHENV_SHIM=1
 path=("$fake_bin" \$path)
 hash -r
 SH
@@ -306,9 +307,11 @@ SH
     MISE_DATA_DIR="$HOME/.local/share/mise" MISE_STATE_DIR="$HOME/.local/state/mise" \
     PATH="$test_path" SSH_AUTH_SOCK=/tmp/existing.sock \
     FAKE_SSH_ADD_RC=1 FAKE_SSH_ADD_LOG="$add_log" FAKE_SSH_AGENT_LOG="$agent_log" \
-    zsh -ic 'hash -r; print -r -- "$(whence -p ssh-add)" "$(whence -p ssh-agent)"' </dev/null 2>/dev/null)"
-  [ "$resolve" = "$fake_bin/ssh-add $fake_bin/ssh-agent" ] \
-    || fail "fake ssh binaries not resolved after zsh init (got: $resolve)"
+    zsh -ic 'print -r -- "$(whence -p ssh-add)" "$(whence -p ssh-agent)" "shim=${FAKE_ZSHENV_SHIM:-absent}" "zdotdir=$ZDOTDIR" "path=${(j.:.)path}"' </dev/null 2>/dev/null)"
+  case "$resolve" in
+    "$fake_bin/ssh-add $fake_bin/ssh-agent "*) ;;
+    *) fail "fake ssh binaries not resolved after zsh init: $resolve" ;;
+  esac
   rm -f "$ssh_home/.local/share/shell/ssh-agent.env"
 
   # Case 1: ssh-add -l exits 1 (agent up, no keys) -> 0 ssh-agent calls, key added
