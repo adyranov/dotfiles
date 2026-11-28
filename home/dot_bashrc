@@ -4,6 +4,11 @@ case $- in
   *) return ;;
 esac
 
+# Ubuntu's default ~/.profile sources ~/.bashrc; .bash_profile also sources it
+# directly. Guard so login shells run this file only once.
+[ -n "${_DOTFILES_BASHRC:-}" ] && return
+_DOTFILES_BASHRC=1
+
 export HISTFILE="$HOME/.bash_history"
 HISTSIZE=50000
 HISTFILESIZE=50000

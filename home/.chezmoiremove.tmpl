@@ -5,7 +5,7 @@ Never removes logins, sessions, or runtime state.
 {{- /* Legacy executed caches moved out of ~/.cache (R8). */}}
 .cache/gitstatus
 .cache/gitstatus/**
-.cache/p10k-instant-prompt-*
+.cache/p10k-*
 .cache/zsh/eval-cache
 .cache/zsh/eval-cache/**
 .cache/zsh4humans
@@ -70,3 +70,10 @@ Library/Application Support/greyproxy
 .config/pi/agent/extensions/dcg-guard.ts
 .config/pi/agent/extensions/dcg-robot.ts
 .config/omp/agent/extensions/dcg-guard.ts
+{{- /* Cached mise eval snapshots embed a PATH snapshot; mise is evaluated uncached again. */}}
+.local/share/shell/init/mise.bash
+.local/share/shell/init/mise.zsh
+{{- /* Orphaned p10k config and stale compiled rc/dump (the dump now lives in $XDG_DATA_HOME/shell). */}}
+.config/zsh/.p10k.zsh
+.config/zsh/.zcompdump*
+.config/zsh/.zshrc.zwc

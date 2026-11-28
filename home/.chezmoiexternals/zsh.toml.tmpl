@@ -1,22 +1,19 @@
-{{- /* Pinned zsh plugins (centralized). Refs are 40-char commit SHAs so
-       nothing is fetched at shell start and tags cannot be force-pushed. */ -}}
-# v0.7.1
+{{- /* zsh plugins (centralized). Default-branch refs: they track upstream
+       latest per the docs/agents/chezmoi.md update policy, refreshed weekly. */ -}}
 {{ template "base/github/external" (dict
     "type"   "archive"
     "target" ".config/zsh/plugins/zsh-autosuggestions"
-    "repo"   "zsh-users/zsh-autosuggestions@e52ee8ca55bcc56a17c828767a3f98f22a68d4eb"
+    "repo"   "zsh-users/zsh-autosuggestions@master"
     "exact"  true) }}
 
-# 0.8.0
 {{ template "base/github/external" (dict
     "type"   "archive"
     "target" ".config/zsh/plugins/zsh-syntax-highlighting"
-    "repo"   "zsh-users/zsh-syntax-highlighting@db085e4661f6aafd24e5acb5b2e17e4dd5dddf3e"
+    "repo"   "zsh-users/zsh-syntax-highlighting@master"
     "exact"  true) }}
 
-# v1.3.0
 {{ template "base/github/external" (dict
     "type"   "archive"
     "target" ".config/zsh/plugins/fzf-tab"
-    "repo"   "Aloxaf/fzf-tab@d7e0234614dbe5369fdd760907d12c0e05a4dccc"
+    "repo"   "Aloxaf/fzf-tab@master"
     "exact"  true) }}

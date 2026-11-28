@@ -1,5 +1,6 @@
 #compdef topgrade
+# clap's generated script self-invokes (funcstack guard inside the eval),
+# so calling it again here would complete twice per Tab.
 if (( $+commands[topgrade] )); then
   eval "$(topgrade --gen-completion zsh)"
-  _topgrade "$@"
 fi

@@ -27,9 +27,12 @@ deny_vars = [
   "SSH_AUTH_SOCK",
   "VAULT_*"
 ]
-# Password-manager CLI state nono's deny_credentials group does not cover
-# (macOS only: Landlock cannot deny; these dirs are never granted on Linux).
+# Password-manager CLI state nono's deny_credentials group does not cover, plus
+# carapace's runtime JSON cache. The whole deny list is macOS-only (Landlock has
+# no deny; the list is skipped when rendering Linux profiles, see render-profile),
+# so on Linux ~/.cache/carapace stays writable — data-only cache, accepted risk.
 deny = [
+  "~/.cache/carapace",
   "~/.config/Bitwarden CLI",
   "~/.config/bws",
   "~/.config/proton-pass-cli",

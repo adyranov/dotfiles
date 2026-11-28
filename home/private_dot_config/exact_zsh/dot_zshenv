@@ -1,5 +1,8 @@
 # Non-fetching Zsh environment setup.
 if [ -n "${ZSH_VERSION-}" ]; then
   : "${ZDOTDIR:=$HOME/.config/zsh}"
+  # Skip /etc/zprofile path_helper and Ubuntu's /etc/zsh/zshrc second compinit,
+  # which reorder PATH ahead of gnubin/MacPorts/~/.local/bin.
+  setopt no_global_rcs
 fi
 umask o-w

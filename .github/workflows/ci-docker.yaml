@@ -39,22 +39,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Run container Bats suite
+      # GHA cache export needs the docker-container driver; the runner default is docker.
+      - name: Prepare buildx
+        run: docker buildx create --name dotfiles --driver docker-container --use
+      - name: Build test stage and run container Bats suite
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           docker buildx build \
             --target test \
+            --cache-from type=gha,scope=${{ matrix.os }} \
+            --cache-to type=gha,mode=max,scope=${{ matrix.os }} \
             --secret id=GIT_AUTH_TOKEN,env=GITHUB_TOKEN \
             -f containers/${{ matrix.os }}/Dockerfile \
             .
-      - name: Verify offline zsh and bash container startup
+      - name: Build image and verify offline zsh and bash startup
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           docker buildx build \
             --load \
             -t dotfiles-test:${{ matrix.os }} \
+            --cache-from type=gha,scope=${{ matrix.os }} \
+            --cache-to type=gha,mode=max,scope=${{ matrix.os }} \
             --secret id=GIT_AUTH_TOKEN,env=GITHUB_TOKEN \
             -f containers/${{ matrix.os }}/Dockerfile \
             .

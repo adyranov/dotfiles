@@ -39,8 +39,7 @@ if [ "$_can_modern" -eq 1 ]; then
   _source_cached_init atuin "$_sh" atuin init "$_sh" --disable-up-arrow
   if command -v carapace >/dev/null 2>&1; then
     [ -d "$_data/shell/cache" ] || { mkdir -p "$_data/shell/cache" && chmod 700 "$_data/shell"; }
-    export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
-    export CARAPACE_EXCLUDES='terragrunt,tofu'
+    # CARAPACE_BRIDGES/EXCLUDES are exported by exports.sh (sourced above), before any cached init.
     _source_cached_init carapace "$_sh" env XDG_CACHE_HOME="$_data/shell/cache" carapace _carapace "$_sh"
   fi
 fi

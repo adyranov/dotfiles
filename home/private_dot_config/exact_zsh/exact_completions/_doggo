@@ -1,5 +1,6 @@
 #compdef doggo
+# doggo's generated script runs completions itself (it ends with `_doggo`),
+# so calling it again here would complete twice per Tab.
 if (( $+commands[doggo] )); then
   eval "$(doggo completions zsh)"
-  _doggo "$@"
 fi

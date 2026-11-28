@@ -1,3 +1,7 @@
 # shellcheck shell=bash
+# Login shells read .bash_profile instead of .profile, so restore the chain
+# (distro .profile files carry PATH additions such as ~/.local/bin).
+# shellcheck source=/dev/null
+[ -r "$HOME/.profile" ] && . "$HOME/.profile"
 # shellcheck source=/dev/null
 [ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"

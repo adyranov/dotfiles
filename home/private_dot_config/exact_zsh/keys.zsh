@@ -23,6 +23,8 @@ typeset -ga _dir_hist_back=()
 typeset -ga _dir_hist_fwd=()
 
 _dir_hist_chpwd() {
+  # Explicit stack updates in the widgets below: chpwd must not push as well.
+  [[ -n ${_dir_hist_skip-} ]] && return 0
   if [[ -n ${OLDPWD-} && $OLDPWD != "$PWD" ]]; then
     _dir_hist_back+=("$OLDPWD")
     _dir_hist_fwd=()
@@ -36,7 +38,8 @@ _zsh_cd_back() {
   local target="${_dir_hist_back[-1]}"
   _dir_hist_back=("${_dir_hist_back[@]:0:-1}")
   _dir_hist_fwd+=("$PWD")
-  builtin cd -q -- "$target" 2>/dev/null || return 0
+  local _dir_hist_skip=1
+  builtin cd -- "$target" 2>/dev/null || return 0
   zle reset-prompt
 }
 zle -N _zsh_cd_back
@@ -47,7 +50,8 @@ _zsh_cd_forward() {
   local target="${_dir_hist_fwd[-1]}"
   _dir_hist_fwd=("${_dir_hist_fwd[@]:0:-1}")
   _dir_hist_back+=("$PWD")
-  builtin cd -q -- "$target" 2>/dev/null || return 0
+  local _dir_hist_skip=1
+  builtin cd -- "$target" 2>/dev/null || return 0
   zle reset-prompt
 }
 zle -N _zsh_cd_forward
@@ -56,7 +60,8 @@ bindkey '^[[1;2C' _zsh_cd_forward
 _zsh_cd_up() {
   _dir_hist_back+=("$PWD")
   _dir_hist_fwd=()
-  builtin cd -q .. 2>/dev/null || return 0
+  local _dir_hist_skip=1
+  builtin cd .. 2>/dev/null || return 0
   zle reset-prompt
 }
 zle -N _zsh_cd_up
@@ -73,7 +78,8 @@ _zsh_fzf_cd_child() {
   if [[ -n $dir ]]; then
     _dir_hist_back+=("$PWD")
     _dir_hist_fwd=()
-    builtin cd -q -- "$dir" 2>/dev/null
+    local _dir_hist_skip=1
+    builtin cd -- "$dir" 2>/dev/null
   fi
   zle reset-prompt
 }
@@ -95,10 +101,23 @@ bindkey '^[^[' _zsh_sudo_command_line
 # Raw unwrapped OSC 133 and OSC 7 inside tmux (Ghostty's injected integration
 # does not reach shells started by tmux).
 if [[ -n ${TMUX-} ]]; then
+  # RFC 3986 percent-encoding: a crafted directory name must not inject
+  # escape sequences into tmux (fast path for plain paths).
+  _tmux_osc7_path() {
+    [[ $PWD != *[!a-zA-Z0-9._~/-]* ]] && print -rn -- "$PWD" && return 0
+    emulate -L zsh
+    setopt nomultibyte # encode UTF-8 bytes, not code points
+    local out= c
+    for c in ${(s::)PWD}; do
+      [[ $c == [a-zA-Z0-9._~/-] ]] && out+=$c || out+=$(printf '%%%02X' "'$c")
+    done
+    print -rn -- "$out"
+  }
+
   _tmux_osc_precmd() {
     local _rc=$?
     printf '\e]133;D;%s\a' "$_rc"
-    printf '\e]7;file://%s%s\a' "${HOST:-localhost}" "$PWD"
+    printf '\e]7;file://%s%s\a' "${HOST:-localhost}" "$(_tmux_osc7_path)"
     printf '\e]133;A\a'
   }
   _tmux_osc_preexec() {

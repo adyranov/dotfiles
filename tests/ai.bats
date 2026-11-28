@@ -390,13 +390,16 @@ load 'helper'
       [ "$r_status" = "allowed" ] || fail "nono why ($agent read $path) = $r_status (want allowed): $r_out"
       [ "$w_status" = "denied" ] || fail "nono why ($agent write $path) = $w_status (want denied): $w_out"
     done
-    # Host-executed caches and shell plugin/completion paths must be write-denied for all 4 agents
+    # Host-executed caches and shell plugin/completion paths must be write-denied for all 4 agents.
+    # Shell dirs are protected by having no grants at all, so a nonexistent canary
+    # child proves folder-level protection (nothing else writable in that tree).
     local exec_path
     for exec_path in \
       "$HOME/.config/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" \
       "$HOME/.local/share/shell/zcompdump" \
-      "$HOME/.local/share/shell/init/mise.zsh" \
       "$HOME/.local/share/shell/init/starship.zsh" \
+      "$HOME/.local/share/shell/canary-$RANDOM.zsh" \
+      "$HOME/.config/zsh/canary-$RANDOM.zsh" \
       "$HOME/.local/share/shell/cache/carapace/bridges-zsh.json" \
       "$HOME/.config/carapace/specs/kubecolor.yaml" \
       "$HOME/.local/share/prek/cache" \
@@ -409,8 +412,12 @@ load 'helper'
       [ "$w_status" = "denied" ] || fail "nono why ($agent write $exec_path) = $w_status (want denied)"
     done
     if [ "$(uname -s)" = "Darwin" ]; then
-      w_status="$(XDG_RUNTIME_DIR="$runtime_dir" nono why --profile "$agent" --path "$HOME/Library/Caches/carapace/bridges-zsh.json" --op write --json 2>/dev/null | jq -r '.status')"
-      [ "$w_status" = "denied" ] || fail "nono why ($agent write ~/Library/Caches/carapace/bridges-zsh.json) = $w_status (want denied)"
+      # ~/.cache/carapace is denied via the deny list, which renders on macOS only;
+      # on Linux ~/.cache is broadly granted, so no probe there.
+      for exec_path in "$HOME/.cache/carapace/bridges-zsh.json" "$HOME/Library/Caches/carapace/bridges-zsh.json"; do
+        w_status="$(XDG_RUNTIME_DIR="$runtime_dir" nono why --profile "$agent" --path "$exec_path" --op write --json 2>/dev/null | jq -r '.status')"
+        [ "$w_status" = "denied" ] || fail "nono why ($agent write $exec_path) = $w_status (want denied)"
+      done
     fi
     for exec_path in "$HOME/.local/share/zsh/history" "$HOME/.bash_history"; do
       r_status="$(XDG_RUNTIME_DIR="$runtime_dir" nono why --profile "$agent" --path "$exec_path" --op read --json 2>/dev/null | jq -r '.status')"

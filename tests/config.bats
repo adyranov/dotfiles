@@ -31,9 +31,26 @@ load 'helper'
   zsh -fn "$HOME/.config/zsh/.zshrc"
   zsh -fn "$HOME/.config/zsh/keys.zsh"
   zsh -fn "$HOME/.config/zsh/abbr.zsh"
-  [ ! -f "$HOME/.config/zsh/completions/_agent" ] || zsh -fn "$HOME/.config/zsh/completions/_agent"
-  [ ! -f "$HOME/.config/zsh/functions.d/skyl" ] || zsh -fn "$HOME/.config/zsh/functions.d/skyl"
-  [ ! -f "$HOME/.config/zsh/functions.d/kubesess" ] || bash -n "$HOME/.config/zsh/functions.d/kubesess"
+  # These three targets are gated in home/.chezmoiignore.tmpl: _agent on any agent
+  # toolchain (base/helpers/any-agent-toolchain), skyl on .toolchains.ai, kubesess
+  # on .toolchains.kubernetes. Mirror those conditions; off means not applied.
+  local zsh_data ai_enabled kubernetes_enabled any_agent
+  zsh_data="$(chezmoi --source "$REPO_ROOT" data)"
+  ai_enabled="$(printf '%s' "$zsh_data" | jq -r '.toolchains.ai // false')"
+  kubernetes_enabled="$(printf '%s' "$zsh_data" | jq -r '.toolchains.kubernetes // false')"
+  any_agent="$(printf '%s' "$zsh_data" | jq -r '[.toolchains.pi, .toolchains.opencode, .toolchains.omp, .toolchains.claude] | any')"
+  if [ "$any_agent" = "true" ]; then
+    assert_file_exists "$HOME/.config/zsh/completions/_agent"
+    zsh -fn "$HOME/.config/zsh/completions/_agent"
+  fi
+  if [ "$ai_enabled" = "true" ]; then
+    assert_file_exists "$HOME/.config/zsh/functions.d/skyl"
+    zsh -fn "$HOME/.config/zsh/functions.d/skyl"
+  fi
+  if [ "$kubernetes_enabled" = "true" ]; then
+    assert_file_exists "$HOME/.config/zsh/functions.d/kubesess"
+    bash -n "$HOME/.config/zsh/functions.d/kubesess"
+  fi
 }
 
 @test "zsh config has no legacy framework references, loads plugins offline, and sets keybindings" {
@@ -42,16 +59,26 @@ load 'helper'
   err_out="$(TERM=vt100 zsh -ic exit 2>&1 >/dev/null || true)"
   [ -z "$err_out" ] || fail "zsh -ic exit wrote to stderr: $err_out"
 
-  local bk
+  # Sequence-specific: stock emacs also binds M-b/M-f, so only the exact
+  # reported sequence lines prove our (lowercase) bindings are in place.
+  local bk kseq kwidget
+  for kseq in '^[b' '^[f' '^[[1;3D' '^[[1;3C'; do
+    case "$kseq" in
+      '^[b'|'^[[1;3D') kwidget=backward-word ;;
+      *) kwidget=forward-word ;;
+    esac
+    bk="$(zsh -ic "bindkey '$kseq'")"
+    [ "$bk" = "\"$kseq\" $kwidget" ] \
+      || fail "expected bindkey '$kseq' -> $kwidget, got: $bk"
+  done
   bk="$(zsh -ic 'bindkey')"
-  [[ "$bk" == *"backward-word"* ]] || fail "missing backward-word binding"
-  [[ "$bk" == *"forward-word"* ]] || fail "missing forward-word binding"
   [[ "$bk" == *"up-line-or-beginning-search"* ]] || fail "missing up-line-or-beginning-search binding"
   [[ "$bk" == *"_zsh_cd_back"* ]] || fail "missing _zsh_cd_back binding"
   [[ "$bk" == *"_zsh_cd_up"* ]] || fail "missing _zsh_cd_up binding"
 
   if [ -r "$HOME/.config/zsh/abbr.zsh" ]; then
-    local abbr_out dupes
+    local abbr_out dupes expected_count
+    expected_count="$(grep -c '^abbr "' "$REPO_ROOT/home/private_dot_config/exact_zsh-abbr/private_user-abbreviations")"
     abbr_out="$(zsh -ic '
       zle() { :; }
       print -r -- "count=${#_abbr_map}"
@@ -70,7 +97,7 @@ load 'helper'
       LBUFFER="! gst"; RBUFFER=""; _abbr_expand_space; print -r -- "e9=$LBUFFER"
       LBUFFER="git gst"; RBUFFER=""; _abbr_expand_space; print -r -- "e10=$LBUFFER"
     ')"
-    [[ "$abbr_out" == *"count=244"* ]] || fail "expected 244 abbreviations: $abbr_out"
+    [[ "$abbr_out" == *"count=$expected_count"* ]] || fail "expected $expected_count abbreviations: $abbr_out"
     [[ "$abbr_out" == *"gst=git status"* ]] || fail "expected gst -> git status: $abbr_out"
     [[ "$abbr_out" == *'czs=cd $(chezmoi source-path)'* ]] || fail "expected czs -> cd \$(chezmoi source-path): $abbr_out"
     [[ "$abbr_out" == *"x=ouch decompress"* ]] || fail "expected x -> ouch decompress: $abbr_out"
@@ -107,10 +134,13 @@ load 'helper'
   for tool in chezmoi hf k9s kubecolor kubescape oc rclone sky stern yq; do
     assert_file_exists "$HOME/.config/carapace/specs/${tool}.yaml"
   done
-  for tool in doggo omp sops topgrade terragrunt tofu; do
+  for tool in doggo sops topgrade terragrunt tofu; do
     assert_file_exists "$HOME/.config/zsh/completions/_${tool}"
     zsh -fn "$HOME/.config/zsh/completions/_${tool}"
   done
+  # omp: oh-my-pi's completion generator is broken upstream (bun stack trace),
+  # so completion is intentionally absent rather than shimmed.
+  [ ! -e "$HOME/.config/zsh/completions/_omp" ] || fail "unexpected omp completion wrapper"
   if [ -r "$HOME/.config/zsh/.zshrc" ]; then
     local tg_comp tofu_comp
     tg_comp="$(zsh -ic 'printf "%s" "${_comps[terragrunt]:-}"' 2>/dev/null || true)"
@@ -159,7 +189,7 @@ PY
   [[ "$dur_1s" != *"1s"* ]] || fail "unexpected cmd_duration for 1000ms (<3000ms): $dur_1s"
 
   st_1="$(cd "$repo" && TERM=xterm-256color STARSHIP_CONFIG="$HOME/.config/starship.toml" starship prompt --status 1)"
-  [[ "$st_1" == *"1"* ]] || fail "expected error status 1 in prompt: $st_1"
+  [[ "$st_1" == *" 1"* ]] || fail "expected error status symbol+1 in prompt: $st_1"
   st_0="$(cd "$repo" && TERM=xterm-256color STARSHIP_CONFIG="$HOME/.config/starship.toml" starship prompt --status 0)"
   [[ "$st_0" != *""* ]] || fail "unexpected error status symbol for status 0: $st_0"
 
@@ -286,23 +316,30 @@ SH
   local starship_cache="$ssh_home/.local/share/shell/init/starship.zsh"
   local mise_cache="$ssh_home/.local/share/shell/init/mise.zsh"
   assert_file_exists "$starship_cache"
-  assert_file_exists "$mise_cache"
-  grep -Eq '^# bin: .*/mise$' "$mise_cache" || fail "unexpected mise init cache header: $(head -n 1 "$mise_cache")"
+  # Bridges/excludes are exported by exports.sh before any cached init, so they must
+  # appear in the header even when the first shell starts without them in the env.
+  grep -q '^# cmd: starship init zsh bridges:zsh,fish,bash,inshellisense excludes:terragrunt,tofu bin: ' "$starship_cache" \
+    || fail "starship cache header lacks carapace env: $(head -n 1 "$starship_cache")"
+  # mise activate runs uncached on purpose: its output embeds PATH snapshots,
+  # so no ~/.local/share/shell/init/mise.zsh may ever be written.
+  [ ! -e "$mise_cache" ] || fail "mise init must not be cached: $mise_cache"
   local mark="$BATS_TEST_TMPDIR/cache-mark"
   sleep 1
   touch "$mark"
-  env -u __MISE_DIFF -u __MISE_ORIG_PATH -u __MISE_SESSION \
+  local mise_whence
+  mise_whence="$(env -u __MISE_DIFF -u __MISE_ORIG_PATH -u __MISE_SESSION \
     HOME="$ssh_home" XDG_CONFIG_HOME="$ssh_home/.config" XDG_DATA_HOME="$ssh_home/.local/share" ZDOTDIR="$ssh_home/.config/zsh" \
     MISE_DATA_DIR="$HOME/.local/share/mise" MISE_STATE_DIR="$HOME/.local/state/mise" \
-    zsh -ic 'typeset -f _mise_hook >/dev/null' </dev/null
+    zsh -ic 'typeset -f _mise_hook >/dev/null; whence -w mise' </dev/null)"
+  [ "$mise_whence" = "mise: function" ] || fail "mise activation did not define a function: $mise_whence"
   [ ! "$starship_cache" -nt "$mark" ] || fail "starship init cache was unexpectedly regenerated on second startup"
-  [ ! "$mise_cache" -nt "$mark" ] || fail "mise init cache was unexpectedly regenerated on second startup"
-  printf '# bin: /stale/starship\n' >"$starship_cache"
+  [ ! -e "$mise_cache" ] || fail "mise init cache appeared on second startup: $mise_cache"
+  printf '# cmd: stale init zsh bridges: excludes: bin: /stale/starship\n' >"$starship_cache"
   env -u __MISE_DIFF -u __MISE_ORIG_PATH -u __MISE_SESSION \
     HOME="$ssh_home" XDG_CONFIG_HOME="$ssh_home/.config" XDG_DATA_HOME="$ssh_home/.local/share" ZDOTDIR="$ssh_home/.config/zsh" \
     MISE_DATA_DIR="$HOME/.local/share/mise" MISE_STATE_DIR="$HOME/.local/state/mise" \
     zsh -ic exit </dev/null
-  grep -Eq '^# bin: .*/starship$' "$starship_cache" || fail "stale init cache bin header was not regenerated: $(head -n 1 "$starship_cache")"
+  grep -Eq '^# cmd: starship init zsh bridges:.* excludes:.* bin: .*/starship$' "$starship_cache" || fail "stale init cache header was not regenerated: $(head -n 1 "$starship_cache")"
 
   local fake_cache_home="$BATS_TEST_TMPDIR/fake-cache-home" empty_mise="$BATS_TEST_TMPDIR/empty-mise"
   local fake_direnv="$fake_cache_home/.local/bin/direnv"
@@ -321,7 +358,11 @@ SH
     MISE_DATA_DIR="$empty_mise" MISE_STATE_DIR="$BATS_TEST_TMPDIR/empty-mise-state" \
     PATH="/usr/bin:/bin" zsh -ic exit </dev/null
   assert_file_exists "$direnv_cache"
-  [ "$(head -n 1 "$direnv_cache")" = "# bin: $fake_direnv" ] || fail "unexpected direnv cache header: $(head -n 1 "$direnv_cache")"
+  local head1
+  head1="$(head -n 1 "$direnv_cache")"
+  # exports.sh sets the carapace env before any cached init, so the header is fully deterministic.
+  [[ "$head1" == "# cmd: direnv hook zsh bridges:zsh,fish,bash,inshellisense excludes:terragrunt,tofu bin: $fake_direnv" ]] \
+    || fail "unexpected direnv cache header: $head1"
   grep -q '_FAKE_CACHE_V=1' "$direnv_cache" || fail "expected v1 in direnv cache"
   sleep 1
   cat >"$fake_direnv" <<'SH'
@@ -334,6 +375,21 @@ SH
     MISE_DATA_DIR="$empty_mise" MISE_STATE_DIR="$BATS_TEST_TMPDIR/empty-mise-state" \
     PATH="/usr/bin:/bin" zsh -ic exit </dev/null
   grep -q '_FAKE_CACHE_V=2' "$direnv_cache" || fail "init cache was not regenerated after touching binary newer than cache"
+
+  # 5. A denied init cache dir must fall back silently (no redirect errors in zsh).
+  cat >"$fake_direnv" <<'SH'
+#!/usr/bin/env sh
+echo 'export _FAKE_CACHE_V=3'
+SH
+  chmod 500 "${direnv_cache%/*}"
+  local ro_err
+  ro_err="$(env -u __MISE_DIFF -u __MISE_ORIG_PATH -u __MISE_SESSION \
+    HOME="$fake_cache_home" XDG_CONFIG_HOME="$fake_cache_home/.config" ZDOTDIR="$fake_cache_home/.config/zsh" \
+    MISE_DATA_DIR="$empty_mise" MISE_STATE_DIR="$BATS_TEST_TMPDIR/empty-mise-state" \
+    PATH="/usr/bin:/bin" zsh -ic 'print -r -- "VDIR=${_FAKE_CACHE_V-unset}"' 2>&1 </dev/null)"
+  chmod 700 "${direnv_cache%/*}"
+  [[ "$ro_err" == *"operation not permitted"* ]] && fail "read-only init cache dir leaked redirect errors: $ro_err"
+  [[ "$ro_err" == *"VDIR=3"* ]] || fail "shell lost direnv init with read-only cache dir: $ro_err"
 }
 
 @test "chezmoi data loads cleanly from source" {

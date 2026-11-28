@@ -1,5 +1,4 @@
 #compdef sops
-if (( $+commands[sops] )); then
-  eval "$(sops completion zsh)"
-  _sops "$@"
-fi
+# sops' own zsh completion re-enters this file via the carapace zsh bridge;
+# plain default completion avoids the recursion.
+_default

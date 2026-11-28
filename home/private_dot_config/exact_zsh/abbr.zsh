@@ -69,14 +69,16 @@ _abbr_no_expand_space() {
   LBUFFER+=" "
 }
 
-zle -N _abbr_expand_space
+# zsh-autosuggestions skips widgets named with a leading `_`, so register the
+# public widget names (functions keep the `_abbr_` prefix).
+zle -N abbr_expand_space _abbr_expand_space
 zle -N _abbr_expand_accept_line
-zle -N _abbr_no_expand_space
+zle -N abbr_no_expand_space _abbr_no_expand_space
 
 for _abbr_km in emacs viins; do
-  bindkey -M "$_abbr_km" ' ' _abbr_expand_space
+  bindkey -M "$_abbr_km" ' ' abbr_expand_space
   bindkey -M "$_abbr_km" '^M' _abbr_expand_accept_line
   bindkey -M "$_abbr_km" '^J' _abbr_expand_accept_line
-  bindkey -M "$_abbr_km" '^@' _abbr_no_expand_space
+  bindkey -M "$_abbr_km" '^@' abbr_no_expand_space
 done
 unset _abbr_km

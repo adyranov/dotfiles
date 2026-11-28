@@ -63,6 +63,13 @@ export MISE_RUSTUP_HOME="$RUSTUP_HOME"
 export PREK_HOME="$XDG_DATA_HOME/prek"
 export PRE_COMMIT_HOME="$XDG_DATA_HOME/pre-commit"
 export UV_CACHE_DIR="$XDG_DATA_HOME/uv-cache"
+# Silence direnv's per-cd "loading … +VAR" log (it names every variable it sets).
+export DIRENV_LOG_FORMAT=
+# Carapace config must be exported before any cached init runs: both values are
+# part of every init cache key, so setting them only right before the carapace
+# init makes parent and child shells compute different keys and rebuild all caches.
+export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
+export CARAPACE_EXCLUDES='terragrunt,tofu'
 
 # Homebrew shell environment (defines HOMEBREW_PREFIX; consumed by PATH below).
 {{- if and (eq .host.distro.family "darwin") (stat .brew.path) }}
@@ -118,7 +125,8 @@ _source_cached_init() {
   _ci_sh="$2"
   shift 2
   _ci_bin="$(command -v "$_ci_tool" 2>/dev/null)" || return 0
-  _ci_key="# bin: ${_ci_bin}"
+  # Key on args and carapace env too, so edits to the init calls invalidate.
+  _ci_key="# cmd: $* bridges:${CARAPACE_BRIDGES-} excludes:${CARAPACE_EXCLUDES-} bin: ${_ci_bin}"
   _ci_dir="${XDG_DATA_HOME:-$HOME/.local/share}/shell/init"
   _ci_file="${_ci_dir}/${_ci_tool}.${_ci_sh}"
   _ci_first=""
@@ -130,7 +138,9 @@ _source_cached_init() {
   else
     [ -d "$_ci_dir" ] || { mkdir -p "$_ci_dir" && chmod 700 "${_ci_dir%/init}"; } 2>/dev/null
     _ci_tmp="${_ci_file}.tmp.$$"
-    if { printf '%s\n' "$_ci_key" && "$@"; } 2>/dev/null >"$_ci_tmp" && [ -s "$_ci_tmp" ]; then
+    # Inner group's redirect target may be denied (agent sandboxes); zsh reports
+    # redirect failures on the shell's stderr, so the outer 2>/dev/null must wrap it.
+    if { { printf '%s\n' "$_ci_key" && "$@"; } >"$_ci_tmp"; } 2>/dev/null && [ -s "$_ci_tmp" ]; then
       mv -f "$_ci_tmp" "$_ci_file"
       # shellcheck source=/dev/null
       . "$_ci_file"
@@ -143,11 +153,12 @@ _source_cached_init() {
 }
 
 # mise activate (final step; prepends shims to PATH).
+# Not cached: its output embeds a literal PATH/JAVA_HOME/MANPATH snapshot.
 if command -v mise >/dev/null 2>&1; then
   if [ -n "${ZSH_VERSION:-}" ]; then
-    _source_cached_init mise zsh mise activate zsh
+    eval "$(mise activate zsh)"
   elif [ -n "${BASH_VERSION:-}" ]; then
-    _source_cached_init mise bash mise activate bash
+    eval "$(mise activate bash)"
   elif command -v ps >/dev/null 2>&1; then
     _shell=$(ps -p $$ -o comm= | awk -F/ '{print $NF}' | sed 's/^-//')
     [ -n "$_shell" ] && eval "$(mise activate "$_shell")"

@@ -78,13 +78,11 @@ autoload -Uz zmv
 # Zsh-only keybindings, widgets, and tmux OSC hook.
 [[ -r "$ZDOTDIR/keys.zsh" ]] && . "$ZDOTDIR/keys.zsh"
 
-# Pinned plugins (fzf-tab after compinit, syntax-highlighting last).
+# Plugins (fzf-tab after compinit, syntax-highlighting last); they track upstream latest.
 _zplugins="$ZDOTDIR/plugins"
 [[ -r "${_zplugins}/fzf-tab/fzf-tab.plugin.zsh" ]] && . "${_zplugins}/fzf-tab/fzf-tab.plugin.zsh"
 if [[ -r "${_zplugins}/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
   . "${_zplugins}/zsh-autosuggestions/zsh-autosuggestions.zsh"
-  bindkey '^[[C' autosuggest-accept
-  bindkey '^[OC' autosuggest-accept
 fi
 [[ -r "$ZDOTDIR/abbr.zsh" ]] && . "$ZDOTDIR/abbr.zsh"
 [[ -r "$ZDOTDIR/catppuccin-mocha-zsh-syntax-highlighting.zsh" ]] && . "$ZDOTDIR/catppuccin-mocha-zsh-syntax-highlighting.zsh"
