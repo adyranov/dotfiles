@@ -286,7 +286,17 @@ SH
     FAKE_SSH_ADD_RC=1 FAKE_SSH_ADD_LOG="$add_log" FAKE_SSH_AGENT_LOG="$agent_log" \
     zsh -ic exit </dev/null
   [ ! -s "$agent_log" ] || fail "ssh-agent spawned when ssh-add exited 1"
-  grep -Fq -- "-q $ssh_home/.ssh/id_yk_blue" "$add_log" || fail "expected id_yk_blue added on exit 1: $(cat "$add_log")"
+  # TEMP DIAGNOSTIC (drop after macos runner case-1 is understood): rerun the
+  # exact case-1 shell with xtrace and surface ssh-relevant lines on failure.
+  grep -Fq -- "-q $ssh_home/.ssh/id_yk_blue" "$add_log" || {
+    env -u AGENT_SANDBOX -u __MISE_DIFF -u __MISE_ORIG_PATH -u __MISE_SESSION \
+      HOME="$ssh_home" XDG_CONFIG_HOME="$ssh_home/.config" XDG_DATA_HOME="$ssh_home/.local/share" ZDOTDIR="$ssh_home/.config/zsh" \
+      MISE_DATA_DIR="$HOME/.local/share/mise" MISE_STATE_DIR="$HOME/.local/state/mise" \
+      PATH="$test_path" SSH_AUTH_SOCK=/tmp/existing.sock \
+      FAKE_SSH_ADD_RC=1 FAKE_SSH_ADD_LOG="$add_log" FAKE_SSH_AGENT_LOG="$agent_log" \
+      zsh -icx exit </dev/null >"$BATS_TEST_TMPDIR/ssh-case1-xtrace.log" 2>&1
+    fail "expected id_yk_blue added on exit 1: log=[$(cat "$add_log")] xtrace_ssh=[$(grep -a 'ssh\|AGENT_SANDBOX\|commands\[' "$BATS_TEST_TMPDIR/ssh-case1-xtrace.log" | tail -c 1500)] xtrace_end=[$(tail -c 800 "$BATS_TEST_TMPDIR/ssh-case1-xtrace.log")]"
+  }
 
   # Case 2: ssh-add -l exits 2 (no agent) -> 1 ssh-agent call, then key added
   : >"$add_log"
