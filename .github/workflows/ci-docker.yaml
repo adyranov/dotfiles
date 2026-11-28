@@ -48,6 +48,20 @@ jobs:
             --secret id=GIT_AUTH_TOKEN,env=GITHUB_TOKEN \
             -f containers/${{ matrix.os }}/Dockerfile \
             .
+      - name: Verify offline zsh and bash container startup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker buildx build \
+            --load \
+            -t dotfiles-test:${{ matrix.os }} \
+            --secret id=GIT_AUTH_TOKEN,env=GITHUB_TOKEN \
+            -f containers/${{ matrix.os }}/Dockerfile \
+            .
+          docker run --rm --network=none dotfiles-test:${{ matrix.os }} \
+            zsh -ic '(( ${+_abbr_map[x]} )) && [[ -r "$ZDOTDIR/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]'
+          docker run --rm --network=none dotfiles-test:${{ matrix.os }} \
+            bash -ic 'type cdi >/dev/null && alias ll >/dev/null && [[ "$(starship prompt)" == *"container"* ]]'
   docker-build:
     needs: [docker-test]
     strategy:

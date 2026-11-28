@@ -10,7 +10,7 @@ Structural map of this [chezmoi](https://www.chezmoi.io/) repository (`home/` is
 | `home/.chezmoidata/` | Flat domain TOML (`ai/`, `brew.toml`, `editors.toml`, `repositories.toml`) and layered package catalogs (`base/packages/`, `os/<distro>/packages.toml`) |
 | `home/.chezmoiexternals/` | Centralized external archives/repos (`fonts.toml.tmpl`, `themes.toml.tmpl`, `ai.toml.tmpl`) |
 | `home/.chezmoitemplates/` | Shared partials: `base/packages/` selector DSL, `base/ai/parse-route`, `base/ai/roles/`, `base/ai/sandbox/render-profile`, `base/editors/vscode-settings`, `os/<distro>/install`, `os/<distro>/bootstrap` (not on Arch), `os/darwin/brewfile` |
-| `home/.chezmoiscripts/` | Ordered scripts: `run_before_05_migrate-claude-dir.sh`, `before/` -> `common/` (incl. editor extensions) -> `os/<distro>/` -> `post/` -> `toolchains/`; `os/<distro>/.init.sh` is the read-source-state pre-hook |
+| `home/.chezmoiscripts/` | Ordered scripts: `run_before_05_migrate-claude-dir.sh`, `before/` -> `common/` (incl. editor extensions) -> `os/<distro>/` -> `toolchains/`; `os/<distro>/.init.sh` is the read-source-state pre-hook |
 | `home/private_dot_config/` | XDG configs (`zsh`, `tmux`, `git`, `nvim`, `claude`, `opencode`, `omp`, `pi`, `dcg`, `nono`, `local-llm`, `skypilot`, etc.) |
 | `home/private_dot_local/exact_bin/` | User CLIs: `agent`, `llm-serve`, `llm-pull`, `llm-bench` |
 | `.mise/tasks/` | Repo mise tasks (`build-containers`, `docs-tools`) |
@@ -33,9 +33,8 @@ home/.chezmoi.yaml.tmpl      -> renders ~/.config/chezmoi/chezmoi.yaml
 home/* (files & modify_*)    -> renders configs, symlinks, externals
   |
   v
-.chezmoiscripts/common/      -> mise tools, helm plugins, completions, bat cache, login shell
+.chezmoiscripts/common/      -> mise tools, helm plugins, bat cache, login shell
 .chezmoiscripts/os/<distro>/ -> OS defaults, LaunchAgents, CA bundle
-.chezmoiscripts/post/        -> zsh4humans (z4h) bootstrap
 .chezmoiscripts/toolchains/  -> nono packs, omlx links, Java truststore
 ```
 

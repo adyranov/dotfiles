@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://carapace.sh/schemas/command.json
+name: hf
+description: Hugging Face Hub CLI
+parsing: disabled
+completion:
+  positionalany: ["$carapace.bridge.Click([hf])"]

@@ -1,0 +1,5 @@
+#compdef doggo
+if (( $+commands[doggo] )); then
+  eval "$(doggo completions zsh)"
+  _doggo "$@"
+fi

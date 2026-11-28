@@ -390,10 +390,15 @@ load 'helper'
       [ "$r_status" = "allowed" ] || fail "nono why ($agent read $path) = $r_status (want allowed): $r_out"
       [ "$w_status" = "denied" ] || fail "nono why ($agent write $path) = $w_status (want denied): $w_out"
     done
-    # R8/AE8: host-executed caches under ~/.local/share must be write-denied for all 4 agents
+    # Host-executed caches and shell plugin/completion paths must be write-denied for all 4 agents
     local exec_path
     for exec_path in \
-      "$HOME/.local/share/zsh4humans/v5/z4h.zsh" \
+      "$HOME/.config/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh" \
+      "$HOME/.local/share/shell/zcompdump" \
+      "$HOME/.local/share/shell/init/mise.zsh" \
+      "$HOME/.local/share/shell/init/starship.zsh" \
+      "$HOME/.local/share/shell/cache/carapace/bridges-zsh.json" \
+      "$HOME/.config/carapace/specs/kubecolor.yaml" \
       "$HOME/.local/share/prek/cache" \
       "$HOME/.local/share/pre-commit/cache" \
       "$HOME/.local/share/chezmoi-cache/x" \
@@ -402,6 +407,14 @@ load 'helper'
     do
       w_status="$(XDG_RUNTIME_DIR="$runtime_dir" nono why --profile "$agent" --path "$exec_path" --op write --json 2>/dev/null | jq -r '.status')"
       [ "$w_status" = "denied" ] || fail "nono why ($agent write $exec_path) = $w_status (want denied)"
+    done
+    if [ "$(uname -s)" = "Darwin" ]; then
+      w_status="$(XDG_RUNTIME_DIR="$runtime_dir" nono why --profile "$agent" --path "$HOME/Library/Caches/carapace/bridges-zsh.json" --op write --json 2>/dev/null | jq -r '.status')"
+      [ "$w_status" = "denied" ] || fail "nono why ($agent write ~/Library/Caches/carapace/bridges-zsh.json) = $w_status (want denied)"
+    fi
+    for exec_path in "$HOME/.local/share/zsh/history" "$HOME/.bash_history"; do
+      r_status="$(XDG_RUNTIME_DIR="$runtime_dir" nono why --profile "$agent" --path "$exec_path" --op read --json 2>/dev/null | jq -r '.status')"
+      [ "$r_status" = "denied" ] || fail "nono why ($agent read $exec_path) = $r_status (want denied)"
     done
     # R21/R22/AE3: non-claude agents must be write-denied on Claude config & .claude.json;
     # claude must be write-denied on installed plugins under ~/.local/share/claude/plugins (U6).

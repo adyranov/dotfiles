@@ -21,15 +21,19 @@ knd() {
 }
 
 # Completions
-_kc_completions() {
-  compadd -- $(kubesess completion-context -v "${words[2]}")
-}
+if [ -n "${ZSH_VERSION:-}" ]; then
+  _kc_completions() {
+    compadd -- $(kubesess completion-context -v "${words[2]}")
+  }
 
-_kn_completions() {
-  compadd -- $(kubesess completion-namespace -v "${words[2]}")
-}
+  _kn_completions() {
+    compadd -- $(kubesess completion-namespace -v "${words[2]}")
+  }
 
-compdef _kc_completions kc
-compdef _kc_completions kcd
-compdef _kn_completions kn
-compdef _kn_completions knd
+  if (( $+functions[compdef] )); then
+    compdef _kc_completions kc
+    compdef _kc_completions kcd
+    compdef _kn_completions kn
+    compdef _kn_completions knd
+  fi
+fi

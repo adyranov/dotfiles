@@ -1,0 +1,5 @@
+#compdef sops
+if (( $+commands[sops] )); then
+  eval "$(sops completion zsh)"
+  _sops "$@"
+fi

@@ -34,8 +34,10 @@ deny = [
   "~/.config/bws",
   "~/.config/proton-pass-cli",
   "~/.local/share/proton-pass-cli",
+  "~/.local/share/zsh",
   "~/Library/Application Support/Bitwarden CLI",
-  "~/Library/Application Support/proton-pass-cli"
+  "~/Library/Application Support/proton-pass-cli",
+  "~/Library/Caches/carapace"
 ]
 # Built-in nono profiles every agent profile extends after its pack.
 extends = ["mise-dev"]

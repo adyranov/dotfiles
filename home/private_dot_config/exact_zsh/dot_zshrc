@@ -1,0 +1,97 @@
+# Plain Zsh configuration (no framework).
+
+: "${ZDOTDIR:=$HOME/.config/zsh}"
+_xdg_config="${XDG_CONFIG_HOME:-$HOME/.config}"
+_xdg_data="${XDG_DATA_HOME:-$HOME/.local/share}"
+
+# History (stored in a path read-denied inside agent sandboxes).
+export HISTFILE="${_xdg_data}/zsh/history"
+export HISTSIZE=50000
+export SAVEHIST=50000
+[[ -d "${HISTFILE:h}" ]] || mkdir -p "${HISTFILE:h}"
+setopt append_history extended_history hist_expire_dups_first hist_ignore_dups hist_ignore_space share_history
+
+# Shell options and paths.
+# no_bg_nice: sandboxes deny renice, which would print "nice(5) failed" for background jobs.
+setopt glob_dots no_auto_menu complete_aliases no_bg_nice
+typeset -U PATH path fpath
+fpath=("$ZDOTDIR/completions" $fpath)
+
+# Completion initialization (dump outside ~/.cache).
+_shell_data="${_xdg_data}/shell"
+[[ -d "$_shell_data" ]] || { mkdir -p "$_shell_data" && chmod 700 "$_shell_data"; }
+_zdump="${_shell_data}/zcompdump"
+autoload -Uz compinit
+_zfresh=(${_zdump}(Nmh-24))
+if (( $#_zfresh )); then
+  compinit -C -d "$_zdump"
+else
+  compinit -d "$_zdump"
+fi
+unset _zfresh _zdump
+
+# Shared exports, aliases, functions, and cross-shell tool inits.
+[[ -r "${_xdg_config}/shell/interactive.sh" ]] && . "${_xdg_config}/shell/interactive.sh"
+[[ -n "${LS_COLORS-}" ]] && zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
+[[ -r "$ZDOTDIR/catppuccin-fzf-mocha.sh" ]] && . "$ZDOTDIR/catppuccin-fzf-mocha.sh"
+
+# Quiet ssh-agent startup and YubiKey identity loading (gpg-agent starts on demand).
+export GPG_TTY=$TTY
+if (( $+commands[ssh-agent] )) && [[ -z "${AGENT_SANDBOX-}" ]]; then
+  _ssh_no_agent() { ssh-add -l >/dev/null 2>&1; [ $? -eq 2 ]; }
+  if [[ -z "${SSH_AUTH_SOCK-}" ]] || _ssh_no_agent; then
+    _ssh_env="${_shell_data}/ssh-agent.env"
+    if [[ -r "$_ssh_env" ]]; then
+      . "$_ssh_env" >/dev/null 2>&1 || true
+    fi
+    if [[ -z "${SSH_AUTH_SOCK-}" ]] || _ssh_no_agent; then
+      (umask 077 && ssh-agent -s >"$_ssh_env") 2>/dev/null || true
+      [[ -r "$_ssh_env" ]] && . "$_ssh_env" >/dev/null 2>&1 || true
+    fi
+    unset _ssh_env
+  fi
+  ssh-add -l >/dev/null 2>&1
+  if [ $? -eq 1 ]; then
+    for _yk in "$HOME/.ssh/id_yk_blue" "$HOME/.ssh/id_yk_green"; do
+      [[ -r "$_yk" ]] && ssh-add -q "$_yk" </dev/null >/dev/null 2>&1 || true
+    done
+    unset _yk
+  fi
+  unfunction _ssh_no_agent
+fi
+
+# WSL Windows-home named directory (~w).
+if [[ -n "${WSL_DISTRO_NAME-}" ]]; then
+  _win_home=""
+  if [[ -n "${USERPROFILE-}" ]] && (( $+commands[wslpath] )); then
+    _win_home="$(wslpath -u "$USERPROFILE" 2>/dev/null)"
+  elif (( $+commands[cmd.exe] )) && (( $+commands[wslpath] )); then
+    _win_home="$(wslpath -u "$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')" 2>/dev/null)"
+  fi
+  [[ -n "$_win_home" && -d "$_win_home" ]] && hash -d w="$_win_home"
+  unset _win_home
+fi
+
+autoload -Uz zmv
+(( $+functions[command_not_found_handler] )) && unfunction command_not_found_handler
+
+# Zsh-only keybindings, widgets, and tmux OSC hook.
+[[ -r "$ZDOTDIR/keys.zsh" ]] && . "$ZDOTDIR/keys.zsh"
+
+# Pinned plugins (fzf-tab after compinit, syntax-highlighting last).
+_zplugins="$ZDOTDIR/plugins"
+[[ -r "${_zplugins}/fzf-tab/fzf-tab.plugin.zsh" ]] && . "${_zplugins}/fzf-tab/fzf-tab.plugin.zsh"
+if [[ -r "${_zplugins}/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
+  . "${_zplugins}/zsh-autosuggestions/zsh-autosuggestions.zsh"
+  bindkey '^[[C' autosuggest-accept
+  bindkey '^[OC' autosuggest-accept
+fi
+[[ -r "$ZDOTDIR/abbr.zsh" ]] && . "$ZDOTDIR/abbr.zsh"
+[[ -r "$ZDOTDIR/catppuccin-mocha-zsh-syntax-highlighting.zsh" ]] && . "$ZDOTDIR/catppuccin-mocha-zsh-syntax-highlighting.zsh"
+[[ -r "${_zplugins}/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]] && . "${_zplugins}/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+
+unset _xdg_config _xdg_data _shell_data _zplugins
+
+if [[ -r "$ZDOTDIR/.zshrc.local" ]]; then
+  . "$ZDOTDIR/.zshrc.local"
+fi

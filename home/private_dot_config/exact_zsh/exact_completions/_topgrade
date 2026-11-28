@@ -1,0 +1,5 @@
+#compdef topgrade
+if (( $+commands[topgrade] )); then
+  eval "$(topgrade --gen-completion zsh)"
+  _topgrade "$@"
+fi

@@ -407,3 +407,26 @@ EOF
   render_with_data "$tmpl" "$out/off.yaml" '{"host":{"arch":"arm64","distro":{"family":"darwin","id":"darwin"},"profile":"personal"},"toolchains":{"kubernetes":false}}'
   yq -o=json "$out/off.yaml" | jq -e '.kubernetes.enabled == false' >/dev/null
 }
+
+@test "zsh plugin externals render with 40-char commit SHA refs, exact=true, and no refreshPeriod" {
+  local out="$BATS_TEST_TMPDIR/zsh-externals.toml"
+  render_with_data "$REPO_ROOT/home/.chezmoiexternals/zsh.toml.tmpl" "$out"
+
+  python3 - "$out" <<'PY'
+import re, sys, tomllib
+
+data = tomllib.loads(open(sys.argv[1], "rb").read().decode("utf-8"))
+expected = {
+    ".config/zsh/plugins/zsh-autosuggestions",
+    ".config/zsh/plugins/zsh-syntax-highlighting",
+    ".config/zsh/plugins/fzf-tab",
+}
+assert set(data.keys()) == expected, f"unexpected targets: {set(data.keys())}"
+sha_re = re.compile(r"^https://github\.com/[^/]+/[^/]+/archive/[0-9a-f]{40}\.tar\.gz$")
+for target, entry in data.items():
+    assert entry.get("type") == "archive", f"{target}: type != archive"
+    assert entry.get("exact") is True, f"{target}: exact != true"
+    assert "refreshPeriod" not in entry, f"{target}: unexpected refreshPeriod"
+    assert sha_re.match(entry.get("url", "")), f"{target}: url is not a 40-char commit SHA archive: {entry.get('url')}"
+PY
+}

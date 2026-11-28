@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://carapace.sh/schemas/command.json
+name: kubescape
+description: Kubernetes security platform
+parsing: disabled
+completion:
+  positionalany: ["$carapace.bridge.Cobra([kubescape])"]

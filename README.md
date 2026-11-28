@@ -108,6 +108,7 @@ Install Manager Legend:
 | [atuin](https://github.com/atuinsh/atuin) | Shell history sync and search | `mise ✅` (macOS Intel: `macports`; Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
 | [bat](https://github.com/sharkdp/bat) | Syntax-aware pager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [btop](https://github.com/aristocratos/btop) | Resource monitor | `mise ✅` (macOS: `system`) | ✅ | ✅ | ✅ | ✅ |
+| [carapace](https://carapace.sh) | Multi-shell argument completer | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [chezmoi](https://www.chezmoi.io) | Dotfiles manager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [curl](https://curl.se) | HTTP transfer toolkit | `system` | ✅ | ✅ | ✅ | ✅ |
 | [dcg](https://github.com/Dicklesworthstone/destructive_command_guard) | Destructive command guard | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
@@ -140,6 +141,7 @@ Install Manager Legend:
 | [rclone](https://rclone.org) | Cloud storage sync | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [ripgrep](https://github.com/BurntSushi/ripgrep) | Recursive text search | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [sd](https://github.com/chmln/sd) | Intuitive sed alternative | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [starship](https://starship.rs) | Cross-shell prompt | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [tealdeer](https://github.com/tealdeer-rs/tealdeer) | Fast tldr client | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [tmux](https://github.com/tmux/tmux) | Terminal multiplexer | `system` | ✅ | ✅ | ✅ | ✅ |
 | [topgrade](https://github.com/topgrade-rs/topgrade) | System-wide upgrader | `mise ✅` | ✅ | ✅ | ✅ | ✅ |

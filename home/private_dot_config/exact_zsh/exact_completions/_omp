@@ -1,0 +1,5 @@
+#compdef omp
+if (( $+commands[omp] )); then
+  eval "$(omp completions zsh)"
+  _omp "$@"
+fi
