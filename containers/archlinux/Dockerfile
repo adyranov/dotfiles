@@ -64,8 +64,7 @@ RUN --mount=type=secret,id=GIT_AUTH_TOKEN,dst=/run/secrets/github_token,uid=$UID
     --mount=type=tmpfs,target=/tmp \
     GITHUB_TOKEN="$( [ -f /run/secrets/github_token ] && cat /run/secrets/github_token || true )" \
     && CI=true \
-    && MISE_ALWAYS_KEEP_DOWNLOAD=true \
-    && export CI GITHUB_TOKEN MISE_ALWAYS_KEEP_DOWNLOAD \
+    && export CI GITHUB_TOKEN \
     && WITHOUT_TOOLCHAINS="$WITHOUT_TOOLCHAINS" .local/share/chezmoi/install.sh --data=false \
     && zsh -lic 'mise trust ~/.local/share/chezmoi && mise -C ~/.local/share/chezmoi run test' \
     && echo "Cache bust: $CACHE_BUST"

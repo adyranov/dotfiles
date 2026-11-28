@@ -1,0 +1,36 @@
+# shellcheck shell=bash
+case $- in
+  *i*) ;;
+  *) return ;;
+esac
+
+# Ubuntu's default ~/.profile sources ~/.bashrc; .bash_profile also sources it
+# directly. Guard so login shells run this file only once.
+[ -n "${_DOTFILES_BASHRC:-}" ] && return
+_DOTFILES_BASHRC=1
+
+export HISTFILE="$HOME/.bash_history"
+HISTSIZE=50000
+HISTFILESIZE=50000
+shopt -s histappend 2>/dev/null || true
+
+# Prefix history on Up/Down and Option/Alt word editing.
+bind '"\e[A": history-search-backward' 2>/dev/null || true
+bind '"\e[B": history-search-forward' 2>/dev/null || true
+bind '"\eOA": history-search-backward' 2>/dev/null || true
+bind '"\eOB": history-search-forward' 2>/dev/null || true
+bind '"\e[1;3D": backward-word' 2>/dev/null || true
+bind '"\e[1;3C": forward-word' 2>/dev/null || true
+bind '"\eb": backward-word' 2>/dev/null || true
+bind '"\ef": forward-word' 2>/dev/null || true
+bind '"\e\C-?": backward-kill-word' 2>/dev/null || true
+
+_interactive="${XDG_CONFIG_HOME:-$HOME/.config}/shell/interactive.sh"
+# shellcheck source=/dev/null
+[ -r "$_interactive" ] && . "$_interactive"
+unset _interactive
+
+# shellcheck source=/dev/null
+if [ -r "$HOME/.bashrc.local" ]; then
+  . "$HOME/.bashrc.local"
+fi

@@ -1,0 +1,4 @@
+#compdef sops
+# sops' own zsh completion re-enters this file via the carapace zsh bridge;
+# plain default completion avoids the recursion.
+_default

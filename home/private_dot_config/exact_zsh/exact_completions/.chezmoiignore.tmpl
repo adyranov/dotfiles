@@ -1,12 +1,4 @@
-{{- /* Preserve runtime-generated _* completions from exact_ pruning while
-       keeping tracked static completions managed (_agent gated to agents). */ -}}
-_*
-!_kustomize
-!_runpod
-!_terragrunt
-!_tofu
-{{- if includeTemplate "base/helpers/any-agent-toolchain" (dict "root" .) | mustFromJson }}
-!_agent
-{{- else }}
+{{- /* Preserve tracked static completions (_agent gated to agents). */ -}}
+{{- if not (includeTemplate "base/helpers/any-agent-toolchain" (dict "root" .) | mustFromJson) }}
 _agent
 {{- end }}

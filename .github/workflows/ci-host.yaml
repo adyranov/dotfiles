@@ -72,7 +72,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
-          MISE_ALWAYS_KEEP_DOWNLOAD: true
           MISE_FETCH_REMOTE_VERSIONS_TIMEOUT: 60
           MISE_HTTP_TIMEOUT: 60
         run: |
@@ -84,7 +83,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_CLEANUP: 1
-          MISE_ALWAYS_KEEP_DOWNLOAD: true
           MISE_FETCH_REMOTE_VERSIONS_TIMEOUT: 60
           MISE_HTTP_TIMEOUT: 60
         run: |

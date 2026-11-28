@@ -70,21 +70,15 @@
            openai compat sends a top-level reasoning_effort and the template
            rejects 'high' (Pi clamps undeclared xhigh down to it). Route the
            effort through chatTemplateKwargs with the template's level catalog
-           (mirrors the OMP thinking catalog: low|medium|xhigh, none off). */ -}}
+           (mirrors the OMP thinking catalog: low|medium|xhigh). 'off' is null:
+           this template has no off-switch (none and minimal both 400), and Pi
+           reads null as unsupported and clamps upward instead of erroring. */ -}}
 {{-     if and (get $m "reasoning" | default false) (eq (get $m "chat_format" | default "") "qwen-chat-template") -}}
 {{-       $_ := set $entry "compat" (dict
               "thinkingFormat" "chat-template"
               "chatTemplateKwargs" (dict "reasoning_effort" (dict "$var" "thinking.effort"))
             ) -}}
-{{-       $_ := set $entry "thinkingLevelMap" (dict
-              "off" "none"
-              "minimal" "low"
-              "low" "low"
-              "medium" "medium"
-              "high" "medium"
-              "xhigh" "xhigh"
-              "max" "xhigh"
-            ) -}}
+{{-       $_ := set $entry "thinkingLevelMap" (mustFromJson `{"off":null,"minimal":"low","low":"low","medium":"medium","high":"medium","xhigh":"xhigh","max":"xhigh"}`) -}}
 {{-     end -}}
 {{-     $remoteModels = append $remoteModels $entry -}}
 {{-   end -}}

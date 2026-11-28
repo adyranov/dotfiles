@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://carapace.sh/schemas/command.json
+name: chezmoi
+description: Manage your dotfiles across multiple diverse machines, securely
+parsing: disabled
+completion:
+  positionalany: ["$carapace.bridge.Cobra([chezmoi])"]

@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://carapace.sh/schemas/command.json
+name: oc
+description: OpenShift CLI
+parsing: disabled
+completion:
+  positionalany: ["$carapace.bridge.Cobra([oc])"]

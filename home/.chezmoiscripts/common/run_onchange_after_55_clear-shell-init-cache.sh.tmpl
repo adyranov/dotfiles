@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+set -eu
+# key: {{ include "private_dot_config/exact_shell/interactive.sh" | sha256sum }}
+# The cached tool inits embed args/env present at generation time; wipe on any
+# change to the init orchestration.
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/shell/init" 2>/dev/null || true

@@ -63,6 +63,13 @@ export MISE_RUSTUP_HOME="$RUSTUP_HOME"
 export PREK_HOME="$XDG_DATA_HOME/prek"
 export PRE_COMMIT_HOME="$XDG_DATA_HOME/pre-commit"
 export UV_CACHE_DIR="$XDG_DATA_HOME/uv-cache"
+# Silence direnv's per-cd "loading … +VAR" log (it names every variable it sets).
+export DIRENV_LOG_FORMAT=
+# Carapace config must be exported before any cached init runs: both values are
+# part of every init cache key, so setting them only right before the carapace
+# init makes parent and child shells compute different keys and rebuild all caches.
+export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
+export CARAPACE_EXCLUDES='terragrunt,tofu'
 
 # Homebrew shell environment (defines HOMEBREW_PREFIX; consumed by PATH below).
 {{- if and (eq .host.distro.family "darwin") (stat .brew.path) }}
@@ -109,7 +116,44 @@ add_to_path "$HOME/.local/bin"
 
 unset -f add_to_path
 
+# Source a tool's init script from a cache under $XDG_DATA_HOME (never ~/.cache:
+# agents can write there). The first line records the binary path; the cache is
+# rebuilt when that path changes or the binary is newer. Also used by interactive.sh.
+# Usage: _source_cached_init <tool> <shell> <command...>
+_source_cached_init() {
+  _ci_tool="$1"
+  _ci_sh="$2"
+  shift 2
+  _ci_bin="$(command -v "$_ci_tool" 2>/dev/null)" || return 0
+  # Key on args and carapace env too, so edits to the init calls invalidate.
+  _ci_key="# cmd: $* bridges:${CARAPACE_BRIDGES-} excludes:${CARAPACE_EXCLUDES-} bin: ${_ci_bin}"
+  _ci_dir="${XDG_DATA_HOME:-$HOME/.local/share}/shell/init"
+  _ci_file="${_ci_dir}/${_ci_tool}.${_ci_sh}"
+  _ci_first=""
+  [ -r "$_ci_file" ] && { IFS= read -r _ci_first <"$_ci_file" || true; }
+  # shellcheck disable=SC3013
+  if [ -r "$_ci_file" ] && [ "$_ci_first" = "$_ci_key" ] && [ ! "$_ci_bin" -nt "$_ci_file" ]; then
+    # shellcheck source=/dev/null
+    . "$_ci_file"
+  else
+    [ -d "$_ci_dir" ] || { mkdir -p "$_ci_dir" && chmod 700 "${_ci_dir%/init}"; } 2>/dev/null
+    _ci_tmp="${_ci_file}.tmp.$$"
+    # Inner group's redirect target may be denied (agent sandboxes); zsh reports
+    # redirect failures on the shell's stderr, so the outer 2>/dev/null must wrap it.
+    if { { printf '%s\n' "$_ci_key" && "$@"; } >"$_ci_tmp"; } 2>/dev/null && [ -s "$_ci_tmp" ]; then
+      mv -f "$_ci_tmp" "$_ci_file"
+      # shellcheck source=/dev/null
+      . "$_ci_file"
+    else
+      rm -f "$_ci_tmp" 2>/dev/null
+      eval "$("$@")"
+    fi
+  fi
+  unset _ci_tool _ci_sh _ci_bin _ci_key _ci_dir _ci_file _ci_first _ci_tmp
+}
+
 # mise activate (final step; prepends shims to PATH).
+# Not cached: its output embeds a literal PATH/JAVA_HOME/MANPATH snapshot.
 if command -v mise >/dev/null 2>&1; then
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval "$(mise activate zsh)"

@@ -8,7 +8,7 @@
 {{-   if eq $m "codegraph" -}}
 {{-     $mcpTools = append $mcpTools "mcp" -}}
 {{-   else if eq $m "engram" -}}
-{{-     $mcpTools = concat $mcpTools (list "mem_search" "mem_context" "mem_get_observation" "mem_timeline") -}}
+{{-     $mcpTools = concat $mcpTools (list "mem_search" "mem_context" "mem_get_observation") -}}
 {{-   end -}}
 {{- end -}}
 {{- $allTools := concat $tools $mcpTools | uniq -}}

@@ -72,7 +72,6 @@ jobs:
               - 'home/.chezmoiscripts/*'
               - 'home/.chezmoiscripts/before/**'
               - 'home/.chezmoiscripts/common/**'
-              - 'home/.chezmoiscripts/post/**'
               - 'home/.chezmoiscripts/toolchains/**'
               - 'home/.chezmoitemplates/base/**'
               - 'home/*dot_*'

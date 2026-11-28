@@ -45,7 +45,6 @@ jobs:
           cd "$repo"
           export CI="true"
           export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-          export MISE_ALWAYS_KEEP_DOWNLOAD="true"
           export MISE_FETCH_REMOTE_VERSIONS_TIMEOUT="60"
           export MISE_HTTP_TIMEOUT="60"
           export WITHOUT_TOOLCHAINS="true"
@@ -59,7 +58,6 @@ jobs:
           set +x
           export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
           set -x
-          export MISE_ALWAYS_KEEP_DOWNLOAD="true"
           export MISE_FETCH_REMOTE_VERSIONS_TIMEOUT="60"
           export MISE_HTTP_TIMEOUT="60"
           zsh -lic 'mise trust && CHECK_DOTFILES_SUITE_TIMEOUT=240 mise run test'

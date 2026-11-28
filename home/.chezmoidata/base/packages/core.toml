@@ -14,6 +14,7 @@ btop = { description = "Resource monitor", exclude = { type = ["ephemeral"] }, m
   # btop publishes no darwin assets; keep darwin on the system manager.
   { include = { os = ["darwin"] }, manager = "system" }
 ] }
+carapace = { description = "Multi-shell argument completer", manager = "mise", package = "aqua:carapace-sh/carapace-bin", url = "https://carapace.sh" }
 curl = { description = "HTTP transfer toolkit", name = "curl", url = "https://curl.se" }
 dcg = { description = "Destructive command guard", manager = "mise", package = "github:Dicklesworthstone/destructive_command_guard", url = "https://github.com/Dicklesworthstone/destructive_command_guard" }
 direnv = { description = "Directory-aware env loader", manager = "mise", url = "https://direnv.net", version = "direnv version" }
@@ -44,6 +45,7 @@ rage = { description = "Age-compatible encryption", manager = "mise", package = 
 rclone = { description = "Cloud storage sync", manager = "mise", url = "https://rclone.org" }
 ripgrep = { bin = "rg", description = "Recursive text search", manager = "mise", name = "ripgrep", url = "https://github.com/BurntSushi/ripgrep" }
 sd = { description = "Intuitive sed alternative", manager = "mise", url = "https://github.com/chmln/sd" }
+starship = { description = "Cross-shell prompt", manager = "mise", url = "https://starship.rs" }
 # tealdeer ships raw binaries named tealdeer; rename_exe exposes the tldr CLI name.
 tealdeer = { bin = "tldr", description = "Fast tldr client", manager = "mise", mise_options = { rename_exe = "tldr" }, url = "https://github.com/tealdeer-rs/tealdeer" }
 tmux = { description = "Terminal multiplexer", url = "https://github.com/tmux/tmux", version = "tmux -V" }

@@ -46,9 +46,11 @@ for role_name, rd in roles["roles"].items():
 
 for prof_name, prof in models["profiles"].items():
     valid = {f"{p}/{m}" for p, ms in prof.get("providers", {}).items() for m in ms}
+    served = {}
     for sp_id, sp in prof.get("serving", {}).items():
         for m in sp.get("models", []):
             valid.add(f"{sp_id}/{m['id']}")
+            served[f"{sp_id}/{m['id']}"] = m
     for preset_name, preset in prof.get("presets", {}).items():
         for tier_name, specs in preset.get("tiers", {}).items():
             assert specs, f"{prof_name}.{preset_name}.{tier_name} is empty"
@@ -58,6 +60,12 @@ for prof_name, prof in models["profiles"].items():
                 ref = f"{prov}/{mid}"
                 if ref not in valid:
                     sys.exit(f"{prof_name}.{preset_name}.{tier_name} references unlisted model {ref}")
+                # A served model's efforts are the only thinking levels its chat
+                # template takes; infer01's qwen template has no off level at all.
+                efforts = served.get(ref, {}).get("efforts")
+                thinking = rest.rsplit(":", 1)[1] if ":" in rest else "off"
+                if efforts and thinking not in efforts:
+                    sys.exit(f"{ref} tier {tier_name} asks thinking={thinking}, model takes {efforts}")
 PY
 }
 
@@ -178,6 +186,13 @@ PY
   jq -e '(.network.credentials // []) | sort == ["github","github_git"]' "$BATS_TEST_TMPDIR/intel-claude.json" >/dev/null
   jq -e '.network.custom_credentials | (.deepseek.credential_key == "env://DEEPSEEK_API_KEY") and (.opencode.credential_key == "env://OPENCODE_API_KEY") and (.openrouter.credential_key == "env://OPENROUTER_API_KEY") and (.github.credential_key == "env://GITHUB_TOKEN") and (.brave.credential_key == "env://BRAVE_SEARCH_API_KEY") and (.brave.env_var == "BRAVE_API_KEY") and (.brave.inject_header == "X-Subscription-Token") and (.brave.upstream == "https://api.search.brave.com") and (.deepseek | has("keychain") | not)' "$BATS_TEST_TMPDIR/intel-pi.json" >/dev/null
   jq -e '(.network.allow_domain // []) | index("infer01") != null' "$BATS_TEST_TMPDIR/intel-pi.json" >/dev/null
+  # CI log storage is GitHub's named Blob accounts only; a blob wildcard admits anyone's storage.
+  for agent in claude omp opencode pi; do
+    jq -e '(.network.allow_domain // []) as $d
+      | ($d | index("productionresultssa0.blob.core.windows.net") != null)
+      and ($d | map(select(endswith(".blob.core.windows.net"))) | all(test("^productionresultssa[0-9]+\\.blob\\.core\\.windows\\.net$")))' \
+      "$BATS_TEST_TMPDIR/intel-${agent}.json" >/dev/null || fail "$agent: blob hosts must be named productionresultssaN accounts only"
+  done
   jq -e '(.environment.set_vars.GIT_CONFIG_NOSYSTEM == "1") and (.environment.set_vars.NPM_CONFIG_CACHE | contains("/.cache/sandbox-npm")) and (.environment.set_vars.UV_CACHE_DIR | contains("/.cache/sandbox-uv"))' "$BATS_TEST_TMPDIR/intel-pi.json" >/dev/null
   jq -e '(.filesystem.deny | length) > 0' "$BATS_TEST_TMPDIR/intel-opencode.json" >/dev/null
 
@@ -406,4 +421,28 @@ EOF
 
   render_with_data "$tmpl" "$out/off.yaml" '{"host":{"arch":"arm64","distro":{"family":"darwin","id":"darwin"},"profile":"personal"},"toolchains":{"kubernetes":false}}'
   yq -o=json "$out/off.yaml" | jq -e '.kubernetes.enabled == false' >/dev/null
+}
+
+@test "zsh plugin externals render tracking default branches with exact=true and a weekly refreshPeriod" {
+  local out="$BATS_TEST_TMPDIR/zsh-externals.toml"
+  render_with_data "$REPO_ROOT/home/.chezmoiexternals/zsh.toml.tmpl" "$out"
+
+  python3 - "$out" <<'PY'
+import re, sys, tomllib
+
+data = tomllib.loads(open(sys.argv[1], "rb").read().decode("utf-8"))
+expected = {
+    ".config/zsh/plugins/zsh-autosuggestions",
+    ".config/zsh/plugins/zsh-syntax-highlighting",
+    ".config/zsh/plugins/fzf-tab",
+}
+assert set(data.keys()) == expected, f"unexpected targets: {set(data.keys())}"
+# Track-latest policy (docs/agents/chezmoi.md): branch refs, never SHA pins.
+branch_re = re.compile(r"^https://github\.com/[^/]+/[^/]+/archive/(master|main)\.tar\.gz$")
+for target, entry in data.items():
+    assert entry.get("type") == "archive", f"{target}: type != archive"
+    assert entry.get("exact") is True, f"{target}: exact != true"
+    assert entry.get("refreshPeriod") == "168h", f"{target}: refreshPeriod != 168h: {entry.get('refreshPeriod')}"
+    assert branch_re.match(entry.get("url", "")), f"{target}: url does not track a default branch: {entry.get('url')}"
+PY
 }

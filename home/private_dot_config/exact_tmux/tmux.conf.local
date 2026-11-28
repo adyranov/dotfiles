@@ -150,10 +150,10 @@ unbind C-b
 set -g prefix C-a
 bind C-a send-prefix
 
-bind -n M-Left select-pane -L
-bind -n M-Right select-pane -R
-bind -n M-Up select-pane -U
-bind -n M-Down select-pane -D
+bind -n M-S-Left select-pane -L
+bind -n M-S-Right select-pane -R
+bind -n M-S-Up select-pane -U
+bind -n M-S-Down select-pane -D
 
 bind X confirm-before -p "kill-session #S? (y/n)" kill-session
 

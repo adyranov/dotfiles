@@ -79,6 +79,14 @@ agent pi       # Pi; ~/.config/pi/agent
 - **`llm-bench [model ...]`** — native `llama-bench` / `mlx_lm` throughput benchmarks.
 - **`skyl [--job] <category/task> [flags]`** — launches static SkyPilot task YAMLs from `~/.config/skypilot/` (`--job` runs a managed job). Clouds: Lambda, RunPod, Vast; credentials via `uvx runpod config`, `VAST_AI_ACCOUNT_KEY`/`VAST_AI_API_KEY`, `LAMBDA_CLOUD_API_KEY`.
 
+## Shell
+
+zsh (plain, no framework) with a starship prompt; bash shares the same exports, aliases, prompt and integrations. Plugins (autosuggestions, syntax highlighting, fzf-tab) arrive via `chezmoi apply`; completions come from carapace.
+
+- **Keys**: `Right` accepts the autosuggestion; `Alt+←/→` word motion and `Alt+Backspace` word delete (in tmux too); `Up/Down` prefix history, `Ctrl-R` atuin; `Shift+←/→` directory back/forward, `Shift+↑` parent, `Shift+↓` fzf child jump; `Esc Esc` toggles `sudo`. tmux pane switching moved to **Alt+Shift+Arrows** (plain Alt+Arrows now reach the shell).
+- **Abbreviations** (zsh only): edit `~/.config/zsh-abbr/user-abbreviations` and reload; expansion runs on Space/Enter.
+- **Add a completion**: carapace covers most CLIs (`carapace --list`). If missing, add a spec YAML to `home/private_dot_config/carapace/exact_specs/` (loaded at runtime, e.g. `chezmoi.yaml`); for CLIs with no dynamic completion engine keep a small `#compdef` wrapper in `home/private_dot_config/exact_zsh/exact_completions/` (like `_doggo`).
+
 ## Development & Architecture
 
 - See [ARCHITECTURE.md](ARCHITECTURE.md) for the repository layout, apply pipeline, and test suite structure.
@@ -108,6 +116,7 @@ Install Manager Legend:
 | [atuin](https://github.com/atuinsh/atuin) | Shell history sync and search | `mise ✅` (macOS Intel: `macports`; Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
 | [bat](https://github.com/sharkdp/bat) | Syntax-aware pager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [btop](https://github.com/aristocratos/btop) | Resource monitor | `mise ✅` (macOS: `system`) | ✅ | ✅ | ✅ | ✅ |
+| [carapace](https://carapace.sh) | Multi-shell argument completer | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [chezmoi](https://www.chezmoi.io) | Dotfiles manager | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [curl](https://curl.se) | HTTP transfer toolkit | `system` | ✅ | ✅ | ✅ | ✅ |
 | [dcg](https://github.com/Dicklesworthstone/destructive_command_guard) | Destructive command guard | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
@@ -140,6 +149,7 @@ Install Manager Legend:
 | [rclone](https://rclone.org) | Cloud storage sync | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [ripgrep](https://github.com/BurntSushi/ripgrep) | Recursive text search | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [sd](https://github.com/chmln/sd) | Intuitive sed alternative | `mise ✅` (Arch: `pacman`) | ✅ | ✅ | ✅ | ✅ |
+| [starship](https://starship.rs) | Cross-shell prompt | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [tealdeer](https://github.com/tealdeer-rs/tealdeer) | Fast tldr client | `mise ✅` | ✅ | ✅ | ✅ | ✅ |
 | [tmux](https://github.com/tmux/tmux) | Terminal multiplexer | `system` | ✅ | ✅ | ✅ | ✅ |
 | [topgrade](https://github.com/topgrade-rs/topgrade) | System-wide upgrader | `mise ✅` | ✅ | ✅ | ✅ | ✅ |

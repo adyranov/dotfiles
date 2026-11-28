@@ -50,7 +50,7 @@ subagent_limit = 8
 big = ["infer01/qwen3.8-flash-next:xhigh"]
 medium = ["infer01/qwen3.8-flash-next:xhigh"]
 oracle = ["infer01/qwen3.8-flash-next:xhigh"]
-small = ["infer01/qwen3.8-flash-next:off"]
+small = ["infer01/qwen3.8-flash-next:low"]
 visual = ["infer01/qwen3.8-flash-next:xhigh"]
 
 [ai.profiles.personal.providers]

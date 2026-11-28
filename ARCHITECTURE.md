@@ -8,10 +8,11 @@ Structural map of this [chezmoi](https://www.chezmoi.io/) repository (`home/` is
 | --- | --- |
 | `home/.chezmoi.yaml.tmpl` | Interactive/headless host config (`host.*`, `toolchains.*`, `secrets.age`) |
 | `home/.chezmoidata/` | Flat domain TOML (`ai/`, `brew.toml`, `editors.toml`, `repositories.toml`) and layered package catalogs (`base/packages/`, `os/<distro>/packages.toml`) |
-| `home/.chezmoiexternals/` | Centralized external archives/repos (`fonts.toml.tmpl`, `themes.toml.tmpl`, `ai.toml.tmpl`) |
+| `home/.chezmoiexternals/` | Centralized external archives/repos (`fonts.toml.tmpl`, `themes.toml.tmpl`, `ai.toml.tmpl`, `zsh.toml.tmpl`) |
 | `home/.chezmoitemplates/` | Shared partials: `base/packages/` selector DSL, `base/ai/parse-route`, `base/ai/roles/`, `base/ai/sandbox/render-profile`, `base/editors/vscode-settings`, `os/<distro>/install`, `os/<distro>/bootstrap` (not on Arch), `os/darwin/brewfile` |
-| `home/.chezmoiscripts/` | Ordered scripts: `run_before_05_migrate-claude-dir.sh`, `before/` -> `common/` (incl. editor extensions) -> `os/<distro>/` -> `post/` -> `toolchains/`; `os/<distro>/.init.sh` is the read-source-state pre-hook |
-| `home/private_dot_config/` | XDG configs (`zsh`, `tmux`, `git`, `nvim`, `claude`, `opencode`, `omp`, `pi`, `dcg`, `nono`, `local-llm`, `skypilot`, etc.) |
+| `home/.chezmoiscripts/` | Ordered scripts: `run_before_05_migrate-claude-dir.sh`, `before/` -> `common/` (incl. editor extensions) -> `os/<distro>/` -> `toolchains/`; `os/<distro>/.init.sh` is the read-source-state pre-hook |
+| `home/private_dot_config/` | XDG configs (`shell` — exports orchestrator, `exports.d/` drop-ins, shared `interactive.sh`; `zsh` — plain zsh config, widgets, keybindings, carapace-era completion wrappers; `carapace/exact_specs/` — user completion specs; `tmux`, `git`, `nvim`, `claude`, `opencode`, `omp`, `pi`, `dcg`, `nono`, `local-llm`, `skypilot`, etc.) |
+| `home/dot_bashrc`, `home/dot_bash_profile` | bash entry points; source the shared `shell/interactive.sh` (bash 3.2-safe) |
 | `home/private_dot_local/exact_bin/` | User CLIs: `agent`, `llm-serve`, `llm-pull`, `llm-bench` |
 | `.mise/tasks/` | Repo mise tasks (`build-containers`, `docs-tools`) |
 | `tests/` | Repo-only Bats suites: `render.bats`, `packages.bats`, `ai.bats`, `config.bats` |
@@ -33,9 +34,8 @@ home/.chezmoi.yaml.tmpl      -> renders ~/.config/chezmoi/chezmoi.yaml
 home/* (files & modify_*)    -> renders configs, symlinks, externals
   |
   v
-.chezmoiscripts/common/      -> mise tools, helm plugins, completions, bat cache, login shell
+.chezmoiscripts/common/      -> mise tools, helm plugins, shell history move + init-cache wipe, bat cache, login shell
 .chezmoiscripts/os/<distro>/ -> OS defaults, LaunchAgents, CA bundle
-.chezmoiscripts/post/        -> zsh4humans (z4h) bootstrap
 .chezmoiscripts/toolchains/  -> nono packs, omlx links, Java truststore
 ```
 
@@ -55,6 +55,6 @@ Gated paths are ignored via `home/.chezmoiignore.tmpl`; unconditionally retired 
 | `tests/render.bats` | TOML syntax, non-interactive init, AI cross-refs, personal/work renders, `modify_` merges, render matrix (OS/arch/profile), gopls gating, Colima, nono profiles & OAuth/write-protection invariants |
 | `tests/packages.bats` | Applied `mise` tools, aggregate CLI smoke, Intel MacPorts vs ARM Homebrew routing & Brewfile guardrails |
 | `tests/ai.bats` | Shared symlinks, DCG hooks & write-axis floors, `agent` launcher, live `nono` sandbox |
-| `tests/config.bats` | XDG dirs, git core defaults, POSIX/Zsh syntax checks, `chezmoi data` |
+| `tests/config.bats` | XDG dirs, git core defaults, POSIX/Zsh/bash syntax and shell behaviour (keybindings, abbreviations, starship prompt, carapace completions), `chezmoi data` |
 
 GitHub Actions run `ci.yaml` (path-filtered PR/main gate dispatching `ci-host`/`ci-docker`), `lint.yaml` (`prek` + template rendering), `ci-host.yaml` (Ubuntu + macOS smoke/full), `ci-docker.yaml` (Arch/Fedora/Ubuntu Bats `docker-test` gating multi-arch image builds), `ci-wsl.yaml` (Ubuntu WSL), `ci-regression.yaml` (weekly full lane), and `security-scan.yaml` (Trivy on `main`).

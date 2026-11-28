@@ -1,0 +1,19 @@
+{{- /* zsh plugins (centralized). Default-branch refs: they track upstream
+       latest per the docs/agents/chezmoi.md update policy, refreshed weekly. */ -}}
+{{ template "base/github/external" (dict
+    "type"   "archive"
+    "target" ".config/zsh/plugins/zsh-autosuggestions"
+    "repo"   "zsh-users/zsh-autosuggestions@master"
+    "exact"  true) }}
+
+{{ template "base/github/external" (dict
+    "type"   "archive"
+    "target" ".config/zsh/plugins/zsh-syntax-highlighting"
+    "repo"   "zsh-users/zsh-syntax-highlighting@master"
+    "exact"  true) }}
+
+{{ template "base/github/external" (dict
+    "type"   "archive"
+    "target" ".config/zsh/plugins/fzf-tab"
+    "repo"   "Aloxaf/fzf-tab@master"
+    "exact"  true) }}

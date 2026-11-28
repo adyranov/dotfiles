@@ -5,7 +5,6 @@ install.sh
 !.chezmoiscripts/before/**
 !.chezmoiscripts/common/**
 !.chezmoiscripts/os/{{ .host.distro.id }}/**
-!.chezmoiscripts/post/**
 {{- if .toolchains.ai }}
 !.chezmoiscripts/toolchains/ai/**
 {{ if get .toolchains "claude" | default false }}!.chezmoiscripts/05_migrate-claude-dir.sh{{ end }}
