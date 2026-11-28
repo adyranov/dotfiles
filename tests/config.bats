@@ -252,7 +252,14 @@ PY
   local agent_log="$BATS_TEST_TMPDIR/ssh-agent.log"
   local agent_up="$BATS_TEST_TMPDIR/agent-up"
   mkdir -p "$fake_bin" "$ssh_home/.ssh" "$ssh_home/.local/share/shell"
-  ln -s "$HOME/.zshenv" "$ssh_home/.zshenv"
+  # Generated zshenv (not a symlink): brew shellenv inside .zshenv prepends
+  # /opt/homebrew/bin, which on runners shadows the fakes; re-prepend fake_bin
+  # after exports so the ssh block resolves the fakes deterministically.
+  cat >"$ssh_home/.zshenv" <<SH
+. "$HOME/.zshenv"
+path=("$fake_bin" \$path)
+hash -r
+SH
   ln -s "$HOME/.config" "$ssh_home/.config"
   [ ! -f "$HOME/.local/share/shell/zcompdump" ] || cp "$HOME/.local/share/shell/zcompdump" "$ssh_home/.local/share/shell/zcompdump"
   : >"$ssh_home/.ssh/id_yk_blue"
@@ -296,19 +303,9 @@ SH
     MISE_DATA_DIR="$HOME/.local/share/mise" MISE_STATE_DIR="$HOME/.local/state/mise" \
     PATH="$test_path" SSH_AUTH_SOCK=/tmp/existing.sock \
     FAKE_SSH_ADD_RC=1 FAKE_SSH_ADD_LOG="$add_log" FAKE_SSH_AGENT_LOG="$agent_log" \
-    zsh -ic 'hash -r; exit' </dev/null
+    zsh -ic exit </dev/null
   [ ! -s "$agent_log" ] || fail "ssh-agent spawned when ssh-add exited 1"
-  # TEMP DIAGNOSTIC (drop after macos runner case-1 is understood): rerun the
-  # exact case-1 shell with xtrace and surface ssh-relevant lines on failure.
-  grep -Fq -- "-q $ssh_home/.ssh/id_yk_blue" "$add_log" || {
-    env -u AGENT_SANDBOX -u __MISE_DIFF -u __MISE_ORIG_PATH -u __MISE_SESSION \
-      HOME="$ssh_home" XDG_CONFIG_HOME="$ssh_home/.config" XDG_DATA_HOME="$ssh_home/.local/share" ZDOTDIR="$ssh_home/.config/zsh" \
-      MISE_DATA_DIR="$HOME/.local/share/mise" MISE_STATE_DIR="$HOME/.local/state/mise" \
-      PATH="$test_path" SSH_AUTH_SOCK=/tmp/existing.sock \
-      FAKE_SSH_ADD_RC=1 FAKE_SSH_ADD_LOG="$add_log" FAKE_SSH_AGENT_LOG="$agent_log" \
-      zsh -icx exit </dev/null >"$BATS_TEST_TMPDIR/ssh-case1-xtrace.log" 2>&1
-    fail "expected id_yk_blue added on exit 1: log=[$(cat "$add_log")] zshrc_ssh=[$(grep -aE '\.zshrc:(3[89]|[45][0-9]|6[01])>' "$BATS_TEST_TMPDIR/ssh-case1-xtrace.log" | head -c 2000)]"
-  }
+  grep -Fq -- "-q $ssh_home/.ssh/id_yk_blue" "$add_log" || fail "expected id_yk_blue added on exit 1: $(cat "$add_log")"
 
   # Case 2: ssh-add -l exits 2 (no agent) -> 1 ssh-agent call, then key added
   : >"$add_log"
