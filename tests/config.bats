@@ -295,7 +295,7 @@ SH
       PATH="$test_path" SSH_AUTH_SOCK=/tmp/existing.sock \
       FAKE_SSH_ADD_RC=1 FAKE_SSH_ADD_LOG="$add_log" FAKE_SSH_AGENT_LOG="$agent_log" \
       zsh -icx exit </dev/null >"$BATS_TEST_TMPDIR/ssh-case1-xtrace.log" 2>&1
-    fail "expected id_yk_blue added on exit 1: log=[$(cat "$add_log")] xtrace_ssh=[$(grep -a 'ssh\|AGENT_SANDBOX\|commands\[' "$BATS_TEST_TMPDIR/ssh-case1-xtrace.log" | tail -c 1500)] xtrace_end=[$(tail -c 800 "$BATS_TEST_TMPDIR/ssh-case1-xtrace.log")]"
+    fail "expected id_yk_blue added on exit 1: log=[$(cat "$add_log")] zshrc_ssh=[$(grep -aE '\.zshrc:(3[89]|[45][0-9]|6[01])>' "$BATS_TEST_TMPDIR/ssh-case1-xtrace.log" | head -c 2000)]"
   }
 
   # Case 2: ssh-add -l exits 2 (no agent) -> 1 ssh-agent call, then key added
