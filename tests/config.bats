@@ -252,15 +252,31 @@ PY
   local agent_log="$BATS_TEST_TMPDIR/ssh-agent.log"
   local agent_up="$BATS_TEST_TMPDIR/agent-up"
   mkdir -p "$fake_bin" "$ssh_home/.ssh" "$ssh_home/.local/share/shell"
-  # Generated zshenv (not a symlink): brew shellenv inside .zshenv prepends
-  # /opt/homebrew/bin, which on runners shadows the fakes; re-prepend fake_bin
-  # after exports so the ssh block resolves the fakes deterministically.
-  cat >"$ssh_home/.zshenv" <<SH
+  # zsh reads ${ZDOTDIR:-$HOME}/.zshenv, so a shim must live inside ZDOTDIR
+  # itself: build a real zsh dir whose entries link to the real config, then
+  # drop a generated .zshenv that sources the real exports and re-prepends
+  # fake_bin. brew shellenv (inside the real zshenv) prepends
+  # /opt/homebrew/bin, which on runners shadows the fakes otherwise.
+  mkdir -p "$ssh_home/.config/zsh"
+  local f b
+  for f in "$HOME/.config/zsh"/* "$HOME/.config/zsh"/.[!.]*; do
+    [ -e "$f" ] || continue
+    b="$(basename "$f")"
+    [ "$b" = ".zshenv" ] && continue
+    ln -s "$f" "$ssh_home/.config/zsh/$b"
+  done
+  for f in "$HOME/.config"/* "$HOME/.config"/.[!.]*; do
+    [ -e "$f" ] || continue
+    b="$(basename "$f")"
+    [ "$b" = "zsh" ] && continue
+    ln -s "$f" "$ssh_home/.config/$b"
+  done
+  cat >"$ssh_home/.config/zsh/.zshenv" <<SH
 . "$HOME/.zshenv"
+export ZDOTDIR="$ssh_home/.config/zsh"
 path=("$fake_bin" \$path)
 hash -r
 SH
-  ln -s "$HOME/.config" "$ssh_home/.config"
   [ ! -f "$HOME/.local/share/shell/zcompdump" ] || cp "$HOME/.local/share/shell/zcompdump" "$ssh_home/.local/share/shell/zcompdump"
   : >"$ssh_home/.ssh/id_yk_blue"
   cat >"$fake_bin/ssh-add" <<'SH'
