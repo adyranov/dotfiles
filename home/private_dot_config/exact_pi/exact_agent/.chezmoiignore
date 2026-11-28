@@ -28,6 +28,7 @@ lastChangelogVersion
 mcp-cache.json
 mcp-last-seen-version.json
 mcp-onboarding.json
+missions/
 models-store.json
 npm/
 pi-subagents/

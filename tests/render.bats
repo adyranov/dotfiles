@@ -46,9 +46,11 @@ for role_name, rd in roles["roles"].items():
 
 for prof_name, prof in models["profiles"].items():
     valid = {f"{p}/{m}" for p, ms in prof.get("providers", {}).items() for m in ms}
+    served = {}
     for sp_id, sp in prof.get("serving", {}).items():
         for m in sp.get("models", []):
             valid.add(f"{sp_id}/{m['id']}")
+            served[f"{sp_id}/{m['id']}"] = m
     for preset_name, preset in prof.get("presets", {}).items():
         for tier_name, specs in preset.get("tiers", {}).items():
             assert specs, f"{prof_name}.{preset_name}.{tier_name} is empty"
@@ -58,6 +60,12 @@ for prof_name, prof in models["profiles"].items():
                 ref = f"{prov}/{mid}"
                 if ref not in valid:
                     sys.exit(f"{prof_name}.{preset_name}.{tier_name} references unlisted model {ref}")
+                # A served model's efforts are the only thinking levels its chat
+                # template takes; infer01's qwen template has no off level at all.
+                efforts = served.get(ref, {}).get("efforts")
+                thinking = rest.rsplit(":", 1)[1] if ":" in rest else "off"
+                if efforts and thinking not in efforts:
+                    sys.exit(f"{ref} tier {tier_name} asks thinking={thinking}, model takes {efforts}")
 PY
 }
 
@@ -408,7 +416,7 @@ EOF
   yq -o=json "$out/off.yaml" | jq -e '.kubernetes.enabled == false' >/dev/null
 }
 
-@test "zsh plugin externals render with 40-char commit SHA refs, exact=true, and no refreshPeriod" {
+@test "zsh plugin externals render tracking default branches with exact=true and a weekly refreshPeriod" {
   local out="$BATS_TEST_TMPDIR/zsh-externals.toml"
   render_with_data "$REPO_ROOT/home/.chezmoiexternals/zsh.toml.tmpl" "$out"
 
@@ -422,11 +430,12 @@ expected = {
     ".config/zsh/plugins/fzf-tab",
 }
 assert set(data.keys()) == expected, f"unexpected targets: {set(data.keys())}"
-sha_re = re.compile(r"^https://github\.com/[^/]+/[^/]+/archive/[0-9a-f]{40}\.tar\.gz$")
+# Track-latest policy (docs/agents/chezmoi.md): branch refs, never SHA pins.
+branch_re = re.compile(r"^https://github\.com/[^/]+/[^/]+/archive/(master|main)\.tar\.gz$")
 for target, entry in data.items():
     assert entry.get("type") == "archive", f"{target}: type != archive"
     assert entry.get("exact") is True, f"{target}: exact != true"
-    assert "refreshPeriod" not in entry, f"{target}: unexpected refreshPeriod"
-    assert sha_re.match(entry.get("url", "")), f"{target}: url is not a 40-char commit SHA archive: {entry.get('url')}"
+    assert entry.get("refreshPeriod") == "168h", f"{target}: refreshPeriod != 168h: {entry.get('refreshPeriod')}"
+    assert branch_re.match(entry.get("url", "")), f"{target}: url does not track a default branch: {entry.get('url')}"
 PY
 }
